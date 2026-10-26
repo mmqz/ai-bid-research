@@ -139,6 +139,11 @@ def main() -> int:
                  if r["recall_hit"] and r.get("supported_elsewhere")]
     report = {
         "eval": "P2-real-file-score",
+        # SC-11（issue #39 吸收）：机器可读契约稳定性——schema 语义版本。
+        # 破坏性字段变更（删除/重命名/语义改判据）必须升版本并在此登记变更记录；
+        # 追加字段不升版（消费方按字段名读取，serde/default 语义）。
+        # 变更记录：1.0 = R3-S3-4 严格引用判据 + 类别命中维度定稿（2026-10-25）。
+        "schema_version": "1.0",
         "gt_status": "AI 初标草案（待人工验收）——指标为草案对齐结果，不外推为验收指标",
         "gt_file_target": "04_某水利工程施工标段_施工招标文件.pdf（142 页）",
         "reqs_in_file": len(reqs_04),

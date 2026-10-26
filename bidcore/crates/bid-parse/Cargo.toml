@@ -13,6 +13,7 @@ regex = { workspace = true }
 zip = { workspace = true }
 quick-xml = { workspace = true }
 calamine = { workspace = true }
+memchr = { workspace = true }
 unicode-normalization = { workspace = true }
 libc = { workspace = true }
 

@@ -49,6 +49,22 @@ pub struct ParsedFile {
     pub ocr_blocks: usize,
     pub blocks: Vec<Block>,
     pub parse_summary: String,
+    /// SC-02 部件对账账本：部件在位数 vs 进入输出流提取数——present>0 而
+    /// extracted==0 的部件必须带 note 显式登记（登记不伪装面扩展到部件级，
+    /// G7 零提取面逐文件可见化）。非 docx 解析面为空账本（部件概念不适用）。
+    #[serde(default)]
+    pub components: Vec<ComponentLedger>,
+}
+
+/// SC-02 部件对账账本行（cpa-multi-plugins issue #38 吸收：docx 进 N 个部件，
+/// 出站必须有清单；任何部件 0 提取必留显式事件）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComponentLedger {
+    pub component: String, // 正文/页眉/页脚/文本框/批注/脚注尾注/修订插入/修订删除
+    pub present: usize,    // 在位部件数（或出现次数）
+    pub extracted: usize,  // 进入独立输出块的部件数（0 = 零提取，必须带 note）
+    #[serde(default)]
+    pub note: String,
 }
 
 /// 文件类别权重：精确检索的确定性排序因子（主文件权威性优先，防附件/证据同值噪声抢占命中）。

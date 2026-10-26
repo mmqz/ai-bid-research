@@ -3,7 +3,7 @@
 //! 作为 locator —— 下游条款抽取与影响面分析的位置真源。
 
 use crate::guard::{self, LIMIT_ACTUAL_READ_DOCX, LIMIT_INPUT_BYTES_DOCX, LIMIT_XML_DEPTH};
-use crate::{Block, BlockKind, ParsedFile};
+use crate::{Block, BlockKind, ComponentLedger, ParsedFile};
 use quick_xml::events::Event;
 use quick_xml::Reader;
 use std::path::Path;
@@ -164,6 +164,59 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
         .filter(|b| b.kind == BlockKind::Para && as_chapter(&b.text).is_some())
         .count();
     let tables = table_idx;
+
+    // ---- SC-02 部件对账账本（登记不伪装面扩展到部件级，issue #38 吸收）：
+    // 在位部件 vs 进入输出流的提取数；零提取部件必须显式登记（note 非空）——
+    // G7 面从文档级登记升级为逐文件可见。语义口径：
+    //   extracted = 进入**独立输出块**的部件数（页眉/页脚/批注/脚注等独立部件
+    //   文本从不进入块流 → 恒 0 + 显式登记；文本框/修订插入文本会**内联**并入宿主
+    //   段落流——文本未丢失但非独立块，note 如实区分「内联」与「未提取」）。
+    let names: Vec<String> = zf.file_names().map(|n| n.to_string()).collect();
+    let headers = names.iter()
+        .filter(|n| n.starts_with("word/header") && n.ends_with(".xml"))
+        .count();
+    let footers = names.iter()
+        .filter(|n| n.starts_with("word/footer") && n.ends_with(".xml"))
+        .count();
+    let comments = names.iter()
+        .filter(|n| n.starts_with("word/comments") && n.ends_with(".xml"))
+        .count();
+    let fn_en: usize = names.iter()
+        .filter(|n| (n.starts_with("word/footnotes") || n.starts_with("word/endnotes"))
+            && n.ends_with(".xml"))
+        .count();
+    // txbxContent 开闭成对 → 除 2；w:ins/w:delText 按开标签计次
+    let txbx = doc_xml.matches("txbxContent").count() / 2;
+    let ins = doc_xml.matches("<w:ins ").count() + doc_xml.matches("<w:ins>").count();
+    let del_text = doc_xml.matches("<w:delText").count();
+    let mut components = vec![ComponentLedger {
+        component: "正文".into(), present: 1, extracted: 1, note: String::new(),
+    }];
+    let mut push_ledger = |component: &str, present: usize, extracted: usize, note: &str| {
+        if present > 0 {
+            components.push(ComponentLedger {
+                component: component.into(), present, extracted, note: note.into(),
+            });
+        }
+    };
+    push_ledger("页眉", headers, 0, "G7：页眉部件在位、零提取（引擎非正文定位器变体待接入，登记不伪装）");
+    push_ledger("页脚", footers, 0, "G7：页脚部件在位、零提取（同上）");
+    push_ledger("批注", comments, 0, "G7：批注部件在位、零提取（批注读面待 M2+）");
+    push_ledger("脚注尾注", fn_en, 0, "G7：脚注/尾注部件在位、零提取（同上）");
+    // 文本框：嵌套 w:p 语义下其内段落以**独立块**进入流；宿主段落位于文本框
+    // 之后的文本因 in_para 状态被截断（本层真实怪癖——如实登记，引擎面根治）
+    push_ledger("文本框", txbx, txbx, "嵌套段落成独立块入流；宿主段落在框后文本被截断（定位器变体与读面归引擎 M2+）");
+    push_ledger("修订插入", ins, 0, "插入文本内联并入宿主段落（非独立块）；修订语义读面待 M2+");
+    push_ledger("修订删除", del_text, 0, "删除文本 w:delText 未提取（不在捕获面——真实丢失面，登记在案）");
+    let zero_unnoted = components.iter()
+        .any(|c| c.present > 0 && c.extracted == 0 && c.note.is_empty());
+    debug_assert!(!zero_unnoted, "SC-02 不变式：零提取部件必须显式登记");
+    let ledger_note = if components.len() > 1 {
+        format!("｜部件对账 {} 面（零提取件显式登记）", components.len() - 1)
+    } else {
+        String::new()
+    };
+
     Ok(ParsedFile {
         name: String::new(),
         sha256: String::new(),
@@ -172,11 +225,12 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
         has_text_layer: true,
         ocr_blocks: 0,
         blocks,
-        parse_summary: format!("docx: {tables} 表格，段落+表格行块 {cnt}", cnt = 0),
+        parse_summary: String::new(),
+        components,
     })
     .map(|mut p| {
         let cnt = p.blocks.len();
-        p.parse_summary = format!("docx: {tables} 表格，{cnt} 块");
+        p.parse_summary = format!("docx: {} 表格，{cnt} 块{}", p.tables, ledger_note);
         p
     })
 }
@@ -220,6 +274,9 @@ pub fn is_numbered_clause(t: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
+    use zip::write::SimpleFileOptions;
+    use zip::ZipWriter;
 
     #[test]
     fn chapter_subsection_patterns() {
@@ -232,5 +289,146 @@ mod tests {
         assert!(is_numbered_clause("3.2.1 投标人须具有独立承担民事责任能力的法人营业执照"));
         assert!(is_numbered_clause("4.1 价格分（30 分）"));
         assert!(!is_numbered_clause("投标文件格式"));
+    }
+
+    fn real_fixture() -> std::path::PathBuf {
+        // 真实公开文件样本（real-samples/README.md 溯源：北京市水务局
+        // 《水利工程施工电子招标文件示范文本（2025 版）》官方公开示范文本，
+        // LibreOffice .doc→.docx 转换工件——LO 生成器真实产物）
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../real-samples/北京水利施工示范文本2025-LO.docx")
+    }
+
+    /// SC-02 部件对账（真实锚点）：真实示范文本 130 部件（58 页眉 + 58 页脚 +
+    /// 52 表格 + 6698 段落）——账本必须显式登记 116 个零提取部件（G7 面逐文件
+    /// 可见化）。破坏推演：删账本（或 extracted 误计 >0）→ 58/0 断言红；
+    /// 零提取部件无 note → 不变式断言红。
+    #[test]
+    fn real_sample_component_ledger_beijing_2025() {
+        let p = real_fixture();
+        assert!(p.exists(), "真实样本缺失：{p:?}");
+        let pf = parse(&p).expect("真实示范文本必须可解析");
+        assert_eq!(pf.tables, 52, "真实表格数");
+        assert!(pf.blocks.len() > 1000, "真实段落量级：{}", pf.blocks.len());
+        let row = |name: &str| pf.components.iter().find(|c| c.component == name);
+        let body = row("正文").expect("正文行在位");
+        assert_eq!((body.present, body.extracted), (1, 1));
+        let h = row("页眉").expect("页眉行在位");
+        assert_eq!((h.present, h.extracted), (58, 0), "58 页眉件零提取且显式登记");
+        assert!(!h.note.is_empty(), "零提取部件必须带登记注记");
+        let f = row("页脚").expect("页脚行在位");
+        assert_eq!((f.present, f.extracted), (58, 0));
+        assert!(row("批注").is_none(), "真实件无批注部件——不在位不入账（不虚记）");
+        assert!(row("文本框").is_none(), "真实件无文本框");
+        // SC-02 不变式：零提取部件必须显式登记（note 非空）
+        assert!(pf.components.iter()
+            .filter(|c| c.present > 0 && c.extracted == 0)
+            .all(|c| !c.note.is_empty()));
+        assert!(pf.parse_summary.contains("部件对账"), "summary 须携带账本口径：{}", pf.parse_summary);
+    }
+
+    /// SC-02 合成补面：真实件缺的部件（批注/脚注/修订/文本框）字节级构造——
+    /// 补齐「零提取显式登记」的覆盖面（真实锚点 + 定向合成互补，非替代）。
+    /// 破坏推演：批注/脚注行 missing → 红；w:delText 行 extracted≠0 → 红。
+    #[test]
+    fn component_ledger_synthetic_complement() {
+        let d = std::env::temp_dir().join("bidparse_docx_test");
+        std::fs::create_dir_all(&d).unwrap();
+        let p = d.join(format!("ledger_{}.docx", std::process::id()));
+        let f = std::fs::File::create(&p).unwrap();
+        let mut w = ZipWriter::new(f);
+        let opt = SimpleFileOptions::default();
+        let doc = concat!(
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
+            r#"<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>"#,
+            r#"<w:p><w:r><w:t>第一章 总则</w:t></w:r></w:p>"#,
+            r#"<w:p><w:r><w:delText w:id="d1">被删除的修订文本</w:delText></w:r></w:p>"#,
+            r#"<w:p><w:ins w:id="i1" w:author="审计"><w:r><w:t>插入的修订文本</w:t></w:r></w:ins></w:p>"#,
+            r#"<w:p><w:r><w:pict><v:shape xmlns:v="urn:schemas-microsoft-com:vml"><v:textbox><w:txbxContent><w:p><w:r><w:t>文本框内文本</w:t></w:r></w:p></w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p>"#,
+            r#"</w:body></w:document>"#,
+        );
+        w.start_file("word/document.xml", opt).unwrap();
+        w.write_all(doc.as_bytes()).unwrap();
+        w.start_file("word/header1.xml", opt).unwrap();
+        w.write_all(br#"<w:hdr/>"#).unwrap();
+        w.start_file("word/footer1.xml", opt).unwrap();
+        w.write_all(br#"<w:ftr/>"#).unwrap();
+        w.start_file("word/comments.xml", opt).unwrap();
+        w.write_all(br#"<w:comments/>"#).unwrap();
+        w.start_file("word/footnotes.xml", opt).unwrap();
+        w.write_all(br#"<w:footnotes/>"#).unwrap();
+        w.finish().unwrap();
+
+        let pf = parse(&p).expect("合成补面件必须可解析");
+        let row = |name: &str| pf.components.iter().find(|c| c.component == name);
+        assert_eq!(row("页眉").map(|c| (c.present, c.extracted)), Some((1, 0)));
+        assert_eq!(row("页脚").map(|c| (c.present, c.extracted)), Some((1, 0)));
+        assert_eq!(row("批注").map(|c| (c.present, c.extracted)), Some((1, 0)));
+        assert_eq!(row("脚注尾注").map(|c| (c.present, c.extracted)), Some((1, 0)));
+        // 文本框：嵌套 w:p 成独立块（extracted==present==1）
+        assert_eq!(row("文本框").map(|c| (c.present, c.extracted)), Some((1, 1)));
+        // 修订插入内联（0 独立块）；修订删除真实未提取（0）
+        assert_eq!(row("修订插入").map(|c| (c.present, c.extracted)), Some((1, 0)));
+        assert_eq!(row("修订删除").map(|c| (c.present, c.extracted)), Some((1, 0)));
+        // 全部零提取行 note 非空（SC-02 不变式）
+        assert!(pf.components.iter()
+            .filter(|c| c.present > 0 && c.extracted == 0)
+            .all(|c| !c.note.is_empty()));
+        // 提取流真实性：文本框文本成块；插入文本内联进宿主段；删除文本不出现
+        let texts: Vec<&str> = pf.blocks.iter().map(|b| b.text.as_str()).collect();
+        assert!(texts.contains(&"文本框内文本"), "嵌套段落独立块：{texts:?}");
+        assert!(texts.contains(&"插入的修订文本"), "w:ins 内联并入段落：{texts:?}");
+        assert!(!texts.iter().any(|t| t.contains("被删除")), "w:delText 不得入流：{texts:?}");
+    }
+
+    /// SC-08 生成器差异对（真实面）：同一批真实段落文本，经两种生成器——
+    /// ①LibreOffice 转换工件（real-samples 真实 LO 产物）
+    /// ②字节级直构 docx（raw zip + 最小 XML——与 LO 生成器差异最大化）
+    /// ——提取的段落流必须逐字一致（指纹判定不因生成器差异漂移 → 不误降级）。
+    /// 破坏推演：提取流对生成器形状敏感（XML 转义/空白处理漂移）→ 流不等 → 红。
+    #[test]
+    fn generator_pair_stream_invariance() {
+        let lo = parse(&real_fixture()).expect("LO 生成器工件解析");
+        // 取前 200 个真实段落文本作为对照集（确定性子集）
+        let paras: Vec<String> = lo.blocks.iter()
+            .filter(|b| b.kind == BlockKind::Para)
+            .take(200)
+            .map(|b| b.text.clone())
+            .collect();
+        assert!(paras.len() == 200, "真实件段落数不足：{}", paras.len());
+
+        // 生成器 B：直构最小 docx（单 run 单段；XML 转义保持文本逐字）
+        let esc = |s: &str| s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+        let mut body = String::with_capacity(paras.iter().map(|p| p.len() + 40).sum());
+        body.push_str(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#);
+        body.push_str(r#"<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>"#);
+        for t in &paras {
+            body.push_str(&format!("<w:p><w:r><w:t>{}</w:t></w:r></w:p>", esc(t)));
+        }
+        body.push_str("</w:body></w:document>");
+
+        let d = std::env::temp_dir().join("bidparse_docx_test");
+        std::fs::create_dir_all(&d).unwrap();
+        let p = d.join(format!("twin_{}.docx", std::process::id()));
+        let f = std::fs::File::create(&p).unwrap();
+        let mut w = ZipWriter::new(f);
+        w.start_file("word/document.xml", SimpleFileOptions::default()).unwrap();
+        w.write_all(body.as_bytes()).unwrap();
+        w.finish().unwrap();
+
+        let twin = parse(&p).expect("直构孪生件解析");
+        let lo_texts: Vec<&str> = lo.blocks.iter()
+            .filter(|b| b.kind == BlockKind::Para).take(200)
+            .map(|b| b.text.as_str()).collect();
+        let twin_texts: Vec<&str> = twin.blocks.iter()
+            .filter(|b| b.kind == BlockKind::Para).take(200)
+            .map(|b| b.text.as_str()).collect();
+        assert_eq!(lo_texts, twin_texts, "段落流必须生成器无关（提取不变性）");
+
+        // 指纹稳定性（SC-08 oracle 主断言）：同文本 → 同指纹 → 不误降级
+        use bid_domain::linkage::text_fingerprint;
+        let fp_lo: Vec<String> = lo_texts.iter().map(|t| text_fingerprint(t)).collect();
+        let fp_twin: Vec<String> = twin_texts.iter().map(|t| text_fingerprint(t)).collect();
+        assert_eq!(fp_lo, fp_twin, "指纹判定不得因生成器差异漂移");
     }
 }

@@ -280,6 +280,169 @@ fn c3_five_round_rewrite_anchors_stay_correct() {
     assert_eq!(degraded_events, 5);
 }
 
+/// SC-05（cpa-multi-plugins issue #3 吸收）：重写请求只可作用于请求内对象——
+/// **请求外章节零触碰**四断言（定位器零重绑 / 指纹零变化 / 状态恒 Valid /
+/// 审计零提及）。与 c3「恰一链」计数断言互补——c3 证「作用面不小于请求」，
+/// 本测试证「作用面不大于请求」。反例锚：#3 的 `rewriteSystemInPlace`
+/// 未过滤作用对象 + 一刀切替换 → 全部章节连带丢失；契约要求该形态必须
+/// **响亮暴露**（全量降级审计），绝不允许被静默计为单章节重写。
+/// 破坏推演：refresh 锚判定误跨链牵连（邻居段指纹比对错误）→ 零触碰断言红；
+/// blanket 改写被压成单事件 → 反例断言红；Stale 自发回升 → 只降不升断言红。
+#[test]
+fn c3b_rewrite_request_scoped_out_of_target_untouched() {
+    let base_texts = [
+        "投标函详见附件一。",
+        "资质响应文件真实有效。",
+        "技术方案满足第五章要求。",
+        "项目经理到场承诺书见附件二。",
+        "售后服务网点覆盖全国。",
+    ];
+    let chains: Vec<String> = (1..=5).map(|i| format!("CIT-{i}")).collect();
+    let mut locators = HashMap::new();
+    for (i, cid) in chains.iter().enumerate() {
+        locators.insert(cid.clone(), LinkLocator {
+            paragraph_index: i,
+            text_fingerprint: text_fingerprint(base_texts[i]),
+        });
+    }
+    let mut ledger = LinkageLedger::new(&chains);
+    let mut fingerprints: Vec<String> = base_texts.iter().map(|t| text_fingerprint(t)).collect();
+    let before_locators = locators.clone();
+    let before_fingerprints = fingerprints.clone();
+
+    // ----（1）定向重写：请求只含第 3 章节（index 2）——请求外四章节零触碰
+    let target = chains[2].clone();
+    fingerprints[2] = text_fingerprint("技术方案全面满足第五章要求并附对比表。");
+    let degraded = ledger.refresh(true, &locators, &fingerprints);
+    assert_eq!(degraded, vec![target.clone()], "降级必须恰为请求内对象");
+    for (c, loc) in &locators {
+        if c == &target {
+            continue;
+        }
+        assert_eq!(*loc, before_locators[c], "请求外链 {c} 定位器被重绑（越权改写）");
+        assert_eq!(
+            fingerprints[loc.paragraph_index], before_fingerprints[loc.paragraph_index],
+            "请求外链 {c} 所指段指纹变化（越权改写）"
+        );
+        assert_eq!(ledger.status_of(c), Some(LinkageStatus::Valid),
+            "请求外链 {c} 状态被动摇");
+    }
+    // 审计流只提及请求内对象（审计是越权改写的唯一观测面——必须完整）
+    match ledger.audit.last() {
+        Some(bid_domain::linkage::AuditEntry::BodyRefresh { degraded }) => {
+            assert_eq!(degraded, &vec![target.clone()]);
+        }
+        other => panic!("定向改写后末条审计须为 BodyRefresh(恰一链)：{other:?}"),
+    }
+
+    // ----（2）反例响亮暴露（#3 一刀切形态）：全部段同时改写 →
+    // 全部 Valid 链必须集体降级进审计——「全改了但只报一条」即静默越权
+    for i in 0..5 {
+        fingerprints[i] = text_fingerprint(&format!("{}（被一刀切改写）", base_texts[i]));
+    }
+    let degraded = ledger.refresh(true, &locators, &fingerprints);
+    let mut rest = chains.clone();
+    rest.remove(2); // target 已 Stale（只降不升——refresh 跳过）
+    assert_eq!(degraded, rest, "一刀切改写必须响亮降级全部其余链——审计不得静默缩水");
+
+    // ----（3）只降不升交叉断言：target 内容虽被（2）再次改写，仍是 Stale——
+    // refresh 从不是回升通道（CIT-3 在（1）降级后经历两轮 refresh 不得自愈）
+    assert_eq!(ledger.status_of(&target), Some(LinkageStatus::Stale));
+    assert!(!ledger.all_valid());
+}
+
+// ================================================================ C1-real 真实补遗链（D3 公告级）
+
+/// D3 真实补遗链（SC-07/SC-08 场景库 L 类落地，替换 V2-R6 的 SYNTHETIC 层）：
+/// 中国传媒大学教学资源中心建设（项目编号 028 号）——招标公告 2026-07-13 →
+/// 更正公告 2026-07-28 → 中标公告 2026-08-14，**全部字段可溯源**（公开公告
+/// URL 见 real-samples/中传028真实采购链.json；grade=REAL_DATA 公告级）。
+/// 更正内容（公告原文）：①开标 08-03→08-13；②实施节点一 07-31→08-30；
+/// ③节点二 08-30→09-10；④**无预算变更**；⑤**「其他内容均无修改」**。
+/// 破坏推演：DIRTY 扩散（多章节）→「其他内容均无修改」被违反即红；
+/// 零翻转被翻/未变节点被动 → 零误翻断言红；重导入触碰任何字段 → SC-07 快照红。
+/// 诚实边界：公告级（文件级招标文件需购买不入仓）；公告无可证的有效期证据
+/// → R-date 重检真实运行但断言**零翻转**（不虚构到期证书）。
+#[test]
+fn c1_real_addendum_chain_cuc028() {
+    use bid_domain::impact::AddendumEvent;
+    let mut eng = ImpactEngine::cuc_2026_028();
+    eng.prime_validity(); // 基线判定（基准日 2026-08-03）
+    assert_eq!(eng.eval_date(), "2026-08-03");
+
+    // sha 为公告标识（announce:<URL slug>）——公告级无文件哈希，诚实口径
+    let fname = "中国传媒大学教学资源中心建设更正公告-20260728.htm";
+    let sha = "announce:t20260728_27025731";
+    let mut e1 = HashMap::new();
+    e1.insert("milestone_date".to_string(), serde_json::json!("2026-08-30"));
+    let mut e2 = HashMap::new();
+    e2.insert("milestone_date".to_string(), serde_json::json!("2026-09-10"));
+    let events = vec![
+        AddendumEvent::ClauseModified { gt_id: "GT-S01".into(), params: e1 }, // 节点一 07-31→08-30
+        AddendumEvent::ClauseModified { gt_id: "GT-S02".into(), params: e2 }, // 节点二 08-30→09-10
+        AddendumEvent::EvalDateChanged { new_date: "2026-08-13".into() },     // 开标 08-03→08-13
+        // 无 VersionConflict 事件——公告明确无预算变更（虚构冲突即失实）
+    ];
+
+    // ---- SC-07 前置快照：重导入前基线（幂等 ≠ 无害清空——diff 须限变更集）
+    let impact = eng.import_events(fname, sha, &events);
+
+    // R-mod/R-date 联合后的影响面：DIRTY 恰 {技术方案-实施计划}——
+    // 公告「其他内容均无修改」= 零扩散的**真实世界确认**（商务报价/资格响应不动）
+    let mut dirty = eng.dirty_sections();
+    dirty.sort();
+    assert_eq!(dirty, vec!["技术方案-实施计划"],
+        "DIRTY 必须恰为被更正章节——「其他内容均无修改」的真实世界确认");
+    assert!(impact.dirty_matrix.contains(&"GT-S01".to_string()));
+    assert!(impact.dirty_matrix.contains(&"GT-S02".to_string()));
+    assert!(!impact.dirty_matrix.contains(&"GT-S03".to_string()),
+        "节点三 09-23 公告明示不变——不得入脏面");
+    assert!(!impact.dirty_matrix.contains(&"GT-B01".to_string()),
+        "预算未变更——商务行不得入脏面");
+
+    // 版本戳恰 +1；基准日切换；无冲突登记（真实：无价格变更）
+    assert_eq!(eng.content_version, 2);
+    assert_eq!(eng.eval_date(), "2026-08-13");
+    assert!(eng.conflicts().is_empty(), "公告无预算变更——不得虚构冲突");
+
+    // latest_version_wins：被改节点新值生效；未改节点原值保持（9-23 不变）
+    assert_eq!(eng.reqs()["GT-S01"].params["milestone_date"], serde_json::json!("2026-08-30"));
+    assert_eq!(eng.reqs()["GT-S02"].params["milestone_date"], serde_json::json!("2026-09-10"));
+    assert_eq!(eng.reqs()["GT-S03"].params["milestone_date"], serde_json::json!("2026-09-23"),
+        "未变更节点保持原值（公告明示不变的节点被动即失实）");
+
+    // R-date 全项目重检真实运行 + 零翻转（公告无可证有效期证据——不虚构翻转）
+    assert!(eng.recheck_log.last().unwrap() == "2026-08-13");
+    assert!(impact.flips.is_empty(), "零误翻：无可证到期面");
+    assert_eq!(eng.bindings()["GT-Q01"].status, BindingStatus::Valid);
+
+    // 门禁语义：被更正章节阻断 ACCEPTED；无关章节不受牵连（真实范围声明）
+    assert!(matches!(eng.try_accept("技术方案-实施计划"), Err(AcceptBlock::Dirty)));
+    eng.try_accept("资格响应").expect("无关章节可 ACCEPTED——零扩散的真实面");
+    eng.try_accept("商务报价").expect("预算未变更——商务报价可 ACCEPTED");
+
+    // 中标公告交叉核（真实世界一致性）：中标 105 万 ≤ 预算 108 万
+    let award: i64 = 1_050_000; // 中标公告 2026-08-14 原文
+    let budget = eng.reqs()["GT-B01"].params["budget"].as_i64().unwrap();
+    assert!(award <= budget, "中标金额必须在预算内（真实世界一致性核验）");
+
+    // ---- SC-07：同 sha 重导入 → no-op 且**零触碰**（幂等 ≠ 无害清空；
+    // 刷新路径不得触碰未变更字段——全字段快照逐位比对）
+    let snap_reqs = format!("{:?}", eng.reqs());
+    let snap_bindings = format!("{:?}", eng.bindings());
+    let snap_matrix = format!("{:?}", eng.matrix());
+    let snap_sections = format!("{:?}", eng.sections());
+    let snap_recheck = eng.recheck_log.clone();
+    let reimport = eng.import_events(fname, sha, &events);
+    assert!(reimport.idempotent_noop, "同 sha 重导入必须 no-op");
+    assert_eq!(eng.content_version, 2, "no-op 不得动版本戳");
+    assert_eq!(format!("{:?}", eng.reqs()), snap_reqs, "重导入触碰了 reqs（SC-07 违例）");
+    assert_eq!(format!("{:?}", eng.bindings()), snap_bindings, "重导入触碰了 bindings");
+    assert_eq!(format!("{:?}", eng.matrix()), snap_matrix, "重导入触碰了 matrix");
+    assert_eq!(format!("{:?}", eng.sections()), snap_sections, "重导入触碰了 sections");
+    assert_eq!(eng.recheck_log, snap_recheck, "重导入不得追加重检轮次");
+}
+
 // ================================================================ C4 导出中断不产生虚假成功
 
 #[test]

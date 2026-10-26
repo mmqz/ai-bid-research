@@ -21,7 +21,7 @@
 | [docs/engine-capability-requests-g1g3.md](docs/engine-capability-requests-g1g3.md) | **G1/G2/G3 引擎能力需求提交材料**（2026-10-25）：三缺口的最新源码直引（非转述）+ 验收条件 + 依赖 + 业务侧现状（G1 域路径先例/G3 zip 补丁过渡）+ 责任边界声明 | 经用户转达引擎团队；引擎仓只读红线不破 |
 | [docs/mvp-implementation-plan.md](docs/mvp-implementation-plan.md) | MVP 实施顺序（M0~M5） | M3 起接真实内核（接口按 AD-07 修订对齐） |
 | [research/real-scenario-library.md](research/real-scenario-library.md) | **真实场景库 v1.0（2026-10-26）**：cpa-multi-plugins 45 条生产 issues 全量吸收——12 类故障模式分类学 × 四契约/T-03/T-04/G1~G3 同构映射 × SC-01~12 用例（来源 issue# + oracle + 覆盖状态 + 排期） | issue 库=场景设计源，公开文件=数据基准，不可互替；45 条全覆盖可溯源（原始证据 research/raw/cpa-issues/） |
-| [research/audit-r5.md](research/audit-r5.md) | **R5 独立复审报告**（R4 自查独立性补偿轮）：23 探针全自建 + 34 项负向测试假绿猎杀零假绿 + 0e50961 五项修复声明逐项独立复证 + 主代理处置决议 | 推翻 R4"守恒门 7 类变体无绕过"（exotica 绕过族三形态 S3 登记，修复排 M1.6）；cargo 53/53 + run_tests 46/46 独立复跑 |
+| [research/audit-r5.md](research/audit-r5.md) | **R5 独立复审报告**（R4 自查独立性补偿轮）：23 探针全自建 + 34 项负向测试假绿猎杀零假绿 + 0e50961 五项修复声明逐项独立复证 + 主代理处置决议 + **M1.6 处置闭环（§9）** | 推翻 R4"守恒门 7 类变体无绕过"（exotica 绕过族三形态）→ **M1.6 已全封（镜像化实现，方案 1+2+3 全采纳）**；cargo 65/65 + run_tests 51/51 |
 
 ## 架构一句话总结
 
@@ -39,9 +39,14 @@
 - **已执行（P2 第一轮 v0.1，2026-10-25）：真实文件评测**——五件真实公开水利招标文件（3 文本层 PDF + 1 纯扫描补遗 OCR 真跑 + zip 拒绝验证）× Rust 全链路；**召回 33%→75%（三轮修复）、引用支持 100%**；GT 草案 24 条待人工验收。评测驱动修 5 缺口（数字章节/扫描件页数/目录行/无编号否决-资格-评分三通道/续行窗）；实证"37/37 全绿 ≠ 系统可靠"（合成契约 vs 真实结构多样性不可互替）；已知差距登记 D1 表格拆行/OCR 噪声/技术语义归 M2。证据：`artifacts/real-eval/`（REPORT.md + score-report.json + GT 草案）。
 - **已执行（R5 独立复审，2026-10-26）：R4 自查轮独立性补偿**——独立子代理 + 23 探针全自建（R4 样本已丢失，零参考）复证 0e50961 五项修复声明全部属实；34 项负向测试假绿猎杀零假绿；**推翻 R4"守恒门 7 类变体无绕过"**——新登记 exotica 绕过族三形态（尾部垃圾出窗/影子 EOCD/zip32 字段分歧，A6 同族端态、当期无可利用面），修复排 M1.6；本会话独立基线：cargo 53/53 + run_tests 46/46（chi_sim 环境缺件曾响亮红，按 fixtures-requirements.txt 契约补装后全绿——缺件不静默过绿再获实证）。证据：research/audit-r5.md。
 - **已执行（真实场景吸收 v1.0，2026-10-26）**：cpa-multi-plugins 45 条生产 issues 全量抓取吸收——12 类故障模式分类学 → 四契约/T-03/T-04/G1~G3 同构映射（已有覆盖如实标注测试锚点）→ SC-01~12 真实场景用例；定位：issue 库=场景设计源，公开文件=数据基准，不可互替；45 条全覆盖可溯源，原始证据入 research/raw/cpa-issues/。S2 裁决前不虚构政府采购/企业采购覆盖，P2 第二轮默认沿工程类扩展。证据：research/real-scenario-library.md。
-- 引擎侧协同：P0 能力需求（目录域/文档级格式/暗标元数据清零）已列 doc-engine-audit §6，经用户转达引擎团队排期；**V1 回填：G3 业务侧缓解已验（过渡）、G6 渲染复验价值坐实、G7 扩展为非正文定位器变体缺口（doc-engine-audit §4.1）**。
+- **已执行（M1.6 安全加固 + P2 第二轮 + D3 真实链，2026-10-26）**：① EOCD 守恒门重写为 **zip crate 4.6.1 选择语义全文件镜像**——R5 exotica 绕过族三形态全封（尾垃圾出窗 V6/影子 EOCD V7/字段分歧 V8，六组负向入仓）+ A7 前置垃圾「门真跑」+ 无可验候选 fail-closed（`EocdUnverifiable`）；压缩比门乘法判据；xlsx 格轴负向（SC-04）入仓；② SC-05 重写对象隔离 / SC-06 暗标标识符面 D5（T7d 升五断言）/ SC-12 环境预检 T0（run_tests 46→51）/ SC-02 docx 部件对账账本（真实锚点：北京 2025 官方示范文本 58 页眉/58 页脚零提取显式登记）/ SC-08 生成器差异对（LO 真实工件 vs 直构，流不变性）/ SC-11 评测报告 schema 语义版本；③ **D3 真实补遗链（公告级）**：中传 028 完整采购链（招标→更正→中标，全字段可溯源）驱动影响面引擎——真实「其他内容均无修改」→ 零扩散、真实无价格变更 → 零冲突、SC-07 重导入零触碰全字段快照、中标 105 万≤预算 108 万交叉核；**政府采购场景首件真实实证**；真实样本入仓 `real-samples/`（公开可溯源件）。双线亲测：cargo **65/65**（53+12 新测试）、run_tests **51/51**、xref 0 错误。
+- 引擎侧协同：P0 能力需求（目录域/文档级格式/暗标元数据清零）已列 doc-engine-audit §6，经用户转达引擎团队排期；**V1 回填：G3 业务侧缓解已验（过渡）、G6 渲染复验价值坐实、G7 扩展为非正文定位器变体缺口（doc-engine-audit §4.1；M1.6 起解析层部件账本逐文件可见化——SC-02）**。
+
+## 审计纪律（SC-09 周期性假绿猎杀）
+
+每 R 轮审计（research/audit-rN.md）必含「假绿猎杀」面：抽 5 项负向测试逐项记录四要素——测什么面 / 攻击样本 / 破坏推演（若实现被故意破坏该测试如何变红）/ 上游先拒排查（是否被上游 crate 先拒致测不到本仓逻辑）。R5（research/audit-r5.md §4）实证该纪律的价值：R4 自查 + 样本丢失 = 实际漏检（exotica 绕过族三形态全落在自查变体清单未覆盖域）；M1.6 新增测试全部携带破坏推演注记随测入仓。
 
 ## 审计与验证脚本
 
 - 审计：`scripts/gh_audit.py`（元数据+文件树+README 取证）、`scripts/gh_search.py`（补充仓库搜索）、`scripts/gh_deep.py`（关键源码抽检）。Token 经环境变量注入，不入库。
-- 验证：`scripts/run_tests.py`（每轮 46 项：xref 一致性/夹具完整性/埋点读回/判分器自测/确定性/V1 四段/V2 影响面/V3 三问 + m1 并行线 12 项；环境契约缺件响亮红不静默跳过）；`scripts/v1_pipeline.py`（V1-a 解析覆盖）、`scripts/v1_export.py`（V1-c 导出保真）、`scripts/v1_citation.py`（V1-b 引用回填）、`scripts/v1_darkbid.py`（V1-d 暗标口径）、`scripts/v1_corpus_r.py`（corpus-R 结构层生成）、`scripts/v2_impact.py`（V2 影响面验证）、`scripts/v3_integration.py`（V3 内核集成三问）、`scripts/ooxml_util.py`（确定性 zip + 引擎指纹/定位器语义仿真）。
+- 验证：`scripts/run_tests.py`（每轮 **51 项**：**T0 环境契约预检（SC-12：钉版包/引擎四件/tessdata/字体/cargo——开跑即知）** + xref 一致性/夹具完整性/埋点读回/判分器自测/确定性/V1 四段（T7d 暗标**五断言**含 D5 标识符面）/V2 影响面/V3 三问 + m1 并行线 12 项；环境契约缺件响亮红不静默跳过）；`scripts/v1_pipeline.py`（V1-a 解析覆盖）、`scripts/v1_export.py`（V1-c 导出保真）、`scripts/v1_citation.py`（V1-b 引用回填）、`scripts/v1_darkbid.py`（V1-d 暗标口径 D1~D5）、`scripts/v1_corpus_r.py`（corpus-R 结构层生成）、`scripts/v2_impact.py`（V2 影响面验证）、`scripts/v3_integration.py`（V3 内核集成三问）、`scripts/real_eval_score.py`（P2 判分，`schema_version` SC-11）、`scripts/ooxml_util.py`（确定性 zip + 引擎指纹/定位器语义仿真）。

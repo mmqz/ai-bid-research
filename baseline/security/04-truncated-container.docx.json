@@ -1,0 +1,10 @@
+{
+  "bytes": 29698,
+  "construction": "fixtures/corpus-A/files/A-招标文件.docx（sha256:e1a2c6f1665306b2…）截尾 30%：保留前 70% 字节",
+  "elapsed_ms": 1,
+  "error_text": "docx 解析失败 04-truncated-container.docx: zip 防护拒绝: IO 错误 非有效 zip/docx: invalid Zip archive: Could not find EOCD",
+  "file": "04-truncated-container.docx",
+  "peak_mem_mb": 12.4,
+  "result": "rejected",
+  "sha256": "8cb01d793cc7b27155a3feb2603ffb38a8ebd9af71c982aa63a2ce00d5d20bbd"
+}

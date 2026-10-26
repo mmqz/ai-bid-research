@@ -1,0 +1,10 @@
+{
+  "bytes": 502,
+  "construction": "docx 形 zip；条目名 word/../../evil.xml（路径穿越）",
+  "elapsed_ms": 1,
+  "error_text": "docx 解析失败 02-path-traversal.docx: zip 防护拒绝: 异常条目名「word/../../evil.xml」：路径穿越段 `..`",
+  "file": "02-path-traversal.docx",
+  "peak_mem_mb": 12.5,
+  "result": "rejected",
+  "sha256": "289db3b5fa1ee70720c29eb48bf41ff95cc536f9d1e82f6c43f3af3acf99e8ee"
+}

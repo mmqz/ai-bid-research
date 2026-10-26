@@ -1,0 +1,15 @@
+[package]
+name = "baseline-harness"
+version = "0.1.0"
+edition = "2021"
+description = "B1 基线冻结 harness：逐文件调用 bid_parse::parse_file 当前实现，输出规定 schema JSON（不修改 bidcore/m1 任何代码）"
+publish = false
+
+[dependencies]
+bid-parse = { path = "../../bidcore/crates/bid-parse" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = 2
+strip = true

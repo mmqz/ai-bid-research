@@ -1,0 +1,10 @@
+{
+  "bytes": 1565,
+  "construction": "sheet1 dimension 声明 A1:XFD1048576（16,384 列 × 1,048,576 行），实际仅 A1 一格",
+  "elapsed_ms": 1,
+  "error_text": "parse-ok blocks=1",
+  "file": "06-sparse-xlsx.xlsx",
+  "peak_mem_mb": 12.4,
+  "result": "succeeded",
+  "sha256": "311fea2fa1b3665c25dc7c7d934c84148b19aea9f8a19dbd004e17da31d660c7"
+}

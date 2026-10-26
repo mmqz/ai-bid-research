@@ -1,0 +1,10 @@
+{
+  "bytes": 901,
+  "construction": "word/document.xml 同名条目两次（first / second-different 两版内容）",
+  "elapsed_ms": 1,
+  "error_text": "docx 解析失败 03-duplicate-entries.docx: zip 防护拒绝: 中央目录条目数不守恒：声明 3 ≠ 实际 2（重复条目吸收面拒绝）",
+  "file": "03-duplicate-entries.docx",
+  "peak_mem_mb": 12.5,
+  "result": "rejected",
+  "sha256": "f71b99562f723f5b1fdfa02ff6240faad702303c5f68ae0638d0c31a0306dd1d"
+}

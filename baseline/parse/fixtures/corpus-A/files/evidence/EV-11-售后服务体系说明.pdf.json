@@ -1,0 +1,54 @@
+{
+  "blocks": [
+    {
+      "cells": [],
+      "idx": 0,
+      "kind": "pdf_line",
+      "locator": "第1页 行1",
+      "text": "售后服务"
+    },
+    {
+      "cells": [],
+      "idx": 1,
+      "kind": "pdf_line",
+      "locator": "第1页 行2",
+      "text": "（合成夹具证据文件——内容为虚构示例，仅供测试管线使用）"
+    },
+    {
+      "cells": [],
+      "idx": 2,
+      "kind": "pdf_line",
+      "locator": "第1页 行3",
+      "text": "服务承诺：7×24 小时热线响应"
+    },
+    {
+      "cells": [],
+      "idx": 3,
+      "kind": "pdf_line",
+      "locator": "第1页 行4",
+      "text": "到场时限：2 小时内响应、4 小时内到场（市区范围）"
+    },
+    {
+      "cells": [],
+      "idx": 4,
+      "kind": "pdf_line",
+      "locator": "第1页 行5",
+      "text": "驻场服务：质保期内每月不少于 1 次巡检"
+    },
+    {
+      "cells": [],
+      "idx": 5,
+      "kind": "pdf_line",
+      "locator": "第1页 行6",
+      "text": "备件库：常用备件本地库存≥50 项"
+    }
+  ],
+  "components": [],
+  "elapsed_ms": 20,
+  "file": "fixtures/corpus-A/files/evidence/EV-11-售后服务体系说明.pdf",
+  "has_text_layer": true,
+  "pages": 1,
+  "parse_summary": "pdf 文本层: 1 页 6 行块",
+  "sha256": "6c61ed58ff634b930adeffff16cac30a78a46dc581e13234b48b65640fefcba5",
+  "status": "ok"
+}

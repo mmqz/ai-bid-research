@@ -1,0 +1,47 @@
+{
+  "blocks": [
+    {
+      "cells": [],
+      "idx": 0,
+      "kind": "pdf_line",
+      "locator": "第1页 行1",
+      "text": "资信证明"
+    },
+    {
+      "cells": [],
+      "idx": 1,
+      "kind": "pdf_line",
+      "locator": "第1页 行2",
+      "text": "（合成夹具证据文件——内容为虚构示例，仅供测试管线使用）"
+    },
+    {
+      "cells": [],
+      "idx": 2,
+      "kind": "pdf_line",
+      "locator": "第1页 行3",
+      "text": "出具银行：示例银行杭州分行"
+    },
+    {
+      "cells": [],
+      "idx": 3,
+      "kind": "pdf_line",
+      "locator": "第1页 行4",
+      "text": "资信等级：AAA"
+    },
+    {
+      "cells": [],
+      "idx": 4,
+      "kind": "pdf_line",
+      "locator": "第1页 行5",
+      "text": "证明日期：2026 年 10 月 12 日"
+    }
+  ],
+  "components": [],
+  "elapsed_ms": 20,
+  "file": "fixtures/corpus-A/files/evidence/EV-12-银行资信证明.pdf",
+  "has_text_layer": true,
+  "pages": 1,
+  "parse_summary": "pdf 文本层: 1 页 5 行块",
+  "sha256": "12ccdebab5359c989280974e00c3428a4a6460bc5ace311027bbbcb67f39c763",
+  "status": "ok"
+}

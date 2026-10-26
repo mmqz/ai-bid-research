@@ -1,0 +1,61 @@
+{
+  "blocks": [
+    {
+      "cells": [],
+      "idx": 0,
+      "kind": "pdf_line",
+      "locator": "第1页 行1",
+      "text": "人员证书"
+    },
+    {
+      "cells": [],
+      "idx": 1,
+      "kind": "pdf_line",
+      "locator": "第1页 行2",
+      "text": "（合成夹具证据文件——内容为虚构示例，仅供测试管线使用）"
+    },
+    {
+      "cells": [],
+      "idx": 2,
+      "kind": "pdf_line",
+      "locator": "第1页 行3",
+      "text": "姓名：王工（示例用虚构人员）"
+    },
+    {
+      "cells": [],
+      "idx": 3,
+      "kind": "pdf_line",
+      "locator": "第1页 行4",
+      "text": "证书类型：专业技术职务资格证书"
+    },
+    {
+      "cells": [],
+      "idx": 4,
+      "kind": "pdf_line",
+      "locator": "第1页 行5",
+      "text": "专业：网络工程师（高级）"
+    },
+    {
+      "cells": [],
+      "idx": 5,
+      "kind": "pdf_line",
+      "locator": "第1页 行6",
+      "text": "证书编号：ZC-2019-6688"
+    },
+    {
+      "cells": [],
+      "idx": 6,
+      "kind": "pdf_line",
+      "locator": "第1页 行7",
+      "text": "发证日期：2019 年 04 月"
+    }
+  ],
+  "components": [],
+  "elapsed_ms": 20,
+  "file": "fixtures/corpus-A/files/evidence/EV-10-项目团队人员证书-网络工程师高级.pdf",
+  "has_text_layer": true,
+  "pages": 1,
+  "parse_summary": "pdf 文本层: 1 页 7 行块",
+  "sha256": "542c6cabc5cdca25f3135fd7a2bb99ebfbc3c937437cfe0065fca3fdcd609c54",
+  "status": "ok"
+}

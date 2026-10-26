@@ -1,0 +1,152 @@
+{
+  "blocks": [
+    {
+      "cells": [],
+      "idx": 0,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行1",
+      "text": "几厅一人"
+    },
+    {
+      "cells": [],
+      "idx": 1,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行2",
+      "text": "投标于"
+    },
+    {
+      "cells": [],
+      "idx": 2,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行3",
+      "text": "(格式样例页 .盖章扫描件)"
+    },
+    {
+      "cells": [],
+      "idx": 3,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行4",
+      "text": "本页为投标函标准格式样例; 未按本样例格式签署并加盖单位公章的投标文件，作否决投"
+    },
+    {
+      "cells": [],
+      "idx": 4,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行5",
+      "text": "标处理"
+    },
+    {
+      "cells": [],
+      "idx": 5,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行6",
+      "text": "致: 某市政务服务中心 (采购人)"
+    },
+    {
+      "cells": [],
+      "idx": 6,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行7",
+      "text": "项目名称: 某市政务服务中心智能化系统工程 (货物及服务)"
+    },
+    {
+      "cells": [],
+      "idx": 7,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行8",
+      "text": "项目编号: ZFC6G-2826-GK-8311"
+    },
+    {
+      "cells": [],
+      "idx": 8,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行9",
+      "text": "1. 我方考察研究了上述项目的招标文件全册，愿意按照招标文件规定的"
+    },
+    {
+      "cells": [],
+      "idx": 9,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行10",
+      "text": "各项要求参加投标，投标总报价为人民币 (大) : 。"
+    },
+    {
+      "cells": [],
+      "idx": 10,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行11",
+      "text": "2. 我方承诺投标有效期自投标截止之日起 98 日历天，且接受招标文件"
+    },
+    {
+      "cells": [],
+      "idx": 11,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行12",
+      "text": "全部条款，包括补遗文件 (如有) 。"
+    },
+    {
+      "cells": [],
+      "idx": 12,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行13",
+      "text": "3. 本投标文件正本 1 份、副本 4 份，随本投标函一并提交。"
+    },
+    {
+      "cells": [],
+      "idx": 13,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行14",
+      "text": "4. 我方承诺: 若中标，将按招标文件要求与采购人签订合同，并在 98"
+    },
+    {
+      "cells": [],
+      "idx": 14,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行15",
+      "text": "日历天内完成全部供货、安装与调试。"
+    },
+    {
+      "cells": [],
+      "idx": 15,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行16",
+      "text": "投标人: (盖单位章)"
+    },
+    {
+      "cells": [],
+      "idx": 16,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行17",
+      "text": "法定代表人或其委托代理人: (签字)"
+    },
+    {
+      "cells": [],
+      "idx": 17,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行18",
+      "text": "日期: 年 月 日"
+    },
+    {
+      "cells": [],
+      "idx": 18,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行19",
+      "text": "-人"
+    },
+    {
+      "cells": [],
+      "idx": 19,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行20",
+      "text": "(示例公章)"
+    }
+  ],
+  "components": [],
+  "elapsed_ms": 2864,
+  "file": "fixtures/corpus-A/files/B2-投标函格式页-扫描件.pdf",
+  "has_text_layer": false,
+  "pages": 1,
+  "parse_summary": "pdf 扫描层 OCR: 1 页，20 行块（chi_sim）",
+  "sha256": "2c81a0016799d48c104be769519261bd31bfde8a4274729360985ceca5465713",
+  "status": "ok"
+}

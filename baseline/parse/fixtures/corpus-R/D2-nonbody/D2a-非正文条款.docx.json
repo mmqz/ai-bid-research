@@ -1,0 +1,104 @@
+{
+  "blocks": [
+    {
+      "cells": [],
+      "idx": 0,
+      "kind": "para",
+      "locator": "",
+      "text": "示例项目澄清文件（第 1 次）"
+    },
+    {
+      "cells": [],
+      "idx": 1,
+      "kind": "para",
+      "locator": "",
+      "text": "澄清一：机房建设标准按现行国家标准执行，联合接地电阻不大于 1 欧姆；本条与招标文件第三章相应条款具有同等效力。"
+    },
+    {
+      "cells": [],
+      "idx": 2,
+      "kind": "para",
+      "locator": "",
+      "text": "澄清二：投标文件递交地点调整为示例大厦三层开标室（示例地址）；递交截止时间以本文件页眉及修订标记载明的口径为准。"
+    },
+    {
+      "cells": [],
+      "idx": 3,
+      "kind": "para",
+      "locator": "",
+      "text": "澄清三：评分细则中『类似的类似业绩』认定年限，以合同签订时间在近三年内为准。"
+    },
+    {
+      "cells": [],
+      "idx": 4,
+      "kind": "para",
+      "locator": "",
+      "text": "文本框条款：本文件所附技术参数表以最新澄清版本为准（本条款载于文本框内，非正文段落）"
+    },
+    {
+      "cells": [],
+      "idx": 5,
+      "kind": "para",
+      "locator": "",
+      "text": "文本框条款：本文件所附技术参数表以最新澄清版本为准（本条款载于文本框内，非正文段落）"
+    },
+    {
+      "cells": [],
+      "idx": 6,
+      "kind": "para",
+      "locator": "",
+      "text": "澄清四：响应截止时间口径如下——（修订插入：响应截止时间顺延至 2026-12-01 09:30）原表述：响应截止时间 2026-11-20 09:30"
+    }
+  ],
+  "components": [
+    {
+      "component": "正文",
+      "extracted": 1,
+      "note": "",
+      "present": 1
+    },
+    {
+      "component": "页眉",
+      "extracted": 0,
+      "note": "G7：页眉部件在位、零提取（引擎非正文定位器变体待接入，登记不伪装）",
+      "present": 2
+    },
+    {
+      "component": "页脚",
+      "extracted": 0,
+      "note": "G7：页脚部件在位、零提取（同上）",
+      "present": 1
+    },
+    {
+      "component": "批注",
+      "extracted": 0,
+      "note": "G7：批注部件在位、零提取（批注读面待 M2+）",
+      "present": 1
+    },
+    {
+      "component": "文本框",
+      "extracted": 1,
+      "note": "嵌套段落成独立块入流；宿主段落在框后文本被截断（定位器变体与读面归引擎 M2+）",
+      "present": 1
+    },
+    {
+      "component": "修订插入",
+      "extracted": 0,
+      "note": "插入文本内联并入宿主段落（非独立块）；修订语义读面待 M2+",
+      "present": 1
+    },
+    {
+      "component": "修订删除",
+      "extracted": 0,
+      "note": "删除文本 w:delText 未提取（不在捕获面——真实丢失面，登记在案）",
+      "present": 1
+    }
+  ],
+  "elapsed_ms": 0,
+  "file": "fixtures/corpus-R/D2-nonbody/D2a-非正文条款.docx",
+  "has_text_layer": true,
+  "pages": 1,
+  "parse_summary": "docx: 0 表格，7 块｜部件对账 6 面（零提取件显式登记）",
+  "sha256": "e4a8f9acda166b979624ad9d350a730d45027dcf7152afce46a7d568c4a22415",
+  "status": "ok"
+}

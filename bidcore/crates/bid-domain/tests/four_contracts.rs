@@ -473,6 +473,57 @@ fn c4_export_interrupt_never_fakes_exported() {
     assert_eq!(g2.artifact_sha(), gate.artifact_sha());
 }
 
+/// SC-01（issues #35/#12 吸收）：导出中断后**任意查询面**（进度查询/产物列表/
+/// 状态接口）在中间态的返回——必须显式 EXPORTING 或缺失标记，禁止缺省成功；
+/// 进度面与产物面分离（产物未落库 ≠ 导出失败，未确认 ≠ EXPORTED）。
+/// 破坏推演：query_view 中间态映射到 Exported/NotStarted → 显式 EXPORTING
+/// 断言红；preview 泄漏为 artifact 语义（或反之）→ 分离断言红。
+#[test]
+fn c4b_query_face_explicit_exporting_no_default_success() {
+    use bid_domain::export_gate::ExportQueryView;
+
+    // 态 1：未发起——查询面读 NotStarted（无任何「成功」暗示）
+    let mut gate = ExportGate::new();
+    assert_eq!(gate.query_view(), ExportQueryView::NotStarted);
+    assert!(!gate.is_exported());
+
+    // 态 2：渲染完成、确认前中断（V3 Q3 中断注入点）——任何查询面
+    // 必须读到**显式 EXPORTING**：禁止缺省成功（is_exported 恒 false、
+    // 产物面恒空），进度面 preview_sha 可见而 artifact 语义不可得
+    let preview = gate.render(b"docx-artifact-bytes");
+    assert_eq!(
+        gate.query_view(),
+        ExportQueryView::Exporting { preview_sha: preview.clone() },
+        "中间态查询必须显式 EXPORTING（携带进度面预览指纹）"
+    );
+    assert!(!gate.is_exported(), "未确认 ≠ EXPORTED");
+    assert!(gate.artifact_sha().is_none(), "产物面缺失标记（≠ 导出失败——进度面仍活）");
+    // preview_sha 是进度面口径：与产物面同值但**不同语义通道**——
+    // 中间态下任何查询面都不得把它当 artifact 语义消费（分离纪律）
+
+    // 态 3：确认落库——查询面才切 Exported（产物面出现）
+    assert!(gate.confirm());
+    assert_eq!(
+        gate.query_view(),
+        ExportQueryView::Exported { artifact_sha: preview.clone() },
+        "EXPORTED 仅当产物 sha 落库（同产物 preview == artifact）"
+    );
+    assert!(gate.is_exported());
+
+    // 跨中断查询稳定性：中断态（新门同产物）进度查询与前次 preview 一致 →
+    // 恢复确认后产物面与前次 preview 同源同值（幂等恢复的查询面投影）
+    let mut resumed = ExportGate::new();
+    let p2 = resumed.render(b"docx-artifact-bytes");
+    assert_eq!(p2, preview, "同产物 preview 跨会话一致");
+    assert_eq!(resumed.query_view(),
+        ExportQueryView::Exporting { preview_sha: p2 });
+    resumed.confirm();
+    match resumed.query_view() {
+        ExportQueryView::Exported { artifact_sha } => assert_eq!(artifact_sha, preview),
+        other => panic!("确认后查询面必须为 Exported：{other:?}"),
+    }
+}
+
 #[test]
 fn c4_exported_state_alignment_with_project_status() {
     // 导出门与 ProjectStatus 状态机的一致性：Exported 为终态且

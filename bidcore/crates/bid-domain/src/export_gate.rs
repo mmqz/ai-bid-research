@@ -18,6 +18,22 @@ pub enum ExportPhase {
     Exported,
 }
 
+/// 查询面视图（SC-01，issue #35/#12 吸收）：任意查询消费者（进度查询 /
+/// 产物列表 / 状态接口）的**唯一读取口径**——防各消费面自行解读状态出现
+/// 「缺省成功」语义。三态纪律：
+/// - 中间态必须**显式 EXPORTING**（禁止把未确认读成完成）；
+/// - 进度面（preview_sha——渲染指纹）与产物面（artifact_sha——落库指纹）
+/// **分离**：产物不存在 ≠ 导出失败，但未确认 ≠ EXPORTED；
+/// - EXPORTED 仅当产物 sha256 已落库（与 consistent() 不变式同源）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExportQueryView {
+    NotStarted,
+    /// 渲染完成、确认未落库：进度面可见 preview_sha；产物面为空
+    Exporting { preview_sha: String },
+    /// 确认落库：产物面可见 artifact_sha
+    Exported { artifact_sha: String },
+}
+
 #[derive(Debug)]
 pub struct ExportGate {
     state: ExportPhase,
@@ -74,6 +90,24 @@ impl ExportGate {
     /// 一致性不变式：EXPORTED ⟺ 产物 sha256 已落库（虚假成功的不可能条件）。
     pub fn consistent(&self) -> bool {
         (self.state == ExportPhase::Exported) == self.artifact_sha.is_some()
+    }
+
+    /// SC-01 查询面唯一口径：中断后任何查询（进度/产物列表/状态）在中间态
+    /// 必须读到显式 EXPORTING——绝无缺省成功语义。`is_exported`/`artifact_sha`
+    /// 等单点读取器由消费方内部使用；**对外查询面一律经本视图**（单一实现，
+    /// 防多面各自解读）。preview（进度面）与 artifact（产物面）分离：
+    /// 未确认 ≠ EXPORTED，产物未落库 ≠ 导出失败。
+    pub fn query_view(&self) -> ExportQueryView {
+        debug_assert!(self.consistent(), "查询面前置：门不变式必须成立");
+        match &self.state {
+            ExportPhase::ReadyToExport => ExportQueryView::NotStarted,
+            ExportPhase::Exporting => ExportQueryView::Exporting {
+                preview_sha: self.rendered_sha.clone().unwrap_or_default(),
+            },
+            ExportPhase::Exported => ExportQueryView::Exported {
+                artifact_sha: self.artifact_sha.clone().unwrap_or_default(),
+            },
+        }
     }
 }
 

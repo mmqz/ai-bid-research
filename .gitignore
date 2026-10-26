@@ -3,3 +3,10 @@ bidcore/target/
 
 # M1 运行产物（可由 m1 重新生成；确定性由 m1 双跑字节一致测试保证）
 runs/
+
+# M1.7-TEL 电信真实语料二进制（86MB+83MB+4.6MB——按 fetch-report.json 哈希可重取复验，重取协议见 real-corpus/telecom/README.md）
+real-corpus/telecom/files/
+real-corpus/telecom/extracted/
+real-corpus/telecom/parse-input/
+real-corpus/telecom/converted/
+real-corpus/telecom/lo-tmp/

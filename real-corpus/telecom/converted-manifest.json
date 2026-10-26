@@ -1,0 +1,69 @@
+{
+ "lo_version": "LibreOffice 25.2.3.2 520(Build:2)",
+ "unzip": [
+  {
+   "zip": "1、文件.zip",
+   "status": "OK",
+   "dest": "extracted/1、文件",
+   "entries": 1
+  },
+  {
+   "zip": "CQYD20260500728-标包1.zip",
+   "status": "OK",
+   "dest": "extracted/CQYD20260500728-标包1",
+   "entries": 1
+  },
+  {
+   "zip": "GZYD20260500294-标包1-4-261024.zip",
+   "status": "OK",
+   "dest": "extracted/GZYD20260500294-标包1-4-261024",
+   "entries": 4
+  },
+  {
+   "zip": "公告附件.zip",
+   "status": "OK",
+   "dest": "extracted/公告附件",
+   "entries": 1
+  },
+  {
+   "zip": "招标文件-2026年中国联通软研院管理中台国资监管中心研发项目.zip",
+   "status": "OK",
+   "dest": "extracted/招标文件-2026年中国联通软研院管理中台国资监管中心研发项目",
+   "entries": 1
+  },
+  {
+   "zip": "招标文件.rar",
+   "status": "RAR_NOT_EXTRACTED",
+   "note": "rar 保留原始件，本环境无 unrar；LO 可直接读 rar 内单文件吗——不可，登记"
+  },
+  {
+   "zip": "招标文件.zip",
+   "status": "OK",
+   "dest": "extracted/招标文件",
+   "entries": 4
+  },
+  {
+   "zip": "浙江立项批复[2026]_321_号-关于浙江公司2025年算网能力二阶段建设项目立项变更的批复.pdf.zip",
+   "status": "OK",
+   "dest": "extracted/浙江立项批复[2026]_321_号-关于浙江公司2025年算网能力二阶段建设项目立项变更的批复.pdf",
+   "entries": 1
+  }
+ ],
+ "convert": [
+  {
+   "src": "extracted/招标文件-2026年中国联通软研院管理中台国资监管中心研发项目/招标文件-2026年中国联通软研院管理中台国资监管中心研发项目/附件4：投标一览表.xls",
+   "product": "converted/3556d01ebe-附件4：投标一览表.xlsx",
+   "status": "SKIP_EXISTS",
+   "src_sha256": "2ae1f11ef3f61d242632927e2302092d14b1efebb98f6e4b68b9f7538729c383",
+   "product_sha256": "a1a3b2bcab44bdf10be97b0895eba8eedfc00d2ebc75757bd2639bd74229b57d"
+  },
+  {
+   "src": "extracted/招标文件-2026年中国联通软研院管理中台国资监管中心研发项目/招标文件-2026年中国联通软研院管理中台国资监管中心研发项目/0.招标文件-2026年中国联通软研院管理中台国资监管中心研发项目.doc",
+   "product": "converted/1d77120d6d-0.招标文件-2026年中国联通软研院管理中台国资监管中心研发项目.docx",
+   "status": "OK",
+   "src_sha256": "fbf3553ccec50cb3d3e431ba268fe1b74903d77fc5c1c413a636b53933e26da7",
+   "product_sha256": "fc54d802805b3ce073327e45f20a743298f47250b23aa2800ece463eb255c7b4",
+   "lo_rc": 0
+  }
+ ]
+}

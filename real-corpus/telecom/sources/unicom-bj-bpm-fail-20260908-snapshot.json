@@ -1,0 +1,17 @@
+{
+  "evidence_type": "SNAPSHOT_ONLY",
+  "note": "bidcenter.com.cn 为 JS 渲染站，curl/WebFetch 均无法字节级存档；本证据为搜索引擎快照关键句的诚实登记，不伪装为字节级存档。原公告的法定发布媒介为中国联通采购与招标网/txzbqy/cebpubservice，如需字节级原件须人工从上述官方渠道下载（登记为人工事项）。",
+  "source_url": "https://bj.bidcenter.com.cn/zhaobiao/zbkeyw-22652-0-6-0.html",
+  "captured_via": "WebSearch 快照（2026-10-26）",
+  "project_no": "HX-BFZB-2026035",
+  "publish_date": "2026-09-08",
+  "title": "2026-2028年中国联通北京业务流程运营平台研发集中采购项目招标失败公告",
+  "snapshot_key_sentences": [
+    "招标编号:HX-BFZB-2026035 公告发布日期:2026年08月12日",
+    "招标失败说明:本项目开标后经评标委员会评审,通过初步评审的有效投标人不足3家,缺乏竞争性。依据《通信工程建设项目招标投标管理办法》第三十四条"
+  ],
+  "cross_reference": [
+    "公示正文（txzbqy 官方）自证：本项目2026年09月18日发布招标公告 → 与第二次招标公告（09-18）吻合",
+    "同代理机构同类型失败公告（2025年中国联通北京网络安全设备及能力扩容项目，yzb.caigou2003.com/detail/1998926353386438656）提供第三十四条引用全文的同构样例"
+  ]
+}

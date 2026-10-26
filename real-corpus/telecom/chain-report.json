@@ -1,0 +1,259 @@
+{
+ "chain": "2026-2028年中国联通北京业务流程运营平台研发集中采购项目（HX-BFZB-2026035）四节点链 + ZJYD20260500552 变更链",
+ "nodes": [
+  {
+   "role": "tender_1st",
+   "date": "2026-08-12",
+   "archive": "sources/unicom-bj-bpm-1st-tender-20260812.html"
+  },
+  {
+   "role": "failed",
+   "date": "2026-09-08",
+   "archive": "sources/unicom-bj-bpm-fail-20260908-snapshot.json (SNAPSHOT_ONLY)"
+  },
+  {
+   "role": "tender_2nd",
+   "date": "2026-09-18",
+   "archive": "sources/unicom-bj-bpm-2nd-tender-20260918.html"
+  },
+  {
+   "role": "candidate_publicity",
+   "date": "2026-10-26",
+   "archive": "txzbqy 官方 JSON（sources/publicity-64b8406b.json）"
+  }
+ ],
+ "results": [
+  {
+   "check": "P0-1 四节点材料齐备",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P0-2 节点1 招标编号在文",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P0-3 节点2 快照含编号",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P0-4 节点3 招标编号在文",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P0-5 节点4 官方公示含编号",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P0-6 时间单调递增",
+   "pass": true,
+   "detail": "['2026-08-12', '2026-09-08', '2026-09-18', '2026-10-26']"
+  },
+  {
+   "check": "P0-7 节点4 发布日期=2026-10-26",
+   "pass": true,
+   "detail": "2026-10-26"
+  },
+  {
+   "check": "P0-8 节点1/3 字节级存档在案（含 sha256）",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P0-9 节点2 诚实登记为 SNAPSHOT_ONLY",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P0-10 节点4 官方平台溯源（txzbqy uuid/bidId）",
+   "pass": true,
+   "detail": "uuid=64b8406b"
+  },
+  {
+   "check": "P1-1 节点3 标题含（第二次）",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P1-2 节点1 标题无轮次后缀",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P1-3 获取窗口起日变更 08-12→09-18",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P1-4 投标截止变更 09-03→10-14",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P1-5 不变陷阱：预算 107.9999 万元两轮一致",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P1-6 不变陷阱：最高限价 681/1136 双档两轮一致",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P1-7 不变陷阱：业绩门槛 15 万元两轮一致",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P1-8 不变陷阱：履约保证金 3 万元两轮一致",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P1-9 节点3 正文自证重招语境",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P1-10 ZJYD 变更公告在案且频率=1",
+   "pass": true,
+   "detail": "frequency=1"
+  },
+  {
+   "check": "P1-11 ZJYD 变更后获取窗口 10-24~10-30",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P2-1 失败原因=有效投标人不足3家",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P2-2 法条依据=通信招标办法第三十四条",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P2-3 重招在失败后启动（09-08 < 09-18）",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P2-4 公示正文自证重招时间线",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P2-5 公告媒介声明两轮一致（法定媒介口径）",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P2-6 ZJYD 变更公告自包含完整条款结构",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P2-7 ZJYD tenderFileId 实为立项批复（字段语义漂移发现登记）",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P3-1 公示自证开标日 10-14 与第二次公告截止时间逐字吻合",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P3-2 公示自证发公告日 09-18 与第二次公告发布日吻合",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P3-3 第一名报价完整（中级/高级双档）",
+   "pass": true,
+   "detail": "mid=670.00 high=1130.00"
+  },
+  {
+   "check": "P3-4 第一名中级 670.00 < 限价 681.00",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P3-5 第一名高级 1130.00 < 限价 1136.00",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P3-6 候选排序与中级单价单调（670 < 675）",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P3-7 中标承诺保修 36 个月 ≥ 公告要求 24 个月（承诺优于要求非冲突）",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P3-8 代理机构一致（华夏邮电咨询监理有限公司）",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P3-9 招标人一致（中国联合网络通信有限公司北京市分公司）",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P3-10 公示含资质证书编号（CMMI 83762）",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P3-11 结构化实体为空（bidAwardInfoTEntitys=[]）→公示数据全在正文（正文解析必要性实证）",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P4-1 平台 md5 逐字节校验通过 ≥14 文件",
+   "pass": true,
+   "detail": "OK=14"
+  },
+  {
+   "check": "P4-2 MISMATCH 双记录在案（同尺寸不同内容——指纹纪律实证）",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P4-3 MISMATCH 文件 sha256 实测哈希已记录（不信元数据单源）",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "check": "P4-4 文件级解析 17/17 成功（Rust 真跑）",
+   "pass": true,
+   "detail": "files=17"
+  },
+  {
+   "check": "P4-5 条款抽取 ≥2000 条（资格/否决/评分三类非零）",
+   "pass": true,
+   "detail": "n=2040"
+  },
+  {
+   "check": "P4-6 跨向锚点核验 14/14 PASS",
+   "pass": true,
+   "detail": "n=14"
+  },
+  {
+   "check": "P4-7 LO 转换边界留痕（.doc/.xls→docx/xlsx，源/产物 sha256 双记录）",
+   "pass": true,
+   "detail": ""
+  }
+ ],
+ "passed": 46,
+ "total": 46
+}

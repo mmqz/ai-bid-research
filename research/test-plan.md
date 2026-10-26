@@ -46,6 +46,7 @@
 > TC-12 扩展口径已自动化（v1.0，run_tests T7d）：LO 渲染页数硬断言 + 禁字双面扫描（DOCX 全部件 XML + 渲染 PDF 逐页）+ docProps 元数据清零 + 金丝雀防空洞绿。Word/WPS 渲染口径人工复验仍保留（§5.5）——claude-bid-gen 实证 LO 页数与 Word 存在偏差，正式验收以双 Office 口径为准。
 
 > TC-09 已自动化（v1.0，run_tests T8 / scripts/v2_impact.py）：expected-transitions 六断言契约逐条消费 + 主场景 DIRTY 恰三章节 + 开标日级联（GT-02 翻转/EV-13 维持禁绑/零误翻）+ 矛盾终裁门禁（终裁前不得 ACCEPTED）+ 幂等 no-op——影响面规则为设计语义 Python 复刻（SEMUL），删除/新增规则为合成层（D3 真实补遗链入库后替换）。
+> **TC-16 通信行业真实链（M1.7-TEL，run_tests T16 / scripts/telecom_chain.py + telecom_file_level.py）**：txzbqy 工信部法定平台四节点链 46/46（招标→**失败→重招**→中标候选人公示——政采链没有的失败节点类型）；文件级 Rust 亲跑 17/17 真实文件 + 2040 条款抽取 + 公告↔文件跨向锚点 14/14；GT 18 条四要素草案（draft_pending_human）。防新平台/新格式（.doc/.xls LO 桥接）/新样本绕过；快照节点 SNAPSHOT_ONLY 诚实口径——字节级原件仍须人工从法定媒介获取。
 > **TC-09 真实数据对应物（M1.7，run_tests T14 / scripts/m17_real_chain.py）**：cuc-028 真实采购链上同族断言已验（真实 3 MODIFY + 同值陷阱不串位 + DIRTY 恰两章=更正公告自带声明 + 冲突登记→门禁→更正优先终裁 + 幂等）；真实删除/新增条款样本仍缺（本更正公告无删除/新增，保持 SYNTHETIC 标注）。
 
 ## 3. 执行与回归

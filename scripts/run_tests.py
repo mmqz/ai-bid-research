@@ -18,6 +18,7 @@
   （T10~T13 被测系统 = m1/ 单 crate 首轮实现，并行会话产出；bidcore/ 为演进版，回归在 cargo 侧）
   T14 M1.7 政府采购真实链（真实数据回归：公告级闭环 34 断言 + GT 草案；防新样本/解析器绕过）
   T15 M1.7-C P2 评测 GT 草案 24 条四要素完备性（定位核验/标准答案/判定理由/复核状态；未冻结仅探索性）
+  T16 M1.7-TEL 通信行业真实链（txzbqy 四节点链 46 断言 + 文件级解析 17/17 + GT 草案 18 条）
 退出码：0 全绿 / 1 存在失败（CI 门禁用）
 """
 from __future__ import annotations
@@ -548,6 +549,42 @@ def t_gt_enrich():
                   for k in gt["enrichment"]["disputed_items"]),
           str(gt["enrichment"]["disputed_items"]))
 
+def t_telecom():
+    """M1.7-TEL：通信行业真实样本（S2 场景扩充·txzbqy 工信部法定平台）。
+    A批次盘点（20 节点/16 文件溯源+哈希）+ B批次四节点链 46 断言（招标→失败→重招→公示）
+    + 文件级解析（Rust 亲跑 17/17 + 2040 条款 + 14/14 跨向锚点）+ C批次 GT 草案 18 条四要素。
+    口径：文件级真实测试已亲跑；GT 未冻结仅探索性指标，不宣称验收。"""
+    print("[T16] M1.7-TEL 通信行业真实链（txzbqy 四节点链 + 文件级解析 + GT 草案）")
+    rc = REPO / "real-corpus" / "telecom"
+    fr = json.loads((rc / "fetch-report.json").read_text(encoding="utf-8"))
+    nodes = fr["nodes"]
+    files = fr["files"]
+    n_ok = sum(1 for f in files if f.get("status") == "OK")
+    n_mm = sum(1 for f in files if f.get("status") == "MD5_MISMATCH")
+    check("T16a 电信语料盘点在案（20 节点：招标/变更 10 + 中标公示 10；16 文件溯源+哈希，14 md5 校验 OK + 2 MISMATCH 双记录）",
+          len(nodes) == 20 and sum(1 for n in nodes if n["node_type"] == "bulletin") == 10
+          and sum(1 for n in nodes if n["node_type"] == "publicity") == 10
+          and len(files) == 16 and n_ok == 14 and n_mm == 2
+          and all((f.get("sha256") or f.get("md5_platform")) for f in files),
+          f"nodes={len(nodes)} files={len(files)} ok={n_ok} mm={n_mm}")
+    code, out = run(["scripts/telecom_chain.py"])
+    check("T16b 电信四节点链闭环全绿（P0 溯源/P1 变更提取/P2 影响面/P3 输出复验/P4 文件级 = 46 断言）",
+          code == 0 and "46/46" in out, fail_detail(out) if code else "")
+    flr = json.loads((rc / "file-level-report.json").read_text(encoding="utf-8"))
+    check("T16c 文件级解析亲跑在案（Rust 17/17 真实文件 + 条款抽取≥2000（资格/否决/评分非零）+ 跨向锚点 14/14 PASS）",
+          len(flr["parse_summary"]) == 17 and not flr["parse_failures"]
+          and flr["requirements_n"] >= 2000
+          and all(flr["requirements_by_category"].get(c, 0) > 0
+                  for c in ("资格条件", "否决项", "评分项"))
+          and len(flr["anchor_checks"]) == 14 and all(c["pass"] for c in flr["anchor_checks"]),
+          f"files={len(flr['parse_summary'])} reqs={flr['requirements_n']}")
+    gt = [json.loads(l) for l in (rc / "gt" / "ground-truth-draft.jsonl").read_text(encoding="utf-8").strip().splitlines()]
+    ok4 = all(i.get("expected") and i.get("rationale") and i.get("review_status") == "draft_pending_human"
+              and i.get("locate_check", {}).get("status") == "PASS" for i in gt)
+    check("T16d 电信 GT 草案 18 条四要素完备且定位核验全 PASS（17 verbatim/1 normalized；draft_pending_human 未冻结）",
+          len(gt) == 18 and ok4, f"n={len(gt)}")
+
+
 def main() -> int:
     print("=" * 62)
     print("ai-bid-research 每轮测试（V0 夹具 + 一致性 + 判分器 + V1/V2/V3 + m1 并行线 + M1.7 真实链）")
@@ -563,6 +600,7 @@ def main() -> int:
     t_m1()
     t_m17()
     t_gt_enrich()
+    t_telecom()
     print("-" * 62)
     print(f"结果：{len(_passed)} 通过 / {len(_failed)} 失败")
     if _failed:

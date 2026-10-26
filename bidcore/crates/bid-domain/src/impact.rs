@@ -14,7 +14,8 @@
 //!
 //! 验证状态：IMPACT_ENGINE_SEMANTICS = IMPLEMENTED（本模块）
 //! ——Python SEMUL（v2_impact.py 七断言组全绿）与本实装为双实现交叉验证；
-//! 真实补遗文件驱动的事件解析（变更条款抽取）属 D3 面，待真实样本入库。
+//! 事件面已泛化（AddendumEvent）：真实补遗链数据（D3，公告级）经 c1_real_addendum_
+//! chain_cuc028 消费；文件级真实补遗解析器属 M2+（real-samples 登记边界）。
 
 use std::collections::HashMap;
 
@@ -90,8 +91,27 @@ pub struct ImpactEngine {
     eval_date: String,
     imported: HashMap<String, String>,
     pub recheck_log: Vec<String>,
-    /// 补遗事件携带的三变更参数（corpus-A 口径；真实解析器接入后由 D3 面供给）。
-    addendum_spec: Option<AddendumSpec>,
+}
+
+/// 补遗事件（泛化事件面）：corpus-A 三变更联合与真实补遗链（D3 公告级）
+/// 共用同一引擎语义——事件由调用方供给（corpus-A 契约测试 / 真实公告字段），
+/// M2+ 的补遗解析器将产出同结构事件。
+#[derive(Debug, Clone)]
+pub enum AddendumEvent {
+    /// R-mod：条款内容修改（参数合并，latest_version_wins）→ 行 DIRTY + 重检
+    ClauseModified {
+        gt_id: String,
+        params: HashMap<String, serde_json::Value>,
+    },
+    /// R-date：评估基准日变更 → 全项目有效期重检（翻转仅限失配者）
+    EvalDateChanged { new_date: String },
+    /// R-conf：双版本冲突登记（控制价等）——真实补遗无价格变更时**不产生**本事件
+    VersionConflict {
+        conflict_id: String,
+        versions: Vec<(String, i64)>,
+        gt_ids: Vec<String>,
+        rule: String,
+    },
 }
 
 /// 补遗事件描述（corpus-A C-补遗文件01 的三变更联合——数据由调用方供给，
@@ -174,7 +194,74 @@ impl ImpactEngine {
             eval_date: "2026-11-15".into(),
             imported: HashMap::new(),
             recheck_log: vec![],
-            addendum_spec: None,
+        }
+    }
+
+    /// 真实采购链初始态（D3 公告级）：中国传媒大学教学资源中心建设，
+    /// 项目编号 中传招标【2026】第028号/CFTC-BJ01-2606001。
+    /// **全部取值可溯源**（公开公告，URL 见 real-samples/中传028真实采购链.json）：
+    /// 招标公告 2026-07-13（t20260713_26925801.htm）：预算 108 万、递交/开标
+    /// 2026-08-03 14:00、实施节点 07-31/08-30/09-23；更正公告 2026-07-28
+    /// （t20260728_27025731.htm）：开标 08-13、节点一 8-30、节点二 9-10、
+    /// 「其他内容均无修改」、无预算变更；中标公告 2026-08-14：105 万、89.36 分。
+    /// 章节为**响应文件面**模型（技术方案-实施计划/商务报价/资格响应）。
+    pub fn cuc_2026_028() -> Self {
+        let mut reqs = HashMap::new();
+        let mut matrix = HashMap::new();
+        let mut bindings = HashMap::new();
+        let mut put = |gt: &str, clause: &str, cat: &str, policy: &str,
+                       param: Option<(&str, serde_json::Value)>| {
+            let mut params = HashMap::new();
+            if let Some((k, v)) = param {
+                params.insert(k.to_string(), v);
+            }
+            reqs.insert(gt.to_string(), ReqV2 {
+                clause_no: clause.into(),
+                category: cat.into(),
+                params,
+            });
+            matrix.insert(gt.to_string(), MatrixRow {
+                policy: policy.into(),
+                score_subitem: None,
+                control_price_caliber: None,
+            });
+        };
+        put("GT-B01", "一、项目基本情况", "商务要求", "amount_response",
+            Some(("budget", serde_json::json!(1_080_000))));
+        put("GT-Q01", "二、申请人资格要求-2", "资格条件", "eligible", None);
+        put("GT-Q02", "一、项目基本情况-联合体", "否决项", "consortium_reject", None);
+        put("GT-S01", "四、实施要求-节点1", "技术需求", "milestone",
+            Some(("milestone_date", serde_json::json!("2026-07-31"))));
+        put("GT-S02", "四、实施要求-节点2", "技术需求", "milestone",
+            Some(("milestone_date", serde_json::json!("2026-08-30"))));
+        put("GT-S03", "四、实施要求-节点3", "技术需求", "milestone",
+            Some(("milestone_date", serde_json::json!("2026-09-23"))));
+        // 公告可证的绑定：中小企业声明函（资格面）；本项目公告无带有效期的
+        // 资质证书条款——R-date 重检真实运行但零翻转（不虚构到期证据）
+        bindings.insert("GT-Q01".into(), Binding {
+            ev_files: vec!["中小企业声明函.pdf".into()],
+            valid_until: None,
+            status: BindingStatus::Valid,
+        });
+
+        let mut sections = HashMap::new();
+        let mut put_sec = |id: &str, related: &[&str]| {
+            sections.insert(id.to_string(), Section {
+                status: "DRAFTED".into(),
+                dirty: false,
+                related: related.iter().map(|s| s.to_string()).collect(),
+            });
+        };
+        put_sec("技术方案-实施计划", &["GT-S01", "GT-S02", "GT-S03"]);
+        put_sec("商务报价", &["GT-B01"]);
+        put_sec("资格响应", &["GT-Q01", "GT-Q02"]);
+
+        Self {
+            content_version: 1,
+            reqs, bindings, matrix, sections, conflicts: HashMap::new(),
+            eval_date: "2026-08-03".into(), // 递交截止=开标=基准日（招标公告原文）
+            imported: HashMap::new(),
+            recheck_log: vec![],
         }
     }
 
@@ -239,12 +326,40 @@ impl ImpactEngine {
         v
     }
 
-    /// 导入补遗（R-idem → R-mod + R-conf + R-date 联合 → 章节影响面传播）。
+    /// 导入补遗（corpus-A 三变更联合的便捷包装——行为与历史版本逐位对齐，
+    /// 由 c1_* 系列契约测试锁定）。
     pub fn import_addendum(
         &mut self,
         fname: &str,
         sha256: &str,
         spec: &AddendumSpec,
+    ) -> ImportImpact {
+        let mut params: HashMap<String, serde_json::Value> = HashMap::new();
+        params.insert("model_v2".into(), serde_json::json!(spec.new_model));
+        params.insert("current_model".into(), serde_json::json!(spec.new_model));
+        let events = vec![
+            AddendumEvent::ClauseModified { gt_id: "GT-18".into(), params },
+            AddendumEvent::VersionConflict {
+                conflict_id: "CONFLICT-01".into(),
+                versions: vec![
+                    ("A-招标文件.docx".into(), 4_800_000),
+                    (fname.into(), spec.control_price),
+                ],
+                gt_ids: spec.conflict_gt_ids.clone(),
+                rule: "补遗优先（后到有效版本覆盖）".into(),
+            },
+            AddendumEvent::EvalDateChanged { new_date: spec.new_eval_date.clone() },
+        ];
+        self.import_events(fname, sha256, &events)
+    }
+
+    /// 泛化事件导入（真实补遗链与 corpus-A 共用）：幂等 → 版本戳 → 事件逐个
+    /// 应用（R-mod/R-conf/R-date）→ 章节影响面传播（related ∩ 受影响 REQ）。
+    pub fn import_events(
+        &mut self,
+        fname: &str,
+        sha256: &str,
+        events: &[AddendumEvent],
     ) -> ImportImpact {
         if self.imported.get(fname).map(|s| s.as_str()) == Some(sha256) {
             return ImportImpact { idempotent_noop: true, ..Default::default() };
@@ -253,53 +368,57 @@ impl ImpactEngine {
         self.content_version += 1;
         let mut impact = ImportImpact::default();
 
-        // (a) R-mod：GT-18 型号 v1→v2（latest_version_wins）
-        if let Some(r) = self.reqs.get_mut("GT-18") {
-            r.params.insert("model_v2".into(), serde_json::json!(spec.new_model));
-            r.params.insert("current_model".into(), serde_json::json!(spec.new_model));
-        }
-        impact.updated_reqs.push("GT-18".into());
-        impact.dirty_matrix.push("GT-18".into());
-        impact.recheck_bindings.push("GT-18".into());
-
-        // (b) R-conf：控制价双版本
-        self.conflicts.insert("CONFLICT-01".into(), Conflict {
-            versions: vec![
-                ("A-招标文件.docx".into(), 4_800_000),
-                (fname.into(), spec.control_price),
-            ],
-            gt_ids: spec.conflict_gt_ids.clone(),
-            resolved: false,
-            final_value: None,
-            rule: "补遗优先（后到有效版本覆盖）".into(),
-        });
-        impact.conflicts.push("CONFLICT-01".into());
-        for gt in &spec.conflict_gt_ids {
-            impact.dirty_matrix.push(gt.clone());
-        }
-
-        // (c) R-date：开标日变更 → 全项目有效期重检
-        let old = self.eval_date.clone();
-        self.eval_date = spec.new_eval_date.clone();
-        let before: HashMap<String, BindingStatus> = self.bindings
-            .iter()
-            .map(|(k, v)| (k.clone(), v.status.clone()))
-            .collect();
-        self.apply_validity();
-        let mut flipped: Vec<String> = vec![];
-        for (gt, b) in &self.bindings {
-            if let Some(prev) = before.get(gt) {
-                if &b.status != prev {
-                    impact.recheck_bindings.push(gt.clone());
-                    impact.dirty_matrix.push(gt.clone());
-                    if b.status == BindingStatus::Expired {
-                        flipped.push(gt.clone());
+        for ev in events {
+            match ev {
+                // (a) R-mod：参数合并（latest_version_wins）
+                AddendumEvent::ClauseModified { gt_id, params } => {
+                    if let Some(r) = self.reqs.get_mut(gt_id) {
+                        for (k, v) in params {
+                            r.params.insert(k.clone(), v.clone());
+                        }
                     }
+                    impact.updated_reqs.push(gt_id.clone());
+                    impact.dirty_matrix.push(gt_id.clone());
+                    impact.recheck_bindings.push(gt_id.clone());
+                }
+                // (b) R-conf：双版本登记
+                AddendumEvent::VersionConflict { conflict_id, versions, gt_ids, rule } => {
+                    self.conflicts.insert(conflict_id.clone(), Conflict {
+                        versions: versions.clone(),
+                        gt_ids: gt_ids.clone(),
+                        resolved: false,
+                        final_value: None,
+                        rule: rule.clone(),
+                    });
+                    impact.conflicts.push(conflict_id.clone());
+                    for gt in gt_ids {
+                        impact.dirty_matrix.push(gt.clone());
+                    }
+                }
+                // (c) R-date：开标日变更 → 全项目有效期重检
+                AddendumEvent::EvalDateChanged { new_date } => {
+                    self.eval_date = new_date.clone();
+                    let before: HashMap<String, BindingStatus> = self.bindings
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.status.clone()))
+                        .collect();
+                    self.apply_validity();
+                    let mut flipped: Vec<String> = vec![];
+                    for (gt, b) in &self.bindings {
+                        if let Some(prev) = before.get(gt) {
+                            if &b.status != prev {
+                                impact.recheck_bindings.push(gt.clone());
+                                impact.dirty_matrix.push(gt.clone());
+                                if b.status == BindingStatus::Expired {
+                                    flipped.push(gt.clone());
+                                }
+                            }
+                        }
+                    }
+                    impact.flips = flipped;
                 }
             }
         }
-        impact.flips = flipped;
-        let _ = old;
 
         // 章节影响面：related ∩ 受影响 REQ
         let affected: std::collections::HashSet<String> = impact
@@ -314,22 +433,21 @@ impl ImpactEngine {
                 impact.dirty_sections.push(sec.clone());
             }
         }
-        self.addendum_spec = Some(spec.clone());
         impact
     }
 
     /// 矛盾终裁（补遗优先——后到版本覆盖）。
+    /// 关联 GT 取**冲突记录自身**的 gt_ids（与 try_accept 同纪律，R3-P2-2）。
     pub fn adjudicate(&mut self, conflict_id: &str) -> Option<(i64, String)> {
         let c = self.conflicts.get_mut(conflict_id)?;
         let final_value = c.versions.last().map(|(_, v)| *v)?;
         c.resolved = true;
         c.final_value = Some(final_value);
         let rule = c.rule.clone();
-        if let Some(spec) = &self.addendum_spec {
-            for gt in &spec.conflict_gt_ids {
-                if let Some(row) = self.matrix.get_mut(gt) {
-                    row.control_price_caliber = Some(final_value);
-                }
+        let gt_ids = c.gt_ids.clone();
+        for gt in &gt_ids {
+            if let Some(row) = self.matrix.get_mut(gt) {
+                row.control_price_caliber = Some(final_value);
             }
         }
         Some((final_value, rule))

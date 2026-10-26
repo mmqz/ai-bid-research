@@ -1,5 +1,6 @@
 {
   "eval": "P2-real-file-score",
+  "schema_version": "1.0",
   "gt_status": "AI 初标草案（待人工验收）——指标为草案对齐结果，不外推为验收指标",
   "gt_file_target": "04_某水利工程施工标段_施工招标文件.pdf（142 页）",
   "reqs_in_file": 898,

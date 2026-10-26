@@ -81,6 +81,13 @@ pub enum GuardError {
     /// 中央目录声明条目数 ≠ 归档实际条目数——重复条目被 zip crate 读取层
     /// HashMap 吸收（同名只留一个）后的数量不守恒面，守恒门拒绝。
     EntryCountMismatch { declared: usize, actual: usize },
+    /// zip32 EOCD 双计数字段（本盘/总盘）分歧即拒（R5-V8：crate 读「本盘」
+    /// 字段而不校验分歧——守卫 fail-closed，两个口径可比的前提是一致）。
+    EocdCountFieldsDiverge { this_disk: u16, total: u16 },
+    /// crate 已成功打开归档，但守卫按 crate 镜像规则找不到任何可接受的
+    /// EOCD 候选（镜像比 crate 严或文件中途变更）——fail-closed 拒绝，
+    /// 不允许旧实现的「跳过守恒门」（R5 实测绕过根因：V6/V7 的 Ok(None)）。
+    EocdUnverifiable,
     EntryMissing { name: String },
     Io(String),
 }
@@ -118,6 +125,12 @@ impl std::fmt::Display for GuardError {
             }
             Self::EntryCountMismatch { declared, actual } => {
                 write!(f, "中央目录条目数不守恒：声明 {declared} ≠ 实际 {actual}（重复条目吸收面拒绝）")
+            }
+            Self::EocdCountFieldsDiverge { this_disk, total } => {
+                write!(f, "EOCD 双计数字段分歧：本盘 {this_disk} ≠ 总盘 {total}（fail-closed 拒绝）")
+            }
+            Self::EocdUnverifiable => {
+                write!(f, "EOCD 守恒门无法核验（无镜像可接受候选）——fail-closed 拒绝")
             }
             Self::EntryMissing { name } => write!(f, "缺条目「{name}」"),
             Self::Io(s) => write!(f, "IO 错误 {s}"),
@@ -175,10 +188,13 @@ pub fn prescan_zip(za: &mut ZipArchive<File>) -> GResult<PrescanReport> {
             if declared > LIMIT_SINGLE_DECLARED {
                 return Err(GuardError::SingleDeclaredOver { name, declared, limit: LIMIT_SINGLE_DECLARED });
             }
-            // 压缩比门：compressed==0 且 declared>0 视为无穷比（stored 条目 compressed==declared）
+            // 压缩比门（R5 P-2 乘法判据）：compressed==0 且 declared>0 视为无穷比
+            // （stored 条目 compressed==declared）。旧整数除法 declared/compressed
+            // > 100 的实效拒点是「商 ≥101」——100.999（如 100,999/1000）可过门，
+            // 与文档语义「比值 >100」差 1 个比值单位；乘法判据精确兑现该语义。
             if declared > 0 {
                 let compressed_eff = compressed.max(1);
-                if declared / compressed_eff > LIMIT_COMPRESS_RATIO {
+                if declared > LIMIT_COMPRESS_RATIO.saturating_mul(compressed_eff) {
                     return Err(GuardError::CompressRatioBad { name, declared, compressed });
                 }
             }
@@ -260,8 +276,11 @@ pub fn open_guarded(path: &Path, input_limit: u64) -> GResult<ZipArchive<File>> 
     // 守恒门：EOCD/zip64-EOCD 声明条目数 ≠ 归档实际条目数 → 拒绝。
     // zip crate 读取层用 HashMap 去重同名条目——重复条目进不了 prescan 视野；
     // 守恒比对封死这个吸收面。0xFFFF（zip64 标记）不再跳过：经 zip64 locator 链
-    // 取 zip64 EOCD 记录真实计数再比对（R3-S3-1：原实现见标记即跳过，zip64
-    // 重复条目归档实测绕过；locator 链解析不出的 exotica 维持跳过，残余面登记 threat-model）。
+    // 取 zip64 EOCD 记录真实计数再比对（R3-S3-1）。R5 复审推翻旧实现的两处
+    // fail-open：①回扫窗仅尾部 65,557B（≥65,536B 尾垃圾即整门跳过，V6/V13b）
+    // ②取最后签名不验 comment 一致性（影子 EOCD 读假计数，V7）——现按
+    // crate 4.6.1 的 EOCD 选择语义**全文件镜像**（见 eocd_declared_entry_count），
+    // 且核验不出时 fail-closed 拒绝而非跳过。
     if let Some(declared) = eocd_declared_entry_count(path)? {
         let actual = za.len() as u64;
         if declared != actual {
@@ -271,59 +290,248 @@ pub fn open_guarded(path: &Path, input_limit: u64) -> GResult<ZipArchive<File>> 
     Ok(za)
 }
 
-/// 解析 EOCD 声明条目数：u16 字段；0xFFFF（zip64 标记）转经 zip64 locator 链
-/// 取 zip64 EOCD 记录（PK\x06\x06）+32 处 u64 真实总条目数（R3-S3-1）。
-/// 从文件尾部向前扫描「PK\x05\x06」签名（尾部 22B + 最长 65535B comment 区）；
-/// 无 EOCD（zip crate 已拒绝的 malformed）返回 None，不重复裁决。
+/// 解析 EOCD 声明条目数——**zip crate 4.6.1 EOCD 选择语义的镜像**（R5 M1.6 修复）。
+///
+/// 镜像规则（与 crate `find_central_directory`/`get_metadata` 逐步对齐，读.rs:509
+/// 用「本盘」字段、spec.rs 全文件回扫 + 候选回退循环）：
+/// - **全文件**回扫所有 `PK\x05\x06` 候选，从尾到头（V6/V13b：旧实现只回扫
+///   尾部 22+65,535B，≥65,536B 尾部垃圾把 EOCD 推出窗即整门跳过——R3 原始
+///   zip32 同名条目攻击借 64KB 追加复活，R5 一字节差分 V13a/V13b 钉死阈值）；
+/// - 每个候选拿 crate 的接受规则逐关校验，失败回退更早候选（旧实现取最后
+///   签名直接采信——V7 影子 EOCD：comment 越 EOF 时 crate 回退而守卫读假计数）：
+///   ① 22B 定长块在文件内；② comment 在文件内（crate parse 失败 + relaxed 检查
+///   双路径）；③ 盘号自洽（crate `read_central_header` 硬拒 → `get_metadata`
+///   回退）；④ **zip32 双计数字段一致**（V8：crate 读「本盘」字段 +8..10 而
+///   旧守卫读「总盘」+10..12——分歧即拒，fail-closed）；⑤ zip64 标记口径 =
+///   总盘字段 0xFFFF 或 CD 偏移 0xFFFFFFFF（crate `may_be_zip64`）；⑥ 空归档
+///   （本盘 0 条）立即接受（crate 早退分支）；⑦ CD 偏移 < EOCD 偏移；
+///   ⑧ [cd_off, eocd) 窗内存在 `PK\x01\x02`（crate Detect 模式：先探 cd_off、
+///   失败窗内正向扫）；⑨ 顺序读 this_cnt 条 CDFH 的最小空间必要条件（46B/条；
+///   镜像 crate 读崩 → 回退，防「大计数假候选」致过度拒绝）；
+/// - zip64 路径：locator 紧邻 EOCD 前 20B；EOCD64 记录在 [声明偏移, locator)
+///   窗内**正向**找第一个 `PK\x06\x06`（crate subfinder 同序——前置垃圾文件
+///   的偏移校正由此保持可见，A7 从「门跳过」升级为「门真跑」）；记录一致性
+///   三查（盘号一致 / record_size+12 = 记录到 locator 距离 / 本盘 ≤ 总盘）+
+///   计数合理查（crate "inconsistent number of files"）；
+/// - 接受的候选返回其声明计数（zip32 = 本盘字段；zip64 = 记录总条目 +32..40）
+///   ——与 crate 实际消费的计数同源同值；
+/// - **候选全部不可接受而归档已成功打开 → 拒绝**（`EocdUnverifiable`）：
+///   旧实现的 `Ok(None)`「门跳过」正是 R5 实测的三类绕过公共根因。
+///   残余面（镜像比 crate 严的方向，均 fail-closed，登记 threat-model）：
+///   crate Detect 猜测语义的窗口微差、zip64 内层多候选回退未逐步复刻、
+///   prefix-junk 下 CDFH 空间检查用相对偏移近似。
 fn eocd_declared_entry_count(path: &Path) -> GResult<Option<u64>> {
     let len = std::fs::metadata(path).map_err(|e| GuardError::Io(e.to_string()))?.len();
     if len < 22 {
-        return Ok(None);
+        return Ok(None); // crate 无法打开（open_guarded 已失败在前）——不重复裁决
     }
     let mut f = File::open(path).map_err(|e| GuardError::Io(e.to_string()))?;
-    use std::io::{Seek, SeekFrom};
-    let scan_start = len.saturating_sub(22 + 65_535);
-    f.seek(SeekFrom::Start(scan_start)).map_err(|e| GuardError::Io(e.to_string()))?;
-    let mut tail = Vec::new();
-    f.read_to_end(&mut tail).map_err(|e| GuardError::Io(e.to_string()))?;
+    let mut accepted: Option<u64> = None;
     let sig: [u8; 4] = [0x50, 0x4B, 0x05, 0x06];
-    let mut found: Option<usize> = None;
-    for i in (0..tail.len().saturating_sub(21)).rev() {
-        if tail[i..i + 4] == sig {
-            found = Some(i);
-            break;
+    scan_signatures_backwards(&mut f, len, &sig, |f, pos| -> GResult<bool> {
+        match mirror_eocd_candidate(f, len, pos)? {
+            Some(count) => {
+                accepted = Some(count);
+                Ok(true) // crate 亦在此候选停——守卫同源同值
+            }
+            None => Ok(false), // crate 回退更早候选——守卫同步回退
         }
+    })?;
+    match accepted {
+        Some(c) => Ok(Some(c)),
+        None => Err(GuardError::EocdUnverifiable),
     }
-    let i = match found {
-        Some(i) => i,
-        None => return Ok(None),
-    };
-    let declared16 = u16::from_le_bytes(tail[i + 10..i + 12].try_into().unwrap());
-    if declared16 != 0xFFFF {
-        return Ok(Some(declared16 as u64));
-    }
-    // zip64 标记：locator = EOCD 紧邻前 20B（PK\x06\x07 + u32 disk + u64 记录偏移 + u32 总盘数），
-    // 其 +8 处 u64 指向 zip64 EOCD 记录；记录 +32 处 u64 为中央目录总条目数。
-    if i < 20 || scan_start + (i as u64) < 20 {
-        return Ok(None); // 无 locator 空间的非标准结构——交 crate 自身裁决（残余面登记）
-    }
-    let loc = &tail[i - 20..i];
-    if loc[0..4] != [0x50, 0x4B, 0x06, 0x07] {
-        return Ok(None); // 无有效 locator：crate 按 65535 头读取，malformed 自拒（R3 实测）
-    }
-    let z64_off = u64::from_le_bytes(loc[8..16].try_into().unwrap());
-    if z64_off + 56 > len {
-        return Ok(None); // 越界指针：解析不出真实计数，维持跳过（fail-open 仅限此 exotica，登记在案）
-    }
-    f.seek(SeekFrom::Start(z64_off)).map_err(|e| GuardError::Io(e.to_string()))?;
-    let mut rec = [0u8; 56];
-    if f.read_exact(&mut rec).is_err() {
+}
+
+/// 单个 EOCD 候选的 crate 镜像校验：Some(count) = crate 会采信此候选并返回
+/// 其声明计数；None = crate 会回退到更早候选。双计数字段分歧直接 Err（V8）。
+fn mirror_eocd_candidate(f: &mut File, len: u64, pos: u64) -> GResult<Option<u64>> {
+    use std::io::{Read, Seek, SeekFrom};
+    let io = |e: std::io::Error| GuardError::Io(e.to_string());
+    // ① 22B 定长块在文件内（越界 → crate parse 失败 → 回退）
+    if pos + 22 > len {
         return Ok(None);
     }
-    if rec[0..4] != [0x50, 0x4B, 0x06, 0x06] {
-        return Ok(None); // 目标非 zip64 EOCD 记录：结构不一致，交 crate 裁决
+    let mut blk = [0u8; 22];
+    f.seek(SeekFrom::Start(pos)).map_err(io)?;
+    f.read_exact(&mut blk).map_err(io)?;
+    // ② comment 必须在文件内（crate：parse 读 comment 越 EOF 失败 + relaxed
+    //    「comment 须在 EOF 前终止」检查——双路径同条件）
+    let comment_len = u16::from_le_bytes(blk[20..22].try_into().unwrap()) as u64;
+    if pos + 22 + comment_len > len {
+        return Ok(None);
     }
-    Ok(Some(u64::from_le_bytes(rec[32..40].try_into().unwrap())))
+    let disk_no = u16::from_le_bytes(blk[4..6].try_into().unwrap());
+    let disk_cd = u16::from_le_bytes(blk[6..8].try_into().unwrap());
+    let this_cnt = u16::from_le_bytes(blk[8..10].try_into().unwrap());
+    let total_cnt = u16::from_le_bytes(blk[10..12].try_into().unwrap());
+    let cd_off = u32::from_le_bytes(blk[16..20].try_into().unwrap()) as u64;
+    // ③ 盘号自洽（crate read_central_header 硬拒 → get_metadata 回退更早候选）
+    if disk_no != disk_cd {
+        return Ok(None);
+    }
+    // ④ V8：zip32 双计数字段分歧即拒（crate 读「本盘」而不校验分歧——
+    //    可比的前提是一致；fail-closed 而非回退：回退会被更早候选的
+    //    「declared==吸收后计数」形态再次绕过）
+    if this_cnt != total_cnt {
+        return Err(GuardError::EocdCountFieldsDiverge { this_disk: this_cnt, total: total_cnt });
+    }
+    // ⑤ zip64 标记（crate may_be_zip64：总盘字段 0xFFFF 或 CD 偏移 0xFFFFFFFF）
+    if total_cnt == 0xFFFF || cd_off == 0xFFFF_FFFF {
+        return mirror_zip64(f, len, pos);
+    }
+    // ⑥ 空归档早退（crate：number_of_files==0 立即接受，跳过 CD 检查）
+    if this_cnt == 0 {
+        return Ok(Some(0));
+    }
+    // ⑦ CD 偏移必须在 EOCD 前（crate：relative_cd_offset >= eocd_offset → 回退）
+    if cd_off >= pos {
+        return Ok(None);
+    }
+    // ⑧ [cd_off, pos) 窗内须存在 CDFH 签名（crate Detect：先探 cd_off 处，
+    //    非命中窗内正向扫——找不到 → "No CDFH found" 回退）
+    if !window_has_sig(f, cd_off, pos, &[0x50, 0x4B, 0x01, 0x02])? {
+        return Ok(None);
+    }
+    // ⑨ 顺序读 this_cnt 条 CDFH 的最小空间必要条件（46B/条；不满足则 crate
+    //    必然读崩回退——镜像此点防「大计数假候选」致守卫过度拒绝真实归档）
+    if cd_off.saturating_add(this_cnt as u64 * 46) > pos {
+        return Ok(None);
+    }
+    Ok(Some(this_cnt as u64))
+}
+
+/// zip64 路径镜像：locator（紧邻 EOCD 前 20B）→ [声明偏移, locator) 窗内正向
+/// 找 EOCD64 记录 → 记录一致性/计数检查。任一环失败 = crate 回退更早 EOCD 候选。
+fn mirror_zip64(f: &mut File, len: u64, pos: u64) -> GResult<Option<u64>> {
+    use std::io::{Read, Seek, SeekFrom};
+    let io = |e: std::io::Error| GuardError::Io(e.to_string());
+    // crate：locator 放不下（EOCD 前 <20B）→ zip32 分支——CD 偏移标记 0xFFFF_FFFF
+    // 时该分支必因 cd_off >= pos 回退；仅计数标记时按 zip32 面走 ⑦⑧⑨
+    if pos < 20 {
+        return Ok(None);
+    }
+    let mut loc = [0u8; 20];
+    f.seek(SeekFrom::Start(pos - 20)).map_err(io)?;
+    f.read_exact(&mut loc).map_err(io)?;
+    if loc[0..4] != [0x50, 0x4B, 0x06, 0x07] {
+        return Ok(None); // 无有效 locator：crate 走 zip32 分支（由 ⑦⑧⑨ 裁决）
+    }
+    let loc_disk_cd = u32::from_le_bytes(loc[4..8].try_into().unwrap());
+    let z64_declared = u64::from_le_bytes(loc[8..16].try_into().unwrap());
+    let loc_disks = u32::from_le_bytes(loc[16..20].try_into().unwrap());
+    // crate：EOCD64 偏移须在 locator 偏移之前；多盘不支持
+    if z64_declared >= pos - 20 {
+        return Ok(None);
+    }
+    if loc_disks > 1 {
+        return Ok(None);
+    }
+    // crate subfinder：[声明偏移, locator) 窗内**正向**找第一个 PK\x06\x06
+    // （前置垃圾文件的实际记录在声明偏移+junk——窗扫保持可见，A7 门真跑）
+    let z64_pos = match first_sig_in_window(f, z64_declared, pos - 20, &[0x50, 0x4B, 0x06, 0x06])? {
+        Some(p) => p,
+        None => return Ok(None),
+    };
+    if z64_pos + 56 > len {
+        return Ok(None); // 记录读不完整 → crate parse 失败 → 回退
+    }
+    let mut rec = [0u8; 56];
+    f.seek(SeekFrom::Start(z64_pos)).map_err(io)?;
+    f.read_exact(&mut rec).map_err(io)?;
+    if rec[0..4] != [0x50, 0x4B, 0x06, 0x06] {
+        return Ok(None); // 防御（窗扫已保证命中；保持 fail-回退语义）
+    }
+    let rec_size = u64::from_le_bytes(rec[4..12].try_into().unwrap());
+    let rec_disk_cd = u32::from_le_bytes(rec[20..24].try_into().unwrap());
+    let this64 = u64::from_le_bytes(rec[24..32].try_into().unwrap());
+    let total64 = u64::from_le_bytes(rec[32..40].try_into().unwrap());
+    let cd_off64 = u64::from_le_bytes(rec[48..56].try_into().unwrap());
+    // crate：记录与 locator 盘号一致 + 记录长度一致（record_size+12 = 记录到
+    // locator 距离——前置垃圾不动此距离，正常 zip64 恒 56）
+    if rec_disk_cd != loc_disk_cd {
+        return Ok(None);
+    }
+    if rec_size.saturating_add(12) != (pos - 20) - z64_pos {
+        return Ok(None);
+    }
+    // crate CentralDirectoryInfo::try_from：本盘 ≤ 总盘；否则整归档读崩回退
+    if this64 > total64 {
+        return Ok(None);
+    }
+    // crate "inconsistent number of files"：记录位置须容得下 声明计数×46B 的 CD
+    if z64_pos < total64.saturating_mul(46).saturating_add(cd_off64) {
+        return Ok(None);
+    }
+    Ok(Some(total64)) // crate 消费的正是 zip64 记录的总条目字段
+}
+
+/// 从文件尾向文件头扫描签名（64KB 分块 + 跨块 3B 桥接），每个命中位置按
+/// 从尾到头序回调一次；回调返回 Ok(true) 即停止。输入已被字节门限（≤302MB），
+/// 全文件扫描成本与 crate 自身的 MagicFinder 同阶。
+fn scan_signatures_backwards<F>(f: &mut File, len: u64, sig: &[u8; 4], mut visit: F) -> GResult<()>
+where
+    F: FnMut(&mut File, u64) -> GResult<bool>,
+{
+    use std::io::{Read, Seek, SeekFrom};
+    use memchr::memmem::Finder;
+    const CHUNK: u64 = 64 * 1024;
+    let finder = Finder::new(sig);
+    // `head` = 下一块（更靠文件头）块尾之后需桥接的本块开头 ≤3 字节——
+    // 跨块签名的两侧在同一连续缓冲内可见
+    let mut head: Vec<u8> = Vec::new();
+    let mut end = len;
+    while end > 0 {
+        let start = end.saturating_sub(CHUNK);
+        let n = (end - start) as usize;
+        let mut buf = vec![0u8; n + head.len()];
+        f.seek(SeekFrom::Start(start)).map_err(|e| GuardError::Io(e.to_string()))?;
+        f.read_exact(&mut buf[..n]).map_err(|e| GuardError::Io(e.to_string()))?;
+        buf[n..].copy_from_slice(&head);
+        // 本块命中（i < n，从尾到头）；head 区命中（i ≥ n）上一轮已报过
+        let hits: Vec<usize> = finder.find_iter(&buf).collect();
+        for i in hits.iter().rev() {
+            if *i >= n {
+                continue;
+            }
+            if visit(f, start + *i as u64)? {
+                return Ok(());
+            }
+        }
+        head.clear();
+        let keep = (sig.len() - 1).min(n);
+        head.extend_from_slice(&buf[..keep]);
+        end = start;
+    }
+    Ok(())
+}
+
+/// [start, end) 窗内是否存在签名（正向扫，命中即停——正常归档在窗首即命中）。
+fn window_has_sig(f: &mut File, start: u64, end: u64, sig: &[u8; 4]) -> GResult<bool> {
+    Ok(first_sig_in_window(f, start, end, sig)?.is_some())
+}
+
+/// [start, end) 窗内正向找第一个签名位置。
+fn first_sig_in_window(f: &mut File, start: u64, end: u64, sig: &[u8; 4]) -> GResult<Option<u64>> {
+    use std::io::{Read, Seek, SeekFrom};
+    use memchr::memmem::Finder;
+    const CHUNK: u64 = 64 * 1024;
+    let finder = Finder::new(sig);
+    let mut pos = start;
+    while pos + 4 <= end {
+        let n = ((end - pos).min(CHUNK) + 3) as usize; // +3B 桥接跨块签名
+        let mut buf = vec![0u8; n];
+        f.seek(SeekFrom::Start(pos)).map_err(|e| GuardError::Io(e.to_string()))?;
+        let got = f.read(&mut buf).map_err(|e| GuardError::Io(e.to_string()))?;
+        if let Some(i) = finder.find(&buf[..got]) {
+            return Ok(Some(pos + i as u64));
+        }
+        if got < n {
+            return Ok(None); // EOF（窗未读完但文件尽）——窗语义下无命中
+        }
+        pos += (got as u64).saturating_sub(3);
+    }
+    Ok(None)
 }
 
 /// 流式 sha256（替换 `fs::read` 全量内存哈希——大文件面顺带根治）。
@@ -793,6 +1001,169 @@ mod tests {
         let mut za = open(&p, LIMIT_INPUT_BYTES_DOCX).unwrap();
         assert_eq!(za.len(), 1);
         assert!(za.by_name("word/document.xml").is_ok());
+    }
+
+    // ---- M1.6（R5 复审 V6/V7/V8 三类绕过的封堵负向 + A7 门真跑正向）----
+    // 每项纪律（R5 §4 假绿猎杀口径）：注明测什么面 / 攻击样本 / 破坏推演
+    // （旧实现如何被绕过）/ 上游先拒排查（crate 是否先拒致测不到本门）。
+
+    /// 尾垃圾把 EOCD 推出旧 65,557B 回扫窗 → 旧实现 Ok(None) 整门跳过。
+    /// 三档差分：65,535B（旧窗内、旧实现也拒）/ 65,536B（旧窗外 1B，R5 V13b
+    /// 实测绕过）/ 65,600B（V6 形态）。全文件回扫后三档必须全拒——
+    /// 旧阈值（尾部 22+65,535B 窗口）不再存在于任何垃圾量级。
+    /// 破坏推演：还原窗口扫描 → 65,536/65,600 两档 open Ok → 红。
+    /// 上游先拒：无——crate relaxed comment 检查接受「EOCD 后有垃圾」。
+    #[test]
+    fn tail_garbage_duplicates_rejected_full_file_scan() {
+        for (garbage, tag) in [(65_535usize, "v13a"), (65_536, "v13b"), (65_600, "v6")] {
+            let p = tmp_zip(&format!("tail_{tag}"));
+            write_zip(&p, &[("word/aaaa.xml", b"<a/>".to_vec()), ("word/bbbb.xml", b"<b/>".to_vec())]);
+            let raw = std::fs::read(&p).unwrap();
+            let mut out = patch_central_name(&raw, "word/bbbb.xml", "word/aaaa.xml");
+            out.extend(std::iter::repeat(b'G').take(garbage));
+            std::fs::write(&p, out).unwrap();
+            // crate 视角先证：尾部垃圾不阻止打开（relaxed）——绕过面真实可达
+            let err = open(&p, LIMIT_INPUT_BYTES_DOCX).unwrap_err();
+            assert!(
+                matches!(err, GuardError::EntryCountMismatch { declared: 2, actual: 1 }),
+                "垃圾 {garbage}B: {err}"
+            );
+        }
+    }
+
+    /// 影子 EOCD（R5 V7）：真实 EOCD（声明 2 + 物理同名对）之后追加伪 EOCD
+    /// （声明 1、comment_len=60,000 越 EOF）。crate parse 失败回退更早候选
+    /// （zip 4.6.1 spec.rs 候选循环）→ 用真实 EOCD（2≠1 拒）。
+    /// 旧实现取最后签名不验 comment → 读假计数 1==吸收后 1 → 绕过。
+    /// 破坏推演：删除 comment 适应检查 → 守卫采信影子 → open Ok → 红。
+    /// 上游先拒：无——crate 自身回退路径使文件可打开（实测语义）。
+    #[test]
+    fn shadow_eocd_comment_overflow_falls_back_to_real_eocd() {
+        let p = tmp_zip("shadow");
+        write_zip(&p, &[("word/aaaa.xml", b"<a/>".to_vec()), ("word/bbbb.xml", b"<b/>".to_vec())]);
+        let raw = std::fs::read(&p).unwrap();
+        let mut dup = patch_central_name(&raw, "word/bbbb.xml", "word/aaaa.xml");
+        // 影子 EOCD：this=1/total=1（== 吸收后计数，诱导旧守卫放行）
+        let mut shadow = Vec::with_capacity(22);
+        shadow.extend_from_slice(b"PK\x05\x06");
+        shadow.extend_from_slice(&0u16.to_le_bytes()); // 盘号
+        shadow.extend_from_slice(&0u16.to_le_bytes()); // 目录盘
+        shadow.extend_from_slice(&1u16.to_le_bytes()); // 本盘条目（假）
+        shadow.extend_from_slice(&1u16.to_le_bytes()); // 总条目（假）
+        shadow.extend_from_slice(&0u32.to_le_bytes()); // 目录大小
+        shadow.extend_from_slice(&0u32.to_le_bytes()); // 目录偏移（< 影子位置）
+        shadow.extend_from_slice(&60_000u16.to_le_bytes()); // comment 越 EOF
+        assert_eq!(shadow.len(), 22);
+        dup.extend_from_slice(&shadow);
+        std::fs::write(&p, dup).unwrap();
+        let err = open(&p, LIMIT_INPUT_BYTES_DOCX).unwrap_err();
+        assert!(matches!(err, GuardError::EntryCountMismatch { declared: 2, actual: 1 }), "{err}");
+    }
+
+    /// zip32 双计数字段分歧（R5 V8）：crate 读「本盘」字段（read.rs）而旧守卫读
+    /// 「总盘」字段——字段分歧时两者比的不是同一个声明值。两方向都必须拒：
+    ///   V8  this=2/total=1：crate 读 2 条吸收成 1 → 旧守卫读 total=1==1 → 绕过；
+    ///   V8b this=1/total=2：旧守卫恰好拒（2≠1）——新实现以显式分歧 Err 拒。
+    /// 破坏推演：还原守卫读总盘字段 → V8 方向 open Ok → 红。
+    /// 上游先拒：无——crate 无分歧校验（R5 实测两端均接受至 open）。
+    #[test]
+    fn zip32_count_field_divergence_rejected_both_directions() {
+        // V8：总盘 2→1（本盘保持 2）
+        let p = tmp_zip("div_total");
+        write_zip(&p, &[("word/aaaa.xml", b"<a/>".to_vec()), ("word/bbbb.xml", b"<b/>".to_vec())]);
+        let raw = std::fs::read(&p).unwrap();
+        let mut dup = patch_central_name(&raw, "word/bbbb.xml", "word/aaaa.xml");
+        let eocd = dup.windows(4).rposition(|w| w == b"PK\x05\x06").unwrap();
+        dup[eocd + 10..eocd + 12].copy_from_slice(&1u16.to_le_bytes());
+        std::fs::write(&p, dup).unwrap();
+        let err = open(&p, LIMIT_INPUT_BYTES_DOCX).unwrap_err();
+        assert!(matches!(err,
+            GuardError::EocdCountFieldsDiverge { this_disk: 2, total: 1 }), "{err}");
+
+        // V8b：本盘 2→1（总盘保持 2）——偏严方向同样必须显式拒
+        let p = tmp_zip("div_this");
+        write_zip(&p, &[("word/aaaa.xml", b"<a/>".to_vec()), ("word/bbbb.xml", b"<b/>".to_vec())]);
+        let raw = std::fs::read(&p).unwrap();
+        let mut dup = patch_central_name(&raw, "word/bbbb.xml", "word/aaaa.xml");
+        let eocd = dup.windows(4).rposition(|w| w == b"PK\x05\x06").unwrap();
+        dup[eocd + 8..eocd + 10].copy_from_slice(&1u16.to_le_bytes());
+        std::fs::write(&p, dup).unwrap();
+        let err = open(&p, LIMIT_INPUT_BYTES_DOCX).unwrap_err();
+        assert!(matches!(err,
+            GuardError::EocdCountFieldsDiverge { this_disk: 1, total: 2 }), "{err}");
+    }
+
+    /// 前置垃圾 zip64（R5 A7 升级）：旧实现绝对偏移探 zip64 记录必失败 →
+    /// Ok(None) 门跳过（fail-open 登记面）。crate 用 archive_offset 校正接受。
+    /// 新镜像 [声明偏移, locator) 窗内正向扫 → 记录在 声明+junk 处可见 →
+    /// **门真跑**：declared 1 == 实际 1 → 放行（非跳过式放行）。
+    /// 破坏推演：镜像窗扫退化为直探声明偏移 → EocdUnverifiable 误拒 → 红。
+    /// 上游先拒：无——R5 V5 实测 crate 对前置垃圾 zip64 接受（len=1）。
+    #[test]
+    fn prefix_junk_zip64_gate_active_and_passes() {
+        let p = tmp_zip("z64junk");
+        write_zip(&p, &[("word/document.xml", b"<a>ok</a>".to_vec())]);
+        let raw = std::fs::read(&p).unwrap();
+        let mut junked = vec![b'J'; 256];
+        junked.extend_from_slice(&make_zip64(&raw, 1));
+        std::fs::write(&p, junked).unwrap();
+        let mut za = open(&p, LIMIT_INPUT_BYTES_DOCX).unwrap();
+        assert_eq!(za.len(), 1, "前置垃圾 zip64 不得误拒——crate 接受而门必须真跑后放行");
+        assert!(za.by_name("word/document.xml").is_ok());
+    }
+
+    /// 终端 fail-closed（R5 M1.6）：候选全部不可接受 → 拒绝而非「门跳过」。
+    /// 22B 文件恰为一枚 cd_off(100) ≥ pos(0) 的 EOCD → 镜像必败 → Err。
+    /// 旧实现读 total=1 返回 Ok(Some(1))（fail-open）→ 红。
+    #[test]
+    fn eocd_gate_fails_closed_when_no_candidate_verifies() {
+        let d = std::env::temp_dir().join("bidparse_guard_test");
+        std::fs::create_dir_all(&d).unwrap();
+        let p = d.join(format!("nocand_{}.zip", std::process::id()));
+        let mut blk = Vec::with_capacity(22);
+        blk.extend_from_slice(b"PK\x05\x06");
+        blk.extend_from_slice(&0u16.to_le_bytes()); // 盘号
+        blk.extend_from_slice(&0u16.to_le_bytes()); // 目录盘
+        blk.extend_from_slice(&1u16.to_le_bytes()); // 本盘条目
+        blk.extend_from_slice(&1u16.to_le_bytes()); // 总条目（== 本盘，无分歧）
+        blk.extend_from_slice(&0u32.to_le_bytes()); // 目录大小
+        blk.extend_from_slice(&100u32.to_le_bytes()); // 目录偏移 ≥ pos → 候选必败
+        blk.extend_from_slice(&0u16.to_le_bytes()); // comment
+        assert_eq!(blk.len(), 22);
+        std::fs::write(&p, blk).unwrap();
+        let err = eocd_declared_entry_count(&p).unwrap_err();
+        assert!(matches!(err, GuardError::EocdUnverifiable), "{err}");
+    }
+
+    /// 压缩比门乘法判据（R5 P-2）：精确兑现「比值 >100」文档语义。
+    /// Stored 条目（compressed==1000）+ patch CDFH 声明：
+    ///   声明 100,999（真实比 100.999）→ 必须拒——旧整数除法 100,999/1000
+    ///   商 100 不 >100 → 过门（截断漏洞）；声明 100,000（恰 100）→ 放行（> 非 >=）。
+    /// 破坏推演：还原除法判据 → 100,999 档 open Ok → 红。
+    /// 上游先拒：无——patch 后 compressed/其余声明均在限内。
+    #[test]
+    fn compress_ratio_multiplication_boundary() {
+        let mk = |declared: u32, tag: &str| {
+            let p = tmp_zip(tag);
+            let f = File::create(&p).unwrap();
+            let mut w = ZipWriter::new(f);
+            let opt = SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Stored);
+            w.start_file("word/document.xml", opt).unwrap();
+            w.write_all(&incompressible(1000)).unwrap();
+            w.finish().unwrap();
+            let mut raw = std::fs::read(&p).unwrap();
+            let i = raw.windows(4).position(|w| w == b"PK\x01\x02").expect("CDFH 在位");
+            raw[i + 24..i + 28].copy_from_slice(&declared.to_le_bytes()); // 未压缩声明
+            std::fs::write(&p, raw).unwrap();
+            open(&p, LIMIT_INPUT_BYTES_DOCX)
+        };
+        let err = mk(100_999, "ratio999").unwrap_err();
+        assert!(matches!(err, GuardError::CompressRatioBad { .. }),
+            "真实比 100.999 必须拒（乘法判据）: {err}");
+        let mut za = mk(100_000, "ratio100").unwrap();
+        assert_eq!(za.len(), 1, "恰 100 放行（> 非 >=）");
+        assert!(za.by_index(0).is_ok());
     }
 
     #[test]

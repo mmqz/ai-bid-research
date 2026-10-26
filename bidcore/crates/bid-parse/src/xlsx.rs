@@ -89,6 +89,7 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
         ocr_blocks: 0,
         blocks,
         parse_summary: format!("xlsx: {} 工作表，{filled_rows} 有效行，{total_cells} 非空单元格", sheet_names.len()),
+        components: vec![], // SC-02 部件账本属 docx 解析面（xlsx 部件概念不适用）
     })
 }
 
@@ -131,6 +132,38 @@ mod tests {
         w.finish().unwrap();
     }
 
+    /// 字节级构造最小合法 xlsx（calamine 可开）：单表 + rows×cols 高熵 inlineStr
+    /// 单元格。行×列双参版——R5 X3 样本设计直采（格轴负向测试专用）：
+    /// 行数 < 行门限值，使触发面**只**落在格轴（列数放大格计数）。
+    fn write_xlsx_rows_cols(path: &Path, rows: usize, cols: usize) {
+        let f = std::fs::File::create(path).unwrap();
+        let mut w = ZipWriter::new(f);
+        let opt = SimpleFileOptions::default();
+        w.start_file("[Content_Types].xml", opt).unwrap();
+        w.write_all(br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>"#).unwrap();
+        w.start_file("_rels/.rels", opt).unwrap();
+        w.write_all(br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>"#).unwrap();
+        w.start_file("xl/workbook.xml", opt).unwrap();
+        w.write_all(br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="S1" sheetId="1" r:id="rId1"/></sheets></workbook>"#).unwrap();
+        w.start_file("xl/_rels/workbook.xml.rels", opt).unwrap();
+        w.write_all(br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>"#).unwrap();
+        w.start_file("xl/worksheets/sheet1.xml", opt).unwrap();
+        // 列引用 A..（cols ≤ 26 内直接字母）；数值单元格 <c r="A1"><v>n</v></c>
+        let letters: Vec<char> = ('A'..).take(cols).collect();
+        let mut body = String::with_capacity(rows * cols * 24 + 128);
+        body.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData>");
+        for i in 1..=rows {
+            body.push_str("<row>");
+            for c in &letters {
+                body.push_str(&format!("<c r=\"{c}{i}\"><v>{i}</v></c>"));
+            }
+            body.push_str("</row>");
+        }
+        body.push_str("</sheetData></worksheet>");
+        w.write_all(body.as_bytes()).unwrap();
+        w.finish().unwrap();
+    }
+
     #[test]
     fn xlsx_row_flood_rejected_by_post_gate() {
         // R3-S3-3 负向：LIMIT+1 行真实结构 xlsx（calamine 真解析，非 mock）→
@@ -141,6 +174,27 @@ mod tests {
         write_xlsx_rows(&p, LIMIT_XLSX_FILLED_ROWS + 1);
         let err = parse(&p).unwrap_err();
         assert!(err.contains("有效行") && err.contains("超上限"), "{err}");
+    }
+
+    /// 格轴负向（SC-04，R5 X3 直采）：95,239 行 × 21 列 = 2,000,019 非空格
+    /// ——行数 95,239 < 行门 200,000（行门静默），格计数在末行破 200 万 →
+    /// **格轴**显式拒绝。此前仓库只有行轴负向（R5 P-1 缺口）——本测试
+    /// 独立证明格门真实生效且「拒绝不留部分结果」。
+    /// 破坏推演：删除 total_cells 门 → parse Ok（blocks≈95,239）→ unwrap_err 红；
+    /// 误改判据为行门复用（filled_rows 超限才拒）→ 95,239 行不触发行门 → Ok → 红。
+    /// 上游先拒：无——guard 面输入字节/条目数/声明/压缩比均放行（样本设计只触格门）。
+    #[test]
+    fn xlsx_cell_flood_rejected_by_post_gate_cell_axis() {
+        let d = std::env::temp_dir().join("bidparse_xlsx_test");
+        std::fs::create_dir_all(&d).unwrap();
+        let p = d.join(format!("cellflood_{}.xlsx", std::process::id()));
+        let rows = (LIMIT_XLSX_TOTAL_CELLS / 21) + 1; // 95,239 行 → 恰在末行触发
+        assert!(rows < LIMIT_XLSX_FILLED_ROWS, "样本前提：行门不先触发");
+        write_xlsx_rows_cols(&p, rows, 21);
+        let err = parse(&p).unwrap_err();
+        assert!(err.contains("非空单元格") && err.contains("2000019") && err.contains("超上限"),
+            "格轴门拒绝（非行门）：{err}");
+        assert!(!err.contains("有效行"), "不得误触发行轴：{err}");
     }
 
     #[test]

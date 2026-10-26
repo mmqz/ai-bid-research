@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """run_tests.py — 每轮测试入口（test-plan §3 冒烟口径 + 夹具自检 + V1/V2/V3 验证 + m1 并行线 + M1.7 真实链）
 每轮开发/文档变更后运行：python3 scripts/run_tests.py
+  T0 环境契约预检（SC-12）：fixtures-requirements.txt 全清单开跑即知（钉版包/外部引擎/tessdata/字体/cargo）
   T1 xref_check 常规模式（跨文档一致性，0 错误）
   T2 xref_check --inject（历史错误注入回归：R-11/R-14/TC-08 三处必须被捕获）
   T3 夹具完整性：manifest sha256 逐文件校验 + 结构计数（从 fixture_spec 派生，v0.5=44 文件含 corpus-R）
@@ -62,6 +63,61 @@ def _echo_regex():
 
 
 _passed, _failed = [], []
+
+
+# ---------------------------------------------------------------- T0（环境契约预检，SC-12）
+def t_env_preflight():
+    """SC-12（issue #7 吸收）：环境契约完备性预检——开跑前核验
+    fixtures-requirements.txt 全清单。缺件即响亮红并给补装指引：
+    本会话 T4c-OCR 与 R5 e2e_m1 双实证「缺件时下游响亮 FAIL 而非静默过绿」，
+    预检把「踩了才知道」升为「开跑即知」——远端/新沙箱拉起首个红点即环境面
+    而非代码回归（R5 环境契约提示的固化）。"""
+    print("[T0] 环境契约预检（SC-12：fixtures-requirements 全清单）")
+
+    # T0a Python 钉版六包（版本漂移 = 确定性回归隐患源，T6/T13 依赖）
+    import importlib.metadata as im
+    pins = {"python-docx": "1.2.0", "reportlab": "4.4.9", "openpyxl": "3.1.5",
+            "Pillow": "11.3.0", "pdfplumber": "0.11.9", "pymupdf": "1.26.7"}
+    bad = []
+    for pkg, want in pins.items():
+        try:
+            got = im.version(pkg)
+        except im.PackageNotFoundError:
+            bad.append(f"{pkg} 未安装（钉版 {want}）")
+            continue
+        if got != want:
+            bad.append(f"{pkg}=={got} ≠ 钉版 {want}")
+    check("T0a Python 钉版六包一致（fixtures-requirements.txt）", not bad,
+          "; ".join(bad) if bad else "")
+
+    # T0b 外部解析引擎四件（poppler 双件 / tesseract / LibreOffice headless）
+    import shutil as _sh
+    bins = {"pdftotext": "apt install poppler-utils",
+            "pdftoppm": "apt install poppler-utils",
+            "tesseract": "apt install tesseract-ocr",
+            "soffice": "apt install libreoffice-writer"}
+    miss = [f"{b} 缺失（{hint}）" for b, hint in bins.items() if not _sh.which(b)]
+    check("T0b 外部引擎四件在位（pdftotext/pdftoppm/tesseract/soffice）", not miss,
+          "; ".join(miss) if miss else "")
+
+    # T0c chi_sim 语言数据（OCR 分档——缺件时 T4c-OCR 与 cargo e2e_m1 响亮红）
+    tessdata = Path.home() / ".tessdata"
+    ok_c = (tessdata / "chi_sim.traineddata").exists()
+    check("T0c chi_sim 语言数据在位（~/.tessdata，tessdata_fast）", ok_c,
+          "" if ok_c else
+          "补装：github.com/tesseract-ocr/tessdata_fast → chi_sim.traineddata 放 ~/.tessdata/；"
+          "缺失时 T4c-OCR 与 cargo e2e_m1 将响亮 FAIL（设计如此，非代码回归）")
+
+    # T0d 渲染字体（可变字体陷阱后钉版——PIL 像素层/B2 扫描件/插图全依赖）
+    font = Path("/usr/share/fonts/truetype/chinese/SarasaMonoSC-Regular.ttf")
+    check("T0d SarasaMonoSC 渲染字体在位（像素层钉版）", font.exists(),
+          "" if font.exists() else "缺失时 B2/D5a/D5b/插图生成全空白（Task 16 字体陷阱）")
+
+    # T0e Rust 工具链（m1 并行线 T10~T13 与 bidcore cargo 回归）
+    cargo_path = Path.home() / ".cargo" / "bin" / "cargo"
+    ok_e = bool(_sh.which("cargo")) or cargo_path.exists()
+    check("T0e cargo 工具链可达（rustup stable，实测 1.99.1）", ok_e,
+          "" if ok_e else "补装：sh data/rustup-init.sh -y --profile minimal --default-toolchain stable")
 
 
 def check(name: str, ok: bool, detail: str = ""):
@@ -451,12 +507,13 @@ def t_v1():
               all(v for k, v in rd.items() if k != "pages"),
               "; ".join(k for k, v in rd.items() if k != "pages" and not v))
 
-        # T7d 暗标口径
+        # T7d 暗标口径（SC-06 后为五断言：页数/禁字/元数据/金丝雀/标识符面）
         rep_d = v1_darkbid.run_darkbid_checks(dark, bright, td)
-        check(f"T7d 暗标四断言（页数 {rep_d['D1_pages']['pages']}≤上限且明暗一致 / 禁字双面零命中 / "
-              f"元数据清零 / 金丝雀检出 {len(rep_d['D4_canary']['hits'])} 处防空洞绿）",
+        check(f"T7d 暗标五断言（页数 {rep_d['D1_pages']['pages']}≤上限且明暗一致 / 禁字双面零命中 / "
+              f"元数据清零 / 金丝雀检出 {len(rep_d['D4_canary']['hits'])} 处防空洞绿 / "
+              f"标识符面 {rep_d['D5_identifier_scan']['scan']['ident_count']} 个零命中+金丝雀）",
               rep_d["pass"],
-              json.dumps({k: rep_d[k] for k in ("D2_forbidden_scan", "D3_metadata_zeroing")},
+              json.dumps({k: rep_d[k] for k in ("D2_forbidden_scan", "D3_metadata_zeroing", "D5_identifier_scan")},
                          ensure_ascii=False)[:150] if not rep_d["pass"] else "")
 
         # T7e 导出件确定性（freeze_docx 字节级）
@@ -587,8 +644,9 @@ def t_telecom():
 
 def main() -> int:
     print("=" * 62)
-    print("ai-bid-research 每轮测试（V0 夹具 + 一致性 + 判分器 + V1/V2/V3 + m1 并行线 + M1.7 真实链）")
+    print("ai-bid-research 每轮测试（T0 环境预检 + V0 夹具 + 一致性 + 判分器 + V1/V2/V3 + m1 并行线 + M1.7 真实链 T14/T15 + M1.7-TEL T16）")
     print("=" * 62)
+    t_env_preflight()
     t_xref()
     t_fixture_integrity()
     t_readback()

@@ -160,6 +160,7 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
         ocr_blocks,
         blocks,
         parse_summary: summary,
+        components: vec![], // SC-02 部件账本属 docx 解析面（PDF 无 zip 部件结构）
     })
 }
 

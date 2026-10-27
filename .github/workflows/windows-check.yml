@@ -5,6 +5,12 @@ name: windows-check
 #   1. bid-parse/src/guard.rs 的 E0596 在 #[cfg(not(unix))] 分支里，
 #      因为 CI 只跑 Linux，该分支从未被编译，bug 潜伏后被合并冲掉。
 #   2. 本机复检时发现 Windows 直接 cargo check 失败。
+#
+# B3-1 增补（issue #2 §B3/§3.1）：
+#   - 修复触发分支损坏（此前 `ain]` 永不匹配 = CI 从未在 PR 上跑过）；
+#   - bid-engine 引入 mdc-office-io git 依赖（mdcore 为私有仓）——
+#     CI 用**只读 deploy key** 拉取（issue #2 §3.1 纪律：不得把 PAT 写进仓库或 CI 日志）；
+#   - CARGO_NET_GIT_FETCH_WITH_CLI=true 让 cargo 走 git CLI（尊重 SSH 配置）。
 
 on:
   push:
@@ -16,6 +22,8 @@ on:
 env:
   CARGO_TERM_COLOR: always
   CARGO_NET_RETRY: 3
+  # cargo git 依赖走 git CLI（尊重 ~/.ssh 与 insteadOf——deploy key 通道）
+  CARGO_NET_GIT_FETCH_WITH_CLI: "true"
 
 jobs:
   check:
@@ -23,6 +31,24 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Configure mdcore read access (deploy key)
+        # issue #2 §3.1：mdcore 私有仓凭据 = 只读 deploy key（secret MD_CORE_DEPLOY_KEY）。
+        # PAT 不入库、不入日志——key 只写 runner 的 ~/.ssh/id_ed25519。
+        shell: pwsh
+        env:
+          MD_CORE_DEPLOY_KEY: ${{ secrets.MD_CORE_DEPLOY_KEY }}
+        run: |
+          $sshDir = "$env:USERPROFILE\.ssh"
+          New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          $env:MD_CORE_DEPLOY_KEY | Out-File -FilePath "$sshDir\id_ed25519" -Encoding ascii -NoNewline
+          # Windows OpenSSH 权限收紧（防 "bad permissions" 拒载）
+          icacls "$sshDir\id_ed25519" /inheritance:r /grant:r "$($env:USERNAME):R" | Out-Null
+          ssh-keyscan -t ed25519 github.com 2>$null | Out-File -FilePath "$sshDir\known_hosts" -Encoding ascii
+          # https → ssh 改道（仅 mdcore 仓——其他 git 依赖不受影响）
+          git config --global url."git@github.com:mmqz/mdcore.git".insteadOf "https://github.com/mmqz/mdcore"
+          ssh -o StrictHostKeyChecking=accept-new -T git@github.com 2>$null | Out-Null
+          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 1) { exit 1 }  # exit 1 = 认证 OK 但 shell 拒绝（GitHub 常态）
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable

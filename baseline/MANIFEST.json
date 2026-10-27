@@ -1,0 +1,1352 @@
+{
+  "_determinism_note": "elapsed_ms/peak_mem_mb 为性能观测字段，不参与一致性 digest；MANIFEST/env.json 不含时间戳与随机量；跨调用字节一致除 mdcore_main_rev_record_only （可用 BASELINE_MDCORE_REV 钉住）外。",
+  "corpus_roots": [
+    "real-corpus",
+    "fixtures"
+  ],
+  "counts": {
+    "block_kinds_observed": {
+      "ocr_line": 279,
+      "para": 7322,
+      "pdf_line": 15688,
+      "table_row": 1117,
+      "xlsx_row": 116
+    },
+    "by_category": {
+      "docx": 17,
+      "other": 73,
+      "pdf": 28,
+      "xlsx": 5,
+      "zip": 1
+    },
+    "fail_reasons": {
+      "不支持的文件类型": 74
+    },
+    "parse_failed": 74,
+    "parse_ok": 50,
+    "total": 124
+  },
+  "env": {
+    "ai_bid_research_rev": "8ec7f9a6710c056412e9773f3dbad64dfccd42ca",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+    "cpu_cores": 2,
+    "mdcore_main_rev_record_only": "f8c860aa3a377fa96b15982132b69a657bbba728",
+    "os": "Linux 5.10.134-013.15.kangaroo.al8.x86_64 x86_64",
+    "python": "3.12.15",
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "tessdata_chi_sim": "present",
+    "tools": {
+      "pdfinfo": "pdfinfo version 25.03.0",
+      "pdftoppm": "pdftoppm version 25.03.0",
+      "pdftotext": "pdftotext version 25.03.0",
+      "tesseract": "tesseract 5.5.0"
+    },
+    "usr_bin_time": "MISSING(以 rusage 替代)"
+  },
+  "files": [
+    {
+      "bytes": 1532,
+      "category": "other",
+      "large": false,
+      "parse_digest": "daf511300b396ac96b5c63809d99b5bf9228b2ace448d741cda54e872de1c768",
+      "parse_json": "baseline/parse/fixtures/corpus-A/defect-drafts/defect-map.json.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-A/defect-drafts/defect-map.json",
+      "sha256": "243127b9de3523ab81cd01f3e2a5509c5f35842a5c9fbef95ad40083558f8626"
+    },
+    {
+      "bytes": 37169,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "a9cb564e180f0eb2540edc8c1d7be21a5e5ee8e1240f0b67bf9f07d1d0872405",
+      "parse_json": "baseline/parse/fixtures/corpus-A/defect-drafts/技术标草稿-缺陷样本.docx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-A/defect-drafts/技术标草稿-缺陷样本.docx",
+      "sha256": "2e8c04b8c47acbc169dc7464540a3fc0586ac3f08a016b50137e5b1b73123b88"
+    },
+    {
+      "bytes": 3402,
+      "category": "other",
+      "large": false,
+      "parse_digest": "8789ec292d7754455d370dfb74d56320dcc1b2b6ccca99382af4ada733e1e9f4",
+      "parse_json": "baseline/parse/fixtures/corpus-A/expected-transitions/TC-01.json.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-A/expected-transitions/TC-01.json",
+      "sha256": "78f206af4ca1c8e7055242199aa1724f45ab8b10709bc69cefaa4c78a361c97a"
+    },
+    {
+      "bytes": 770,
+      "category": "other",
+      "large": false,
+      "parse_digest": "d3a064dc7410f3b5e80901f8d4e7ae3b7ad2ad82cdef26766681977918b3e6b0",
+      "parse_json": "baseline/parse/fixtures/corpus-A/expected-transitions/TC-02.json.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-A/expected-transitions/TC-02.json",
+      "sha256": "4c1d8ead63ce9d9073eeb0321c146152ba1ab7fd59a62a2ca11f75132eb07983"
+    },
+    {
+      "bytes": 1321,
+      "category": "other",
+      "large": false,
+      "parse_digest": "d20a9ad4f4cfcec5053c1e22b560188348df955ad3ce15270e1fe2bc91f70e6d",
+      "parse_json": "baseline/parse/fixtures/corpus-A/expected-transitions/TC-03.json.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-A/expected-transitions/TC-03.json",
+      "sha256": "5fdfb7405ce7d28f05c8098b8c1e77695cac62a26efcfc62b9cb7165b8c87e32"
+    },
+    {
+      "bytes": 951,
+      "category": "other",
+      "large": false,
+      "parse_digest": "e2c18f736cf6708add8069c7b3450a664f3edbc1edd8de689d40306ec43e338a",
+      "parse_json": "baseline/parse/fixtures/corpus-A/expected-transitions/TC-04.json.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-A/expected-transitions/TC-04.json",
+      "sha256": "dba97045dd46391c976e0da5c3409a77eec1b5dff841e3114e4804dfef4d813f"
+    },
+    {
+      "bytes": 1118,
+      "category": "other",
+      "large": false,
+      "parse_digest": "b7c40348d39f88e0f2cf59c3756c2714836361a1e8ea60f8a3784ad028e7afe8",
+      "parse_json": "baseline/parse/fixtures/corpus-A/expected-transitions/TC-05.json.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-A/expected-transitions/TC-05.json",
+      "sha256": "04f9716307cc6edc480ca899cfda81cf893f0ec993ec61213b177e1e5e78cb1a"
+    },
+    {
+      "bytes": 1141,
+      "category": "other",
+      "large": false,
+      "parse_digest": "2e79511b30cd9692f8fe37d19a4369f52562ceda218f780ac9a253b0f51ff7de",
+      "parse_json": "baseline/parse/fixtures/corpus-A/expected-transitions/TC-06.json.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-A/expected-transitions/TC-06.json",
+      "sha256": "19c18925dea7186ec588a8e44517db8700357f68ce05629b7c1ff3cf19f2a2fa"
+    },
+    {
+      "bytes": 769,
+      "category": "other",
+      "large": false,
+      "parse_digest": "5641b37927a4c918198ba9d2e9015a3c7f382eb7610918ab8362375d7a1b9dab",
+      "parse_json": "baseline/parse/fixtures/corpus-A/expected-transitions/TC-07.json.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-A/expected-transitions/TC-07.json",
+      "sha256": "4b6bcaba6b158021e5a7a3d6df8a8bdbabf2ecab1fe16abb474c1a906c40e024"
+    },
+    {
+      "bytes": 871,
+      "category": "other",
+      "large": false,
+      "parse_digest": "4717931274390bfe4f0286b881c3f10e0b97342ed2e81f986eb6b6f297942fc9",
+      "parse_json": "baseline/parse/fixtures/corpus-A/expected-transitions/TC-08.json.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-A/expected-transitions/TC-08.json",
+      "sha256": "cd2f046a49d5427d5140389598801d56cef093ac750bb3b2696bcff9f821b743"
+    },
+    {
+      "bytes": 2246,
+      "category": "other",
+      "large": false,
+      "parse_digest": "b568249b950e42deea42dcf0c4ce11d3647ad7bccfe982efbcf36d81935cc80e",
+      "parse_json": "baseline/parse/fixtures/corpus-A/expected-transitions/TC-09.json.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-A/expected-transitions/TC-09.json",
+      "sha256": "5c9b9b4cdfc310252c0e2e7f93875c29d652763834caf8a117f734abf160018f"
+    },
+    {
+      "bytes": 971,
+      "category": "other",
+      "large": false,
+      "parse_digest": "3de03cd6540e088d3b31515a17b5afd6b51aa1f631e15e09f5fdb8a076e4cf9b",
+      "parse_json": "baseline/parse/fixtures/corpus-A/expected-transitions/TC-10.json.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-A/expected-transitions/TC-10.json",
+      "sha256": "2c04635fdf00de78eb9dc2b3efdf9b4b35c3481c686e3956b41d151fa35b0c4c"
+    },
+    {
+      "bytes": 676,
+      "category": "other",
+      "large": false,
+      "parse_digest": "3b09c0b558c1c5625075234823fbf7d45764c77953cdd1bc2b7fb82acbe87c23",
+      "parse_json": "baseline/parse/fixtures/corpus-A/expected-transitions/TC-11.json.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-A/expected-transitions/TC-11.json",
+      "sha256": "02c479e36d7153c713d9a68acd579f9cfed7061620d5aed55eab980bd0ffdc18"
+    },
+    {
+      "bytes": 1242,
+      "category": "other",
+      "large": false,
+      "parse_digest": "0c5e13df87695f5a1a4ec6321d95747ec826dddf65349dd1ef6e49d2b4ba9804",
+      "parse_json": "baseline/parse/fixtures/corpus-A/expected-transitions/TC-12.json.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-A/expected-transitions/TC-12.json",
+      "sha256": "abbaad8d37ac41c3aeda13b53e0294f9d2a8e3b98b350535a17b4fd4f30dc498"
+    },
+    {
+      "bytes": 42426,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "8088d7016bf9cc4d5e15403e5b85157aba3d77088183cd6a1d96fc26a5197d3d",
+      "parse_json": "baseline/parse/fixtures/corpus-A/files/A-招标文件.docx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-A/files/A-招标文件.docx",
+      "sha256": "e1a2c6f1665306b26c1d7c846cce74f9af02b7cade5bd548cb73f7448ed0d996"
+    },
+    {
+      "bytes": 7791,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "aa272a26e528c039b09e9882f28666b0bc496ff0ae5fb7e831222afed6460170",
+      "parse_json": "baseline/parse/fixtures/corpus-A/files/B1-设备清单.pdf.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-A/files/B1-设备清单.pdf",
+      "sha256": "f2dbe901f36f49067b5e97f1e79335f96c40a385ee08e99112898f934929e64a"
+    },
+    {
+      "bytes": 100445,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "a2fcaa9fcd9c887d96eb42bbadf7835631f7c6444693ac0742e736b203789497",
+      "parse_json": "baseline/parse/fixtures/corpus-A/files/B2-投标函格式页-扫描件.pdf.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-A/files/B2-投标函格式页-扫描件.pdf",
+      "sha256": "2c81a0016799d48c104be769519261bd31bfde8a4274729360985ceca5465713"
+    },
+    {
+      "bytes": 6168,
+      "category": "xlsx",
+      "large": false,
+      "parse_digest": "10c098ff2f6c3d3d1f7ebca10067e9b3f0906cd0c15be3a09503c0ba0ae7877b",
+      "parse_json": "baseline/parse/fixtures/corpus-A/files/B3-图纸目录.xlsx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-A/files/B3-图纸目录.xlsx",
+      "sha256": "93ab914883e0f9e9019a6780b82a60d23e72287c795321e4d6c1f2f7b6c7ef26"
+    },
+    {
+      "bytes": 37379,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "4cc202003cf0bc9fb4595483f5be4c09207f378ecbdb3211fc2124da66dc26a7",
+      "parse_json": "baseline/parse/fixtures/corpus-A/files/C-补遗文件01.docx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-A/files/C-补遗文件01.docx",
+      "sha256": "c0f0e3da2f3dbb1ac864be3c85c53544cabcab728e1e9854b3b03ec70e04c1f0"
+    },
+    {
+      "bytes": 2965,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "a6b7de42a925d6b907770ffcb0478d9ed4268ab2365a444fdceebd13dd7d7763",
+      "parse_json": "baseline/parse/fixtures/corpus-A/files/evidence/EV-01-营业执照.pdf.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-A/files/evidence/EV-01-营业执照.pdf",
+      "sha256": "b1b4811b9c1b96e1bff95a49dcba07434cd391d7939e82b7453d18142b80258c"
+    },
+    {
+      "bytes": 2923,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "5b4af61844c2029c346c8e4be1d21e5eac5276f045e700c9a3594dc2fdf5d2d7",
+      "parse_json": "baseline/parse/fixtures/corpus-A/files/evidence/EV-02-电子与智能化工程专业承包二级资质证书.pdf.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-A/files/evidence/EV-02-电子与智能化工程专业承包二级资质证书.pdf",
+      "sha256": "60a2e9ce86ccab9bb8ad89be98bcfd8e802ee8d9ff6e20ce7ea4f2e23964c7b6"
+    },
+    {
+      "bytes": 2824,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "6148d9e08548bca0835da36ebf518f39b75063793908c656f0801deffb27c143",
+      "parse_json": "baseline/parse/fixtures/corpus-A/files/evidence/EV-03-类似业绩合同-智慧园区弱电工程.pdf.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-A/files/evidence/EV-03-类似业绩合同-智慧园区弱电工程.pdf",
+      "sha256": "cd8accd98cc7ad32a0ae229ffe6212a764a2018e32fc6c2667fed9b164d2cfd0"
+    },
+    {
+      "bytes": 2822,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "8e60ac4334cbcba1bb7c7c38212a0323ae63cdfd6f5b8de2c3d47d525dd6fbcb",
+      "parse_json": "baseline/parse/fixtures/corpus-A/files/evidence/EV-04-类似业绩合同-数据中心机房工程.pdf.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-A/files/evidence/EV-04-类似业绩合同-数据中心机房工程.pdf",
+      "sha256": "143a461e14322b2819c36840aed6e796a7989b2beab21b3fa13487f0607e7fe4"
+    },
+    {
+      "bytes": 2831,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "edfb5c3b42ee1efd52a391c46660feab9134e760c758d691aaca7dde34275aaa",
+      "parse_json": "baseline/parse/fixtures/corpus-A/files/evidence/EV-05-类似业绩合同-医院智能化改造.pdf.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-A/files/evidence/EV-05-类似业绩合同-医院智能化改造.pdf",
+      "sha256": "2db636241b32d4f9e88c35fdc9aa9a0642221e25dc625ce8f512e73d90abb3a3"
+    },
+    {
+      "bytes": 2787,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "efeb54cf932f937a9e2c7133131ff8d25535bdf62ba00a9514b0f0aabe310a36",
+      "parse_json": "baseline/parse/fixtures/corpus-A/files/evidence/EV-06-财务审计报告-2025年度.pdf.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-A/files/evidence/EV-06-财务审计报告-2025年度.pdf",
+      "sha256": "bb580da493d752359665f85d3fd585e98e3dfaaca2e30232ccccd63dc20a4431"
+    },
+    {
+      "bytes": 2789,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "6a89abf05af2d36e9e9d6cc66403344cadd49e001ba9404524e5fce6b51d3591",
+      "parse_json": "baseline/parse/fixtures/corpus-A/files/evidence/EV-07-无失信记录承诺函.pdf.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-A/files/evidence/EV-07-无失信记录承诺函.pdf",
+      "sha256": "5b7f8e3556b820e2502700fe16f7eff42b59301de0be093eaf25bc5328e6af57"
+    },
+    {
+      "bytes": 2871,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "9ed821851666c9232d0a9a3d453744906bd2b4ea55387392748297f970f12f92",
+      "parse_json": "baseline/parse/fixtures/corpus-A/files/evidence/EV-08-ISO9001质量管理体系认证证书.pdf.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-A/files/evidence/EV-08-ISO9001质量管理体系认证证书.pdf",
+      "sha256": "5798f2822f194175d306ff206f8b2692a37fd47a9db52463b8d6724498ef1460"
+    },
+    {
+      "bytes": 2888,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "001b62b24f7f20af2d2e3499427a16ba70b2883e77c104a909aedee1ca0c2bbe",
+      "parse_json": "baseline/parse/fixtures/corpus-A/files/evidence/EV-09-ISO27001信息安全管理体系认证证书.pdf.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-A/files/evidence/EV-09-ISO27001信息安全管理体系认证证书.pdf",
+      "sha256": "d9dc484b314bde0d9bbda4d4dfcfbb202f9334cd368a1e8214d8d3dabffd6030"
+    },
+    {
+      "bytes": 2831,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "d9d157e1bb4367a16c5cc272a5a24c88de35b9356d4571adb69ddac2298cb27e",
+      "parse_json": "baseline/parse/fixtures/corpus-A/files/evidence/EV-10-项目团队人员证书-网络工程师高级.pdf.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-A/files/evidence/EV-10-项目团队人员证书-网络工程师高级.pdf",
+      "sha256": "542c6cabc5cdca25f3135fd7a2bb99ebfbc3c937437cfe0065fca3fdcd609c54"
+    },
+    {
+      "bytes": 2807,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "f520b5e8ab531d7495318d1ac003053786669f5a560402ad577dde291de4ccc2",
+      "parse_json": "baseline/parse/fixtures/corpus-A/files/evidence/EV-11-售后服务体系说明.pdf.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-A/files/evidence/EV-11-售后服务体系说明.pdf",
+      "sha256": "6c61ed58ff634b930adeffff16cac30a78a46dc581e13234b48b65640fefcba5"
+    },
+    {
+      "bytes": 2684,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "63c14f3f5e3dec0c2493fe78091e4ba9b027301343efcb49bb7e41096650c5e6",
+      "parse_json": "baseline/parse/fixtures/corpus-A/files/evidence/EV-12-银行资信证明.pdf.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-A/files/evidence/EV-12-银行资信证明.pdf",
+      "sha256": "12ccdebab5359c989280974e00c3428a4a6460bc5ace311027bbbcb67f39c763"
+    },
+    {
+      "bytes": 2881,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "15fd74b41cb0a092eb8b0f4a02ddac8495909d7955547954cf3be8af48c677de",
+      "parse_json": "baseline/parse/fixtures/corpus-A/files/evidence/EV-13-安全生产许可证.pdf.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-A/files/evidence/EV-13-安全生产许可证.pdf",
+      "sha256": "f377b8445de6a170c7942ba50cd8c943d931d28bc046a67240d194328ad52505"
+    },
+    {
+      "bytes": 763,
+      "category": "other",
+      "large": false,
+      "parse_digest": "778ad3a6f6290c7549477835519fd42984c7cd599d1fd25329d230e38761332c",
+      "parse_json": "baseline/parse/fixtures/corpus-A/ground-truth/conflicts.json.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-A/ground-truth/conflicts.json",
+      "sha256": "1fa54757e5f0519128166597c9cd15fb02bc4c553e323a34266fa7aec0343795"
+    },
+    {
+      "bytes": 1624,
+      "category": "other",
+      "large": false,
+      "parse_digest": "0377d1730f3e9e39ac89e49edba75b542be972fe605e4e7112be686a31a46219",
+      "parse_json": "baseline/parse/fixtures/corpus-A/ground-truth/evidence-links.jsonl.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-A/ground-truth/evidence-links.jsonl",
+      "sha256": "d3d719db1014648133fb3fc3866ac35df5b0227ff7196e5a94440e533880ad7c"
+    },
+    {
+      "bytes": 10897,
+      "category": "other",
+      "large": false,
+      "parse_digest": "57c6e506346ac6a1ff26d6ff4b47e043de71df703b0dc41582b49ec1840042d1",
+      "parse_json": "baseline/parse/fixtures/corpus-A/ground-truth/requirements.jsonl.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-A/ground-truth/requirements.jsonl",
+      "sha256": "8c4a162562bf5c6f4762c16d957a40de1aeaf29277e61fa152d24a61588214ef"
+    },
+    {
+      "bytes": 575,
+      "category": "other",
+      "large": false,
+      "parse_digest": "829ca9b4ab67fa5c3a71ae3f114cc9ce41fcbc4df75ff2d11f2bf2411b152582",
+      "parse_json": "baseline/parse/fixtures/corpus-A/ground-truth/sections.jsonl.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-A/ground-truth/sections.jsonl",
+      "sha256": "8c82a68f71f570cb7fa9521a0153f64486a29942617edcd51292b1feb18a47ec"
+    },
+    {
+      "bytes": 17146,
+      "category": "other",
+      "large": false,
+      "parse_digest": "41e5a68584a10e4aa5a9315f139d4bd50f01880dee630a67a40bb0a3302838f7",
+      "parse_json": "baseline/parse/fixtures/corpus-A/manifest.json.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-A/manifest.json",
+      "sha256": "4a0375cc7c8595a3234794fca91de97bea23e59cb50318f4c2ee8302f85daad1"
+    },
+    {
+      "bytes": 38101,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "18fb35b84d9f30a553fa85709b2d6e08f3e1d676d62c357265fcb90262707e06",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D1-tables/D1a-合并表头跨页表.docx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-R/D1-tables/D1a-合并表头跨页表.docx",
+      "sha256": "ebbb7f1266e9e24266451f5b54c540691d62d81acbb325a4c423204ca906c77a"
+    },
+    {
+      "bytes": 6003,
+      "category": "xlsx",
+      "large": false,
+      "parse_digest": "f3b78e9f815c0e1f965e7f1181b92c3f35f20822a2e0e8d1be55f98b84711d00",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D1-tables/D1b-宽表公式.xlsx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-R/D1-tables/D1b-宽表公式.xlsx",
+      "sha256": "2ad521eff1c077b1bcf79a2f955c0f2efaf7eb003c6cbece8c3b5532a6985245"
+    },
+    {
+      "bytes": 39849,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "3af01e396f6b2317827a6c42c45ee398aa0947140e2ec1b7aa5f1998fecb2a27",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D2-nonbody/D2a-非正文条款.docx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-R/D2-nonbody/D2a-非正文条款.docx",
+      "sha256": "e4a8f9acda166b979624ad9d350a730d45027dcf7152afce46a7d568c4a22415"
+    },
+    {
+      "bytes": 70226,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "c00410b4018caa99df1ce860a48f3f729f593eb7aa7c356cebf74ce1af985f04",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D5-scanned/D5a-全扫描双栏盖章.pdf.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-R/D5-scanned/D5a-全扫描双栏盖章.pdf",
+      "sha256": "c8a17e706df35cdc7d1b8c055ce2477873b470749e300ac31590df20ebb6fe43"
+    },
+    {
+      "bytes": 82708,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "406d24d161ab37f29cf4f8c686c8cf9be5a2883ec7a9ce13207a62a9907effc0",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D5-scanned/D5b-图文混排.pdf.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-R/D5-scanned/D5b-图文混排.pdf",
+      "sha256": "26ddf2e331a683798ee63ddb27fecfc7e2222f23a07b820b5cebd683e8462c16"
+    },
+    {
+      "bytes": 37011,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "d02418473712ac218bb13509f87e72ad072cf0a56ea5c932afefa07399bdfe30",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D6-revisions/R6a-纯插入澄清.docx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-R/D6-revisions/R6a-纯插入澄清.docx",
+      "sha256": "78805f994bc1ca4ec95ba65bd331706938a71e78390bc8d708e88de8a2183f96"
+    },
+    {
+      "bytes": 37021,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "faf4d679d7da28f16b2a14318332ab5fc17c3748cf8b6101fc9d80a7647f53d2",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D6-revisions/R6b-纯删除澄清.docx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-R/D6-revisions/R6b-纯删除澄清.docx",
+      "sha256": "2700375c580dc5be2209cb8f05da9e2fad110e60649c6376d655877082c8bca0"
+    },
+    {
+      "bytes": 37232,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "11e3b43c126efb6187430d2c8d809ff08ed07febcd239b91aaa066d40961f7dd",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D6-revisions/R6c-混合修订澄清.docx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-R/D6-revisions/R6c-混合修订澄清.docx",
+      "sha256": "e83814f6410741c9f9954ae2cd8af88b31e44dae9ea3a3b7437b2cf07e946f45"
+    },
+    {
+      "bytes": 37446,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "46236f0f4df66f1b4a87a957d1a32c1429b7924ebe91fc1814e6c08e5c3d8ae6",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D6-revisions/R6d-带批注澄清.docx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-R/D6-revisions/R6d-带批注澄清.docx",
+      "sha256": "02f1c26d817760383f1ea019f18cbf01393ab35db3ac1af1be7d55776cd53737"
+    },
+    {
+      "bytes": 37548,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "18f728f2733885d249d467237f04b0b547481f26cfbd6d1c97715a9875618641",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D6-revisions/R6e-修订批注组合澄清.docx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-R/D6-revisions/R6e-修订批注组合澄清.docx",
+      "sha256": "ec931d0da4f1f309a57bb21c717c50f2b138cbda8347fccabf537e04aae8c6a8"
+    },
+    {
+      "bytes": 7254,
+      "category": "other",
+      "large": false,
+      "parse_digest": "1dea0c8e5dd2d94a970d2e4375b4285bd0e0117b601723206613879e0cb0517a",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D6-revisions/expected-readback.json.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-R/D6-revisions/expected-readback.json",
+      "sha256": "500adfdd3ae80123b2238cb9de7eea3227324ae82cd5ae65ecb37f7a9d937df7"
+    },
+    {
+      "bytes": 3721,
+      "category": "other",
+      "large": false,
+      "parse_digest": "032b8cbe6baf7a1f1ed2467cda30bcf598c133c2c0efa8dd69164e2a17bc71ac",
+      "parse_json": "baseline/parse/fixtures/corpus-R/README.md.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-R/README.md",
+      "sha256": "116efb5d5a4305543add352b6153ff44c95ef6e84cad740e1a4ddf378083f84d"
+    },
+    {
+      "bytes": 1238,
+      "category": "other",
+      "large": false,
+      "parse_digest": "1fddebfe75b02b7c0e2c59a6bd97d7f23e9673b525f42ce6d607977636c6e193",
+      "parse_json": "baseline/parse/fixtures/queries/eval-set.jsonl.json",
+      "parse_status": "failed",
+      "path": "fixtures/queries/eval-set.jsonl",
+      "sha256": "1acfe68a41835c58205880eacccf915edadbba630394d986361d02e9fab93479"
+    },
+    {
+      "bytes": 5535,
+      "category": "other",
+      "large": false,
+      "parse_digest": "d54e282740c5f5658bc797a6ef9d102e1cd3b3d62f84a4ae9c9694bb455dee3c",
+      "parse_json": "baseline/parse/fixtures/queries/exact-25.jsonl.json",
+      "parse_status": "failed",
+      "path": "fixtures/queries/exact-25.jsonl",
+      "sha256": "97e1676b410231d35e3cb659f34b68c169bc9cef558c3e5678fac9a60f13cee9"
+    },
+    {
+      "bytes": 5598,
+      "category": "other",
+      "large": false,
+      "parse_digest": "ad8b1980472b2987d1a347e157f6c738ac95d3f509add523274fb011d7158c74",
+      "parse_json": "baseline/parse/real-corpus/PROVENANCE.md.json",
+      "parse_status": "failed",
+      "path": "real-corpus/PROVENANCE.md",
+      "sha256": "e8788b085085cf88780e4195a1d23c788bd29b2441fd07dcb5ed01ca9dc46223"
+    },
+    {
+      "bytes": 3313,
+      "category": "other",
+      "large": false,
+      "parse_digest": "c3847fba755c851b888bb166744d1777787e4ebc3e9f24091ac9064f03457c7e",
+      "parse_json": "baseline/parse/real-corpus/gov-procurement/README.md.json",
+      "parse_status": "failed",
+      "path": "real-corpus/gov-procurement/README.md",
+      "sha256": "8c6854a0eae6ee9ce3283c205b4ad909707bd25ceb9f6a36a4c72eb74ea9bb69"
+    },
+    {
+      "bytes": 8877,
+      "category": "other",
+      "large": false,
+      "parse_digest": "38b11295214a0ce434577cc184c9f36cb9d67edf08afa39b1d760ab17056e021",
+      "parse_json": "baseline/parse/real-corpus/gov-procurement/artifacts/real-chain-report.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/gov-procurement/artifacts/real-chain-report.json",
+      "sha256": "06f2605cc2f8eaf3a1384e9a786a9f32942b6c8310045e96e5cb1fbcbef529c7"
+    },
+    {
+      "bytes": 8031,
+      "category": "other",
+      "large": false,
+      "parse_digest": "b5853c1d5bdfa52597c23759d1f32158f84a2038758d1442f4f9a1639392ca94",
+      "parse_json": "baseline/parse/real-corpus/gov-procurement/chains.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/gov-procurement/chains.json",
+      "sha256": "ef7780c0d2d8baed9ec1e8006db85fce2c29b3f12e23942836e9eba444c2325f"
+    },
+    {
+      "bytes": 2898,
+      "category": "other",
+      "large": false,
+      "parse_digest": "2b77329c60440feac0616e2d64328ed91acfc02162336186d9485b84629e9871",
+      "parse_json": "baseline/parse/real-corpus/gov-procurement/files/cuc-028-award-20260814.txt.json",
+      "parse_status": "failed",
+      "path": "real-corpus/gov-procurement/files/cuc-028-award-20260814.txt",
+      "sha256": "ad8dbe82ef045a4d8c157dedfe637bc889e8ff378b2acbf37e8ec197d69da208"
+    },
+    {
+      "bytes": 4134,
+      "category": "other",
+      "large": false,
+      "parse_digest": "246fcf089b3980f1d34b018b6dfd251477cde19e073f34e6cc1c21c177941c54",
+      "parse_json": "baseline/parse/real-corpus/gov-procurement/files/cuc-028-correction-20260728.txt.json",
+      "parse_status": "failed",
+      "path": "real-corpus/gov-procurement/files/cuc-028-correction-20260728.txt",
+      "sha256": "f729b8df9c0f1baccc187332bc79bfe579a2d48d7513adb41409a6f89713d92d"
+    },
+    {
+      "bytes": 6124,
+      "category": "other",
+      "large": false,
+      "parse_digest": "2211dec8e45bcf93587400ed8d19660d0531b5ea1a5270cb3079062bfbed2109",
+      "parse_json": "baseline/parse/real-corpus/gov-procurement/files/cuc-028-tender-20260713.txt.json",
+      "parse_status": "failed",
+      "path": "real-corpus/gov-procurement/files/cuc-028-tender-20260713.txt",
+      "sha256": "2ed6f0a6f746b557b8c7185a2ffa9a5e65ad0a660e0bfb6fa8a598abc541ae0b"
+    },
+    {
+      "bytes": 14164,
+      "category": "other",
+      "large": false,
+      "parse_digest": "a59ea16a1f79b504ff947fd8a5940d2237e1911f359ecde07fbd1ace4c3ea097",
+      "parse_json": "baseline/parse/real-corpus/gov-procurement/gt/ground-truth-draft.jsonl.json",
+      "parse_status": "failed",
+      "path": "real-corpus/gov-procurement/gt/ground-truth-draft.jsonl",
+      "sha256": "d8563e753f6911f0d7148c8d0879ea3d3a7b4c7d6a2358a3f72059c296a179f9"
+    },
+    {
+      "bytes": 360754,
+      "category": "other",
+      "large": false,
+      "parse_digest": "6e8c8e9077ce5fdc4f0bc7d8f7170d293e5f82f54e186ce815cdadf91153e20d",
+      "parse_json": "baseline/parse/real-corpus/gov-procurement/inventory.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/gov-procurement/inventory.json",
+      "sha256": "25408e495cb759e0534e5a474cf5eb6feb68fa5b73545b346d99455edcbbbf4f"
+    },
+    {
+      "bytes": 92080,
+      "category": "other",
+      "large": false,
+      "parse_digest": "fafd645fc74a8fdc8a9383afe4ffc98d28f433df3c9582e1df88e4ab997f3d52",
+      "parse_json": "baseline/parse/real-corpus/gov-procurement/sources/cuc-award-mirror-20260814.html.json",
+      "parse_status": "failed",
+      "path": "real-corpus/gov-procurement/sources/cuc-award-mirror-20260814.html",
+      "sha256": "5372b5ac74ac15363cd0533d5061689a79d8ba67d700ce833b71d4513d8dd132"
+    },
+    {
+      "bytes": 30517,
+      "category": "other",
+      "large": false,
+      "parse_digest": "4cf7346a40c531f1a480b254cbfb294f81690c7356b390b4b3526faa269533e5",
+      "parse_json": "baseline/parse/real-corpus/gov-procurement/sources/cuc-award-mirror2-20260814.html.json",
+      "parse_status": "failed",
+      "path": "real-corpus/gov-procurement/sources/cuc-award-mirror2-20260814.html",
+      "sha256": "c7290181176a60f8b071518249b14134eb24d2c3c9c19b42eb549dcafbbe4d63"
+    },
+    {
+      "bytes": 55400,
+      "category": "other",
+      "large": false,
+      "parse_digest": "1b6ba181be149ec31fa6784a46348c0fe1e38c55edbee9ae3f5a1d83db7cf363",
+      "parse_json": "baseline/parse/real-corpus/gov-procurement/sources/cuc-tender-mirror-20260713.html.json",
+      "parse_status": "failed",
+      "path": "real-corpus/gov-procurement/sources/cuc-tender-mirror-20260713.html",
+      "sha256": "9ee4cd605f397db60b4a134cd2589387edac4664dbc04b23860c4a56b37517bd"
+    },
+    {
+      "bytes": 327,
+      "category": "other",
+      "large": false,
+      "parse_digest": "dad06829f97930f13dea730ce19e4a15d58e137026574f6671b74703a0921522",
+      "parse_json": "baseline/parse/real-corpus/gov-procurement/stats.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/gov-procurement/stats.json",
+      "sha256": "ddca29a2e761f8a6d26e04e4485664d52b36c3b0c7096c6e30238dd06db645d0"
+    },
+    {
+      "bytes": 3741,
+      "category": "other",
+      "large": false,
+      "parse_digest": "4b9811f4180ae7bf9a77c3e533de464dbf0620905354eb6b914bdbcd4bd1bf1f",
+      "parse_json": "baseline/parse/real-corpus/telecom/README.md.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/README.md",
+      "sha256": "0a1a04cb0ca8de78a8bb6b32481b65c6b1757ffa5d72cba699d711eb5ec72d0b"
+    },
+    {
+      "bytes": 5939,
+      "category": "other",
+      "large": false,
+      "parse_digest": "7f63f4394737478ebec6bdf43d4c77ea571334a868fb4a720ab497a217518739",
+      "parse_json": "baseline/parse/real-corpus/telecom/chain-report.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/chain-report.json",
+      "sha256": "d964d1df34e000f34c444a7cec5da5ea168bb35c62b77acf7df3bfc4cd7af114"
+    },
+    {
+      "bytes": 2589,
+      "category": "other",
+      "large": false,
+      "parse_digest": "fa4e3cfcb3caa99ec212cd4c68038f1b0ae06719760c4da1537c1d58e2435e00",
+      "parse_json": "baseline/parse/real-corpus/telecom/converted-manifest.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/converted-manifest.json",
+      "sha256": "3767488db31dcea541bc85c6167ae9c9da63f0ed3212b289157dbad391174fac"
+    },
+    {
+      "bytes": 37059,
+      "category": "other",
+      "large": false,
+      "parse_digest": "a975ffb14ef1c0cfb7342cd9c82a538f627a196fe454c584be1b63c03aaad0e7",
+      "parse_json": "baseline/parse/real-corpus/telecom/fetch-report.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/fetch-report.json",
+      "sha256": "50c398667caa4fae7d9132f37111b9e27d78bafbacb51fe6330373b53c8218c4"
+    },
+    {
+      "bytes": 1028796,
+      "category": "other",
+      "large": false,
+      "parse_digest": "d096fca83c83224c95f96e3e9a2bbd04d8e992314e64524d6f13eb289af25102",
+      "parse_json": "baseline/parse/real-corpus/telecom/file-level-report.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/file-level-report.json",
+      "sha256": "6a1cfe5d2a87642f3d23675e46081554752e03de1c33ce249ee9e04e2410bfac"
+    },
+    {
+      "bytes": 14415,
+      "category": "other",
+      "large": false,
+      "parse_digest": "ee123a46773cd70b823f957ab09cae724c3f56b954d2100e95d0e4867644a55a",
+      "parse_json": "baseline/parse/real-corpus/telecom/gt/ground-truth-draft.jsonl.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/gt/ground-truth-draft.jsonl",
+      "sha256": "2f7617de1294fa825e13c2b924ec95e69984a8eaa034c147d3c24f6d5b4b61df"
+    },
+    {
+      "bytes": 416398,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "488c96540089397abc89dfcfe6bb4cabb32cf5a05b0992d0c8b681386471c9eb",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/A-cqyd-20260500728-重庆西永水冷空调-招标文件.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/A-cqyd-20260500728-重庆西永水冷空调-招标文件.pdf",
+      "sha256": "f5c81b416c4d2a4274689d7b065950679dcf6345d70fb86db15c7a8a497cf66b"
+    },
+    {
+      "bytes": 270472,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "e725a472f93cf01bfbccdc2ae526c45dca9187365d6906f42a9f3115191b6412",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/A-telecom-huaian-主文件.docx.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/A-telecom-huaian-主文件.docx",
+      "sha256": "95b62593bced58518b084eebf772ed098bc304087dacca30c934621df1df75fd"
+    },
+    {
+      "bytes": 497031,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "f896e747cecd419d97c65c93ed095443347088a98517986b56ad0c098b37be8c",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/A-telecom-shanghai-songjiang-光终端放装-招标文件.docx.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/A-telecom-shanghai-songjiang-光终端放装-招标文件.docx",
+      "sha256": "55c8f074fcc6238dd21f1bec63f442fad1740db931a1c00dc320a1b161169453"
+    },
+    {
+      "bytes": 261921,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "e46f9c7c5988ae1d2a0df5103933d5c404ae9da20a49cf2d22c446c1380061b9",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/A-telecom-shanxi-灵枢智关-招标正文.docx.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/A-telecom-shanxi-灵枢智关-招标正文.docx",
+      "sha256": "699485806c5bd957a9cc93db3fa9032a262d397e0dd187ae035f6a1bbfbde29a"
+    },
+    {
+      "bytes": 127752,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "70c08f7b36db9358b272bf473a97f7e1618f5f43528d84991ed2a40528418850",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/A-unicom-ry-2026CUC-RJY-PT0783-招标文件.docx.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/A-unicom-ry-2026CUC-RJY-PT0783-招标文件.docx",
+      "sha256": "c6e225afd9425256ee890576f3da410195e2ab5311ffc81e44f4b4edb1ec1ac9"
+    },
+    {
+      "bytes": 114060,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "7949978cd34218eff47c5e3de86efb006862ad4efce144766b8d6c4d0f225b36",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-cmcc-anhui-井圈井盖-中标结果公示.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-cmcc-anhui-井圈井盖-中标结果公示.pdf",
+      "sha256": "c55b2ed9400dda9b9a21acd4738f49c98dada4dd8214e00e31917a1ac9064c2b"
+    },
+    {
+      "bytes": 221131,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "f7e588648af67bc11274ad8a228511622a736913804826266005a8af71370489",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-cmcc-gansu-雪亮工程-中标候选人公示.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-cmcc-gansu-雪亮工程-中标候选人公示.pdf",
+      "sha256": "4afe857f1510a03f5590f59e4b12dc56e4b654e7a91c05c591536940fb13fab1"
+    },
+    {
+      "bytes": 211379,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "dfee41c3a1e32e8968890b17446ae1fddc8b4aec1795cc91eb2a359b8823162f",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-cqyd-招标公告.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-cqyd-招标公告.pdf",
+      "sha256": "e2317602fa32b776dc9d35940d2ba3170813f27952dac7936233a621bb7e913f"
+    },
+    {
+      "bytes": 1719128,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "54483f5d0fbd4be24b6002e67aab5df660e23cc90310e6af3f506b476000534e",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-telecom-hebei-无线网勘察设计-招标公告.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-telecom-hebei-无线网勘察设计-招标公告.pdf",
+      "sha256": "7dc04bf241ea87fe4cfbe211bfcafa88c2ca9adefcd95ab825cd65ec64580799"
+    },
+    {
+      "bytes": 80940,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "8a8b750cfd97198467a4429d143e80cbdfba83010213a649b1d0adbcc78d7800",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-telecom-huaian-合同.docx.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-telecom-huaian-合同.docx",
+      "sha256": "2a72910d5e596978504b63cc41180f749dde7fdfe83ae5bbfc1d89c155bfa320"
+    },
+    {
+      "bytes": 37486,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "8759d3743f7ba34000fa12cc44193c960c55283917951a99b96c2afe230e0875",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-telecom-huaian-技术规范书.docx.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-telecom-huaian-技术规范书.docx",
+      "sha256": "d2d58a0a7adf5929ff1446dc0cf7cce50c22e3f1c7affbd1bd8eb9792d8891f5"
+    },
+    {
+      "bytes": 15640,
+      "category": "xlsx",
+      "large": false,
+      "parse_digest": "efaea513c2b26207a9b3d4b0473ba0dac4015ea355b633b12ce107bbd23364cc",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-telecom-huaian-报价文件.xlsx.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-telecom-huaian-报价文件.xlsx",
+      "sha256": "bfcf13bfe04c6268258f04a312281e66e4601ab48fa75b7f12add64f8dbaacb4"
+    },
+    {
+      "bytes": 304906,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "9a616c3a4a9c706d28d1e543cc4fd53888c789fcbf85ef26a47c3a214a2dd268",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-unicom-ry-技术规范书.docx.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-unicom-ry-技术规范书.docx",
+      "sha256": "277c2a70e8aef90a7946a997c61be966d5e99c493b3a8806e9c5fc8ca856ae82"
+    },
+    {
+      "bytes": 23560,
+      "category": "xlsx",
+      "large": false,
+      "parse_digest": "7851cb042e660aaac5a4251ed2a26b9f830fa198f23cfb34d5faec7dbc24f2f9",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-unicom-ry-投标一览表.xlsx.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-unicom-ry-投标一览表.xlsx",
+      "sha256": "96ae879e106ba94dad3f2946f52f43a26b2d520b0c2d8507101f767733e37f68"
+    },
+    {
+      "bytes": 30878,
+      "category": "xlsx",
+      "large": false,
+      "parse_digest": "c4c36c73af7ec0f842b5bba02993a418b73444d1548f0381f37b6f6a931cd427",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-unicom-ry-详细评审表.xlsx.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-unicom-ry-详细评审表.xlsx",
+      "sha256": "c6ee8eb61c98d888433ee8b8d8e1e1f7a7da50f50ce22541df87c484e3b63c68"
+    },
+    {
+      "bytes": 193138,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "94d9803ce8105e3115387cafc65fe0738b5bd81506e30faa3f8e2fc969eeddda",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-zjyd-立项批复.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-zjyd-立项批复.pdf",
+      "sha256": "ac5ed3a06cd0f6db5f4671de1d25d05ca9feb1ef594f82bb5f2664b1030743c3"
+    },
+    {
+      "bytes": 217383,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "930daa207e33ed2246bafea487e3fe6deb3eb262c477be019152ae4612f70851",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/C-zjyd-20260500552-数据库服务器-变更公告.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/C-zjyd-20260500552-数据库服务器-变更公告.pdf",
+      "sha256": "b6f7df314d4d41a9a0c1ddd40be5fc1b96725817675d351f6b0e04e7bce323b8"
+    },
+    {
+      "bytes": 12713,
+      "category": "other",
+      "large": false,
+      "parse_digest": "edbc73db20730abcbe3a289b6c675278a1550ef80d6629eae370c2ac35a5a2ce",
+      "parse_json": "baseline/parse/real-corpus/telecom/refetch-report.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/refetch-report.json",
+      "sha256": "a11239a113cab6415edcb9934241bc4bef3962b758367c7256f18f915e68f108"
+    },
+    {
+      "bytes": 65747,
+      "category": "other",
+      "large": false,
+      "parse_digest": "4833ef0edf9fb25d416ca73941c27be53451a09866080f9f6daa3eb0dcd324b6",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/bulletin-23c54dc0.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/bulletin-23c54dc0.json",
+      "sha256": "4aa81a7ef121b1f204f0eeece955ee73485eb2ca1ea644fad92f77bfe1232826"
+    },
+    {
+      "bytes": 64691,
+      "category": "other",
+      "large": false,
+      "parse_digest": "35c64ad23af08f514d5dc31cb021678c70941d06b31e7bae5d869371eec9098e",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/bulletin-3021ef4e.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/bulletin-3021ef4e.json",
+      "sha256": "48948e79aff0d8da8d5d6e7fc3c8cca02f6ff2e3ef73a5702cba505e2befe7d3"
+    },
+    {
+      "bytes": 95800,
+      "category": "other",
+      "large": false,
+      "parse_digest": "3557c531c0bfcbb30ddd600e76dbd3310e838f0d0657ef3847fa0928067793c7",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/bulletin-31ac386d.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/bulletin-31ac386d.json",
+      "sha256": "618c0a4d4e8c3cdb1925acf9851573331ab96818b8a328287899a3a172f1fe57"
+    },
+    {
+      "bytes": 51842,
+      "category": "other",
+      "large": false,
+      "parse_digest": "c3bde26f4bbfa2c63ffc86ba3f332b3e3a4843ccfefa988cf99d9178c0494196",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/bulletin-337f342e.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/bulletin-337f342e.json",
+      "sha256": "ebb972b20caadb671b9c07b2f08c0eb1066d7d803b1709a17c9a97ad28104c4e"
+    },
+    {
+      "bytes": 77427,
+      "category": "other",
+      "large": false,
+      "parse_digest": "c36538843650b339a8663fa32cdbcc04e1e7d032277cc80ad1f053e2209adb3f",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/bulletin-51580c8e.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/bulletin-51580c8e.json",
+      "sha256": "9ab67b941df6b9e39e7ebaad25961f43fb18bbae4e576d1a04e99a68a9b40d45"
+    },
+    {
+      "bytes": 32063,
+      "category": "other",
+      "large": false,
+      "parse_digest": "cfa3f745f9dfd88e533d8f2ae556a5675af1f5cc930bcadbd1ba55f8cabe9c1d",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/bulletin-67fc378a.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/bulletin-67fc378a.json",
+      "sha256": "a96135b2b0246b7ab30143b9ee405c0611c06bd7dcdb0f669f0d0501cc85cbe2"
+    },
+    {
+      "bytes": 52714,
+      "category": "other",
+      "large": false,
+      "parse_digest": "6afcd70950ad01e5606feef7293a4741c9912094195907b305df25cb1d849cf5",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/bulletin-78428bf0.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/bulletin-78428bf0.json",
+      "sha256": "5ebcdaa5adcb3b95f10e204e259ab4aa5e354136fa0c67974e0432252778dfa9"
+    },
+    {
+      "bytes": 86924,
+      "category": "other",
+      "large": false,
+      "parse_digest": "1505037febfadc1963e07f431e67887a17f6df839be762d8fb5829eaf0524206",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/bulletin-9d19dd7b.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/bulletin-9d19dd7b.json",
+      "sha256": "c9ad338291d43dde0436f400aeb2e16779219f12ccbc216c264e2e249cd8d0b4"
+    },
+    {
+      "bytes": 32145,
+      "category": "other",
+      "large": false,
+      "parse_digest": "e8c8c7d877e243e15a21e59148a87c3ca22bb99612c702bb44593ae1572b485d",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/bulletin-a6f1b033.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/bulletin-a6f1b033.json",
+      "sha256": "20421a5d2e2485155561db53ec761408c710088b0a84faad8759f0e1a8db930a"
+    },
+    {
+      "bytes": 71378,
+      "category": "other",
+      "large": false,
+      "parse_digest": "5605b83f0a26e226a0fa00fd1a7c0a25f45a511142f13a2ffd76ff0c6a2f748c",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/bulletin-c277fb4c.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/bulletin-c277fb4c.json",
+      "sha256": "7b144974106f0301e79a03454391c9fe37f555f17600847a9c56332c56963882"
+    },
+    {
+      "bytes": 491979,
+      "category": "other",
+      "large": false,
+      "parse_digest": "89d238b0a0c1d415ecab866a669be4c94528a19e2d41018e11fe95275933f16f",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/bulletin-door.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/bulletin-door.json",
+      "sha256": "906e8e9aec3480304c6babe5aafdfdbd2012cb2d7bfad464c381e804a57f9897"
+    },
+    {
+      "bytes": 916,
+      "category": "other",
+      "large": false,
+      "parse_digest": "4ce4413211bdb1d6f81ce78511c9fa07a74cf9ad8ad172ac59b8f819c23ec7c3",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/mirror-manifest.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/mirror-manifest.json",
+      "sha256": "e23329356c42ec48eaf2690d3c69501b9e722368a9d58c15bd64392241c7bc15"
+    },
+    {
+      "bytes": 25223,
+      "category": "other",
+      "large": false,
+      "parse_digest": "26b158f9a1d014ad656cdd50fd2e9d8ec09f7970c089568e01d37dfc1471e197",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/publicity-06959810.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/publicity-06959810.json",
+      "sha256": "f7dcdec7ed70305d68bb715d41e859c531a46fdda13be1d6a1bdc4a284a4874c"
+    },
+    {
+      "bytes": 17703,
+      "category": "other",
+      "large": false,
+      "parse_digest": "aabfe3a904af60ddad8328fbfba8d1e46249d6fcf5a2ef11178c24afb923c31a",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/publicity-3cb6c6ef.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/publicity-3cb6c6ef.json",
+      "sha256": "8f6ef84d9220bc56a252832ea5e54c962fba930627eaf0bd936238b618ce1b63"
+    },
+    {
+      "bytes": 9068,
+      "category": "other",
+      "large": false,
+      "parse_digest": "5bfe8bd6f3cebfc4230dcc40f502f18631b1d6612fa439a6675e690f30d9df66",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/publicity-64b8406b.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/publicity-64b8406b.json",
+      "sha256": "a24afb1585261d375718f04107f0424c0438193c9df8aee2e69dc99e40d82ac4"
+    },
+    {
+      "bytes": 3447,
+      "category": "other",
+      "large": false,
+      "parse_digest": "8745d95713d7886c4221386e9452aff8620f9699e2f5a251f0cbfcc45cdcaca4",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/publicity-771e6d55.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/publicity-771e6d55.json",
+      "sha256": "bf970104bcc2dd25bfb4c3d8040132c9989bfba444c408ef6e1379a34b47c911"
+    },
+    {
+      "bytes": 7436,
+      "category": "other",
+      "large": false,
+      "parse_digest": "acad5d8189b3d5217e1fc9d80963010bbcaba567194b78e5832e2ce066ef2c04",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/publicity-7d14549b.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/publicity-7d14549b.json",
+      "sha256": "49fc154e3b0d274a4ee5623d4630da3c57ce7921a9c5dfe60345a79a2e08e639"
+    },
+    {
+      "bytes": 13122,
+      "category": "other",
+      "large": false,
+      "parse_digest": "bc7f8ac95276d5fda9894e44025a7868ccfdb4d83f1002428a790bfc2f8ffa6b",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/publicity-868cbc34.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/publicity-868cbc34.json",
+      "sha256": "07a42031503eb1b352f2ab6a8406c5194755ddaf54413cfdfb6caf8f37228ee1"
+    },
+    {
+      "bytes": 6841,
+      "category": "other",
+      "large": false,
+      "parse_digest": "340067d801f8a7e77e6ec077f87150d2ef73553d2b90edab9f60d42b7fa1af55",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/publicity-a9d5a3b0.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/publicity-a9d5a3b0.json",
+      "sha256": "3db519da0eeaa8ded1702446306516d5d57b4f2c7354feefd2e733f77425ef1d"
+    },
+    {
+      "bytes": 2606,
+      "category": "other",
+      "large": false,
+      "parse_digest": "8c46cb80d873454024e44c80e3c15957f74aade701ebca4ed74fc405106208ab",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/publicity-df7f7190.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/publicity-df7f7190.json",
+      "sha256": "eb8bde931088ee6e4a4f00ea9292ea882773a1064f6c7ac86c297fec8a4e4120"
+    },
+    {
+      "bytes": 71382,
+      "category": "other",
+      "large": false,
+      "parse_digest": "9009702f6687d80328016098b2a62bbcd937e98ee2f3a162a9117a74ba6b3598",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/publicity-door.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/publicity-door.json",
+      "sha256": "fc9f312f1e9ac3cc2b9dc2dbdb2483cb0fedbf6793fc3de89ecc8525d759e9f5"
+    },
+    {
+      "bytes": 6718,
+      "category": "other",
+      "large": false,
+      "parse_digest": "92a342bc0d3cb2d7e8c7f69f121515f80b04bbc0831f0e5c3b73a8a8da772f18",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/publicity-fafe3c54.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/publicity-fafe3c54.json",
+      "sha256": "c623932cdd14d76b110a3d0bc30d4ff60e0ec5e8dbd30f35c20482c1b2b8a4b4"
+    },
+    {
+      "bytes": 6740,
+      "category": "other",
+      "large": false,
+      "parse_digest": "e92139047a4fab85541293c5ea3f8cbddc4047b44455bb0bcc9436dc131486c5",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/publicity-ff6e4550.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/publicity-ff6e4550.json",
+      "sha256": "1466575dc95f3a6c3b771b29d2fd0d8441427b56b8f102179d8b4faa41c9b2af"
+    },
+    {
+      "bytes": 44475,
+      "category": "other",
+      "large": false,
+      "parse_digest": "9dfe232c390675561a3d2019b44e4103486bd8215d5e3fb0646668ea780988ec",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/unicom-bj-bpm-1st-tender-20260812.html.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/unicom-bj-bpm-1st-tender-20260812.html",
+      "sha256": "828d0248c1ccd4bf5eb343e2e962419628ac1e31039e2397d589a426380c31d3"
+    },
+    {
+      "bytes": 21410,
+      "category": "other",
+      "large": false,
+      "parse_digest": "2b5c245e527d99b7ccc0c0ecadc28559047a58de205159376f31867a08d01da6",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/unicom-bj-bpm-1st-tender-20260812.txt.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/unicom-bj-bpm-1st-tender-20260812.txt",
+      "sha256": "c6797ff69cb631d749ba4df4e407f05aaf4d0e05a7e4670214990a93d8f6f0ed"
+    },
+    {
+      "bytes": 44565,
+      "category": "other",
+      "large": false,
+      "parse_digest": "539ff9cb8f538e2b34dcf62d437f1ed0acc47db5ee1054d50ad7f2e0ba7c0471",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/unicom-bj-bpm-2nd-tender-20260918.html.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/unicom-bj-bpm-2nd-tender-20260918.html",
+      "sha256": "5066a70cc58124ef736f6358d22199e29cc0aed16bb4d42fe1df778f3565febc"
+    },
+    {
+      "bytes": 21485,
+      "category": "other",
+      "large": false,
+      "parse_digest": "b34b1b20492709f52b7c402a7b8e18121974c2fa2ba5d3a3daaabad451d714f6",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/unicom-bj-bpm-2nd-tender-20260918.txt.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/unicom-bj-bpm-2nd-tender-20260918.txt",
+      "sha256": "d530b8c5b235500a48ed7697fd170fb3fe4d0b2a59070a1e5ac58add5cc0dd78"
+    },
+    {
+      "bytes": 1395,
+      "category": "other",
+      "large": false,
+      "parse_digest": "a695fa7da33a00ba2ce3d0becae3aa8ea6a9968b2407057da0f319b0267a2af0",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/unicom-bj-bpm-fail-20260908-snapshot.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/unicom-bj-bpm-fail-20260908-snapshot.json",
+      "sha256": "5b2e94e89476cf6f898408cb9558117ceca95932ad9325ee1106e8a42640caa1"
+    },
+    {
+      "bytes": 375,
+      "category": "other",
+      "large": false,
+      "parse_digest": "b211c779b80fbf65288b1dbd6165fbe0a0cc910cf820a4df190002184fd4e1a3",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/unicom-bj-bpm-fail-20260908.html.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/unicom-bj-bpm-fail-20260908.html",
+      "sha256": "45e84d073ac8a4667b198bd2863e463202f3b1ddfed9c1ed60481dffc5e8c4c8"
+    },
+    {
+      "bytes": 17,
+      "category": "other",
+      "large": false,
+      "parse_digest": "515b60b79dab05ca23a908ed29e2fd3a3449d482abce9cf6ad3f415bc1593386",
+      "parse_json": "baseline/parse/real-corpus/telecom/sources/unicom-bj-bpm-fail-20260908.txt.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/sources/unicom-bj-bpm-fail-20260908.txt",
+      "sha256": "28a393b0bae956daa48c544880749ea43df5ad24fe2e7634ced3e7153e62fedc"
+    },
+    {
+      "bytes": 2917,
+      "category": "other",
+      "large": false,
+      "parse_digest": "7d3d4ac709cd25b27e86b79f7273fad9c78b2d7b01edfaea1f62c7138e30f363",
+      "parse_json": "baseline/parse/real-corpus/water/README.md.json",
+      "parse_status": "failed",
+      "path": "real-corpus/water/README.md",
+      "sha256": "088063b07d020576624a2db07025122d8658e6822f9e037de248a3e890d321bd"
+    },
+    {
+      "bytes": 1841340,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "258e38f0ecdb7ea7dfdb61d301af4d6401e1681e415e4704ba668924d63173ef",
+      "parse_json": "baseline/parse/real-corpus/water/files/A-伊犁水库质量检测招标文件.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/water/files/A-伊犁水库质量检测招标文件.pdf",
+      "sha256": "815dfcf7ef5316c8005c4e2a7ef9017168beceddd84da6685f167d2dbbfe85a9"
+    },
+    {
+      "bytes": 2291179,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "d4e95758da3c024e2a06582b61a2ba8266fe7f4f951c30893a8d5e722349b29e",
+      "parse_json": "baseline/parse/real-corpus/water/files/A-塔里木水库除险加固招标文件.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/water/files/A-塔里木水库除险加固招标文件.pdf",
+      "sha256": "b2e91214675d74230fd34e3e1d25f03681ed25ff78e781f1223801ea9a77faba"
+    },
+    {
+      "bytes": 902459,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "1e9c01dba808298b591efde425976f12593e06af55fe671413dcdcbaf5d297d5",
+      "parse_json": "baseline/parse/real-corpus/water/files/A-某水利施工标段招标文件.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/water/files/A-某水利施工标段招标文件.pdf",
+      "sha256": "6a9814b28e1a4f34c2c508b1a8d982d02ee2249dba59301cf36175a508154910"
+    },
+    {
+      "bytes": 1418562,
+      "category": "zip",
+      "large": false,
+      "parse_digest": "6007d0bfb9b6054a349883a994176766f2816dede31ceff218e2c8bb0d161c63",
+      "parse_json": "baseline/parse/real-corpus/water/files/B3-北京示范文本2025.zip.json",
+      "parse_status": "failed",
+      "path": "real-corpus/water/files/B3-北京示范文本2025.zip",
+      "sha256": "c06df5cb08d9479699a8410ceb17a6f57506098b1b24afcd9da28f3a89428a4a"
+    },
+    {
+      "bytes": 2213393,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "e3911a70c1be496d91aa661884d535c479d5503dbdc1a4cd16410e111c5201e6",
+      "parse_json": "baseline/parse/real-corpus/water/files/C-福建修订通知-扫描件.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/water/files/C-福建修订通知-扫描件.pdf",
+      "sha256": "77c95e9778eabb34ae20b9a8a9aa527002cdc69a6cc6a0993563a790aa296f9c"
+    }
+  ],
+  "generated_by": "scripts/baseline_run.py（issue #2 · B1）",
+  "rerun_consistency": {
+    "parse": {
+      "diff_files": [],
+      "identical": true,
+      "method": "单次调用内双跑：全部语料两遍解析，对去掉 elapsed_ms 的规范化 JSON 逐文件 sha256 比对"
+    },
+    "security": {
+      "classification_identical": true,
+      "diff_files": [],
+      "method": "敌意件双跑：比对 (result, error_text) 分类稳定性；elapsed/peak 为观测字段不进比对"
+    }
+  },
+  "schema": "ai-bid-research/b1-baseline/1",
+  "security": [
+    {
+      "bytes": 1044116,
+      "detail": "baseline/security/01-zip-bomb-declared-10kb-actual-1gb.docx.json",
+      "error_digest": "7f71f78af6a8efdfc561828f39cdae636dbcb3666037b82346a74e9dea0cab5c",
+      "file": "01-zip-bomb-declared-10kb-actual-1gb.docx",
+      "result": "rejected",
+      "sha256": "4097dec68ae2fba00ae941c2d916b8fe1b829bd182b720d9cdf6a7376a4361d4"
+    },
+    {
+      "bytes": 502,
+      "detail": "baseline/security/02-path-traversal.docx.json",
+      "error_digest": "653d3cb28c474371fe57bcd67a50bad641a1c928bcdfad55f85db413239b74bf",
+      "file": "02-path-traversal.docx",
+      "result": "rejected",
+      "sha256": "289db3b5fa1ee70720c29eb48bf41ff95cc536f9d1e82f6c43f3af3acf99e8ee"
+    },
+    {
+      "bytes": 901,
+      "detail": "baseline/security/03-duplicate-entries.docx.json",
+      "error_digest": "99feb8daa2d735f79d4d330f9326eaa4bf90db2249139b76c2d958f8b1ed0a58",
+      "file": "03-duplicate-entries.docx",
+      "result": "rejected",
+      "sha256": "f71b99562f723f5b1fdfa02ff6240faad702303c5f68ae0638d0c31a0306dd1d"
+    },
+    {
+      "bytes": 29698,
+      "detail": "baseline/security/04-truncated-container.docx.json",
+      "error_digest": "f1d8cbc81deb66e0107edfe2059f2a52853434a845e9b880b28d7fbcb7ecf22b",
+      "file": "04-truncated-container.docx",
+      "result": "rejected",
+      "sha256": "8cb01d793cc7b27155a3feb2603ffb38a8ebd9af71c982aa63a2ce00d5d20bbd"
+    },
+    {
+      "bytes": 1016,
+      "detail": "baseline/security/05-billion-laughs.docx.json",
+      "error_digest": "0a1245a38138cf619452ff2f942b11f27603d40d6c1ad4c2fc07d8533f5b0fdb",
+      "file": "05-billion-laughs.docx",
+      "result": "rejected",
+      "sha256": "ba988fd09c95b8eb8e799615f1d8e5e008e72eee5cb4a747b57856b3cb8b524a"
+    },
+    {
+      "bytes": 1565,
+      "detail": "baseline/security/06-sparse-xlsx.xlsx.json",
+      "error_digest": "8c8857edf3d55cebd77fa6e012da5e44124c465214fb0ac7198ee142137f6cc9",
+      "file": "06-sparse-xlsx.xlsx",
+      "result": "succeeded",
+      "sha256": "311fea2fa1b3665c25dc7c7d934c84148b19aea9f8a19dbd004e17da31d660c7"
+    }
+  ]
+}

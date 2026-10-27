@@ -382,8 +382,8 @@ def gen_manifest(fixtures_root: Path, stats: dict):
                           "bytes": p.stat().st_size})
     manifest = {
         "fixture": "corpus-A (+ queries/corpus-R)",
-        "spec_version": "v0.5",
-        "spec_source": "scripts/fixture_spec.py + research/test-plan.md §1（v0.5：v0.2 审计修正 + v0.4 B2 扫描件修复 + corpus-R D1/D2/D5 结构层）",
+        "spec_version": "v0.6",
+        "spec_source": "scripts/fixture_spec.py + research/test-plan.md §1（v0.6：corpus-R +D6-revisions 修订/批注专项层——引擎 mdcore#17/#19 验收夹具，T2 批 issue #2；此前 v0.5：v0.2 审计修正 + v0.4 B2 扫描件修复 + corpus-R D1/D2/D5 结构层）",
         "deterministic": True,
         "stats_note": "A.paragraph_blocks 为生成器块计数（非 docx 物理段落数）；B1.rows 为数据行数（物理跨 2 页）",
         "counts": {

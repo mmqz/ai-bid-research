@@ -1,0 +1,327 @@
+{
+  "blocks": [
+    {
+      "cells": [],
+      "idx": 0,
+      "kind": "pdf_line",
+      "locator": "第1页 行1",
+      "text": "附件 B1：设备清单（含型号规格、单价上限与到货日期）"
+    },
+    {
+      "cells": [],
+      "idx": 1,
+      "kind": "pdf_line",
+      "locator": "第1页 行2",
+      "text": "项目编号：ZFCG-2026-GK-0311 共 40 项 到货日期口径：二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 2,
+      "kind": "pdf_line",
+      "locator": "第1页 行3",
+      "text": "序号 设备名称 型号规格 单位 数量 单价上限（元） 到货日期 备注"
+    },
+    {
+      "cells": [],
+      "idx": 3,
+      "kind": "pdf_line",
+      "locator": "第1页 行4",
+      "text": "1 应用服务器 GW-8000-T4 台 1 7,500 二〇二六年十二月三十日 含安装辅材"
+    },
+    {
+      "cells": [],
+      "idx": 4,
+      "kind": "pdf_line",
+      "locator": "第1页 行5",
+      "text": "2 数据库服务器 GW-8000-T4 台 2 9,000 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 5,
+      "kind": "pdf_line",
+      "locator": "第1页 行6",
+      "text": "3 核心交换机 S5735-L48T4X-A1 台 3 10,500 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 6,
+      "kind": "pdf_line",
+      "locator": "第1页 行7",
+      "text": "4 接入交换机 S5735-L48T4X-A1 台 1 12,000 二〇二六年十二月三十日 含安装辅材"
+    },
+    {
+      "cells": [],
+      "idx": 7,
+      "kind": "pdf_line",
+      "locator": "第1页 行8",
+      "text": "5 防火墙 USG6650E-AC550 台 2 13,500 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 8,
+      "kind": "pdf_line",
+      "locator": "第1页 行9",
+      "text": "6 上网行为管理 USG6650E-AC550 台 3 15,000 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 9,
+      "kind": "pdf_line",
+      "locator": "第1页 行10",
+      "text": "7 高清网络摄像机 IPC-4T-IR-D2 台 1 16,500 二〇二六年十二月三十日 含安装辅材"
+    },
+    {
+      "cells": [],
+      "idx": 10,
+      "kind": "pdf_line",
+      "locator": "第1页 行11",
+      "text": "8 NVR 存储主机 NVR-64H-8P 台 2 18,000 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 11,
+      "kind": "pdf_line",
+      "locator": "第1页 行12",
+      "text": "9 LED 显示屏 P1.875-6.25㎡ 台 3 19,500 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 12,
+      "kind": "pdf_line",
+      "locator": "第1页 行13",
+      "text": "10 数字会议主机 DCS-4000 台 1 21,000 二〇二六年十二月三十日 含安装辅材"
+    },
+    {
+      "cells": [],
+      "idx": 13,
+      "kind": "pdf_line",
+      "locator": "第1页 行14",
+      "text": "11 UPS 不间断电源 UPS-60K 台 2 22,500 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 14,
+      "kind": "pdf_line",
+      "locator": "第1页 行15",
+      "text": "12 精密空调 CR-25KW 台 3 24,000 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 15,
+      "kind": "pdf_line",
+      "locator": "第1页 行16",
+      "text": "13 机柜（42U） CAB-42U 台 1 25,500 二〇二六年十二月三十日 含安装辅材"
+    },
+    {
+      "cells": [],
+      "idx": 16,
+      "kind": "pdf_line",
+      "locator": "第1页 行17",
+      "text": "14 综合布线器材 CAT6-SYS 台 2 27,000 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 17,
+      "kind": "pdf_line",
+      "locator": "第1页 行18",
+      "text": "15 门禁控制器 AC-4D 台 3 28,500 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 18,
+      "kind": "pdf_line",
+      "locator": "第1页 行19",
+      "text": "16 人脸识别终端 FR-T8 台 1 30,000 二〇二六年十二月三十日 含安装辅材"
+    },
+    {
+      "cells": [],
+      "idx": 19,
+      "kind": "pdf_line",
+      "locator": "第1页 行20",
+      "text": "17 入侵报警主机 AL-16Z 台 2 31,500 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 20,
+      "kind": "pdf_line",
+      "locator": "第1页 行21",
+      "text": "18 中心管理平台 VMS-ENT 台 3 33,000 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 21,
+      "kind": "pdf_line",
+      "locator": "第1页 行22",
+      "text": "19 运维管理终端 PC-M600 台 1 34,500 二〇二六年十二月三十日 含安装辅材"
+    },
+    {
+      "cells": [],
+      "idx": 22,
+      "kind": "pdf_line",
+      "locator": "第1页 行23",
+      "text": "20 扫描仪 SC-A300 台 2 36,000 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 23,
+      "kind": "pdf_line",
+      "locator": "第1页 行24",
+      "text": "21 应用服务器 GW-8000-T4 台 3 37,500 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 24,
+      "kind": "pdf_line",
+      "locator": "第1页 行25",
+      "text": "22 数据库服务器 GW-8000-T4 台 1 39,000 二〇二六年十二月三十日 含安装辅材"
+    },
+    {
+      "cells": [],
+      "idx": 25,
+      "kind": "pdf_line",
+      "locator": "第1页 行26",
+      "text": "23 核心交换机 S5735-L48T4X-A1 台 2 40,500 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 26,
+      "kind": "pdf_line",
+      "locator": "第1页 行27",
+      "text": "24 接入交换机 S5735-L48T4X-A1 台 3 42,000 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 27,
+      "kind": "pdf_line",
+      "locator": "第1页 行28",
+      "text": "25 防火墙 USG6650E-AC550 台 1 43,500 二〇二六年十二月三十日 含安装辅材"
+    },
+    {
+      "cells": [],
+      "idx": 28,
+      "kind": "pdf_line",
+      "locator": "第1页 行29",
+      "text": "26 上网行为管理 USG6650E-AC550 台 2 45,000 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 29,
+      "kind": "pdf_line",
+      "locator": "第2页 行1",
+      "text": "序号 设备名称 型号规格 单位 数量 单价上限（元） 到货日期 备注"
+    },
+    {
+      "cells": [],
+      "idx": 30,
+      "kind": "pdf_line",
+      "locator": "第2页 行2",
+      "text": "27 高清网络摄像机 IPC-4T-IR-D2 台 3 46,500 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 31,
+      "kind": "pdf_line",
+      "locator": "第2页 行3",
+      "text": "28 NVR 存储主机 NVR-64H-8P 台 1 48,000 二〇二六年十二月三十日 含安装辅材"
+    },
+    {
+      "cells": [],
+      "idx": 32,
+      "kind": "pdf_line",
+      "locator": "第2页 行4",
+      "text": "29 LED 显示屏 P1.875-6.25㎡ 台 2 49,500 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 33,
+      "kind": "pdf_line",
+      "locator": "第2页 行5",
+      "text": "30 数字会议主机 DCS-4000 台 3 51,000 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 34,
+      "kind": "pdf_line",
+      "locator": "第2页 行6",
+      "text": "31 UPS 不间断电源 UPS-60K 台 1 52,500 二〇二六年十二月三十日 含安装辅材"
+    },
+    {
+      "cells": [],
+      "idx": 35,
+      "kind": "pdf_line",
+      "locator": "第2页 行7",
+      "text": "32 精密空调 CR-25KW 台 2 54,000 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 36,
+      "kind": "pdf_line",
+      "locator": "第2页 行8",
+      "text": "33 机柜（42U） CAB-42U 台 3 55,500 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 37,
+      "kind": "pdf_line",
+      "locator": "第2页 行9",
+      "text": "34 综合布线器材 CAT6-SYS 台 1 57,000 二〇二六年十二月三十日 含安装辅材"
+    },
+    {
+      "cells": [],
+      "idx": 38,
+      "kind": "pdf_line",
+      "locator": "第2页 行10",
+      "text": "35 门禁控制器 AC-4D 台 2 58,500 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 39,
+      "kind": "pdf_line",
+      "locator": "第2页 行11",
+      "text": "36 人脸识别终端 FR-T8 台 3 60,000 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 40,
+      "kind": "pdf_line",
+      "locator": "第2页 行12",
+      "text": "37 入侵报警主机 AL-16Z 台 1 61,500 二〇二六年十二月三十日 含安装辅材"
+    },
+    {
+      "cells": [],
+      "idx": 41,
+      "kind": "pdf_line",
+      "locator": "第2页 行13",
+      "text": "38 中心管理平台 VMS-ENT 台 2 63,000 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 42,
+      "kind": "pdf_line",
+      "locator": "第2页 行14",
+      "text": "39 运维管理终端 PC-M600 台 3 64,500 二〇二六年十二月三十日"
+    },
+    {
+      "cells": [],
+      "idx": 43,
+      "kind": "pdf_line",
+      "locator": "第2页 行15",
+      "text": "40 扫描仪 SC-A300 台 1 66,000 二〇二六年十二月三十日 含安装辅材"
+    },
+    {
+      "cells": [],
+      "idx": 44,
+      "kind": "pdf_line",
+      "locator": "第2页 行16",
+      "text": "注：单价上限为含税价（元）；型号规格栏为响应精确匹配口径，与正文第五章参数表一致。"
+    }
+  ],
+  "components": [],
+  "elapsed_ms": 40,
+  "file": "fixtures/corpus-A/files/B1-设备清单.pdf",
+  "has_text_layer": true,
+  "pages": 2,
+  "parse_summary": "pdf 文本层: 2 页 45 行块",
+  "sha256": "f2dbe901f36f49067b5e97f1e79335f96c40a385ee08e99112898f934929e64a",
+  "status": "ok"
+}

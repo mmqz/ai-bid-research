@@ -1,0 +1,47 @@
+{
+  "blocks": [
+    {
+      "cells": [],
+      "idx": 0,
+      "kind": "pdf_line",
+      "locator": "第1页 行1",
+      "text": "澄清通知（图文混排示例件）"
+    },
+    {
+      "cells": [],
+      "idx": 1,
+      "kind": "pdf_line",
+      "locator": "第1页 行2",
+      "text": "正文第一页含可提取文本层：本通知是对招标文件的澄清与补充。"
+    },
+    {
+      "cells": [],
+      "idx": 2,
+      "kind": "pdf_line",
+      "locator": "第1页 行3",
+      "text": "一、原招标文件第五章 5.2 条中的技术参数由文本层载明，与附表不一致时以本通知为准。"
+    },
+    {
+      "cells": [],
+      "idx": 3,
+      "kind": "pdf_line",
+      "locator": "第1页 行4",
+      "text": "二、附表（见次页图像页）为扫描版格式样例，无文本层。"
+    },
+    {
+      "cells": [],
+      "idx": 4,
+      "kind": "pdf_line",
+      "locator": "第1页 行5",
+      "text": "三、本通知不构成对投标截止时间的变更。"
+    }
+  ],
+  "components": [],
+  "elapsed_ms": 40,
+  "file": "fixtures/corpus-R/D5-scanned/D5b-图文混排.pdf",
+  "has_text_layer": true,
+  "pages": 1,
+  "parse_summary": "pdf 文本层: 1 页 5 行块",
+  "sha256": "26ddf2e331a683798ee63ddb27fecfc7e2222f23a07b820b5cebd683e8462c16",
+  "status": "ok"
+}

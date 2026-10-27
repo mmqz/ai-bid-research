@@ -1,0 +1,54 @@
+{
+  "blocks": [
+    {
+      "cells": [],
+      "idx": 0,
+      "kind": "pdf_line",
+      "locator": "第1页 行1",
+      "text": "体系认证"
+    },
+    {
+      "cells": [],
+      "idx": 1,
+      "kind": "pdf_line",
+      "locator": "第1页 行2",
+      "text": "（合成夹具证据文件——内容为虚构示例，仅供测试管线使用）"
+    },
+    {
+      "cells": [],
+      "idx": 2,
+      "kind": "pdf_line",
+      "locator": "第1页 行3",
+      "text": "证书编号：00127I77890R1S"
+    },
+    {
+      "cells": [],
+      "idx": 3,
+      "kind": "pdf_line",
+      "locator": "第1页 行4",
+      "text": "认证范围：信息系统集成及运维相关的信息安全管理"
+    },
+    {
+      "cells": [],
+      "idx": 4,
+      "kind": "pdf_line",
+      "locator": "第1页 行5",
+      "text": "有效期：2026 年 01 月 15 日 至 2027 年 12 月 31 日"
+    },
+    {
+      "cells": [],
+      "idx": 5,
+      "kind": "pdf_line",
+      "locator": "第1页 行6",
+      "text": "【有效期至 2027-12-31】"
+    }
+  ],
+  "components": [],
+  "elapsed_ms": 20,
+  "file": "fixtures/corpus-A/files/evidence/EV-09-ISO27001信息安全管理体系认证证书.pdf",
+  "has_text_layer": true,
+  "pages": 1,
+  "parse_summary": "pdf 文本层: 1 页 6 行块",
+  "sha256": "d9dc484b314bde0d9bbda4d4dfcfbb202f9334cd368a1e8214d8d3dabffd6030",
+  "status": "ok"
+}

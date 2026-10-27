@@ -1,0 +1,985 @@
+{
+  "blocks": [
+    {
+      "cells": [],
+      "idx": 0,
+      "kind": "pdf_line",
+      "locator": "第1页 行1",
+      "text": "中国移动浙江公司2025年算网能力二阶段项目数据库服务器采购_招标"
+    },
+    {
+      "cells": [],
+      "idx": 1,
+      "kind": "pdf_line",
+      "locator": "第1页 行2",
+      "text": "采购_变更公告_(1)"
+    },
+    {
+      "cells": [],
+      "idx": 2,
+      "kind": "pdf_line",
+      "locator": "第1页 行3",
+      "text": "本招标项目名称为中国移动浙江公司2025年算网能力二阶段项目数据库服务器采购，招标编号"
+    },
+    {
+      "cells": [],
+      "idx": 3,
+      "kind": "pdf_line",
+      "locator": "第1页 行4",
+      "text": "：ZJYD20260500552，招标人为中国移动通信集团浙江有限公司，招标代理机构为浙江中通通信有限"
+    },
+    {
+      "cells": [],
+      "idx": 4,
+      "kind": "pdf_line",
+      "locator": "第1页 行5",
+      "text": "公司。项目资金由招标人自筹，资金已落实。项目已具备招标条件，现进行公开招标，有意向的潜"
+    },
+    {
+      "cells": [],
+      "idx": 5,
+      "kind": "pdf_line",
+      "locator": "第1页 行6",
+      "text": "在投标人（以下简称投标人）可前来投标。"
+    },
+    {
+      "cells": [],
+      "idx": 6,
+      "kind": "pdf_line",
+      "locator": "第1页 行7",
+      "text": "1、项目概况与招标内容"
+    },
+    {
+      "cells": [],
+      "idx": 7,
+      "kind": "pdf_line",
+      "locator": "第1页 行8",
+      "text": "1.1 招标内容：采购77台通算服务器用于保障自主可控数据库按时上线。具体详见《第五章 货物需"
+    },
+    {
+      "cells": [],
+      "idx": 8,
+      "kind": "pdf_line",
+      "locator": "第1页 行9",
+      "text": "求一览表及技术规格（附件）》。"
+    },
+    {
+      "cells": [],
+      "idx": 9,
+      "kind": "pdf_line",
+      "locator": "第1页 行10",
+      "text": "1.2 采购年限：自合同签订之日至项目终验。"
+    },
+    {
+      "cells": [],
+      "idx": 10,
+      "kind": "pdf_line",
+      "locator": "第1页 行11",
+      "text": "1.3 标包划分、中标人数量及中标份额：本项目划分1个标包，中标1家，中标份额100%，以中标金"
+    },
+    {
+      "cells": [],
+      "idx": 11,
+      "kind": "pdf_line",
+      "locator": "第1页 行12",
+      "text": "额签署单项合同（固定金额）。"
+    },
+    {
+      "cells": [],
+      "idx": 12,
+      "kind": "pdf_line",
+      "locator": "第1页 行13",
+      "text": "1.4 到货要求：★卖方承诺收到招标人通知后20工作日内到货。"
+    },
+    {
+      "cells": [],
+      "idx": 13,
+      "kind": "pdf_line",
+      "locator": "第1页 行14",
+      "text": "1.5 交货地点：浙江省内。"
+    },
+    {
+      "cells": [],
+      "idx": 14,
+      "kind": "pdf_line",
+      "locator": "第1页 行15",
+      "text": "1.6 保修期：★从到货签收合格之后的36个月为产品的质量保证期。在质量保证期内，卖方负责软"
+    },
+    {
+      "cells": [],
+      "idx": 15,
+      "kind": "pdf_line",
+      "locator": "第1页 行16",
+      "text": "硬件的免费维护。"
+    },
+    {
+      "cells": [],
+      "idx": 16,
+      "kind": "pdf_line",
+      "locator": "第1页 行17",
+      "text": "1.7 最高投标限价：★项目不含税总价最高限价为：1674.336万元，报价超过最高限价将否决投标"
+    },
+    {
+      "cells": [],
+      "idx": 17,
+      "kind": "pdf_line",
+      "locator": "第1页 行18",
+      "text": "。"
+    },
+    {
+      "cells": [],
+      "idx": 18,
+      "kind": "pdf_line",
+      "locator": "第1页 行19",
+      "text": "包段 产品名称 产品单位 需求数量"
+    },
+    {
+      "cells": [],
+      "idx": 19,
+      "kind": "pdf_line",
+      "locator": "第1页 行20",
+      "text": "标包1 ARM架构高性能服务器（非标产品） 台 77"
+    },
+    {
+      "cells": [],
+      "idx": 20,
+      "kind": "pdf_line",
+      "locator": "第1页 行21",
+      "text": "2、投标人资格要求"
+    },
+    {
+      "cells": [],
+      "idx": 21,
+      "kind": "pdf_line",
+      "locator": "第1页 行22",
+      "text": "2.1 投标人在中华人民共和国境内依法注册，具有独立法人资格或为其他组织，具有有效合法的营"
+    },
+    {
+      "cells": [],
+      "idx": 22,
+      "kind": "pdf_line",
+      "locator": "第1页 行23",
+      "text": "业执照、税务登记证、组织机构代码证或三证合一营业执照，可开具增值税专用发票（须提供可开"
+    },
+    {
+      "cells": [],
+      "idx": 23,
+      "kind": "pdf_line",
+      "locator": "第1页 行24",
+      "text": "具增值税专用发票的证明）；"
+    },
+    {
+      "cells": [],
+      "idx": 24,
+      "kind": "pdf_line",
+      "locator": "第1页 行25",
+      "text": "2.2 单位负责人为同一人或者存在控股、管理关系的不同单位，不得参加同一标包投标或者未划分"
+    },
+    {
+      "cells": [],
+      "idx": 25,
+      "kind": "pdf_line",
+      "locator": "第1页 行26",
+      "text": "标包的同一项目投标；"
+    },
+    {
+      "cells": [],
+      "idx": 26,
+      "kind": "pdf_line",
+      "locator": "第1页 行27",
+      "text": "2.3 不接受联合体投标；"
+    },
+    {
+      "cells": [],
+      "idx": 27,
+      "kind": "pdf_line",
+      "locator": "第1页 行28",
+      "text": "2.4 不接受代理商投标（投标人须是投标产品的制造商，投标人须提供制造商声明、投标产品为投"
+    },
+    {
+      "cells": [],
+      "idx": 28,
+      "kind": "pdf_line",
+      "locator": "第1页 行29",
+      "text": "标人制造的承诺函）；"
+    },
+    {
+      "cells": [],
+      "idx": 29,
+      "kind": "pdf_line",
+      "locator": "第1页 行30",
+      "text": "2.5 所投服务器产品需取得有效期内的中国国家强制性产品认证证书（CCC认证证书）。【提供"
+    },
+    {
+      "cells": [],
+      "idx": 30,
+      "kind": "pdf_line",
+      "locator": "第1页 行31",
+      "text": "CCC认证证书及查询截屏，截屏须包括查询网页地址栏（通过www.cnca.gov.cn等网站在线查询）】"
+    },
+    {
+      "cells": [],
+      "idx": 31,
+      "kind": "pdf_line",
+      "locator": "第1页 行32",
+      "text": "；"
+    },
+    {
+      "cells": [],
+      "idx": 32,
+      "kind": "pdf_line",
+      "locator": "第1页 行33",
+      "text": "2.6 投标人提供至少1个2023年1月1日以来至公告发布之日的同类产品销售合同业绩。（同类指"
+    },
+    {
+      "cells": [],
+      "idx": 33,
+      "kind": "pdf_line",
+      "locator": "第1页 行34",
+      "text": "：PC服务器硬件产品）。【材料提供要求详见评审方法资格审查业绩证明材料要求】。"
+    },
+    {
+      "cells": [],
+      "idx": 34,
+      "kind": "pdf_line",
+      "locator": "第1页 行35",
+      "text": "本项目不接受联合体投标。"
+    },
+    {
+      "cells": [],
+      "idx": 35,
+      "kind": "pdf_line",
+      "locator": "第1页 行36",
+      "text": "本项目不接受代理商投标。"
+    },
+    {
+      "cells": [],
+      "idx": 36,
+      "kind": "pdf_line",
+      "locator": "第1页 行37",
+      "text": "3、资格审查方法"
+    },
+    {
+      "cells": [],
+      "idx": 37,
+      "kind": "pdf_line",
+      "locator": "第2页 行1",
+      "text": "本项目将进行资格后审，资格审查标准和内容见招标文件第三章“评标办法”，凡未通过资格后审"
+    },
+    {
+      "cells": [],
+      "idx": 38,
+      "kind": "pdf_line",
+      "locator": "第2页 行2",
+      "text": "的投标人，其投标将被否决。"
+    },
+    {
+      "cells": [],
+      "idx": 39,
+      "kind": "pdf_line",
+      "locator": "第2页 行3",
+      "text": "4、招标文件的获取"
+    },
+    {
+      "cells": [],
+      "idx": 40,
+      "kind": "pdf_line",
+      "locator": "第2页 行4",
+      "text": "电子招标文件获取（采用电子招标适用）"
+    },
+    {
+      "cells": [],
+      "idx": 41,
+      "kind": "pdf_line",
+      "locator": "第2页 行5",
+      "text": "4.1招标文件获取时间:2026年10月24日08时00分至2026年10月30日17时00分。"
+    },
+    {
+      "cells": [],
+      "idx": 42,
+      "kind": "pdf_line",
+      "locator": "第2页 行6",
+      "text": "4.2招标文件获取方式：凡有意参与的潜在投标人，请登录中国移动电子采购与招投标系统"
+    },
+    {
+      "cells": [],
+      "idx": 43,
+      "kind": "pdf_line",
+      "locator": "第2页 行7",
+      "text": "（http://b2b.10086.cn）进行购买招标文件（已在该系统注册过的投标人请直接登录系统购买招标"
+    },
+    {
+      "cells": [],
+      "idx": 44,
+      "kind": "pdf_line",
+      "locator": "第2页 行8",
+      "text": "文件，未在该系统注册的投标人请先进行系统注册而后购买招标文件）。"
+    },
+    {
+      "cells": [],
+      "idx": 45,
+      "kind": "pdf_line",
+      "locator": "第2页 行9",
+      "text": "中国移动采购与招标网首页提供操作手册，投标人可以下载并根据操作手册提示进行注册、购买、"
+    },
+    {
+      "cells": [],
+      "idx": 46,
+      "kind": "pdf_line",
+      "locator": "第2页 行10",
+      "text": "下载招标文件及投标。"
+    },
+    {
+      "cells": [],
+      "idx": 47,
+      "kind": "pdf_line",
+      "locator": "第2页 行11",
+      "text": "4.3招标文件费用：每套售价零元（￥0元），售后不退。支付要求：无。"
+    },
+    {
+      "cells": [],
+      "idx": 48,
+      "kind": "pdf_line",
+      "locator": "第2页 行12",
+      "text": "注意： 无论招标文件是否收费，投标人请务必在 标书售卖截止时间前 登录中国移动采购与招标网"
+    },
+    {
+      "cells": [],
+      "idx": 49,
+      "kind": "pdf_line",
+      "locator": "第2页 行13",
+      "text": "，进入“招投标操作”界面，选择招标项目进行招标文件购买操作；否则将无法正常投标。"
+    },
+    {
+      "cells": [],
+      "idx": 50,
+      "kind": "pdf_line",
+      "locator": "第2页 行14",
+      "text": "4.4投标人针对投标人注册、购买、CA证书办理、网上应答操作等相关业务的咨询，请直接拨打中国"
+    },
+    {
+      "cells": [],
+      "idx": 51,
+      "kind": "pdf_line",
+      "locator": "第2页 行15",
+      "text": "移动采购与招标网技术支持联系电话，详见系统首页“技术服务”专区。"
+    },
+    {
+      "cells": [],
+      "idx": 52,
+      "kind": "pdf_line",
+      "locator": "第2页 行16",
+      "text": "4.5投标人必须在投标截止时间之前办理CA证书，并使用CA证书进行加密后才能投标；否则将无法正"
+    },
+    {
+      "cells": [],
+      "idx": 53,
+      "kind": "pdf_line",
+      "locator": "第2页 行17",
+      "text": "常投标。CA证书具体办理流程参见中国移动采购与招标网首页下方下载专区“CA证书办理及安装"
+    },
+    {
+      "cells": [],
+      "idx": 54,
+      "kind": "pdf_line",
+      "locator": "第2页 行18",
+      "text": "”说明。"
+    },
+    {
+      "cells": [],
+      "idx": 55,
+      "kind": "pdf_line",
+      "locator": "第2页 行19",
+      "text": "5、投标文件的递交"
+    },
+    {
+      "cells": [],
+      "idx": 56,
+      "kind": "pdf_line",
+      "locator": "第2页 行20",
+      "text": "5.1 纸质投标文件的递交：本招标项目不接受纸质投标文件的递交（投标保函、法定代表人授权书"
+    },
+    {
+      "cells": [],
+      "idx": 57,
+      "kind": "pdf_line",
+      "locator": "第2页 行21",
+      "text": "除外如有）。"
+    },
+    {
+      "cells": [],
+      "idx": 58,
+      "kind": "pdf_line",
+      "locator": "第2页 行22",
+      "text": "5.2 电子投标文件的递交：电子投标文件通过中国移动电子采购与招投标系统递交，投标截止时间"
+    },
+    {
+      "cells": [],
+      "idx": 59,
+      "kind": "pdf_line",
+      "locator": "第2页 行23",
+      "text": "为2026年11月17日09时00分。"
+    },
+    {
+      "cells": [],
+      "idx": 60,
+      "kind": "pdf_line",
+      "locator": "第2页 行24",
+      "text": "5.3 本项目将于上述投标截止时间的同一时间在中国移动电子采购与招投标系统进行开标，投标人"
+    },
+    {
+      "cells": [],
+      "idx": 61,
+      "kind": "pdf_line",
+      "locator": "第2页 行25",
+      "text": "的法定代表人或者其委托的代理人可在系统开标大厅准时参加。"
+    },
+    {
+      "cells": [],
+      "idx": 62,
+      "kind": "pdf_line",
+      "locator": "第2页 行26",
+      "text": "5.4 电子投标文件递交异常的处理规则：投标人的电子投标文件出现递交异常时，招标人/招标代理"
+    },
+    {
+      "cells": [],
+      "idx": 63,
+      "kind": "pdf_line",
+      "locator": "第2页 行27",
+      "text": "机构需与系统支撑团队确认，若为系统故障原因造成的，则应推迟该项目的投标截止时间（具体时"
+    },
+    {
+      "cells": [],
+      "idx": 64,
+      "kind": "pdf_line",
+      "locator": "第2页 行28",
+      "text": "间另行通知）直至该投标人完成电子投标文件递交；若非系统故障原因造成的，由该投标人自行承"
+    },
+    {
+      "cells": [],
+      "idx": 65,
+      "kind": "pdf_line",
+      "locator": "第2页 行29",
+      "text": "担相应责任。"
+    },
+    {
+      "cells": [],
+      "idx": 66,
+      "kind": "pdf_line",
+      "locator": "第2页 行30",
+      "text": "5.5 出现下列情形之一时，招标人/招标代理机构不予接收投标文件："
+    },
+    {
+      "cells": [],
+      "idx": 67,
+      "kind": "pdf_line",
+      "locator": "第2页 行31",
+      "text": "5.5.1 逾期递交或者未递交中国移动电子采购与招投标系统的投标人；"
+    },
+    {
+      "cells": [],
+      "idx": 68,
+      "kind": "pdf_line",
+      "locator": "第2页 行32",
+      "text": "5.5.2 未按照本公告要求获得本项目招标文件的投标人。"
+    },
+    {
+      "cells": [],
+      "idx": 69,
+      "kind": "pdf_line",
+      "locator": "第2页 行33",
+      "text": "6、样品的递交"
+    },
+    {
+      "cells": [],
+      "idx": 70,
+      "kind": "pdf_line",
+      "locator": "第2页 行34",
+      "text": "本项目不涉及样品递交。"
+    },
+    {
+      "cells": [],
+      "idx": 71,
+      "kind": "pdf_line",
+      "locator": "第2页 行35",
+      "text": "7、电子招标投标规则"
+    },
+    {
+      "cells": [],
+      "idx": 72,
+      "kind": "pdf_line",
+      "locator": "第2页 行36",
+      "text": "7.1 投标人须在投标截止时间前完成在系统上递交电子投标文件。"
+    },
+    {
+      "cells": [],
+      "idx": 73,
+      "kind": "pdf_line",
+      "locator": "第2页 行37",
+      "text": "7.2当所有投标人电子投标文件开标解密异常时，则推迟开标，直至投标文件可正常解密。当个别供"
+    },
+    {
+      "cells": [],
+      "idx": 74,
+      "kind": "pdf_line",
+      "locator": "第2页 行38",
+      "text": "应商电子投标文件开标解密异常时，由系统确认非系统原因造成的，由投标人自行承担相应责任。"
+    },
+    {
+      "cells": [],
+      "idx": 75,
+      "kind": "pdf_line",
+      "locator": "第2页 行39",
+      "text": "7.3 投标人的电子投标文件是经过CA证书加密后上传提交的，任何单位或个人均无法在投标截止时"
+    },
+    {
+      "cells": [],
+      "idx": 76,
+      "kind": "pdf_line",
+      "locator": "第2页 行40",
+      "text": "间（即开标时间，下同）之前查看或篡改，不存在泄密风险。"
+    },
+    {
+      "cells": [],
+      "idx": 77,
+      "kind": "pdf_line",
+      "locator": "第2页 行41",
+      "text": "7.4 投标人在投标截止时间之前可以多次提交或撤回电子投标文件，提交新投标文件前需撤回前一"
+    },
+    {
+      "cells": [],
+      "idx": 78,
+      "kind": "pdf_line",
+      "locator": "第2页 行42",
+      "text": "次提交的电子投标文件，并且前一次提交的电子投标文件系统将彻底删除。"
+    },
+    {
+      "cells": [],
+      "idx": 79,
+      "kind": "pdf_line",
+      "locator": "第2页 行43",
+      "text": "7.5 投标人可以登录系统查看电子投标文件上传提交结果，了解和确认电子投标文件提交状态。"
+    },
+    {
+      "cells": [],
+      "idx": 80,
+      "kind": "pdf_line",
+      "locator": "第2页 行44",
+      "text": "7.6 系统提供递交电子投标文件的渠道："
+    },
+    {
+      "cells": [],
+      "idx": 81,
+      "kind": "pdf_line",
+      "locator": "第2页 行45",
+      "text": "系统仅支持通过辅助标书编制-投标工具进行递交电子投标文件"
+    },
+    {
+      "cells": [],
+      "idx": 82,
+      "kind": "pdf_line",
+      "locator": "第2页 行46",
+      "text": "8、发布公告的媒介"
+    },
+    {
+      "cells": [],
+      "idx": 83,
+      "kind": "pdf_line",
+      "locator": "第2页 行47",
+      "text": "本次招标公告同时在 工信部通信工程建设项目招标投标管理信息平台"
+    },
+    {
+      "cells": [],
+      "idx": 84,
+      "kind": "pdf_line",
+      "locator": "第2页 行48",
+      "text": "（https://txzbqy.miit.gov.cn/）、中国移动采购与招标网（http://b2b.10086.cn）、中国招标"
+    },
+    {
+      "cells": [],
+      "idx": 85,
+      "kind": "pdf_line",
+      "locator": "第2页 行49",
+      "text": "投标公共服务平台（cebpubservice.com）上发布，其他媒介转载无效。"
+    },
+    {
+      "cells": [],
+      "idx": 86,
+      "kind": "pdf_line",
+      "locator": "第2页 行50",
+      "text": "9、联系方式"
+    },
+    {
+      "cells": [],
+      "idx": 87,
+      "kind": "pdf_line",
+      "locator": "第2页 行51",
+      "text": "招标人：中国移动通信集团浙江有限公司"
+    },
+    {
+      "cells": [],
+      "idx": 88,
+      "kind": "pdf_line",
+      "locator": "第3页 行1",
+      "text": "招标人地址：杭州市解放东路19号"
+    },
+    {
+      "cells": [],
+      "idx": 89,
+      "kind": "pdf_line",
+      "locator": "第3页 行2",
+      "text": "联系人：彭先生"
+    },
+    {
+      "cells": [],
+      "idx": 90,
+      "kind": "pdf_line",
+      "locator": "第3页 行3",
+      "text": "联系电话：13905710571-561631"
+    },
+    {
+      "cells": [],
+      "idx": 91,
+      "kind": "pdf_line",
+      "locator": "第3页 行4",
+      "text": "招标代理机构：浙江中通通信有限公司"
+    },
+    {
+      "cells": [],
+      "idx": 92,
+      "kind": "pdf_line",
+      "locator": "第3页 行5",
+      "text": "地址：浙江省杭州市拱墅区河东路215号"
+    },
+    {
+      "cells": [],
+      "idx": 93,
+      "kind": "pdf_line",
+      "locator": "第3页 行6",
+      "text": "邮编：310014"
+    },
+    {
+      "cells": [],
+      "idx": 94,
+      "kind": "pdf_line",
+      "locator": "第3页 行7",
+      "text": "项目负责人："
+    },
+    {
+      "cells": [],
+      "idx": 95,
+      "kind": "pdf_line",
+      "locator": "第3页 行8",
+      "text": "林 静（电话：18969934436，邮箱：18969934436@139.com）"
+    },
+    {
+      "cells": [],
+      "idx": 96,
+      "kind": "pdf_line",
+      "locator": "第3页 行9",
+      "text": "隋 苗（电话：13840988677，邮箱：13840988677@139.com）"
+    },
+    {
+      "cells": [],
+      "idx": 97,
+      "kind": "pdf_line",
+      "locator": "第3页 行10",
+      "text": "周盈婷（电话：13326132753，邮箱：13326132753@139.com）"
+    },
+    {
+      "cells": [],
+      "idx": 98,
+      "kind": "pdf_line",
+      "locator": "第3页 行11",
+      "text": "刘 倩（电话：18258297649，邮箱：1540907778@qq.com)"
+    },
+    {
+      "cells": [],
+      "idx": 99,
+      "kind": "pdf_line",
+      "locator": "第3页 行12",
+      "text": "朱 强（电话：15325818207，邮箱：624601951@qq.com）"
+    },
+    {
+      "cells": [],
+      "idx": 100,
+      "kind": "pdf_line",
+      "locator": "第3页 行13",
+      "text": "谢 斌（电话：13975807220）、郭 瑜、董 娜"
+    },
+    {
+      "cells": [],
+      "idx": 101,
+      "kind": "pdf_line",
+      "locator": "第3页 行14",
+      "text": "异议渠道：点击进入异议页面"
+    },
+    {
+      "cells": [],
+      "idx": 102,
+      "kind": "pdf_line",
+      "locator": "第3页 行15",
+      "text": "(此链接仅用于潜在投标人或其他利害关系人认为招标文件存在影响招标公平性、公正性问题的异"
+    },
+    {
+      "cells": [],
+      "idx": 103,
+      "kind": "pdf_line",
+      "locator": "第3页 行16",
+      "text": "议；不接受业务咨询)"
+    },
+    {
+      "cells": [],
+      "idx": 104,
+      "kind": "pdf_line",
+      "locator": "第3页 行17",
+      "text": "行政监督部门：浙江省通信管理局"
+    },
+    {
+      "cells": [],
+      "idx": 105,
+      "kind": "pdf_line",
+      "locator": "第3页 行18",
+      "text": "10、免责声明"
+    },
+    {
+      "cells": [],
+      "idx": 106,
+      "kind": "pdf_line",
+      "locator": "第3页 行19",
+      "text": "我公司发布本次项目招标采购信息的官方媒介包括： 工信部通信工程建设项目招标投标管理信息平"
+    },
+    {
+      "cells": [],
+      "idx": 107,
+      "kind": "pdf_line",
+      "locator": "第3页 行20",
+      "text": "台 （https://txzbqy.miit.gov.cn/）、中国移动采购与招标网（http://b2b.10086.cn）、中国招"
+    },
+    {
+      "cells": [],
+      "idx": 108,
+      "kind": "pdf_line",
+      "locator": "第3页 行21",
+      "text": "标投标公共服务平台（cebpubservice.com）。除上述外，我公司不在其他任何网站、论坛等媒介上"
+    },
+    {
+      "cells": [],
+      "idx": 109,
+      "kind": "pdf_line",
+      "locator": "第3页 行22",
+      "text": "发布任何招标采购信息，其他任何媒介上转载的、以我公司为采购主体的招标采购信息均为非法转"
+    },
+    {
+      "cells": [],
+      "idx": 110,
+      "kind": "pdf_line",
+      "locator": "第3页 行23",
+      "text": "载，均为无效。"
+    },
+    {
+      "cells": [],
+      "idx": 111,
+      "kind": "pdf_line",
+      "locator": "第3页 行24",
+      "text": "11、附加项"
+    },
+    {
+      "cells": [],
+      "idx": 112,
+      "kind": "pdf_line",
+      "locator": "第3页 行25",
+      "text": "11.1 投标人在投标过程中遇到问题可联系中国移动采购与招标网（http://b2b.10086.cn）技术支"
+    },
+    {
+      "cells": [],
+      "idx": 113,
+      "kind": "pdf_line",
+      "locator": "第3页 行26",
+      "text": "持，联系方式：400-139-0123（平台支撑）；15088653682（本地平台支撑）。"
+    },
+    {
+      "cells": [],
+      "idx": 114,
+      "kind": "pdf_line",
+      "locator": "第3页 行27",
+      "text": "11.2 本项目投标须使用CMCA证书，以下几点请供应商知悉："
+    },
+    {
+      "cells": [],
+      "idx": 115,
+      "kind": "pdf_line",
+      "locator": "第3页 行28",
+      "text": "（1）CMCA证书办理：证书办理采用线上、现场两种办理方式，建议采用现场办理。"
+    },
+    {
+      "cells": [],
+      "idx": 116,
+      "kind": "pdf_line",
+      "locator": "第3页 行29",
+      "text": "各省都有办理地点，浙江地区的办理可以与以下地址联系。"
+    },
+    {
+      "cells": [],
+      "idx": 117,
+      "kind": "pdf_line",
+      "locator": "第3页 行30",
+      "text": "办理地址：浙江省杭州市拱墅区延安路511号元通大厦2楼。"
+    },
+    {
+      "cells": [],
+      "idx": 118,
+      "kind": "pdf_line",
+      "locator": "第3页 行31",
+      "text": "工作时间：周一至周日 9:00-17:30。"
+    },
+    {
+      "cells": [],
+      "idx": 119,
+      "kind": "pdf_line",
+      "locator": "第3页 行32",
+      "text": "联系电话：0571-56668800。"
+    },
+    {
+      "cells": [],
+      "idx": 120,
+      "kind": "pdf_line",
+      "locator": "第3页 行33",
+      "text": "关于证书过期及更新问题，请登录中国移动采购与招标网首页下载专区CA证书办理及安装中进行查"
+    },
+    {
+      "cells": [],
+      "idx": 121,
+      "kind": "pdf_line",
+      "locator": "第4页 行1",
+      "text": "看。"
+    },
+    {
+      "cells": [],
+      "idx": 122,
+      "kind": "pdf_line",
+      "locator": "第4页 行2",
+      "text": "注:如遇紧急业务，需到各受理点现场办理。在线办理CMCA业务可能存在快递业务延迟。特此提醒供"
+    },
+    {
+      "cells": [],
+      "idx": 123,
+      "kind": "pdf_line",
+      "locator": "第4页 行3",
+      "text": "应商预留足够时间办理CMCA业务,以免影响正常投标。"
+    },
+    {
+      "cells": [],
+      "idx": 124,
+      "kind": "pdf_line",
+      "locator": "第4页 行4",
+      "text": "（2）CMCA证书助手下载：通过“中国移动采购与招标网”—“下载专区”—“CA证书办理及安装"
+    },
+    {
+      "cells": [],
+      "idx": 125,
+      "kind": "pdf_line",
+      "locator": "第4页 行5",
+      "text": "”链接，或访问“移动CA中心“网站（https：//mpus.cmca.net：9090/rest/goUserChoose）。"
+    },
+    {
+      "cells": [],
+      "idx": 126,
+      "kind": "pdf_line",
+      "locator": "第4页 行6",
+      "text": "（3）CMCA证书助手客服电话：400-111-5580（7*24小时）。"
+    },
+    {
+      "cells": [],
+      "idx": 127,
+      "kind": "pdf_line",
+      "locator": "第4页 行7",
+      "text": "11.3 项目实行系统公开唱价，在招标文件规定的时间通过中国移动电子采购与招标投标系统的“开"
+    },
+    {
+      "cells": [],
+      "idx": 128,
+      "kind": "pdf_line",
+      "locator": "第4页 行8",
+      "text": "标大厅”进行解密、唱价，各投标人通过登录系统“开标大厅”查看唱价情况，提出问题与异议及"
+    },
+    {
+      "cells": [],
+      "idx": 129,
+      "kind": "pdf_line",
+      "locator": "第4页 行9",
+      "text": "确认开标记录。中国移动将在系统设置提异议的截止时间（开标后一小时内），请关注系统流程"
+    },
+    {
+      "cells": [],
+      "idx": 130,
+      "kind": "pdf_line",
+      "locator": "第4页 行10",
+      "text": "，超出截止时间未提出异议的视为无异议。开标时间详见招标公告。K值（如有）由参加线上开标的"
+    },
+    {
+      "cells": [],
+      "idx": 131,
+      "kind": "pdf_line",
+      "locator": "第4页 行11",
+      "text": "投标人（随机排序）或工作人员（如无线上投标人抽取）在“开标大厅”随机抽取，抽取结果将在"
+    },
+    {
+      "cells": [],
+      "idx": 132,
+      "kind": "pdf_line",
+      "locator": "第4页 行12",
+      "text": "“开标大厅”公布。"
+    },
+    {
+      "cells": [],
+      "idx": 133,
+      "kind": "pdf_line",
+      "locator": "第4页 行13",
+      "text": "11.4 本项目为结构化项目，请登录中国移动电子采购与招标投标系统，在供应商页面“我的工作台"
+    },
+    {
+      "cells": [],
+      "idx": 134,
+      "kind": "pdf_line",
+      "locator": "第4页 行14",
+      "text": "-投标工具下载”中下载“辅助标书编制-投标工具(限结构化项目使用)”，并使用“辅助标书编制-"
+    },
+    {
+      "cells": [],
+      "idx": 135,
+      "kind": "pdf_line",
+      "locator": "第4页 行15",
+      "text": "投标工具”进行投标文件的编制及投标。如使用过程中遇到操作问题，可拨打4001390123咨询。"
+    },
+    {
+      "cells": [],
+      "idx": 136,
+      "kind": "pdf_line",
+      "locator": "第4页 行16",
+      "text": "招标人名称/招标代理机构名称：中国移动通信集团浙江有限公司/浙江中通通信有限公司"
+    },
+    {
+      "cells": [],
+      "idx": 137,
+      "kind": "pdf_line",
+      "locator": "第4页 行17",
+      "text": "项目负责人："
+    },
+    {
+      "cells": [],
+      "idx": 138,
+      "kind": "pdf_line",
+      "locator": "第4页 行18",
+      "text": "2026年10月26日"
+    }
+  ],
+  "components": [],
+  "elapsed_ms": 20,
+  "file": "real-corpus/telecom/parse-input/C-zjyd-20260500552-数据库服务器-变更公告.pdf",
+  "has_text_layer": true,
+  "pages": 4,
+  "parse_summary": "pdf 文本层: 4 页 139 行块",
+  "sha256": "b6f7df314d4d41a9a0c1ddd40be5fc1b96725817675d351f6b0e04e7bce323b8",
+  "status": "ok"
+}

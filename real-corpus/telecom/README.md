@@ -17,13 +17,14 @@
 | `converted-manifest.json` | LO 旧格式转换清单（源/产物 sha256 双留痕） | ✅ |
 | `files/`（86MB） | 原始下载二进制（招标文件 zip/doc/docx/xlsx/pdf/公告附件） | ❌ gitignore——按 fetch-report 哈希可重取复验 |
 | `extracted/`（83MB） | zip 解压产物 | ❌ gitignore——`telecom_prepare_files.py` 可重生成 |
-| `parse-input/`（4.6MB） | A-/B-/C- 命名解析输入物化 | ❌ gitignore——`telecom_file_level.py` 可重生成 |
+| `parse-input/`（4.6MB） | A-/B-/C- 命名解析输入物化（17 件真实 docx/xlsx/pdf） | ✅ **B1.5 起入库**（重取复现链：`telecom_refetch.py` → `telecom_prepare_files.py` → `telecom_file_level.py`，哈希对 `fetch-report.json`/`file-level-report.json` 双向校验） |
 | `converted/` | LO 转换产物（.doc→.docx 等） | ❌ gitignore——`telecom_prepare_files.py` 可重生成 |
 
 ## 二进制重取协议（复现文件级测试）
 
 ```bash
-python3 scripts/telecom_fetch.py          # txzbqy 免鉴权五件套 → files/（md5 与平台登记值逐字节校验）
+python3 scripts/telecom_refetch.py        # B1.5 复现通道：按 fetch-report 登记 fileId 重取 → files/（sha256 对首轮实测 + md5 对平台 keyNum 双校验）
+python3 scripts/telecom_fetch.py          # txzbqy 免鉴权五件套 → files/（md5 与平台登记值逐字节校验；门端列表随时间滚动，首轮登记以此为准）
 python3 scripts/telecom_prepare_files.py  # 解压 + LO 转换（converted-manifest 留痕）
 python3 scripts/telecom_file_level.py     # 物化 parse-input + cargo 真跑 + 跨向锚点核验
 python3 scripts/telecom_chain.py          # 四节点链 46 断言

@@ -1,0 +1,12 @@
+{
+  "blocks": [],
+  "components": [],
+  "elapsed_ms": 0,
+  "error": "不支持的文件类型 .json（TC-10.json）",
+  "file": "fixtures/corpus-A/expected-transitions/TC-10.json",
+  "has_text_layer": false,
+  "pages": 0,
+  "parse_summary": "",
+  "sha256": null,
+  "status": "failed"
+}

@@ -1,0 +1,47 @@
+{
+  "blocks": [
+    {
+      "cells": [],
+      "idx": 0,
+      "kind": "pdf_line",
+      "locator": "第1页 行1",
+      "text": "信用承诺"
+    },
+    {
+      "cells": [],
+      "idx": 1,
+      "kind": "pdf_line",
+      "locator": "第1页 行2",
+      "text": "（合成夹具证据文件——内容为虚构示例，仅供测试管线使用）"
+    },
+    {
+      "cells": [],
+      "idx": 2,
+      "kind": "pdf_line",
+      "locator": "第1页 行3",
+      "text": "承诺内容：本单位未被列入失信被执行人名单、重大税收违法案件当事人名单"
+    },
+    {
+      "cells": [],
+      "idx": 3,
+      "kind": "pdf_line",
+      "locator": "第1页 行4",
+      "text": "附：信用中国网站查询记录截图（查询日期 2026-10-18）"
+    },
+    {
+      "cells": [],
+      "idx": 4,
+      "kind": "pdf_line",
+      "locator": "第1页 行5",
+      "text": "承诺单位盖章确认"
+    }
+  ],
+  "components": [],
+  "elapsed_ms": 20,
+  "file": "fixtures/corpus-A/files/evidence/EV-07-无失信记录承诺函.pdf",
+  "has_text_layer": true,
+  "pages": 1,
+  "parse_summary": "pdf 文本层: 1 页 5 行块",
+  "sha256": "5b7f8e3556b820e2502700fe16f7eff42b59301de0be093eaf25bc5328e6af57",
+  "status": "ok"
+}

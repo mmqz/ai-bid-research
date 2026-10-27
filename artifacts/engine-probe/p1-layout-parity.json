@@ -1,0 +1,87 @@
+{
+ "cqyd_32p": {
+  "char_ratio_engine_over_pdftotext": 0.7261848651479444,
+  "char_ratio_nonws_engine_over_pdftotext": 1.0,
+  "engine_chars": 27733,
+  "engine_chars_nonws": 24710,
+  "engine_chars_per_page": 866,
+  "engine_empty_pages": 0,
+  "pages": 32,
+  "pdftotext_chars": 38190,
+  "pdftotext_chars_nonws": 24710,
+  "pdftotext_chars_per_page": 1193,
+  "probe_hits_engine": [
+   "第一章",
+   "第二章",
+   "投标人须知",
+   "前附表",
+   "1.1 项目概况",
+   "评标办法",
+   "合同条款",
+   "投标文件",
+   "资格",
+   "否决"
+  ],
+  "probe_hits_pdftotext": [
+   "第一章",
+   "第二章",
+   "投标人须知",
+   "前附表",
+   "1.1 项目概况",
+   "评标办法",
+   "合同条款",
+   "投标文件",
+   "资格",
+   "否决"
+  ],
+  "result": "ok"
+ },
+ "fujian_ocr_8p": {
+  "char_ratio_engine_over_pdftotext": 0.875,
+  "char_ratio_nonws_engine_over_pdftotext": 0.0,
+  "engine_chars": 7,
+  "engine_chars_nonws": 0,
+  "engine_chars_per_page": 0,
+  "engine_empty_pages": 8,
+  "pages": 8,
+  "pdftotext_chars": 8,
+  "pdftotext_chars_nonws": 0,
+  "pdftotext_chars_per_page": 1,
+  "probe_hits_engine": [],
+  "probe_hits_pdftotext": [],
+  "result": "ok"
+ },
+ "shigong_142p": {
+  "char_ratio_engine_over_pdftotext": 0.8265774151384323,
+  "char_ratio_nonws_engine_over_pdftotext": 0.9999788527623579,
+  "engine_chars": 104343,
+  "engine_chars_nonws": 94573,
+  "engine_chars_per_page": 734,
+  "engine_empty_pages": 0,
+  "pages": 142,
+  "pdftotext_chars": 126235,
+  "pdftotext_chars_nonws": 94575,
+  "pdftotext_chars_per_page": 888,
+  "probe_hits_engine": [
+   "投标人须知",
+   "前附表",
+   "1.1 项目概况",
+   "评标办法",
+   "合同条款",
+   "投标文件",
+   "资格",
+   "否决"
+  ],
+  "probe_hits_pdftotext": [
+   "投标人须知",
+   "前附表",
+   "1.1 项目概况",
+   "评标办法",
+   "合同条款",
+   "投标文件",
+   "资格",
+   "否决"
+  ],
+  "result": "ok"
+ }
+}

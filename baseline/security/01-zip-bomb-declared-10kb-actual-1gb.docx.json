@@ -1,0 +1,10 @@
+{
+  "bytes": 1044116,
+  "construction": "docx 形 zip；word/document.xml 实际 1GB 零字节流（deflate 流式写入），local/central/data-descriptor 声明面补丁为 10240B",
+  "elapsed_ms": 29,
+  "error_text": "docx 解析失败 01-zip-bomb-declared-10kb-actual-1gb.docx: 读取防护拒绝: 实际读取超限「word/document.xml」已读 67108865 字节 > 上限 67108864（声明值撒谎截停）",
+  "file": "01-zip-bomb-declared-10kb-actual-1gb.docx",
+  "peak_mem_mb": 75.8,
+  "result": "rejected",
+  "sha256": "4097dec68ae2fba00ae941c2d916b8fe1b829bd182b720d9cdf6a7376a4361d4"
+}

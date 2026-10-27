@@ -1,0 +1,54 @@
+{
+  "blocks": [
+    {
+      "cells": [],
+      "idx": 0,
+      "kind": "pdf_line",
+      "locator": "第1页 行1",
+      "text": "业绩合同"
+    },
+    {
+      "cells": [],
+      "idx": 1,
+      "kind": "pdf_line",
+      "locator": "第1页 行2",
+      "text": "（合成夹具证据文件——内容为虚构示例，仅供测试管线使用）"
+    },
+    {
+      "cells": [],
+      "idx": 2,
+      "kind": "pdf_line",
+      "locator": "第1页 行3",
+      "text": "合同名称：某智慧园区一期弱电系统工程"
+    },
+    {
+      "cells": [],
+      "idx": 3,
+      "kind": "pdf_line",
+      "locator": "第1页 行4",
+      "text": "合同金额：人民币 260 万元（含税）"
+    },
+    {
+      "cells": [],
+      "idx": 4,
+      "kind": "pdf_line",
+      "locator": "第1页 行5",
+      "text": "签订时间：2023 年 05 月 20 日"
+    },
+    {
+      "cells": [],
+      "idx": 5,
+      "kind": "pdf_line",
+      "locator": "第1页 行6",
+      "text": "工程内容：综合布线、网络、安防系统建设"
+    }
+  ],
+  "components": [],
+  "elapsed_ms": 20,
+  "file": "fixtures/corpus-A/files/evidence/EV-03-类似业绩合同-智慧园区弱电工程.pdf",
+  "has_text_layer": true,
+  "pages": 1,
+  "parse_summary": "pdf 文本层: 1 页 6 行块",
+  "sha256": "cd8accd98cc7ad32a0ae229ffe6212a764a2018e32fc6c2667fed9b164d2cfd0",
+  "status": "ok"
+}

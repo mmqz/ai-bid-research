@@ -1,0 +1,12 @@
+{
+  "blocks": [],
+  "components": [],
+  "elapsed_ms": 0,
+  "error": "不支持的文件类型 .txt（cuc-028-correction-20260728.txt）",
+  "file": "real-corpus/gov-procurement/files/cuc-028-correction-20260728.txt",
+  "has_text_layer": false,
+  "pages": 0,
+  "parse_summary": "",
+  "sha256": null,
+  "status": "failed"
+}

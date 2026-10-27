@@ -1,0 +1,96 @@
+{
+  "blocks": [
+    {
+      "cells": [],
+      "idx": 0,
+      "kind": "para",
+      "locator": "",
+      "text": "补遗文件 01 号"
+    },
+    {
+      "cells": [],
+      "idx": 1,
+      "kind": "para",
+      "locator": "",
+      "text": "项目名称：某市政务服务中心智能化系统工程（货物及服务）；项目编号：ZFCG-2026-GK-0311。"
+    },
+    {
+      "cells": [],
+      "idx": 2,
+      "kind": "para",
+      "locator": "",
+      "text": "致各投标人：现对招标文件部分内容作如下澄清与修改，本补遗文件为招标文件的组成部分，与招标文件具有同等法律效力；不一致之处以本补遗文件为准。"
+    },
+    {
+      "cells": [],
+      "idx": 3,
+      "kind": "para",
+      "locator": "",
+      "text": "一、技术参数修改"
+    },
+    {
+      "cells": [],
+      "idx": 4,
+      "kind": "para",
+      "locator": "",
+      "text": "原招标文件第五章 5.3 参数表 3 中\"防火墙\"及\"上网行为管理\"设备型号规格由 USG6650E-AC550 统一调整为 USG6705E-AC650，数量及其余参数不变。投标响应以调整后型号为准。"
+    },
+    {
+      "cells": [],
+      "idx": 5,
+      "kind": "para",
+      "locator": "",
+      "text": "二、开标时间变更"
+    },
+    {
+      "cells": [],
+      "idx": 6,
+      "kind": "para",
+      "locator": "",
+      "text": "原招标文件规定的开标时间\"2026-11-15 09:30\"变更为\"2026-11-27 09:30\"；投标截止时间（递交截止时间）相应顺延为 2026-11-25 09:30。"
+    },
+    {
+      "cells": [],
+      "idx": 7,
+      "kind": "para",
+      "locator": "",
+      "text": "三、招标控制价调整"
+    },
+    {
+      "cells": [],
+      "idx": 8,
+      "kind": "para",
+      "locator": "",
+      "text": "原招标文件第一章、第六章所列招标控制价\"人民币 480 万元（含税）\"调整为\"人民币 465 万元（含税）\"，投标报价超过调整后控制价的作否决投标处理。"
+    },
+    {
+      "cells": [],
+      "idx": 9,
+      "kind": "para",
+      "locator": "",
+      "text": "四、其他"
+    },
+    {
+      "cells": [],
+      "idx": 10,
+      "kind": "para",
+      "locator": "",
+      "text": "招标文件其他内容不变。请投标人收到本补遗后 24 小时内书面回执确认。"
+    }
+  ],
+  "components": [
+    {
+      "component": "正文",
+      "extracted": 1,
+      "note": "",
+      "present": 1
+    }
+  ],
+  "elapsed_ms": 0,
+  "file": "fixtures/corpus-A/files/C-补遗文件01.docx",
+  "has_text_layer": true,
+  "pages": 1,
+  "parse_summary": "docx: 0 表格，11 块",
+  "sha256": "c0f0e3da2f3dbb1ac864be3c85c53544cabcab728e1e9854b3b03ec70e04c1f0",
+  "status": "ok"
+}

@@ -1,0 +1,12 @@
+{
+  "blocks": [],
+  "components": [],
+  "elapsed_ms": 0,
+  "error": "不支持的文件类型 .json（unicom-bj-bpm-fail-20260908-snapshot.json）",
+  "file": "real-corpus/telecom/sources/unicom-bj-bpm-fail-20260908-snapshot.json",
+  "has_text_layer": false,
+  "pages": 0,
+  "parse_summary": "",
+  "sha256": null,
+  "status": "failed"
+}

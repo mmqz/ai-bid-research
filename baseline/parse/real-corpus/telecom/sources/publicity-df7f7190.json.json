@@ -1,0 +1,12 @@
+{
+  "blocks": [],
+  "components": [],
+  "elapsed_ms": 0,
+  "error": "不支持的文件类型 .json（publicity-df7f7190.json）",
+  "file": "real-corpus/telecom/sources/publicity-df7f7190.json",
+  "has_text_layer": false,
+  "pages": 0,
+  "parse_summary": "",
+  "sha256": null,
+  "status": "failed"
+}

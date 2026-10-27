@@ -169,7 +169,7 @@
    "para_blocks": 905,
    "parse_summary": "docx: 15 表格，1087 块｜部件对账 2 面（零提取件显式登记）",
    "pdf_lines": 0,
-   "sha256": "fc54d802805b3ce073327e45f20a743298f47250b23aa2800ece463eb255c7b4",
+   "sha256": "c6e225afd9425256ee890576f3da410195e2ab5311ffc81e44f4b4edb1ec1ac9",
    "table_rows": 182,
    "tables": 15,
    "xlsx_rows": 0
@@ -295,7 +295,7 @@
    "para_blocks": 0,
    "parse_summary": "xlsx: 4 工作表，33 有效行，94 非空单元格",
    "pdf_lines": 0,
-   "sha256": "a1a3b2bcab44bdf10be97b0895eba8eedfc00d2ebc75757bd2639bd74229b57d",
+   "sha256": "96ae879e106ba94dad3f2946f52f43a26b2d520b0c2d8507101f767733e37f68",
    "table_rows": 0,
    "tables": 4,
    "xlsx_rows": 33

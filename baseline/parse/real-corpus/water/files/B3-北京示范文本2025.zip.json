@@ -1,0 +1,12 @@
+{
+  "blocks": [],
+  "components": [],
+  "elapsed_ms": 1,
+  "error": "不支持的文件类型 .zip（B3-北京示范文本2025.zip）",
+  "file": "real-corpus/water/files/B3-北京示范文本2025.zip",
+  "has_text_layer": false,
+  "pages": 0,
+  "parse_summary": "",
+  "sha256": null,
+  "status": "failed"
+}

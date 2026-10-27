@@ -1,0 +1,1230 @@
+{
+  "blocks": [
+    {
+      "cells": [],
+      "idx": 0,
+      "kind": "pdf_line",
+      "locator": "第1页 行1",
+      "text": "2026年西永、龙洲湾、水土数据中心水冷空调群控系统优化项目硬件"
+    },
+    {
+      "cells": [],
+      "idx": 1,
+      "kind": "pdf_line",
+      "locator": "第1页 行2",
+      "text": "采购项目_招标公告"
+    },
+    {
+      "cells": [],
+      "idx": 2,
+      "kind": "pdf_line",
+      "locator": "第1页 行3",
+      "text": "本项目为2026年西永、龙洲湾、水土数据中心水冷空调群控系统优化项目硬件采购项目，招标"
+    },
+    {
+      "cells": [],
+      "idx": 3,
+      "kind": "pdf_line",
+      "locator": "第1页 行4",
+      "text": "人为中国移动通信集团重庆有限公司，招标代理机构为江苏中博通信有限公司。项目资金由招标人"
+    },
+    {
+      "cells": [],
+      "idx": 4,
+      "kind": "pdf_line",
+      "locator": "第1页 行5",
+      "text": "自筹，并已落实。项目已具备招标条件，现进行公开招标，意向的潜在投标人（以下简称投标人"
+    },
+    {
+      "cells": [],
+      "idx": 5,
+      "kind": "pdf_line",
+      "locator": "第1页 行6",
+      "text": "）可前来投标。"
+    },
+    {
+      "cells": [],
+      "idx": 6,
+      "kind": "pdf_line",
+      "locator": "第1页 行7",
+      "text": "1、项目概况与招标内容"
+    },
+    {
+      "cells": [],
+      "idx": 7,
+      "kind": "pdf_line",
+      "locator": "第1页 行8",
+      "text": "1.1 项目概况"
+    },
+    {
+      "cells": [],
+      "idx": 8,
+      "kind": "pdf_line",
+      "locator": "第1页 行9",
+      "text": "1.1.1 项目名称：2026年西永、龙洲湾、水土数据中心水冷空调群控系统优化项目硬件采购项目"
+    },
+    {
+      "cells": [],
+      "idx": 9,
+      "kind": "pdf_line",
+      "locator": "第1页 行10",
+      "text": "1.1.2 项目编号：CQYD20260500728"
+    },
+    {
+      "cells": [],
+      "idx": 10,
+      "kind": "pdf_line",
+      "locator": "第1页 行11",
+      "text": "1.2 招标内容"
+    },
+    {
+      "cells": [],
+      "idx": 11,
+      "kind": "pdf_line",
+      "locator": "第1页 行12",
+      "text": "1.2.1项目预估规模：预估不含税总额：2685868元，预估含税总金额：3035030.84元。"
+    },
+    {
+      "cells": [],
+      "idx": 12,
+      "kind": "pdf_line",
+      "locator": "第1页 行13",
+      "text": "1.2.2合同有效期：合同签订之日起一年。"
+    },
+    {
+      "cells": [],
+      "idx": 13,
+      "kind": "pdf_line",
+      "locator": "第1页 行14",
+      "text": "1.2.3招标货物的名称、数量、不含税单价限价："
+    },
+    {
+      "cells": [],
+      "idx": 14,
+      "kind": "pdf_line",
+      "locator": "第1页 行15",
+      "text": "采"
+    },
+    {
+      "cells": [],
+      "idx": 15,
+      "kind": "pdf_line",
+      "locator": "第1页 行16",
+      "text": "不含税单"
+    },
+    {
+      "cells": [],
+      "idx": 16,
+      "kind": "pdf_line",
+      "locator": "第1页 行17",
+      "text": "购 单数"
+    },
+    {
+      "cells": [],
+      "idx": 17,
+      "kind": "pdf_line",
+      "locator": "第1页 行18",
+      "text": "采购项目 采购内容 价限价"
+    },
+    {
+      "cells": [],
+      "idx": 18,
+      "kind": "pdf_line",
+      "locator": "第1页 行19",
+      "text": "类 位量"
+    },
+    {
+      "cells": [],
+      "idx": 19,
+      "kind": "pdf_line",
+      "locator": "第1页 行20",
+      "text": "（元）"
+    },
+    {
+      "cells": [],
+      "idx": 20,
+      "kind": "pdf_line",
+      "locator": "第1页 行21",
+      "text": "别"
+    },
+    {
+      "cells": [],
+      "idx": 21,
+      "kind": "pdf_line",
+      "locator": "第1页 行22",
+      "text": "群控系统控制柜(PLC部分，包含自保持、"
+    },
+    {
+      "cells": [],
+      "idx": 22,
+      "kind": "pdf_line",
+      "locator": "第1页 行23",
+      "text": "CPU、分布式io，柜内点位 套4 54010"
+    },
+    {
+      "cells": [],
+      "idx": 23,
+      "kind": "pdf_line",
+      "locator": "第1页 行24",
+      "text": "DI21,DO17,AI14,AO3,RS4852)"
+    },
+    {
+      "cells": [],
+      "idx": 24,
+      "kind": "pdf_line",
+      "locator": "第1页 行25",
+      "text": "群控系统控制柜(PLC部分，包含自保持、"
+    },
+    {
+      "cells": [],
+      "idx": 25,
+      "kind": "pdf_line",
+      "locator": "第1页 行26",
+      "text": "控"
+    },
+    {
+      "cells": [],
+      "idx": 26,
+      "kind": "pdf_line",
+      "locator": "第1页 行27",
+      "text": "CPU、分布式io，柜内点位 套8 92100"
+    },
+    {
+      "cells": [],
+      "idx": 27,
+      "kind": "pdf_line",
+      "locator": "第1页 行28",
+      "text": "制"
+    },
+    {
+      "cells": [],
+      "idx": 28,
+      "kind": "pdf_line",
+      "locator": "第1页 行29",
+      "text": "DI40,DO34,AI23,AO3,RS4855)"
+    },
+    {
+      "cells": [],
+      "idx": 29,
+      "kind": "pdf_line",
+      "locator": "第1页 行30",
+      "text": "柜"
+    },
+    {
+      "cells": [],
+      "idx": 30,
+      "kind": "pdf_line",
+      "locator": "第1页 行31",
+      "text": "群控系统控制柜(模块部分，包含分布式"
+    },
+    {
+      "cells": [],
+      "idx": 31,
+      "kind": "pdf_line",
+      "locator": "第1页 行32",
+      "text": "套6 39650"
+    },
+    {
+      "cells": [],
+      "idx": 32,
+      "kind": "pdf_line",
+      "locator": "第1页 行33",
+      "text": "2026年西永、龙洲湾、水土数据中 io，柜内点位DI13,DO8,AI6,AO2,RS4853)"
+    },
+    {
+      "cells": [],
+      "idx": 33,
+      "kind": "pdf_line",
+      "locator": "第1页 行34",
+      "text": "群控系统控制柜(模块部分，包含分布式 2"
+    },
+    {
+      "cells": [],
+      "idx": 34,
+      "kind": "pdf_line",
+      "locator": "第1页 行35",
+      "text": "心水冷空调群控系统优化项目硬件 套 40362"
+    },
+    {
+      "cells": [],
+      "idx": 35,
+      "kind": "pdf_line",
+      "locator": "第1页 行36",
+      "text": "io，柜内点位DI27,DO14,AI6,AO2,RS4854) 4"
+    },
+    {
+      "cells": [],
+      "idx": 36,
+      "kind": "pdf_line",
+      "locator": "第1页 行37",
+      "text": "采购"
+    },
+    {
+      "cells": [],
+      "idx": 37,
+      "kind": "pdf_line",
+      "locator": "第1页 行38",
+      "text": "2"
+    },
+    {
+      "cells": [],
+      "idx": 38,
+      "kind": "pdf_line",
+      "locator": "第1页 行39",
+      "text": "流量计（流量传感器） 个 10000"
+    },
+    {
+      "cells": [],
+      "idx": 39,
+      "kind": "pdf_line",
+      "locator": "第1页 行40",
+      "text": "4"
+    },
+    {
+      "cells": [],
+      "idx": 40,
+      "kind": "pdf_line",
+      "locator": "第1页 行41",
+      "text": "传"
+    },
+    {
+      "cells": [],
+      "idx": 41,
+      "kind": "pdf_line",
+      "locator": "第1页 行42",
+      "text": "管路温度传感器、压力传感器(插入深度 1"
+    },
+    {
+      "cells": [],
+      "idx": 42,
+      "kind": "pdf_line",
+      "locator": "第1页 行43",
+      "text": "感 套 790"
+    },
+    {
+      "cells": [],
+      "idx": 43,
+      "kind": "pdf_line",
+      "locator": "第1页 行44",
+      "text": "100mm) 2"
+    },
+    {
+      "cells": [],
+      "idx": 44,
+      "kind": "pdf_line",
+      "locator": "第1页 行45",
+      "text": "器"
+    },
+    {
+      "cells": [],
+      "idx": 45,
+      "kind": "pdf_line",
+      "locator": "第1页 行46",
+      "text": "管路温度传感器、压力传感器(插入深度 4"
+    },
+    {
+      "cells": [],
+      "idx": 46,
+      "kind": "pdf_line",
+      "locator": "第1页 行47",
+      "text": "套 820"
+    },
+    {
+      "cells": [],
+      "idx": 47,
+      "kind": "pdf_line",
+      "locator": "第1页 行48",
+      "text": "150mm) 8"
+    },
+    {
+      "cells": [],
+      "idx": 48,
+      "kind": "pdf_line",
+      "locator": "第1页 行49",
+      "text": "辅"
+    },
+    {
+      "cells": [],
+      "idx": 49,
+      "kind": "pdf_line",
+      "locator": "第1页 行50",
+      "text": "完成硬件部署所需的控制信号线等全量辅材 套1 237600"
+    },
+    {
+      "cells": [],
+      "idx": 50,
+      "kind": "pdf_line",
+      "locator": "第1页 行51",
+      "text": "材"
+    },
+    {
+      "cells": [],
+      "idx": 51,
+      "kind": "pdf_line",
+      "locator": "第1页 行52",
+      "text": "备注：1、本次项目为交钥匙工程，含硬件安装部署调试。"
+    },
+    {
+      "cells": [],
+      "idx": 52,
+      "kind": "pdf_line",
+      "locator": "第1页 行53",
+      "text": "2、投标厂家报统一折扣，限价折扣100%。"
+    },
+    {
+      "cells": [],
+      "idx": 53,
+      "kind": "pdf_line",
+      "locator": "第1页 行54",
+      "text": "1.2.4主要技术参数：详见技术规范书。"
+    },
+    {
+      "cells": [],
+      "idx": 54,
+      "kind": "pdf_line",
+      "locator": "第1页 行55",
+      "text": "1.2.5交货周期:订单下达后30日内完成到货。"
+    },
+    {
+      "cells": [],
+      "idx": 55,
+      "kind": "pdf_line",
+      "locator": "第1页 行56",
+      "text": "1.2.6交货地点:重庆。"
+    },
+    {
+      "cells": [],
+      "idx": 56,
+      "kind": "pdf_line",
+      "locator": "第2页 行1",
+      "text": "1.3 招标范围：重庆市。"
+    },
+    {
+      "cells": [],
+      "idx": 57,
+      "kind": "pdf_line",
+      "locator": "第2页 行2",
+      "text": "1.4标包及份额划分：本项目不划分标包。"
+    },
+    {
+      "cells": [],
+      "idx": 58,
+      "kind": "pdf_line",
+      "locator": "第2页 行3",
+      "text": "1.5 限价说明：本项目最高限价详见投标一览表。投标人的报价高于最高限价的，其投标将被否决"
+    },
+    {
+      "cells": [],
+      "idx": 59,
+      "kind": "pdf_line",
+      "locator": "第2页 行4",
+      "text": "。"
+    },
+    {
+      "cells": [],
+      "idx": 60,
+      "kind": "pdf_line",
+      "locator": "第2页 行5",
+      "text": "包段 产品名称 产品单位 需求数量"
+    },
+    {
+      "cells": [],
+      "idx": 61,
+      "kind": "pdf_line",
+      "locator": "第2页 行6",
+      "text": "标包1 空调节能减排设备 套 1"
+    },
+    {
+      "cells": [],
+      "idx": 62,
+      "kind": "pdf_line",
+      "locator": "第2页 行7",
+      "text": "2、投标人资格要求"
+    },
+    {
+      "cells": [],
+      "idx": 63,
+      "kind": "pdf_line",
+      "locator": "第2页 行8",
+      "text": "本项目采用资格后审，由评标委员会根据招标文件的规定对投标人进行资格审查，投标人资格要求"
+    },
+    {
+      "cells": [],
+      "idx": 64,
+      "kind": "pdf_line",
+      "locator": "第2页 行9",
+      "text": "如下："
+    },
+    {
+      "cells": [],
+      "idx": 65,
+      "kind": "pdf_line",
+      "locator": "第2页 行10",
+      "text": "2.1 基本要求：投标人须在中华人民共和国境内登记注册、根据中华人民共和国有关法律合法成立"
+    },
+    {
+      "cells": [],
+      "idx": 66,
+      "kind": "pdf_line",
+      "locator": "第2页 行11",
+      "text": "并存续的法人或非法人组织。（提供清晰、完整、有效的中华人民共和国境内行政管理部门登记的"
+    },
+    {
+      "cells": [],
+      "idx": 67,
+      "kind": "pdf_line",
+      "locator": "第2页 行12",
+      "text": "主体资格证扫描件。）"
+    },
+    {
+      "cells": [],
+      "idx": 68,
+      "kind": "pdf_line",
+      "locator": "第2页 行13",
+      "text": "2.2 业绩要求：提供至少1份2023年1月1日至本次项目发布首次公告为止，投标人签订的合同作为"
+    },
+    {
+      "cells": [],
+      "idx": 69,
+      "kind": "pdf_line",
+      "locator": "第2页 行14",
+      "text": "业绩证明材料，合同内容均须包含空调群控类系统，累计合同含税总金额不低于150万元。"
+    },
+    {
+      "cells": [],
+      "idx": 70,
+      "kind": "pdf_line",
+      "locator": "第2页 行15",
+      "text": "合同业绩证明材料要求如下："
+    },
+    {
+      "cells": [],
+      "idx": 71,
+      "kind": "pdf_line",
+      "locator": "第2页 行16",
+      "text": "A、提供合同关键页的扫描件。关键页须包括但不限于：合同标的物明细页、有合同主体双方加盖合"
+    },
+    {
+      "cells": [],
+      "idx": 72,
+      "kind": "pdf_line",
+      "locator": "第2页 行17",
+      "text": "同章或公章的合同签字页、合同签订时间。"
+    },
+    {
+      "cells": [],
+      "idx": 73,
+      "kind": "pdf_line",
+      "locator": "第2页 行18",
+      "text": "B、提供与上述合同对应的任一发票扫描件（发票主体与合同双方名称必须一致，如不一致则应提供"
+    },
+    {
+      "cells": [],
+      "idx": 74,
+      "kind": "pdf_line",
+      "locator": "第2页 行19",
+      "text": "相关证明材料。）"
+    },
+    {
+      "cells": [],
+      "idx": 75,
+      "kind": "pdf_line",
+      "locator": "第2页 行20",
+      "text": "C、统计合同金额以合同上注明的含税总金额为准；若合同未注明含税总金额的，以该合同对应的订"
+    },
+    {
+      "cells": [],
+      "idx": 76,
+      "kind": "pdf_line",
+      "locator": "第2页 行21",
+      "text": "单累计含税金额为准（订单内容与合同内容一致）；若该合同既无含税总金额也无订单，以合同主"
+    },
+    {
+      "cells": [],
+      "idx": 77,
+      "kind": "pdf_line",
+      "locator": "第2页 行22",
+      "text": "体双方签署并加盖公章的项目证明材料为准（此证明材料应体现项目执行内容须与合同内容一致"
+    },
+    {
+      "cells": [],
+      "idx": 78,
+      "kind": "pdf_line",
+      "locator": "第2页 行23",
+      "text": "，且有执行含税总金额）。"
+    },
+    {
+      "cells": [],
+      "idx": 79,
+      "kind": "pdf_line",
+      "locator": "第2页 行24",
+      "text": "D、对于合同含税总金额的说明：若合同总金额未价税分离，则视为合同含税总金额；若合同总金额"
+    },
+    {
+      "cells": [],
+      "idx": 80,
+      "kind": "pdf_line",
+      "locator": "第2页 行25",
+      "text": "仅为不含税金额，则以提供的发票上的税率核算含税总金额。"
+    },
+    {
+      "cells": [],
+      "idx": 81,
+      "kind": "pdf_line",
+      "locator": "第2页 行26",
+      "text": "未按以上要求提供合同业绩证明材料的，不纳入合同业绩统计。"
+    },
+    {
+      "cells": [],
+      "idx": 82,
+      "kind": "pdf_line",
+      "locator": "第2页 行27",
+      "text": "2.3 代理商：接受代理商投标。投标人所投核心产品（群控系统控制柜产品）如非自有制造，须提"
+    },
+    {
+      "cells": [],
+      "idx": 83,
+      "kind": "pdf_line",
+      "locator": "第2页 行28",
+      "text": "供制造商对本项目所投核心产品的授权书扫描件。一个制造商对同一品牌同一型号的货物，仅能委"
+    },
+    {
+      "cells": [],
+      "idx": 84,
+      "kind": "pdf_line",
+      "locator": "第2页 行29",
+      "text": "托一个代理商参加投标，不允许同一品牌同一型号的货物制造商与代理商同时投标。"
+    },
+    {
+      "cells": [],
+      "idx": 85,
+      "kind": "pdf_line",
+      "locator": "第2页 行30",
+      "text": "2.4联合体：不接受联合体投标。"
+    },
+    {
+      "cells": [],
+      "idx": 86,
+      "kind": "pdf_line",
+      "locator": "第2页 行31",
+      "text": "本项目不接受联合体投标。"
+    },
+    {
+      "cells": [],
+      "idx": 87,
+      "kind": "pdf_line",
+      "locator": "第2页 行32",
+      "text": "本项目接受代理商投标。"
+    },
+    {
+      "cells": [],
+      "idx": 88,
+      "kind": "pdf_line",
+      "locator": "第2页 行33",
+      "text": "详见公告。"
+    },
+    {
+      "cells": [],
+      "idx": 89,
+      "kind": "pdf_line",
+      "locator": "第2页 行34",
+      "text": "3、资格审查方法"
+    },
+    {
+      "cells": [],
+      "idx": 90,
+      "kind": "pdf_line",
+      "locator": "第2页 行35",
+      "text": "本项目将进行资格后审，资格审查标准和内容见招标文件第三章“评标办法”，凡未通过资格后审"
+    },
+    {
+      "cells": [],
+      "idx": 91,
+      "kind": "pdf_line",
+      "locator": "第2页 行36",
+      "text": "的投标人，其投标将被否决。"
+    },
+    {
+      "cells": [],
+      "idx": 92,
+      "kind": "pdf_line",
+      "locator": "第2页 行37",
+      "text": "4、招标文件的获取"
+    },
+    {
+      "cells": [],
+      "idx": 93,
+      "kind": "pdf_line",
+      "locator": "第2页 行38",
+      "text": "电子招标文件获取（采用电子招标适用）"
+    },
+    {
+      "cells": [],
+      "idx": 94,
+      "kind": "pdf_line",
+      "locator": "第2页 行39",
+      "text": "4.1招标文件获取时间:2026年10月24日00时00分至2026年10月29日00时00分。"
+    },
+    {
+      "cells": [],
+      "idx": 95,
+      "kind": "pdf_line",
+      "locator": "第2页 行40",
+      "text": "4.2招标文件获取方式：凡有意参与的潜在投标人，请登录中国移动电子采购与招投标系统"
+    },
+    {
+      "cells": [],
+      "idx": 96,
+      "kind": "pdf_line",
+      "locator": "第3页 行1",
+      "text": "（http://b2b.10086.cn）进行购买招标文件（已在该系统注册过的投标人请直接登录系统购买招标"
+    },
+    {
+      "cells": [],
+      "idx": 97,
+      "kind": "pdf_line",
+      "locator": "第3页 行2",
+      "text": "文件，未在该系统注册的投标人请先进行系统注册而后购买招标文件）。"
+    },
+    {
+      "cells": [],
+      "idx": 98,
+      "kind": "pdf_line",
+      "locator": "第3页 行3",
+      "text": "中国移动采购与招标网首页提供操作手册，投标人可以下载并根据操作手册提示进行注册、购买、"
+    },
+    {
+      "cells": [],
+      "idx": 99,
+      "kind": "pdf_line",
+      "locator": "第3页 行4",
+      "text": "下载招标文件及投标。"
+    },
+    {
+      "cells": [],
+      "idx": 100,
+      "kind": "pdf_line",
+      "locator": "第3页 行5",
+      "text": "4.3招标文件费用：每套售价零元（￥0元），售后不退。支付要求：无。"
+    },
+    {
+      "cells": [],
+      "idx": 101,
+      "kind": "pdf_line",
+      "locator": "第3页 行6",
+      "text": "注意： 无论招标文件是否收费，投标人请务必在 标书售卖截止时间前 登录中国移动采购与招标网"
+    },
+    {
+      "cells": [],
+      "idx": 102,
+      "kind": "pdf_line",
+      "locator": "第3页 行7",
+      "text": "，进入“招投标操作”界面，选择招标项目进行招标文件购买操作；否则将无法正常投标。"
+    },
+    {
+      "cells": [],
+      "idx": 103,
+      "kind": "pdf_line",
+      "locator": "第3页 行8",
+      "text": "4.4投标人针对投标人注册、购买、CA证书办理、网上应答操作等相关业务的咨询，请直接拨打中国"
+    },
+    {
+      "cells": [],
+      "idx": 104,
+      "kind": "pdf_line",
+      "locator": "第3页 行9",
+      "text": "移动采购与招标网技术支持联系电话，详见系统首页“技术服务”专区。"
+    },
+    {
+      "cells": [],
+      "idx": 105,
+      "kind": "pdf_line",
+      "locator": "第3页 行10",
+      "text": "4.5投标人必须在投标截止时间之前办理CA证书，并使用CA证书进行加密后才能投标；否则将无法正"
+    },
+    {
+      "cells": [],
+      "idx": 106,
+      "kind": "pdf_line",
+      "locator": "第3页 行11",
+      "text": "常投标。CA证书具体办理流程参见中国移动采购与招标网首页下方下载专区“CA证书办理及安装"
+    },
+    {
+      "cells": [],
+      "idx": 107,
+      "kind": "pdf_line",
+      "locator": "第3页 行12",
+      "text": "”说明。"
+    },
+    {
+      "cells": [],
+      "idx": 108,
+      "kind": "pdf_line",
+      "locator": "第3页 行13",
+      "text": "5、投标文件的递交"
+    },
+    {
+      "cells": [],
+      "idx": 109,
+      "kind": "pdf_line",
+      "locator": "第3页 行14",
+      "text": "5.1 纸质投标文件的递交：本招标项目不接受纸质投标文件的递交（投标保函、法定代表人授权书"
+    },
+    {
+      "cells": [],
+      "idx": 110,
+      "kind": "pdf_line",
+      "locator": "第3页 行15",
+      "text": "除外如有）。"
+    },
+    {
+      "cells": [],
+      "idx": 111,
+      "kind": "pdf_line",
+      "locator": "第3页 行16",
+      "text": "5.2 电子投标文件的递交：电子投标文件通过中国移动电子采购与招投标系统递交，投标截止时间"
+    },
+    {
+      "cells": [],
+      "idx": 112,
+      "kind": "pdf_line",
+      "locator": "第3页 行17",
+      "text": "为2026年11月13日09时00分。"
+    },
+    {
+      "cells": [],
+      "idx": 113,
+      "kind": "pdf_line",
+      "locator": "第3页 行18",
+      "text": "5.3 本项目将于上述投标截止时间的同一时间在中国移动电子采购与招投标系统进行开标，投标人"
+    },
+    {
+      "cells": [],
+      "idx": 114,
+      "kind": "pdf_line",
+      "locator": "第3页 行19",
+      "text": "的法定代表人或者其委托的代理人可在中国移动电子采购与招投标系统准时参加。"
+    },
+    {
+      "cells": [],
+      "idx": 115,
+      "kind": "pdf_line",
+      "locator": "第3页 行20",
+      "text": "5.4 电子投标文件递交异常的处理规则：投标人的电子投标文件出现递交异常时，招标人/招标代理"
+    },
+    {
+      "cells": [],
+      "idx": 116,
+      "kind": "pdf_line",
+      "locator": "第3页 行21",
+      "text": "机构需与系统支撑团队确认，若为系统故障原因造成的，则应推迟该项目的投标截止时间（具体时"
+    },
+    {
+      "cells": [],
+      "idx": 117,
+      "kind": "pdf_line",
+      "locator": "第3页 行22",
+      "text": "间另行通知）直至该投标人完成电子投标文件递交；若非系统故障原因造成的，由该投标人自行承"
+    },
+    {
+      "cells": [],
+      "idx": 118,
+      "kind": "pdf_line",
+      "locator": "第3页 行23",
+      "text": "担相应责任。"
+    },
+    {
+      "cells": [],
+      "idx": 119,
+      "kind": "pdf_line",
+      "locator": "第3页 行24",
+      "text": "5.5 出现下列情形之一时，招标人/招标代理机构不予接收投标文件："
+    },
+    {
+      "cells": [],
+      "idx": 120,
+      "kind": "pdf_line",
+      "locator": "第3页 行25",
+      "text": "5.5.1 逾期递交或者未递交中国移动电子采购与招投标系统的投标人；"
+    },
+    {
+      "cells": [],
+      "idx": 121,
+      "kind": "pdf_line",
+      "locator": "第3页 行26",
+      "text": "5.5.2 未按照本公告要求获得本项目招标文件的投标人。"
+    },
+    {
+      "cells": [],
+      "idx": 122,
+      "kind": "pdf_line",
+      "locator": "第3页 行27",
+      "text": "6、样品的递交"
+    },
+    {
+      "cells": [],
+      "idx": 123,
+      "kind": "pdf_line",
+      "locator": "第3页 行28",
+      "text": "本项目不涉及。"
+    },
+    {
+      "cells": [],
+      "idx": 124,
+      "kind": "pdf_line",
+      "locator": "第3页 行29",
+      "text": "7、电子招标投标规则"
+    },
+    {
+      "cells": [],
+      "idx": 125,
+      "kind": "pdf_line",
+      "locator": "第3页 行30",
+      "text": "7.1 投标人须在投标截止时间前完成在系统上递交电子投标文件。"
+    },
+    {
+      "cells": [],
+      "idx": 126,
+      "kind": "pdf_line",
+      "locator": "第3页 行31",
+      "text": "7.2 当所有投标人电子投标文件开标解密异常时，则推迟开标，直至投标文件可正常解密。当个别"
+    },
+    {
+      "cells": [],
+      "idx": 127,
+      "kind": "pdf_line",
+      "locator": "第3页 行32",
+      "text": "供应商电子投标文件开标解密异常时，由系统确认非系统原因造成的，由投标人自行承担相应责任"
+    },
+    {
+      "cells": [],
+      "idx": 128,
+      "kind": "pdf_line",
+      "locator": "第3页 行33",
+      "text": "。"
+    },
+    {
+      "cells": [],
+      "idx": 129,
+      "kind": "pdf_line",
+      "locator": "第3页 行34",
+      "text": "7.3 投标人的电子投标文件是经过CA证书加密后上传提交的，任何单位或个人均无法在投标截止时"
+    },
+    {
+      "cells": [],
+      "idx": 130,
+      "kind": "pdf_line",
+      "locator": "第3页 行35",
+      "text": "间（即开标时间，下同）之前查看或篡改，不存在泄密风险。"
+    },
+    {
+      "cells": [],
+      "idx": 131,
+      "kind": "pdf_line",
+      "locator": "第3页 行36",
+      "text": "7.4 投标人在投标截止时间之前可以多次提交或撤回电子投标文件，提交新投标文件前需撤回前一"
+    },
+    {
+      "cells": [],
+      "idx": 132,
+      "kind": "pdf_line",
+      "locator": "第3页 行37",
+      "text": "次提交的电子投标文件，并且前一次提交的电子投标文件系统将彻底删除。"
+    },
+    {
+      "cells": [],
+      "idx": 133,
+      "kind": "pdf_line",
+      "locator": "第3页 行38",
+      "text": "7.5 投标人可以登录系统查看电子投标文件上传提交结果，了解和确认电子投标文件提交状态。"
+    },
+    {
+      "cells": [],
+      "idx": 134,
+      "kind": "pdf_line",
+      "locator": "第3页 行39",
+      "text": "7.6 系统提供递交电子投标文件的渠道："
+    },
+    {
+      "cells": [],
+      "idx": 135,
+      "kind": "pdf_line",
+      "locator": "第3页 行40",
+      "text": "系统仅支持通过辅助标书编制-投标工具进行递交电子投标文件"
+    },
+    {
+      "cells": [],
+      "idx": 136,
+      "kind": "pdf_line",
+      "locator": "第3页 行41",
+      "text": "8、发布公告的媒介"
+    },
+    {
+      "cells": [],
+      "idx": 137,
+      "kind": "pdf_line",
+      "locator": "第3页 行42",
+      "text": "本次招标公告同时在 工信部通信工程建设项目招标投标管理信息平台"
+    },
+    {
+      "cells": [],
+      "idx": 138,
+      "kind": "pdf_line",
+      "locator": "第3页 行43",
+      "text": "（https://txzbqy.miit.gov.cn/）、中国移动采购与招标网（http://b2b.10086.cn）、中国招标"
+    },
+    {
+      "cells": [],
+      "idx": 139,
+      "kind": "pdf_line",
+      "locator": "第3页 行44",
+      "text": "投标公共服务平台（cebpubservice.com）上发布，其他媒介转载无效。"
+    },
+    {
+      "cells": [],
+      "idx": 140,
+      "kind": "pdf_line",
+      "locator": "第3页 行45",
+      "text": "9、联系方式"
+    },
+    {
+      "cells": [],
+      "idx": 141,
+      "kind": "pdf_line",
+      "locator": "第3页 行46",
+      "text": "招标人：中国移动通信集团重庆有限公司"
+    },
+    {
+      "cells": [],
+      "idx": 142,
+      "kind": "pdf_line",
+      "locator": "第3页 行47",
+      "text": "地 址：重庆市渝北区星光三路 2 号"
+    },
+    {
+      "cells": [],
+      "idx": 143,
+      "kind": "pdf_line",
+      "locator": "第3页 行48",
+      "text": "联 系 人：张老师"
+    },
+    {
+      "cells": [],
+      "idx": 144,
+      "kind": "pdf_line",
+      "locator": "第4页 行1",
+      "text": "电 话：18723215851"
+    },
+    {
+      "cells": [],
+      "idx": 145,
+      "kind": "pdf_line",
+      "locator": "第4页 行2",
+      "text": "招标代理机构：江苏中博通信有限公司"
+    },
+    {
+      "cells": [],
+      "idx": 146,
+      "kind": "pdf_line",
+      "locator": "第4页 行3",
+      "text": "地 址：重庆市两江新区天宫殿街道洪湖西路26号A栋2-1"
+    },
+    {
+      "cells": [],
+      "idx": 147,
+      "kind": "pdf_line",
+      "locator": "第4页 行4",
+      "text": "联系人：庞洪美、赵潇雨"
+    },
+    {
+      "cells": [],
+      "idx": 148,
+      "kind": "pdf_line",
+      "locator": "第4页 行5",
+      "text": "联系电话：15025781763"
+    },
+    {
+      "cells": [],
+      "idx": 149,
+      "kind": "pdf_line",
+      "locator": "第4页 行6",
+      "text": "邮箱：15025781763@139.com"
+    },
+    {
+      "cells": [],
+      "idx": 150,
+      "kind": "pdf_line",
+      "locator": "第4页 行7",
+      "text": "异议渠道：点击进入异议页面"
+    },
+    {
+      "cells": [],
+      "idx": 151,
+      "kind": "pdf_line",
+      "locator": "第4页 行8",
+      "text": "(此链接仅用于潜在投标人或其他利害关系人认为招标文件存在影响招标公平性、公正性问题的异"
+    },
+    {
+      "cells": [],
+      "idx": 152,
+      "kind": "pdf_line",
+      "locator": "第4页 行9",
+      "text": "议；不接受业务咨询)"
+    },
+    {
+      "cells": [],
+      "idx": 153,
+      "kind": "pdf_line",
+      "locator": "第4页 行10",
+      "text": "行政监督部门：重庆市通信管理局"
+    },
+    {
+      "cells": [],
+      "idx": 154,
+      "kind": "pdf_line",
+      "locator": "第4页 行11",
+      "text": "10、免责声明"
+    },
+    {
+      "cells": [],
+      "idx": 155,
+      "kind": "pdf_line",
+      "locator": "第4页 行12",
+      "text": "我公司发布本次项目招标采购信息的官方媒介包括： 工信部通信工程建设项目招标投标管理信息平"
+    },
+    {
+      "cells": [],
+      "idx": 156,
+      "kind": "pdf_line",
+      "locator": "第4页 行13",
+      "text": "台 （https://txzbqy.miit.gov.cn/）、中国移动采购与招标网（http://b2b.10086.cn）、中国招"
+    },
+    {
+      "cells": [],
+      "idx": 157,
+      "kind": "pdf_line",
+      "locator": "第4页 行14",
+      "text": "标投标公共服务平台（cebpubservice.com）。除上述外，我公司不在其他任何网站、论坛等媒介上"
+    },
+    {
+      "cells": [],
+      "idx": 158,
+      "kind": "pdf_line",
+      "locator": "第4页 行15",
+      "text": "发布任何招标采购信息，其他任何媒介上转载的、以我公司为采购主体的招标采购信息均为非法转"
+    },
+    {
+      "cells": [],
+      "idx": 159,
+      "kind": "pdf_line",
+      "locator": "第4页 行16",
+      "text": "载，均为无效。"
+    },
+    {
+      "cells": [],
+      "idx": 160,
+      "kind": "pdf_line",
+      "locator": "第4页 行17",
+      "text": "11、附加项"
+    },
+    {
+      "cells": [],
+      "idx": 161,
+      "kind": "pdf_line",
+      "locator": "第4页 行18",
+      "text": "11.1投标人在项目报名时所留的联系人及联系方式将作为唯一联系方式及地址，请务必保证信息准"
+    },
+    {
+      "cells": [],
+      "idx": 162,
+      "kind": "pdf_line",
+      "locator": "第4页 行19",
+      "text": "确。"
+    },
+    {
+      "cells": [],
+      "idx": 163,
+      "kind": "pdf_line",
+      "locator": "第4页 行20",
+      "text": "11.2投标人针对会员注册、电子钥匙办理、网上应答操作等相关业务的咨询，请直接拨打中国移动"
+    },
+    {
+      "cells": [],
+      "idx": 164,
+      "kind": "pdf_line",
+      "locator": "第4页 行21",
+      "text": "电子采购与招投标系统技术支持联系电话：4001381860-2-02，联系邮箱：es-support@139.com。"
+    },
+    {
+      "cells": [],
+      "idx": 165,
+      "kind": "pdf_line",
+      "locator": "第4页 行22",
+      "text": "（注：服务热线接听时间为：工作日9:00-18:00）。"
+    },
+    {
+      "cells": [],
+      "idx": 166,
+      "kind": "pdf_line",
+      "locator": "第4页 行23",
+      "text": "11.3本项目将采用ES系统线上唱价，不再组织现场唱价，参与本项目的供应商可通过中国移动招标"
+    },
+    {
+      "cells": [],
+      "idx": 167,
+      "kind": "pdf_line",
+      "locator": "第4页 行24",
+      "text": "投标系统（b2b.10086.cn）登录供应商账号，进入开标大厅查看唱价相关内容，如对唱价过程有异"
+    },
+    {
+      "cells": [],
+      "idx": 168,
+      "kind": "pdf_line",
+      "locator": "第4页 行25",
+      "text": "议，请于开标后1小时内通过中国移动招标投标系统（b2b.10086.cn）提出相关异议。"
+    },
+    {
+      "cells": [],
+      "idx": 169,
+      "kind": "pdf_line",
+      "locator": "第4页 行26",
+      "text": "11.4 ★投标人须通过“辅助标书编制-投标工具”进行电子投标文件的编制和递交，如未使用上述"
+    },
+    {
+      "cells": [],
+      "idx": 170,
+      "kind": "pdf_line",
+      "locator": "第4页 行27",
+      "text": "工具递交全部电子应答文件，则投标将被否决。"
+    },
+    {
+      "cells": [],
+      "idx": 171,
+      "kind": "pdf_line",
+      "locator": "第4页 行28",
+      "text": "招标人名称/招标代理机构名称：中国移动通信集团重庆有限公司/江苏中博通信有限公司"
+    },
+    {
+      "cells": [],
+      "idx": 172,
+      "kind": "pdf_line",
+      "locator": "第4页 行29",
+      "text": "项目负责人："
+    },
+    {
+      "cells": [],
+      "idx": 173,
+      "kind": "pdf_line",
+      "locator": "第4页 行30",
+      "text": "2026年10月24日"
+    }
+  ],
+  "components": [],
+  "elapsed_ms": 20,
+  "file": "real-corpus/telecom/parse-input/B-cqyd-招标公告.pdf",
+  "has_text_layer": true,
+  "pages": 4,
+  "parse_summary": "pdf 文本层: 4 页 174 行块",
+  "sha256": "e2317602fa32b776dc9d35940d2ba3170813f27952dac7936233a621bb7e913f",
+  "status": "ok"
+}

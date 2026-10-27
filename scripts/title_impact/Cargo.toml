@@ -1,0 +1,15 @@
+[package]
+name = "title-impact"
+version = "0.1.0"
+edition = "2021"
+description = "B2.5 标题影响面量化 harness：调用真实 bid_parse::extract_requirements 做标题变体对照实验（不修改 bidcore/m1 任何代码）"
+publish = false
+
+[dependencies]
+bid-parse = { path = "../../bidcore/crates/bid-parse" }
+bid-domain = { path = "../../bidcore/crates/bid-domain" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+regex = "1"
+
+[workspace]

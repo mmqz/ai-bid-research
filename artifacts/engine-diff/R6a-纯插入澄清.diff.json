@@ -1,0 +1,64 @@
+{
+  "aligned_pairs": 5,
+  "file": "fixtures/corpus-R/D6-revisions/R6a-纯插入澄清.docx",
+  "items": [
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段1",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "示例项目澄清文件（第 1 次·纯插入修订）",
+      "text_old": "示例项目澄清文件（第 1 次·纯插入修订）",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段2",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "澄清一：开标地点调整如下（插入内容为当前生效口径）。",
+      "text_old": "澄清一：开标地点调整如下（插入内容为当前生效口径）。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段5",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "澄清二：本澄清文件与招标文件具有同等效力；插入内容为修订生效口径。",
+      "text_old": "澄清二：本澄清文件与招标文件具有同等效力；插入内容为修订生效口径。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段3",
+      "old_locator": "",
+      "rule": "D6-INS",
+      "text_new": "开标地点：",
+      "text_old": "开标地点：示例大厦三层第二开标室（插入后生效）",
+      "verdict": "ENGINE_MISSING"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段4",
+      "old_locator": "",
+      "rule": "D6-INS",
+      "text_new": "投标保证金缴纳截止时间：",
+      "text_old": "投标保证金缴纳截止时间：2026-11-20 12:00（顺延两小时）",
+      "verdict": "ENGINE_MISSING"
+    }
+  ],
+  "new_blocks": 5,
+  "new_status": "ok",
+  "old_blocks": 5,
+  "old_status": "ok",
+  "verdict_counts": {
+    "ENGINE_MISSING": 2,
+    "EQUIVALENT": 3
+  }
+}

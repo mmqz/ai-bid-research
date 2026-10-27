@@ -46,3 +46,9 @@ MDC_PDFIUM_LIB=~/.pdfium/libpdfium.so ./target/debug/engine-probe-p1 <repo_root>
 > 注：Cargo.toml 的 mdc-office-io/mdc-pdf 为**绝对 path 依赖**（指向只读 worktree，
 > 环境锚定）——换环境时按上式重建 worktree 或改 path。探针输出为确定性 JSON
 >（BTreeMap 序、无时间戳）；`artifacts/engine-probe/*.json` 为已入库证据基线。
+
+> **block_texts 截断策略**（issue #2 评论 2026-10-27 03:28 PR 精简要求）：`fmt_docx_result`
+> 只保留前 20 条文本样例（超限置 `block_texts_truncated: true`），全量计数由
+> `paragraphs`/`tables` 字段承载——结论保留、过程数据（如 s7b 6000 段合法高压缩比件
+> 的 312K 字符全文 dump）不入库。截断前后差分实证：除 s7b `block_texts` 6000→20 条
+>（前 3 条样例逐字节一致）外，10 探针全部字段零变化。

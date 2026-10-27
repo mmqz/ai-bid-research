@@ -9,8 +9,10 @@
 >（对齐逻辑与 `real_eval_score.py` 同源复制）。
 > **语料**：44 件真实/合成解析 ok 件（water 4 + telecom 17 + corpus-A 18 + corpus-R 5），
 > 真实招标文件 21 件。
-> **证据**：`artifacts/title-impact/experiment.json`（三变体 REQ dump + 全指标）+
-> `artifacts/title-impact/gt-recall-by-variant.json`（GT 24 × 三变体）。
+> **证据**：`artifacts/title-impact/summary.json`（三变体全指标确定性摘要）+
+> `artifacts/title-impact/gt-recall-by-variant.json`（GT 24 × 三变体）。全量逐条
+> dump（experiment.json，约 7MB）为本地再生产物，不入库（.gitignore；PR 精简要求，
+> issue #2 评论 2026-10-27 03:28）。
 
 ---
 
@@ -120,8 +122,12 @@ cd scripts/title_impact && cargo build --release
 ./target/release/title-impact <repo_root> artifacts/title-impact/experiment.json
 # 2) GT 召回对照（Python 判分，对齐逻辑同 real_eval_score.py）
 python3 scripts/title_impact_score.py
+# 3) 摘要入仓（experiment.json 本地保留、.gitignore 不入库；结论落 summary.json）
+python3 scripts/title_impact_summary.py
 ```
 
-确定性：实验输出无时间戳/无随机（BTreeMap 序）；`experiment.json` 三 dump 的
+确定性：实验输出无时间戳/无随机（BTreeMap 序）；summary.json 双跑字节一致
+（sha256 复现）；摘要脚本对 V0→V1 类别翻转计数带**口径一致性断言**（与 harness
+`pair()` 同源逐条配对，本地推导 ≠ harness 计数即停止）；`experiment.json` 三 dump 的
 04号子集与 `artifacts/real-eval/extract/requirements.json` **内容级逐条一致**
 （仅全局序号偏移，已核验）——V0 即现行抽取器的真实输出。

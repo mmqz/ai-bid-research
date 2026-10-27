@@ -11,3 +11,8 @@ real-corpus/telecom/files/
 real-corpus/telecom/extracted/
 real-corpus/telecom/converted/
 real-corpus/telecom/lo-tmp/
+
+# title-impact 实验全量 dump（约 7MB 过程数据，issue #2 评论 2026-10-27 03:28 PR 精简要求）：
+# 结论入 artifacts/title-impact/summary.json + gt-recall-by-variant.json；
+# 本地可再生（scripts/title_impact/ + scripts/title_impact_summary.py），不入库。
+artifacts/title-impact/experiment.json

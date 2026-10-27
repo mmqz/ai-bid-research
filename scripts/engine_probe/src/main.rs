@@ -41,7 +41,13 @@ fn fmt_docx_result(r: Result<mdc_office_io::docx::DocxDocument, mdc_office_io::d
                     }
                 }
             }
-            obj(&[
+            // PR 精简（issue #2 评论 2026-10-27 03:28 要求）：block_texts 仅保留
+            // 前 20 条样例——全量计数由 paragraphs/tables 字段承载，超限件置
+            // block_texts_truncated=true。此前 s7b（合法高压缩比件 6000 段）的
+            // 全文 dump 达 312K 字符；结论（result/计数/比率）保留、过程数据不入库。
+            let truncated = texts.len() > 20;
+            let texts_capped: Vec<String> = texts.iter().take(20).cloned().collect();
+            let mut o = obj(&[
                 ("result", "ok".into()),
                 ("paragraphs", paras.to_string()),
                 ("tables", tables.to_string()),
@@ -49,7 +55,7 @@ fn fmt_docx_result(r: Result<mdc_office_io::docx::DocxDocument, mdc_office_io::d
                 ("footers_n", d.footers.len().to_string()),
                 ("images_n", d.images.len().to_string()),
                 ("warnings_n", d.warnings.len().to_string()),
-                ("block_texts", serde_json::to_string(&texts).unwrap_or_default()),
+                ("block_texts", serde_json::to_string(&texts_capped).unwrap_or_default()),
                 ("header_texts", serde_json::to_string(
                     &d.headers.iter().map(|h| h.blocks.iter().map(|b| match b {
                         mdc_office_io::docx::Block::Paragraph(p) => p.text(),
@@ -62,7 +68,11 @@ fn fmt_docx_result(r: Result<mdc_office_io::docx::DocxDocument, mdc_office_io::d
                         mdc_office_io::docx::Block::Table(_) => "<TABLE>".into(),
                     }).collect::<Vec<_>>()).collect::<Vec<_>>()
                 ).unwrap_or_default()),
-            ])
+            ]);
+            if truncated {
+                o.insert("block_texts_truncated".into(), "true".into());
+            }
+            o
         }
         Err(e) => obj(&[
             ("result", "rejected".into()),

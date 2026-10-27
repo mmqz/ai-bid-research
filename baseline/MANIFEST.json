@@ -7,27 +7,27 @@
   "counts": {
     "block_kinds_observed": {
       "ocr_line": 279,
-      "para": 7304,
+      "para": 7322,
       "pdf_line": 15688,
-      "table_row": 1115,
+      "table_row": 1117,
       "xlsx_row": 116
     },
     "by_category": {
-      "docx": 12,
-      "other": 72,
+      "docx": 17,
+      "other": 73,
       "pdf": 28,
       "xlsx": 5,
       "zip": 1
     },
     "fail_reasons": {
-      "不支持的文件类型": 73
+      "不支持的文件类型": 74
     },
-    "parse_failed": 73,
-    "parse_ok": 45,
-    "total": 118
+    "parse_failed": 74,
+    "parse_ok": 50,
+    "total": 124
   },
   "env": {
-    "ai_bid_research_rev": "e57cac2de2369c4847099ef05ff08ea039afc6be",
+    "ai_bid_research_rev": "8ec7f9a6710c056412e9773f3dbad64dfccd42ca",
     "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
     "cpu_cores": 2,
     "mdcore_main_rev_record_only": "f8c860aa3a377fa96b15982132b69a657bbba728",
@@ -405,14 +405,14 @@
       "sha256": "8c82a68f71f570cb7fa9521a0153f64486a29942617edcd51292b1feb18a47ec"
     },
     {
-      "bytes": 14557,
+      "bytes": 17146,
       "category": "other",
       "large": false,
       "parse_digest": "41e5a68584a10e4aa5a9315f139d4bd50f01880dee630a67a40bb0a3302838f7",
       "parse_json": "baseline/parse/fixtures/corpus-A/manifest.json.json",
       "parse_status": "failed",
       "path": "fixtures/corpus-A/manifest.json",
-      "sha256": "302f4788795035196aaf697d925fe2ce98d72fee8d2fe868c8bbf88cba0c13e5"
+      "sha256": "4a0375cc7c8595a3234794fca91de97bea23e59cb50318f4c2ee8302f85daad1"
     },
     {
       "bytes": 38101,
@@ -465,14 +465,74 @@
       "sha256": "26ddf2e331a683798ee63ddb27fecfc7e2222f23a07b820b5cebd683e8462c16"
     },
     {
-      "bytes": 2208,
+      "bytes": 37011,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "d02418473712ac218bb13509f87e72ad072cf0a56ea5c932afefa07399bdfe30",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D6-revisions/R6a-纯插入澄清.docx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-R/D6-revisions/R6a-纯插入澄清.docx",
+      "sha256": "78805f994bc1ca4ec95ba65bd331706938a71e78390bc8d708e88de8a2183f96"
+    },
+    {
+      "bytes": 37021,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "faf4d679d7da28f16b2a14318332ab5fc17c3748cf8b6101fc9d80a7647f53d2",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D6-revisions/R6b-纯删除澄清.docx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-R/D6-revisions/R6b-纯删除澄清.docx",
+      "sha256": "2700375c580dc5be2209cb8f05da9e2fad110e60649c6376d655877082c8bca0"
+    },
+    {
+      "bytes": 37232,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "11e3b43c126efb6187430d2c8d809ff08ed07febcd239b91aaa066d40961f7dd",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D6-revisions/R6c-混合修订澄清.docx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-R/D6-revisions/R6c-混合修订澄清.docx",
+      "sha256": "e83814f6410741c9f9954ae2cd8af88b31e44dae9ea3a3b7437b2cf07e946f45"
+    },
+    {
+      "bytes": 37446,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "46236f0f4df66f1b4a87a957d1a32c1429b7924ebe91fc1814e6c08e5c3d8ae6",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D6-revisions/R6d-带批注澄清.docx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-R/D6-revisions/R6d-带批注澄清.docx",
+      "sha256": "02f1c26d817760383f1ea019f18cbf01393ab35db3ac1af1be7d55776cd53737"
+    },
+    {
+      "bytes": 37548,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "18f728f2733885d249d467237f04b0b547481f26cfbd6d1c97715a9875618641",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D6-revisions/R6e-修订批注组合澄清.docx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-R/D6-revisions/R6e-修订批注组合澄清.docx",
+      "sha256": "ec931d0da4f1f309a57bb21c717c50f2b138cbda8347fccabf537e04aae8c6a8"
+    },
+    {
+      "bytes": 7254,
+      "category": "other",
+      "large": false,
+      "parse_digest": "1dea0c8e5dd2d94a970d2e4375b4285bd0e0117b601723206613879e0cb0517a",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D6-revisions/expected-readback.json.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-R/D6-revisions/expected-readback.json",
+      "sha256": "500adfdd3ae80123b2238cb9de7eea3227324ae82cd5ae65ecb37f7a9d937df7"
+    },
+    {
+      "bytes": 3721,
       "category": "other",
       "large": false,
       "parse_digest": "032b8cbe6baf7a1f1ed2467cda30bcf598c133c2c0efa8dd69164e2a17bc71ac",
       "parse_json": "baseline/parse/fixtures/corpus-R/README.md.json",
       "parse_status": "failed",
       "path": "fixtures/corpus-R/README.md",
-      "sha256": "a50f3055bb5631db2b3bb14b1403bdff84a91cd3a56238d1241e2a5dd92e2240"
+      "sha256": "116efb5d5a4305543add352b6153ff44c95ef6e84cad740e1a4ddf378083f84d"
     },
     {
       "bytes": 1238,

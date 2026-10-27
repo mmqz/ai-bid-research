@@ -1,0 +1,72 @@
+{
+  "blocks": [
+    {
+      "cells": [],
+      "idx": 0,
+      "kind": "para",
+      "locator": "",
+      "text": "示例项目澄清文件（第 3 次·混合修订）"
+    },
+    {
+      "cells": [
+        "偏差表类别",
+        "商务偏差表（修订后表头）"
+      ],
+      "idx": 1,
+      "kind": "table_row",
+      "locator": " 表1 行1",
+      "text": "偏差表类别 商务偏差表（修订后表头）"
+    },
+    {
+      "cells": [
+        "",
+        "以澄清后口径为准"
+      ],
+      "idx": 2,
+      "kind": "table_row",
+      "locator": " 表1 行2",
+      "text": "以澄清后口径为准"
+    },
+    {
+      "cells": [],
+      "idx": 3,
+      "kind": "para",
+      "locator": "",
+      "text": "更正后开标时间：2026-11-27 09:30"
+    },
+    {
+      "cells": [],
+      "idx": 4,
+      "kind": "para",
+      "locator": "",
+      "text": "评标基准价计算公式中的下浮率K取值：1.5%（原空白，现补充明确）"
+    }
+  ],
+  "components": [
+    {
+      "component": "正文",
+      "extracted": 1,
+      "note": "",
+      "present": 1
+    },
+    {
+      "component": "修订插入",
+      "extracted": 0,
+      "note": "插入文本内联并入宿主段落（非独立块）；修订语义读面待 M2+",
+      "present": 3
+    },
+    {
+      "component": "修订删除",
+      "extracted": 0,
+      "note": "删除文本 w:delText 未提取（不在捕获面——真实丢失面，登记在案）",
+      "present": 3
+    }
+  ],
+  "elapsed_ms": 0,
+  "file": "fixtures/corpus-R/D6-revisions/R6c-混合修订澄清.docx",
+  "has_text_layer": true,
+  "pages": 1,
+  "parse_summary": "docx: 1 表格，5 块｜部件对账 2 面（零提取件显式登记）",
+  "sha256": "e83814f6410741c9f9954ae2cd8af88b31e44dae9ea3a3b7437b2cf07e946f45",
+  "status": "ok"
+}

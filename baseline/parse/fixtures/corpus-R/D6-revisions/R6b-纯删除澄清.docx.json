@@ -1,0 +1,46 @@
+{
+  "blocks": [
+    {
+      "cells": [],
+      "idx": 0,
+      "kind": "para",
+      "locator": "",
+      "text": "示例项目澄清文件（第 2 次·纯删除修订）"
+    },
+    {
+      "cells": [],
+      "idx": 1,
+      "kind": "para",
+      "locator": "",
+      "text": "原资格条款：具备建筑工程施工总承包三级及以上资质"
+    },
+    {
+      "cells": [],
+      "idx": 2,
+      "kind": "para",
+      "locator": "",
+      "text": "上述两条资格要求经复核后删除，不再执行；删除内容为历史文本，不属于当前生效条款。"
+    }
+  ],
+  "components": [
+    {
+      "component": "正文",
+      "extracted": 1,
+      "note": "",
+      "present": 1
+    },
+    {
+      "component": "修订删除",
+      "extracted": 0,
+      "note": "删除文本 w:delText 未提取（不在捕获面——真实丢失面，登记在案）",
+      "present": 2
+    }
+  ],
+  "elapsed_ms": 0,
+  "file": "fixtures/corpus-R/D6-revisions/R6b-纯删除澄清.docx",
+  "has_text_layer": true,
+  "pages": 1,
+  "parse_summary": "docx: 0 表格，3 块｜部件对账 1 面（零提取件显式登记）",
+  "sha256": "2700375c580dc5be2209cb8f05da9e2fad110e60649c6376d655877082c8bca0",
+  "status": "ok"
+}

@@ -281,6 +281,27 @@ fn main() {
         probes.insert("x3_corpus_a_b3_tuzhi_engine".into(), obj(&[("result", "FILE_MISSING".into())]));
     }
 
+    // ---- D6 · 修订/批注专项（T2 批，issue #2 评论 2026-10-27 03:28 派发）引擎侧行为
+    // 5 变体 = fixtures/corpus-R/D6-revisions/（期望读回契约见同目录 expected-readback.json；
+    // 引擎 #17 修订提取 / #19 批注读面修复前后对比的「前」证据）。
+    let d6_dir = format!("{fixtures}/fixtures/corpus-R/D6-revisions");
+    for (fname, key) in [
+        ("R6a-纯插入澄清.docx", "d6rev_r6a_pure_insert_engine"),
+        ("R6b-纯删除澄清.docx", "d6rev_r6b_pure_delete_engine"),
+        ("R6c-混合修订澄清.docx", "d6rev_r6c_mixed_engine"),
+        ("R6d-带批注澄清.docx", "d6rev_r6d_comments_engine"),
+        ("R6e-修订批注组合澄清.docx", "d6rev_r6e_combo_engine"),
+    ] {
+        match read_file(&format!("{d6_dir}/{fname}")) {
+            Some(b) => {
+                probes.insert(key.into(), fmt_docx_result(mdc_office_io::docx::read_docx_from_bytes(&b)));
+            }
+            None => {
+                probes.insert(key.into(), obj(&[("result", "FILE_MISSING".into())]));
+            }
+        }
+    }
+
     let json = serde_json::to_string_pretty(&probes).unwrap();
     println!("{json}");
 }

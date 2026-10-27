@@ -1,7 +1,7 @@
 {
   "fixture": "corpus-A (+ queries/corpus-R)",
-  "spec_version": "v0.5",
-  "spec_source": "scripts/fixture_spec.py + research/test-plan.md §1（v0.5：v0.2 审计修正 + v0.4 B2 扫描件修复 + corpus-R D1/D2/D5 结构层）",
+  "spec_version": "v0.6",
+  "spec_source": "scripts/fixture_spec.py + research/test-plan.md §1（v0.6：corpus-R +D6-revisions 修订/批注专项层——引擎 mdcore#17/#19 验收夹具，T2 批 issue #2；此前 v0.5：v0.2 审计修正 + v0.4 B2 扫描件修复 + corpus-R D1/D2/D5 结构层）",
   "deterministic": true,
   "stats_note": "A.paragraph_blocks 为生成器块计数（非 docx 物理段落数）；B1.rows 为数据行数（物理跨 2 页）",
   "counts": {
@@ -152,13 +152,19 @@
       "eval_entries": 6
     },
     "corpus_r": {
-      "version": "v0.1（V1-a 首批 D1/D2/D5）",
+      "version": "v0.2（T2 批：+D6-revisions 修订/批注专项层——引擎 #17/#18/#19 验收夹具）",
       "files": [
         "D1a-合并表头跨页表.docx",
         "D1b-宽表公式.xlsx",
         "D2a-非正文条款.docx",
         "D5a-全扫描双栏盖章.pdf",
-        "D5b-图文混排.pdf"
+        "D5b-图文混排.pdf",
+        "R6a-纯插入澄清.docx",
+        "R6b-纯删除澄清.docx",
+        "R6c-混合修订澄清.docx",
+        "R6d-带批注澄清.docx",
+        "R6e-修订批注组合澄清.docx",
+        "expected-readback.json"
       ],
       "layers": {
         "D1-tables": [
@@ -229,13 +235,56 @@
             "page1_text": true,
             "page2_image_only": true
           }
+        ],
+        "D6-revisions": [
+          {
+            "path": "R6a-纯插入澄清.docx",
+            "kind": "pure-insert",
+            "ins": 2,
+            "del": 0,
+            "comments": 0
+          },
+          {
+            "path": "R6b-纯删除澄清.docx",
+            "kind": "pure-delete",
+            "ins": 0,
+            "del": 2,
+            "comments": 0
+          },
+          {
+            "path": "R6c-混合修订澄清.docx",
+            "kind": "mixed",
+            "ins": 3,
+            "del": 3,
+            "comments": 0,
+            "table_cells": "ins+del"
+          },
+          {
+            "path": "R6d-带批注澄清.docx",
+            "kind": "comments-only",
+            "ins": 0,
+            "del": 0,
+            "comments": 2
+          },
+          {
+            "path": "R6e-修订批注组合澄清.docx",
+            "kind": "combo",
+            "ins": 2,
+            "del": 1,
+            "comments": 2
+          },
+          {
+            "path": "expected-readback.json",
+            "variants": 5
+          }
         ]
       },
       "counts": {
         "D1": 2,
         "D2": 1,
         "D5": 2,
-        "total": 5
+        "D6": 6,
+        "total": 11
       }
     }
   },
@@ -446,9 +495,39 @@
       "bytes": 82708
     },
     {
+      "path": "corpus-R/D6-revisions/R6a-纯插入澄清.docx",
+      "sha256": "78805f994bc1ca4ec95ba65bd331706938a71e78390bc8d708e88de8a2183f96",
+      "bytes": 37011
+    },
+    {
+      "path": "corpus-R/D6-revisions/R6b-纯删除澄清.docx",
+      "sha256": "2700375c580dc5be2209cb8f05da9e2fad110e60649c6376d655877082c8bca0",
+      "bytes": 37021
+    },
+    {
+      "path": "corpus-R/D6-revisions/R6c-混合修订澄清.docx",
+      "sha256": "e83814f6410741c9f9954ae2cd8af88b31e44dae9ea3a3b7437b2cf07e946f45",
+      "bytes": 37232
+    },
+    {
+      "path": "corpus-R/D6-revisions/R6d-带批注澄清.docx",
+      "sha256": "02f1c26d817760383f1ea019f18cbf01393ab35db3ac1af1be7d55776cd53737",
+      "bytes": 37446
+    },
+    {
+      "path": "corpus-R/D6-revisions/R6e-修订批注组合澄清.docx",
+      "sha256": "ec931d0da4f1f309a57bb21c717c50f2b138cbda8347fccabf537e04aae8c6a8",
+      "bytes": 37548
+    },
+    {
+      "path": "corpus-R/D6-revisions/expected-readback.json",
+      "sha256": "500adfdd3ae80123b2238cb9de7eea3227324ae82cd5ae65ecb37f7a9d937df7",
+      "bytes": 7254
+    },
+    {
       "path": "corpus-R/README.md",
-      "sha256": "a50f3055bb5631db2b3bb14b1403bdff84a91cd3a56238d1241e2a5dd92e2240",
-      "bytes": 2208
+      "sha256": "116efb5d5a4305543add352b6153ff44c95ef6e84cad740e1a4ddf378083f84d",
+      "bytes": 3721
     },
     {
       "path": "queries/eval-set.jsonl",

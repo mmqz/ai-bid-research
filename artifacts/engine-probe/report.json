@@ -23,6 +23,66 @@
     "tables": "1",
     "warnings_n": "0"
   },
+  "d6rev_r6a_pure_insert_engine": {
+    "block_texts": "[\"示例项目澄清文件（第 1 次·纯插入修订）\",\"澄清一：开标地点调整如下（插入内容为当前生效口径）。\",\"开标地点：\",\"投标保证金缴纳截止时间：\",\"澄清二：本澄清文件与招标文件具有同等效力；插入内容为修订生效口径。\"]",
+    "footer_texts": "[]",
+    "footers_n": "0",
+    "header_texts": "[]",
+    "headers_n": "0",
+    "images_n": "0",
+    "paragraphs": "5",
+    "result": "ok",
+    "tables": "0",
+    "warnings_n": "0"
+  },
+  "d6rev_r6b_pure_delete_engine": {
+    "block_texts": "[\"示例项目澄清文件（第 2 次·纯删除修订）\",\"原资格条款：\",\"\",\"上述两条资格要求经复核后删除，不再执行；删除内容为历史文本，不属于当前生效条款。\"]",
+    "footer_texts": "[]",
+    "footers_n": "0",
+    "header_texts": "[]",
+    "headers_n": "0",
+    "images_n": "0",
+    "paragraphs": "4",
+    "result": "ok",
+    "tables": "0",
+    "warnings_n": "0"
+  },
+  "d6rev_r6c_mixed_engine": {
+    "block_texts": "[\"示例项目澄清文件（第 3 次·混合修订）\",\"<TABLE 2x2>\",\"\",\"评标基准价计算公式中的下浮率K取值：\",\"\"]",
+    "footer_texts": "[]",
+    "footers_n": "0",
+    "header_texts": "[]",
+    "headers_n": "0",
+    "images_n": "0",
+    "paragraphs": "4",
+    "result": "ok",
+    "tables": "1",
+    "warnings_n": "0"
+  },
+  "d6rev_r6d_comments_engine": {
+    "block_texts": "[\"示例项目澄清文件（第 4 次·批注面）\",\"澄清一：类似业绩认定年限以合同签订时间为准。\",\"澄清二：开标地点为示例大厦三层第二开标室。\",\"澄清三：本澄清文件与招标文件具有同等效力。\"]",
+    "footer_texts": "[]",
+    "footers_n": "0",
+    "header_texts": "[]",
+    "headers_n": "0",
+    "images_n": "0",
+    "paragraphs": "4",
+    "result": "ok",
+    "tables": "0",
+    "warnings_n": "0"
+  },
+  "d6rev_r6e_combo_engine": {
+    "block_texts": "[\"示例项目澄清文件（第 5 次·修订批注组合）\",\"澄清一：\",\"澄清二：\"]",
+    "footer_texts": "[]",
+    "footers_n": "0",
+    "header_texts": "[]",
+    "headers_n": "0",
+    "images_n": "0",
+    "paragraphs": "3",
+    "result": "ok",
+    "tables": "0",
+    "warnings_n": "0"
+  },
   "s7a_zip_bomb_engine": {
     "error_text": "container: prescan rejected: actual size exceeds declared (lie header) (entry: word/document.xml)",
     "file_bytes": "1044116",

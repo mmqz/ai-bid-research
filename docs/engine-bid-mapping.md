@@ -32,17 +32,19 @@ B3 验收口径（issue #2 §B3）：≥90% 文件 blocks EQUIVALENT；其余每
 |---|---|---|---|
 | `DocxDocument.blocks[].Block::Paragraph` | `Block { kind: Para }` | 逐块直连，`idx` 按引擎块序重编；**空段丢弃**（引擎保留空段、旧实现丢弃——T1 实测：del-only 段落引擎为空段块、旧为无块；适配层丢空段保持块流口径，差分归 `EXPECTED_DIFF/EMPTY-PARA`） | — |
 | `ParagraphData.text()`（run 直连拼接） | `Block.text` | 直连（引擎侧含 ins 内文本后自动补齐 D6 面） | **D6 修复前**：ins 文本缺失 → `ENGINE_MISSING`；账本登记「修订插入 present>0 / extracted=0 + 引擎缺口 D6」 |
-| `ParagraphData.style` | （`Block.kind` 判定辅助，不落字段） | `HeadingN` 样式 → 段落判型参考；**不改变 BlockKind**（标书 kind 面无 Heading 变体） | **A1 修复前**：引擎 headings 恒 0/普通段 → 无影响（B2.5 实测：标书 extract 按文本正则自建章节上下文，A1 当前形态零影响）；不新增 kind 变体 |
-| `ParagraphData.numbering`（w:numId） | （消费于 text 归一） | 编号面与可见文本分离后：A2 修复引擎不再把自动编号叠加进 text | **A2 修复前**：引擎 text 含「11.1」型叠加 → 归一规则剥离后判 `EXPECTED_DIFF`（A2）；**A2 是 B3 硬前置**（B2.5：99.9% 条款号污染） |
+| `ParagraphData.style` | （不落字段；参考面） | 原始 styleId（真 Word 中文版 `"1"`——语义解析在引擎 `heading_level`） | A1 **已修复**（`a85decd`）：`heading_level` 四链解析可选接——B3 后作为章节上下文冗余加固面（标书 extract 文本正则自建上下文继续作主通道，B2.5 已证免疫） |
+| `ParagraphData.numbering`（w:numId）+ `fields_dropped` | （消费于 text 归一） | **A2 已修复**（`338acdc`）：表现型域缓存结果剥离（`"11.1"`→`"1.1"`），`fields_dropped` 逐段计数；映射层透传入 components note | A2 修复前曾为 B3 硬前置——**已解除**（探针后验 word-complex 读回「1.1 表格」，T17d） |
 | `Block::Table(TableData.rows/cells)` | `BlockKind::TableRow` 每行一块 | `rows[i]` → `cells`；`text` = 非空列以单空格连接（旧实现在 `w:tr` END 同口径——`docx.rs:140`） | —；合并结构：X3 定谳引擎扁平（设计登记），D1a 消费口径（行列编址在合并下取读回值）两侧一致 |
+| `RunData.revision_inserted`（#17 @ f7ddd39） | （标记面参考） | ins 内 run 已入 `text()`；标记透传 components「修订插入」note（extracted 按独立块计仍 0——语义与旧账本口径一致） | 已修复验收：R6a/R6c/R6e ins 全入读回（差分 D6-INS 7→0） |
+| `DocxDocument.warnings[].WarningKind::RevisionDelete`（#17） | components「修订删除」note | delText 逐段计数登记（不入正文——旧实现条件性泄漏为 OLD_BUG 面，B4 消除） | 已修复验收：计数逐件吻合（R6b=2/R6c=3/R6e=1/D2a=1） |
+| `Block::TextBox(TextBoxData)`（#18 @ f7ddd39） | `Block { kind: Para }` 块序直连 | 文本框内段落/表与正文同构；块序紧随宿主段——旧实现同条款双重提取（OLD_BUG/D4-DOUBLE-EXTRACT），引擎恰 1 块为正确口径 | 已修复验收：D2a text_boxes=1 |
+| `DocxDocument.comments: Vec<CommentData>`（#19 @ f7ddd39） | components「批注」/`blocks` | 批注文本 + `anchor_block_idx` 锚关联（B3 后入账本 extracted 面与定位器设计） | 已修复验收：R6d/R6e=2、D2a=1、TR2 真 Word 件=1 |
+| `DocxDocument.footnotes/endnotes: Vec<FootnoteData>` + `ParagraphData.footnote_refs`（#19） | components「脚注尾注」 | 分隔符已滤；引用位段落级标注（B3 后消费面设计） | 已修复（引擎侧断言）；电信 2 件留作 B3 全量差分扩展对 |
 | `DocxDocument.headers` | `ParsedFile.components` 账本行「页眉」 | present=挂接数 / extracted=0 / note=引擎警告透传 | D3 定谳：**引擎有**（`HeaderFooterData` 块级读面）——旧实现零提取（`docx.rs:202` 同口径）。B3 起 note 从「零提取（登记不伪装）」升「引擎读面已接、待标书面消费设计（M2 定位器变体）」；**文本不入块流**（与旧行为一致，块流稳定性优先） |
 | `DocxDocument.footers` | components「页脚」 | 同上 | 同上 |
 | `DocxDocument.images` | components「图片」 | present=`images.len()` / extracted=0 / note=容器级枚举 | 块序内图片位置引擎不入块模型（登记面）；OCR/扫描消费走 pdf 通道 |
 | `DocxDocument.warnings` | components 各行 `note` 透传 + `parse_summary` | 警告文本逐条并入（SC-02 不变式：零提取必带 note） | — |
-| （引擎无：批注） | components「批注」 | present=comments.xml 在位数 / extracted=0 | **D5/#19 修复前**：双侧同为零提取 → `EQUIVALENT`（行为对齐）；修复后引擎出批注面 → 标书账本升 extracted 并接定位器（M2） |
-| （引擎无：脚注尾注） | components「脚注尾注」 | 同上 | 同上（#19） |
-| （引擎无：文本框条款块） | `Block.kind: Para`（旧实现在流内） | **D4 修复前**：旧实现 txbxContent 嵌套段成独立块入流、引擎 0/2 → 差分 `ENGINE_MISSING`；旧实现宿主段截断怪癖（`docx.rs:206-208`）同案 `OLD_BUG` | D4（P1）修复后：引擎出 txbxContent 文本 → 直连块流；「宿主段截断」随旧实现删除消失 |
-| （引擎无：修订删除 delText） | components「修订删除」 | **修复前**：旧实现「条件性泄漏」（T2 发现：delText 前置 w:t 则入 text）→ 差分判 `OLD_BUG`；引擎侧不泄漏 → 修复前该面引擎**更合规** | #17 修复后：delText 进登记面（不入正文），标书账本 present/extracted 对齐 |
+| （历史行合并说明：批注/脚注尾注/文本框/delText 四面在 f7ddd39 已全部修复——见上方 #17/#18/#19 三行；修复前的「双侧零提取=行为对齐」「旧实现条件性泄漏/双重提取」差分证据保留于 `artifacts/engine-diff/`（f8c860a 基线），修复后总账见 `artifacts/engine-diff-after/`） | | | |
 | `ParsedFile.name/sha256/bytes` | 同名 | `FileMeta` 由门面供给（sha256 标书侧算——引擎不做文件级指纹） | — |
 | `ParsedFile.pages/tables/has_text_layer/ocr_blocks` | 同名 | docx 面：pages=0 / has_text_layer=true / ocr_blocks=0 / tables=引擎表格数（旧实现 `w:tbl` 计数对齐） | — |
 | `ParsedFile.parse_summary` | 状态行 | "engine-docx @ <rev>｜警告 N 条｜部件账本 M 面"（rev 从 `baseline/MANIFEST.json` 的 `BASELINE_MDCORE_REV` 口径取） | — |

@@ -28,16 +28,41 @@ fn fmt_docx_result(r: Result<mdc_office_io::docx::DocxDocument, mdc_office_io::d
         Ok(d) => {
             let mut paras = 0usize;
             let mut tables = 0usize;
+            let mut text_boxes = 0usize;
+            let mut rev_ins_runs = 0usize;
+            let mut heading_paras = 0usize;
             let mut texts: Vec<String> = Vec::new();
             for b in &d.blocks {
                 match b {
                     mdc_office_io::docx::Block::Paragraph(p) => {
                         paras += 1;
+                        rev_ins_runs += p.runs.iter().filter(|r| r.revision_inserted).count();
+                        // #13（A1）验证面：heading_level（四链解析——styleId"1"/样式名中文形均覆盖）；
+                        // 原始 style 字段保持 styleId（如真 Word 中文版 "1"），不含 "heading" 字样
+                        if p.heading_level.is_some() {
+                            heading_paras += 1;
+                        }
                         texts.push(p.text());
                     }
                     mdc_office_io::docx::Block::Table(t) => {
                         tables += 1;
                         texts.push(format!("<TABLE {}x{}>", t.rows.len(), t.rows.first().map(|r| r.len()).unwrap_or(0)));
+                    }
+                    // #18（f7ddd39）：文本框内段落/表与正文同构承载——样例入流并计数
+                    mdc_office_io::docx::Block::TextBox(tb) => {
+                        text_boxes += 1;
+                        for b2 in &tb.blocks {
+                            match b2 {
+                                mdc_office_io::docx::Block::Paragraph(p) => {
+                                    rev_ins_runs += p.runs.iter().filter(|r| r.revision_inserted).count();
+                                    texts.push(format!("[TXBX] {}", p.text()));
+                                }
+                                mdc_office_io::docx::Block::Table(t2) => {
+                                    texts.push(format!("[TXBX] <TABLE {}x{}>", t2.rows.len(), t2.rows.first().map(|r| r.len()).unwrap_or(0)));
+                                }
+                                mdc_office_io::docx::Block::TextBox(_) => {}
+                            }
+                        }
                     }
                 }
             }
@@ -51,6 +76,12 @@ fn fmt_docx_result(r: Result<mdc_office_io::docx::DocxDocument, mdc_office_io::d
                 ("result", "ok".into()),
                 ("paragraphs", paras.to_string()),
                 ("tables", tables.to_string()),
+                ("text_boxes_n", text_boxes.to_string()),
+                ("comments_n", d.comments.len().to_string()),
+                ("footnotes_n", d.footnotes.len().to_string()),
+                ("endnotes_n", d.endnotes.len().to_string()),
+                ("revision_inserted_runs", rev_ins_runs.to_string()),
+                ("heading_style_paras", heading_paras.to_string()),
                 ("headers_n", d.headers.len().to_string()),
                 ("footers_n", d.footers.len().to_string()),
                 ("images_n", d.images.len().to_string()),
@@ -60,12 +91,14 @@ fn fmt_docx_result(r: Result<mdc_office_io::docx::DocxDocument, mdc_office_io::d
                     &d.headers.iter().map(|h| h.blocks.iter().map(|b| match b {
                         mdc_office_io::docx::Block::Paragraph(p) => p.text(),
                         mdc_office_io::docx::Block::Table(_) => "<TABLE>".into(),
+                        _ => "<TXBX>".into(),
                     }).collect::<Vec<_>>()).collect::<Vec<_>>()
                 ).unwrap_or_default()),
                 ("footer_texts", serde_json::to_string(
                     &d.footers.iter().map(|h| h.blocks.iter().map(|b| match b {
                         mdc_office_io::docx::Block::Paragraph(p) => p.text(),
                         mdc_office_io::docx::Block::Table(_) => "<TABLE>".into(),
+                        _ => "<TXBX>".into(),
                     }).collect::<Vec<_>>()).collect::<Vec<_>>()
                 ).unwrap_or_default()),
             ]);

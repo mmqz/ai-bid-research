@@ -67,10 +67,10 @@
       "kind_old": "para",
       "new_locator": "段6",
       "old_locator": "",
-      "rule": "",
+      "rule": "D6-DEL-LEAK",
       "text_new": "澄清四：响应截止时间口径如下——",
       "text_old": "澄清四：响应截止时间口径如下——（修订插入：响应截止时间顺延至 2026-12-01 09:30）原表述：响应截止时间 2026-11-20 09:30",
-      "verdict": "UNCLASSIFIED"
+      "verdict": "OLD_BUG"
     },
     {
       "kind_new": "para",
@@ -91,6 +91,6 @@
     "ENGINE_MISSING": 2,
     "EQUIVALENT": 4,
     "EXPECTED_DIFF": 1,
-    "UNCLASSIFIED": 1
+    "OLD_BUG": 1
   }
 }

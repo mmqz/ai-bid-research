@@ -643,34 +643,54 @@ def t_telecom():
 
 
 def t_engine_diff():
-    """T17 · T1 双跑差分工具（issue #2 评论 2026-10-27 03:28 派发）：
-    ① 合成注入自测五分类全命中；② 真实对照证据在案且差分账目闭合。"""
-    print("[T17] engine_diff 双跑差分工具（T1 接口预演）")
+    """T17 · T1 双跑差分工具（issue #2 评论 2026-10-27 03:28 派发）＋ T3 后验收验：
+    ① 合成注入自测五分类全命中；② 修复前证据（f8c860a）；③ 修复后证据（f7ddd39——
+    引擎 #17/#18/#19 合入后标书侧独立验收复测）。"""
+    print("[T17] engine_diff 双跑差分工具（T1 接口预演 + T3 验收复测）")
     import engine_diff
 
     fails = engine_diff.selftest()
     check("T17a 差分分类合成自测（EQUIVALENT/ENGINE_MISSING(D6-INS)/OLD_BUG(D6-DEL-LEAK)/EXPECTED_DIFF(A2)/UNCLASSIFIED）",
           not fails, "; ".join(fails[:3]))
 
-    evidence = REPO / "artifacts/engine-diff/summary.json"
-    ok_files = ok_accounts = ok_verdicts = False
-    if evidence.exists():
-        rows = json.loads(evidence.read_text(encoding="utf-8"))
-        ok_files = len(rows) == 8
+    def _totals(path):
+        rows = json.loads(Path(path).read_text(encoding="utf-8"))
         tot: dict[str, int] = {}
         for r in rows:
             for k, v in r["verdict_counts"].items():
                 tot[k] = tot.get(k, 0) + v
-        # 账目：old 块总数 = 23+15+7+5+3+5+4+3 = 65；new = 23+15+6+5+4+6+4+3 = 66
-        ok_accounts = (sum(r["old_blocks"] for r in rows) == 65
-                       and sum(r["new_blocks"] for r in rows) == 66)
-        # 判定面：xlsx 38/38 EQUIVALENT；缺口面与 B2 目录对齐；UNCLASSIFIED=1（D2a 修订复合差异，待 B3 裁决）
-        ok_verdicts = (tot.get("EQUIVALENT") == 54 and tot.get("ENGINE_MISSING") == 9
-                       and tot.get("OLD_BUG") == 1 and tot.get("EXPECTED_DIFF") == 4
-                       and tot.get("UNCLASSIFIED") == 1)
-    check("T17b 真实对照 8 对在案（xlsx 38 等价 + D6 缺口 9 + 泄漏 1 + 预期差 4 + 待裁 1）",
-          ok_files and ok_accounts and ok_verdicts,
-          "" if ok_files else "summary.json 缺失/件数不符" if not ok_accounts else "块数账目不符")
+        return len(rows), tot, sum(r["old_blocks"] for r in rows), sum(r["new_blocks"] for r in rows)
+
+    # ② 修复前（f8c860a 基线）：9 引擎缺口面（D6-INS×7 + D4-TEXTBOX×2）与 B2 目录对齐
+    n, tb, ob, nb = _totals(REPO / "artifacts/engine-diff/summary.json")
+    check("T17b 修复前证据（f8c860a）：8 对 54 等价 + 9 引擎缺口（D6/D4）+ 2 旧泄漏 + 4 预期差",
+          n == 8 and tb.get("EQUIVALENT") == 54 and tb.get("ENGINE_MISSING") == 9
+          and tb.get("OLD_BUG") == 2 and tb.get("EXPECTED_DIFF") == 4
+          and ob == 65 and nb == 66,
+          f"files={n} counts={tb}")
+
+    # ③ 修复后（f7ddd39：mdcore#17/#18/#19 合入）：引擎缺口清零，bid 侧 4 缺陷显影
+    n2, ta, oa, na = _totals(REPO / "artifacts/engine-diff-after/summary.json")
+    check("T17c 验收复测（f7ddd39）：8 对 61 等价 + **0 引擎缺口** + 4 旧侧缺陷（泄漏×3+双重提取×1）+ 3 预期差",
+          n2 == 8 and ta.get("EQUIVALENT") == 61 and ta.get("ENGINE_MISSING", 0) == 0
+          and ta.get("OLD_BUG") == 4 and ta.get("EXPECTED_DIFF") == 3
+          and ta.get("UNCLASSIFIED", 0) == 0 and oa == 65 and na == 67,
+          f"files={n2} counts={ta}")
+
+    # ④ 探针后验证据：A1/A2/#17/#18/#19 逐面在案
+    rep = json.loads((REPO / "artifacts/engine-probe/report-after-fixes-f7ddd39.json").read_text("utf-8"))
+    wc = rep["d456_tr2_word_complex_engine"]
+    r6b = rep["d6rev_r6b_pure_delete_engine"]
+    d2a = rep["d456_corpus_r_d2a_engine"]
+    r6d = rep["d6rev_r6d_comments_engine"]
+    check("T17d 探针验收（f7ddd39）：A2 修复（word-complex 读回 1.1）+ A1 修复（headings=4）+ #17（R6b warnings=2 计数）/ #18（D2a text_boxes=1）/ #19（R6d comments=2）",
+          json.loads(wc["block_texts"]).__contains__("1.1 表格")
+          and wc["heading_style_paras"] == "4"
+          and r6b["warnings_n"] == "2" and r6b["revision_inserted_runs"] == "0"
+          and d2a["text_boxes_n"] == "1" and d2a["comments_n"] == "1"
+          and d2a["revision_inserted_runs"] == "1"
+          and r6d["comments_n"] == "2",
+          "探针后验字段不符")
 
 
 def main() -> int:

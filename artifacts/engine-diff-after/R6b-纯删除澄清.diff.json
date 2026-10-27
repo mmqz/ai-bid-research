@@ -1,0 +1,55 @@
+{
+  "aligned_pairs": 3,
+  "file": "fixtures/corpus-R/D6-revisions/R6b-纯删除澄清.docx",
+  "items": [
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段1",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "示例项目澄清文件（第 2 次·纯删除修订）",
+      "text_old": "示例项目澄清文件（第 2 次·纯删除修订）",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段4",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "上述两条资格要求经复核后删除，不再执行；删除内容为历史文本，不属于当前生效条款。",
+      "text_old": "上述两条资格要求经复核后删除，不再执行；删除内容为历史文本，不属于当前生效条款。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段2",
+      "old_locator": "",
+      "rule": "D6-DEL-LEAK",
+      "text_new": "原资格条款：",
+      "text_old": "原资格条款：具备建筑工程施工总承包三级及以上资质",
+      "verdict": "OLD_BUG"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段3",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    }
+  ],
+  "new_blocks": 4,
+  "new_status": "ok",
+  "old_blocks": 3,
+  "old_status": "ok",
+  "verdict_counts": {
+    "EQUIVALENT": 2,
+    "EXPECTED_DIFF": 1,
+    "OLD_BUG": 1
+  }
+}

@@ -102,8 +102,9 @@ def _components_map(old: dict) -> dict[str, dict]:
 
 # ---------------------------------------------------------------- 分类器
 def classify_pair(old_blk: dict, new_blk: dict | None, contract: dict,
-                  comps: dict[str, dict]) -> dict:
-    """对齐块对（或单边）判定。返回 verdict item。"""
+                  comps: dict[str, dict], new_texts: list[str] | None = None) -> dict:
+    """对齐块对（或单边）判定。返回 verdict item（new_texts = 引擎侧全文本集，
+    供旧侧孤块反查引擎是否已提取——修复前后差异定向用）。"""
     o_t = norm(old_blk.get("text", ""))
     n_t = norm(new_blk.get("text", "")) if new_blk else ""
     kind_o = old_blk.get("kind")
@@ -120,21 +121,36 @@ def classify_pair(old_blk: dict, new_blk: dict | None, contract: dict,
         item.update(verdict="EQUIVALENT", rule="")
         return item
     o_only, n_only = _segments(o_t, n_t)
-    # —— D6-INS：旧含插入段、新缺（引擎 ins 容器跳过）
-    if o_only and any(t in o_t for t in contract["ins"]) and not n_only:
+    # —— D6-INS：插入段在旧在、在新缺（孤块时 n_t="" 天然满足；修复后两侧均在则不触发）
+    if (o_only and any(t in o_t and t not in n_t for t in contract["ins"])
+            and not n_only):
         item.update(verdict="ENGINE_MISSING", rule="D6-INS")
         return item
-    # —— D6-DEL-LEAK：旧多出删除历史段（bid 粘性泄漏）、新不含
-    if o_only and any(norm(t) in o_t for t in contract["del"]) and not n_only:
-        item.update(verdict="OLD_BUG", rule="D6-DEL-LEAK")
-        return item
-    # —— A2 编号叠加（new 多出纯数字前缀段，剥离后与 old 全等——「1.1→11.1」签名）
-    if n_only and not o_only and n_only.strip().isdigit() and o_t == n_t.replace(n_only.strip(), "", 1):
-        item.update(verdict="EXPECTED_DIFF", rule="A2")
-        return item
-    # —— D4 文本框面：旧件有文本框部件而引擎缺
-    if not new_blk and comps.get("文本框", {}).get("present", 0) > 0:
-        item.update(verdict="ENGINE_MISSING", rule="D4-TEXTBOX")
+    # —— D6-DEL-LEAK（仅配对块）：删除历史段在旧在、在新缺（bid 粘性泄漏）。
+    #    锚一：契约 del 文本；锚二（无契约）：旧件部件账本「修订删除」present>0。
+    #    孤块不进此（防文本框重复块等误吸收）。
+    if new_blk is not None:
+        del_hit = any(norm(t) in o_t and norm(t) not in n_t for t in contract["del"])
+        if (not del_hit and o_only and not n_only
+                and comps.get("修订删除", {}).get("present", 0) > 0):
+            del_hit = True
+        if o_only and del_hit and not n_only:
+            item.update(verdict="OLD_BUG", rule="D6-DEL-LEAK")
+            return item
+        # —— A2 编号叠加（new 多出纯数字前缀段，剥离后与 old 全等——「1.1→11.1」签名）
+        if n_only and not o_only and n_only.strip().isdigit() and o_t == n_t.replace(n_only.strip(), "", 1):
+            item.update(verdict="EXPECTED_DIFF", rule="A2")
+            return item
+    # —— D4 文本框面（旧孤块）：引擎侧已提取该文本 → 旧侧重复块（bid 双重提取缺陷，
+    #    mdcore#18 勘误发现）；未提取 → 引擎缺口；无部件关联 → 待裁
+    if not new_blk:
+        present_in_new = new_texts is not None and o_t in new_texts
+        if present_in_new:
+            item.update(verdict="OLD_BUG", rule="D4-DOUBLE-EXTRACT（同文本重复入流——mdcore#18 勘误）")
+        elif comps.get("文本框", {}).get("present", 0) > 0:
+            item.update(verdict="ENGINE_MISSING", rule="D4-TEXTBOX")
+        else:
+            item.update(verdict="UNCLASSIFIED", rule="old-only（待人工裁决）")
         return item
     # —— 通用方向兜底（无规则命中）：
     if o_only and not n_only:
@@ -204,14 +220,15 @@ def diff_file(old: dict, new: dict) -> dict:
     new_blocks = new.get("blocks", [])
     comps = _components_map(old)
     contract = _load_contract(old)
+    new_texts = [norm(b.get("text", "")) for b in new_blocks]
     pairs, rest = align(old_blocks, new_blocks)
     items = []
     for ob, nb in pairs:
         if nb is None:
-            # 旧块无配对 → 走单边分类（文本框/未配对缺口面）
-            items.append(_classify_single(ob, contract, comps, side="old-only"))
+            # 旧块无配对 → 走单边分类（文本框重复/缺口/未配对面）
+            items.append(classify_pair(ob, None, contract, comps, new_texts))
         else:
-            items.append(classify_pair(ob, nb, contract, comps))
+            items.append(classify_pair(ob, nb, contract, comps, new_texts))
     for _ob, nb in rest:
         n_t = norm(nb.get("text", ""))
         if not n_t:
@@ -243,10 +260,6 @@ def diff_file(old: dict, new: dict) -> dict:
         "verdict_counts": counts,
         "items": items,
     }
-
-
-def _classify_single(ob: dict, contract: dict, comps: dict, side: str) -> dict:
-    return classify_pair(ob, None, contract, comps)
 
 
 # ---------------------------------------------------------------- 自测（合成注入）

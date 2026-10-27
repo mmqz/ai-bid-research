@@ -10,7 +10,7 @@ edition = "2021"
 # 与 baseline_harness 同纪律——scripts/ 下独立验证 harness，非产品代码）。
 
 [dependencies]
-mdc-office-io = { path = "/home/z/my-project/repos/mdcore-audit-f8c860a/crates/office-io" }
+mdc-office-io = { path = "/home/z/my-project/repos/mdcore-audit-f7ddd39/crates/office-io" }
 
 [workspace]
 
@@ -25,7 +25,7 @@ version = "1"
 
 [dependencies.mdc-pdf]
 package = "mdc-pdf"
-path = "/home/z/my-project/repos/mdcore-audit-f8c860a/crates/pdf"
+path = "/home/z/my-project/repos/mdcore-audit-f7ddd39/crates/pdf"
 features = ["engine-pdfium"]
 
 [[bin]]

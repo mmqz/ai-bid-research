@@ -1,0 +1,75 @@
+[
+  {
+    "file": "fixtures/corpus-A/files/B3-图纸目录.xlsx",
+    "new_blocks": 23,
+    "old_blocks": 23,
+    "verdict_counts": {
+      "EQUIVALENT": 23
+    }
+  },
+  {
+    "file": "fixtures/corpus-R/D1-tables/D1b-宽表公式.xlsx",
+    "new_blocks": 15,
+    "old_blocks": 15,
+    "verdict_counts": {
+      "EQUIVALENT": 15
+    }
+  },
+  {
+    "file": "fixtures/corpus-R/D2-nonbody/D2a-非正文条款.docx",
+    "new_blocks": 6,
+    "old_blocks": 7,
+    "verdict_counts": {
+      "ENGINE_MISSING": 2,
+      "EQUIVALENT": 4,
+      "EXPECTED_DIFF": 1,
+      "UNCLASSIFIED": 1
+    }
+  },
+  {
+    "file": "fixtures/corpus-R/D6-revisions/R6a-纯插入澄清.docx",
+    "new_blocks": 5,
+    "old_blocks": 5,
+    "verdict_counts": {
+      "ENGINE_MISSING": 2,
+      "EQUIVALENT": 3
+    }
+  },
+  {
+    "file": "fixtures/corpus-R/D6-revisions/R6b-纯删除澄清.docx",
+    "new_blocks": 4,
+    "old_blocks": 3,
+    "verdict_counts": {
+      "EQUIVALENT": 2,
+      "EXPECTED_DIFF": 1,
+      "OLD_BUG": 1
+    }
+  },
+  {
+    "file": "fixtures/corpus-R/D6-revisions/R6c-混合修订澄清.docx",
+    "new_blocks": 6,
+    "old_blocks": 5,
+    "verdict_counts": {
+      "ENGINE_MISSING": 3,
+      "EQUIVALENT": 2,
+      "EXPECTED_DIFF": 2
+    }
+  },
+  {
+    "file": "fixtures/corpus-R/D6-revisions/R6d-带批注澄清.docx",
+    "new_blocks": 4,
+    "old_blocks": 4,
+    "verdict_counts": {
+      "EQUIVALENT": 4
+    }
+  },
+  {
+    "file": "fixtures/corpus-R/D6-revisions/R6e-修订批注组合澄清.docx",
+    "new_blocks": 3,
+    "old_blocks": 3,
+    "verdict_counts": {
+      "ENGINE_MISSING": 2,
+      "EQUIVALENT": 1
+    }
+  }
+]

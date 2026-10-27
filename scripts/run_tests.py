@@ -642,9 +642,40 @@ def t_telecom():
           len(gt) == 18 and ok4, f"n={len(gt)}")
 
 
+def t_engine_diff():
+    """T17 · T1 双跑差分工具（issue #2 评论 2026-10-27 03:28 派发）：
+    ① 合成注入自测五分类全命中；② 真实对照证据在案且差分账目闭合。"""
+    print("[T17] engine_diff 双跑差分工具（T1 接口预演）")
+    import engine_diff
+
+    fails = engine_diff.selftest()
+    check("T17a 差分分类合成自测（EQUIVALENT/ENGINE_MISSING(D6-INS)/OLD_BUG(D6-DEL-LEAK)/EXPECTED_DIFF(A2)/UNCLASSIFIED）",
+          not fails, "; ".join(fails[:3]))
+
+    evidence = REPO / "artifacts/engine-diff/summary.json"
+    ok_files = ok_accounts = ok_verdicts = False
+    if evidence.exists():
+        rows = json.loads(evidence.read_text(encoding="utf-8"))
+        ok_files = len(rows) == 8
+        tot: dict[str, int] = {}
+        for r in rows:
+            for k, v in r["verdict_counts"].items():
+                tot[k] = tot.get(k, 0) + v
+        # 账目：old 块总数 = 23+15+7+5+3+5+4+3 = 65；new = 23+15+6+5+4+6+4+3 = 66
+        ok_accounts = (sum(r["old_blocks"] for r in rows) == 65
+                       and sum(r["new_blocks"] for r in rows) == 66)
+        # 判定面：xlsx 38/38 EQUIVALENT；缺口面与 B2 目录对齐；UNCLASSIFIED=1（D2a 修订复合差异，待 B3 裁决）
+        ok_verdicts = (tot.get("EQUIVALENT") == 54 and tot.get("ENGINE_MISSING") == 9
+                       and tot.get("OLD_BUG") == 1 and tot.get("EXPECTED_DIFF") == 4
+                       and tot.get("UNCLASSIFIED") == 1)
+    check("T17b 真实对照 8 对在案（xlsx 38 等价 + D6 缺口 9 + 泄漏 1 + 预期差 4 + 待裁 1）",
+          ok_files and ok_accounts and ok_verdicts,
+          "" if ok_files else "summary.json 缺失/件数不符" if not ok_accounts else "块数账目不符")
+
+
 def main() -> int:
     print("=" * 62)
-    print("ai-bid-research 每轮测试（T0 环境预检 + V0 夹具 + 一致性 + 判分器 + V1/V2/V3 + m1 并行线 + M1.7 真实链 T14/T15 + M1.7-TEL T16）")
+    print("ai-bid-research 每轮测试（T0 环境预检 + V0 夹具 + 一致性 + 判分器 + V1/V2/V3 + m1 并行线 + M1.7 真实链 T14/T15 + M1.7-TEL T16 + T17 差分工具）")
     print("=" * 62)
     t_env_preflight()
     t_xref()
@@ -659,6 +690,7 @@ def main() -> int:
     t_m17()
     t_gt_enrich()
     t_telecom()
+    t_engine_diff()
     print("-" * 62)
     print(f"结果：{len(_passed)} 通过 / {len(_failed)} 失败")
     if _failed:

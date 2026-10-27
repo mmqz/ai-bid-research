@@ -51,6 +51,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "bid-engine"
+version = "0.1.0"
+dependencies = [
+ "bid-parse",
+]
+
+[[package]]
 name = "bid-grade"
 version = "0.1.0"
 dependencies = [

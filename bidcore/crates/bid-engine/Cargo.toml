@@ -1,0 +1,16 @@
+[package]
+name = "bid-engine"
+version = "0.1.0"
+edition = "2021"
+license = "Proprietary"
+description = "issue #2 · T1 B3 预演：引擎适配层唯一接触面（只定义不实现——B3 接 mdcore 固定 rev 后填充）"
+
+# T1 边界（issue #2 评论 2026-10-27 03:28 派发）：
+# - 本 crate 只承载**接口签名与镜像类型**（trait/struct/fn 签名 + 文档），
+#   不含任何实现体——B3（适配层接通）才引入 mdcore git 依赖（完整 rev 钉住）；
+# - 零新增外部依赖（thiserror/serde 暂不引入——T1 编译即验收）；
+# - 唯一依赖：bid-parse（映射目标类型 ParsedFile/Block/BlockKind 所在，
+#   B3/B4 后 bid-parse 仅保留类型与门面，解析实现由本 crate 承载）。
+
+[dependencies]
+bid-parse = { path = "../bid-parse" }

@@ -1,0 +1,96 @@
+{
+  "aligned_pairs": 7,
+  "file": "fixtures/corpus-R/D2-nonbody/D2a-非正文条款.docx",
+  "items": [
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段1",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "示例项目澄清文件（第 1 次）",
+      "text_old": "示例项目澄清文件（第 1 次）",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段2",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "澄清一：机房建设标准按现行国家标准执行，联合接地电阻不大于 1 欧姆；本条与招标文件第三章相应条款具有同等效力。",
+      "text_old": "澄清一：机房建设标准按现行国家标准执行，联合接地电阻不大于 1 欧姆；本条与招标文件第三章相应条款具有同等效力。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段3",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "澄清二：投标文件递交地点调整为示例大厦三层开标室（示例地址）；递交截止时间以本文件页眉及修订标记载明的口径为准。",
+      "text_old": "澄清二：投标文件递交地点调整为示例大厦三层开标室（示例地址）；递交截止时间以本文件页眉及修订标记载明的口径为准。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段4",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "澄清三：评分细则中『类似的类似业绩』认定年限，以合同签订时间在近三年内为准。",
+      "text_old": "澄清三：评分细则中『类似的类似业绩』认定年限，以合同签订时间在近三年内为准。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": null,
+      "kind_old": "para",
+      "new_locator": "",
+      "old_locator": "",
+      "rule": "D4-TEXTBOX",
+      "text_new": "",
+      "text_old": "文本框条款：本文件所附技术参数表以最新澄清版本为准（本条款载于文本框内，非正文段落）",
+      "verdict": "ENGINE_MISSING"
+    },
+    {
+      "kind_new": null,
+      "kind_old": "para",
+      "new_locator": "",
+      "old_locator": "",
+      "rule": "D4-TEXTBOX",
+      "text_new": "",
+      "text_old": "文本框条款：本文件所附技术参数表以最新澄清版本为准（本条款载于文本框内，非正文段落）",
+      "verdict": "ENGINE_MISSING"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段6",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "澄清四：响应截止时间口径如下——",
+      "text_old": "澄清四：响应截止时间口径如下——（修订插入：响应截止时间顺延至 2026-12-01 09:30）原表述：响应截止时间 2026-11-20 09:30",
+      "verdict": "UNCLASSIFIED"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段5",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    }
+  ],
+  "new_blocks": 6,
+  "new_status": "ok",
+  "old_blocks": 7,
+  "old_status": "ok",
+  "verdict_counts": {
+    "ENGINE_MISSING": 2,
+    "EQUIVALENT": 4,
+    "EXPECTED_DIFF": 1,
+    "UNCLASSIFIED": 1
+  }
+}

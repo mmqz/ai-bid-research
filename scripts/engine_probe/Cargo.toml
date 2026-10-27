@@ -31,3 +31,7 @@ features = ["engine-pdfium"]
 [[bin]]
 name = "engine-probe-p1"
 path = "src/bin/p1.rs"
+
+[[bin]]
+name = "engine-probe-dump"
+path = "src/bin/dump.rs"

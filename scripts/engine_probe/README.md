@@ -51,10 +51,13 @@ pdfium 库取件：`https://github.com/bblanchon/pdfium-binaries/releases/latest
 # 引擎只读 worktree（一次性）
 git -C <mdcore-clone> fetch origin main
 git -C <mdcore-clone> worktree add /home/z/my-project/repos/mdcore-audit-f8c860a f8c860a
-# 探针（main = 10 探针；p1 = PDF 双侧对跑）
+# 探针（main = 10 探针 + d6rev 5 探针；p1 = PDF 双侧对跑；dump = 全量块 JSON）
 cd scripts/engine_probe && cargo build
 ./target/debug/engine-probe <repo_root>          # → stdout JSON（入库版见 artifacts/engine-probe/report.json）
 MDC_PDFIUM_LIB=~/.pdfium/libpdfium.so ./target/debug/engine-probe-p1 <repo_root>
+# T1 双跑差分供数（引擎侧全量块 JSON——harness 最小机械映射，产品映射=B3 bid-engine）：
+./target/debug/engine-probe-dump <repo_root> <out_dir> <file...>
+# 差分（旧=baseline/parse vs 新=引擎 dump）：见 scripts/engine_diff.py
 ```
 
 > 注：Cargo.toml 的 mdc-office-io/mdc-pdf 为**绝对 path 依赖**（指向只读 worktree，

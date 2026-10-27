@@ -6,30 +6,31 @@
   ],
   "counts": {
     "block_kinds_observed": {
-      "ocr_line": 28,
-      "para": 185,
-      "pdf_line": 132,
-      "table_row": 48,
-      "xlsx_row": 38
+      "ocr_line": 279,
+      "para": 7322,
+      "pdf_line": 15688,
+      "table_row": 1117,
+      "xlsx_row": 116
     },
     "by_category": {
-      "docx": 5,
-      "other": 69,
-      "pdf": 17,
-      "xlsx": 2
+      "docx": 17,
+      "other": 73,
+      "pdf": 28,
+      "xlsx": 5,
+      "zip": 1
     },
     "fail_reasons": {
-      "不支持的文件类型": 69
+      "不支持的文件类型": 74
     },
-    "parse_failed": 69,
-    "parse_ok": 24,
-    "total": 93
+    "parse_failed": 74,
+    "parse_ok": 50,
+    "total": 124
   },
   "env": {
-    "ai_bid_research_rev": "e0d6ffc7ef1e5c7d7e078f5f783c3dfe1ad1349d",
+    "ai_bid_research_rev": "8ec7f9a6710c056412e9773f3dbad64dfccd42ca",
     "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
     "cpu_cores": 2,
-    "mdcore_main_rev_record_only": "b317e95e16dc23aebce9f2a0af835e76bbd7f1a2",
+    "mdcore_main_rev_record_only": "f8c860aa3a377fa96b15982132b69a657bbba728",
     "os": "Linux 5.10.134-013.15.kangaroo.al8.x86_64 x86_64",
     "python": "3.12.15",
     "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
@@ -404,14 +405,14 @@
       "sha256": "8c82a68f71f570cb7fa9521a0153f64486a29942617edcd51292b1feb18a47ec"
     },
     {
-      "bytes": 14557,
+      "bytes": 17146,
       "category": "other",
       "large": false,
       "parse_digest": "41e5a68584a10e4aa5a9315f139d4bd50f01880dee630a67a40bb0a3302838f7",
       "parse_json": "baseline/parse/fixtures/corpus-A/manifest.json.json",
       "parse_status": "failed",
       "path": "fixtures/corpus-A/manifest.json",
-      "sha256": "302f4788795035196aaf697d925fe2ce98d72fee8d2fe868c8bbf88cba0c13e5"
+      "sha256": "4a0375cc7c8595a3234794fca91de97bea23e59cb50318f4c2ee8302f85daad1"
     },
     {
       "bytes": 38101,
@@ -464,14 +465,74 @@
       "sha256": "26ddf2e331a683798ee63ddb27fecfc7e2222f23a07b820b5cebd683e8462c16"
     },
     {
-      "bytes": 2208,
+      "bytes": 37011,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "d02418473712ac218bb13509f87e72ad072cf0a56ea5c932afefa07399bdfe30",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D6-revisions/R6a-纯插入澄清.docx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-R/D6-revisions/R6a-纯插入澄清.docx",
+      "sha256": "78805f994bc1ca4ec95ba65bd331706938a71e78390bc8d708e88de8a2183f96"
+    },
+    {
+      "bytes": 37021,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "faf4d679d7da28f16b2a14318332ab5fc17c3748cf8b6101fc9d80a7647f53d2",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D6-revisions/R6b-纯删除澄清.docx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-R/D6-revisions/R6b-纯删除澄清.docx",
+      "sha256": "2700375c580dc5be2209cb8f05da9e2fad110e60649c6376d655877082c8bca0"
+    },
+    {
+      "bytes": 37232,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "11e3b43c126efb6187430d2c8d809ff08ed07febcd239b91aaa066d40961f7dd",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D6-revisions/R6c-混合修订澄清.docx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-R/D6-revisions/R6c-混合修订澄清.docx",
+      "sha256": "e83814f6410741c9f9954ae2cd8af88b31e44dae9ea3a3b7437b2cf07e946f45"
+    },
+    {
+      "bytes": 37446,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "46236f0f4df66f1b4a87a957d1a32c1429b7924ebe91fc1814e6c08e5c3d8ae6",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D6-revisions/R6d-带批注澄清.docx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-R/D6-revisions/R6d-带批注澄清.docx",
+      "sha256": "02f1c26d817760383f1ea019f18cbf01393ab35db3ac1af1be7d55776cd53737"
+    },
+    {
+      "bytes": 37548,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "18f728f2733885d249d467237f04b0b547481f26cfbd6d1c97715a9875618641",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D6-revisions/R6e-修订批注组合澄清.docx.json",
+      "parse_status": "ok",
+      "path": "fixtures/corpus-R/D6-revisions/R6e-修订批注组合澄清.docx",
+      "sha256": "ec931d0da4f1f309a57bb21c717c50f2b138cbda8347fccabf537e04aae8c6a8"
+    },
+    {
+      "bytes": 7254,
+      "category": "other",
+      "large": false,
+      "parse_digest": "1dea0c8e5dd2d94a970d2e4375b4285bd0e0117b601723206613879e0cb0517a",
+      "parse_json": "baseline/parse/fixtures/corpus-R/D6-revisions/expected-readback.json.json",
+      "parse_status": "failed",
+      "path": "fixtures/corpus-R/D6-revisions/expected-readback.json",
+      "sha256": "500adfdd3ae80123b2238cb9de7eea3227324ae82cd5ae65ecb37f7a9d937df7"
+    },
+    {
+      "bytes": 3721,
       "category": "other",
       "large": false,
       "parse_digest": "032b8cbe6baf7a1f1ed2467cda30bcf598c133c2c0efa8dd69164e2a17bc71ac",
       "parse_json": "baseline/parse/fixtures/corpus-R/README.md.json",
       "parse_status": "failed",
       "path": "fixtures/corpus-R/README.md",
-      "sha256": "a50f3055bb5631db2b3bb14b1403bdff84a91cd3a56238d1241e2a5dd92e2240"
+      "sha256": "116efb5d5a4305543add352b6153ff44c95ef6e84cad740e1a4ddf378083f84d"
     },
     {
       "bytes": 1238,
@@ -492,6 +553,16 @@
       "parse_status": "failed",
       "path": "fixtures/queries/exact-25.jsonl",
       "sha256": "97e1676b410231d35e3cb659f34b68c169bc9cef558c3e5678fac9a60f13cee9"
+    },
+    {
+      "bytes": 5598,
+      "category": "other",
+      "large": false,
+      "parse_digest": "ad8b1980472b2987d1a347e157f6c738ac95d3f509add523274fb011d7158c74",
+      "parse_json": "baseline/parse/real-corpus/PROVENANCE.md.json",
+      "parse_status": "failed",
+      "path": "real-corpus/PROVENANCE.md",
+      "sha256": "e8788b085085cf88780e4195a1d23c788bd29b2441fd07dcb5ed01ca9dc46223"
     },
     {
       "bytes": 3313,
@@ -614,14 +685,14 @@
       "sha256": "ddca29a2e761f8a6d26e04e4485664d52b36c3b0c7096c6e30238dd06db645d0"
     },
     {
-      "bytes": 3338,
+      "bytes": 3741,
       "category": "other",
       "large": false,
       "parse_digest": "4b9811f4180ae7bf9a77c3e533de464dbf0620905354eb6b914bdbcd4bd1bf1f",
       "parse_json": "baseline/parse/real-corpus/telecom/README.md.json",
       "parse_status": "failed",
       "path": "real-corpus/telecom/README.md",
-      "sha256": "2dfce20ec160daec23e61510dc4b5d739f31c4a64b10d8f723ca34f61b174037"
+      "sha256": "0a1a04cb0ca8de78a8bb6b32481b65c6b1757ffa5d72cba699d711eb5ec72d0b"
     },
     {
       "bytes": 5939,
@@ -634,14 +705,14 @@
       "sha256": "d964d1df34e000f34c444a7cec5da5ea168bb35c62b77acf7df3bfc4cd7af114"
     },
     {
-      "bytes": 2583,
+      "bytes": 2589,
       "category": "other",
       "large": false,
       "parse_digest": "fa4e3cfcb3caa99ec212cd4c68038f1b0ae06719760c4da1537c1d58e2435e00",
       "parse_json": "baseline/parse/real-corpus/telecom/converted-manifest.json.json",
       "parse_status": "failed",
       "path": "real-corpus/telecom/converted-manifest.json",
-      "sha256": "96ff0ecd5f71e523797918091b90a04b02f8d85efc12f1a17c5b2a11a5585b58"
+      "sha256": "3767488db31dcea541bc85c6167ae9c9da63f0ed3212b289157dbad391174fac"
     },
     {
       "bytes": 37059,
@@ -661,7 +732,7 @@
       "parse_json": "baseline/parse/real-corpus/telecom/file-level-report.json.json",
       "parse_status": "failed",
       "path": "real-corpus/telecom/file-level-report.json",
-      "sha256": "a9c8905a9969ee3feabc6b757e7f2c2a937c2a0313c9a67f19c7b7c1220faac3"
+      "sha256": "6a1cfe5d2a87642f3d23675e46081554752e03de1c33ce249ee9e04e2410bfac"
     },
     {
       "bytes": 14415,
@@ -672,6 +743,186 @@
       "parse_status": "failed",
       "path": "real-corpus/telecom/gt/ground-truth-draft.jsonl",
       "sha256": "2f7617de1294fa825e13c2b924ec95e69984a8eaa034c147d3c24f6d5b4b61df"
+    },
+    {
+      "bytes": 416398,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "488c96540089397abc89dfcfe6bb4cabb32cf5a05b0992d0c8b681386471c9eb",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/A-cqyd-20260500728-重庆西永水冷空调-招标文件.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/A-cqyd-20260500728-重庆西永水冷空调-招标文件.pdf",
+      "sha256": "f5c81b416c4d2a4274689d7b065950679dcf6345d70fb86db15c7a8a497cf66b"
+    },
+    {
+      "bytes": 270472,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "e725a472f93cf01bfbccdc2ae526c45dca9187365d6906f42a9f3115191b6412",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/A-telecom-huaian-主文件.docx.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/A-telecom-huaian-主文件.docx",
+      "sha256": "95b62593bced58518b084eebf772ed098bc304087dacca30c934621df1df75fd"
+    },
+    {
+      "bytes": 497031,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "f896e747cecd419d97c65c93ed095443347088a98517986b56ad0c098b37be8c",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/A-telecom-shanghai-songjiang-光终端放装-招标文件.docx.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/A-telecom-shanghai-songjiang-光终端放装-招标文件.docx",
+      "sha256": "55c8f074fcc6238dd21f1bec63f442fad1740db931a1c00dc320a1b161169453"
+    },
+    {
+      "bytes": 261921,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "e46f9c7c5988ae1d2a0df5103933d5c404ae9da20a49cf2d22c446c1380061b9",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/A-telecom-shanxi-灵枢智关-招标正文.docx.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/A-telecom-shanxi-灵枢智关-招标正文.docx",
+      "sha256": "699485806c5bd957a9cc93db3fa9032a262d397e0dd187ae035f6a1bbfbde29a"
+    },
+    {
+      "bytes": 127752,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "70c08f7b36db9358b272bf473a97f7e1618f5f43528d84991ed2a40528418850",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/A-unicom-ry-2026CUC-RJY-PT0783-招标文件.docx.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/A-unicom-ry-2026CUC-RJY-PT0783-招标文件.docx",
+      "sha256": "c6e225afd9425256ee890576f3da410195e2ab5311ffc81e44f4b4edb1ec1ac9"
+    },
+    {
+      "bytes": 114060,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "7949978cd34218eff47c5e3de86efb006862ad4efce144766b8d6c4d0f225b36",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-cmcc-anhui-井圈井盖-中标结果公示.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-cmcc-anhui-井圈井盖-中标结果公示.pdf",
+      "sha256": "c55b2ed9400dda9b9a21acd4738f49c98dada4dd8214e00e31917a1ac9064c2b"
+    },
+    {
+      "bytes": 221131,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "f7e588648af67bc11274ad8a228511622a736913804826266005a8af71370489",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-cmcc-gansu-雪亮工程-中标候选人公示.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-cmcc-gansu-雪亮工程-中标候选人公示.pdf",
+      "sha256": "4afe857f1510a03f5590f59e4b12dc56e4b654e7a91c05c591536940fb13fab1"
+    },
+    {
+      "bytes": 211379,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "dfee41c3a1e32e8968890b17446ae1fddc8b4aec1795cc91eb2a359b8823162f",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-cqyd-招标公告.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-cqyd-招标公告.pdf",
+      "sha256": "e2317602fa32b776dc9d35940d2ba3170813f27952dac7936233a621bb7e913f"
+    },
+    {
+      "bytes": 1719128,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "54483f5d0fbd4be24b6002e67aab5df660e23cc90310e6af3f506b476000534e",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-telecom-hebei-无线网勘察设计-招标公告.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-telecom-hebei-无线网勘察设计-招标公告.pdf",
+      "sha256": "7dc04bf241ea87fe4cfbe211bfcafa88c2ca9adefcd95ab825cd65ec64580799"
+    },
+    {
+      "bytes": 80940,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "8a8b750cfd97198467a4429d143e80cbdfba83010213a649b1d0adbcc78d7800",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-telecom-huaian-合同.docx.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-telecom-huaian-合同.docx",
+      "sha256": "2a72910d5e596978504b63cc41180f749dde7fdfe83ae5bbfc1d89c155bfa320"
+    },
+    {
+      "bytes": 37486,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "8759d3743f7ba34000fa12cc44193c960c55283917951a99b96c2afe230e0875",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-telecom-huaian-技术规范书.docx.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-telecom-huaian-技术规范书.docx",
+      "sha256": "d2d58a0a7adf5929ff1446dc0cf7cce50c22e3f1c7affbd1bd8eb9792d8891f5"
+    },
+    {
+      "bytes": 15640,
+      "category": "xlsx",
+      "large": false,
+      "parse_digest": "efaea513c2b26207a9b3d4b0473ba0dac4015ea355b633b12ce107bbd23364cc",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-telecom-huaian-报价文件.xlsx.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-telecom-huaian-报价文件.xlsx",
+      "sha256": "bfcf13bfe04c6268258f04a312281e66e4601ab48fa75b7f12add64f8dbaacb4"
+    },
+    {
+      "bytes": 304906,
+      "category": "docx",
+      "large": false,
+      "parse_digest": "9a616c3a4a9c706d28d1e543cc4fd53888c789fcbf85ef26a47c3a214a2dd268",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-unicom-ry-技术规范书.docx.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-unicom-ry-技术规范书.docx",
+      "sha256": "277c2a70e8aef90a7946a997c61be966d5e99c493b3a8806e9c5fc8ca856ae82"
+    },
+    {
+      "bytes": 23560,
+      "category": "xlsx",
+      "large": false,
+      "parse_digest": "7851cb042e660aaac5a4251ed2a26b9f830fa198f23cfb34d5faec7dbc24f2f9",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-unicom-ry-投标一览表.xlsx.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-unicom-ry-投标一览表.xlsx",
+      "sha256": "96ae879e106ba94dad3f2946f52f43a26b2d520b0c2d8507101f767733e37f68"
+    },
+    {
+      "bytes": 30878,
+      "category": "xlsx",
+      "large": false,
+      "parse_digest": "c4c36c73af7ec0f842b5bba02993a418b73444d1548f0381f37b6f6a931cd427",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-unicom-ry-详细评审表.xlsx.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-unicom-ry-详细评审表.xlsx",
+      "sha256": "c6ee8eb61c98d888433ee8b8d8e1e1f7a7da50f50ce22541df87c484e3b63c68"
+    },
+    {
+      "bytes": 193138,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "94d9803ce8105e3115387cafc65fe0738b5bd81506e30faa3f8e2fc969eeddda",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/B-zjyd-立项批复.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/B-zjyd-立项批复.pdf",
+      "sha256": "ac5ed3a06cd0f6db5f4671de1d25d05ca9feb1ef594f82bb5f2664b1030743c3"
+    },
+    {
+      "bytes": 217383,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "930daa207e33ed2246bafea487e3fe6deb3eb262c477be019152ae4612f70851",
+      "parse_json": "baseline/parse/real-corpus/telecom/parse-input/C-zjyd-20260500552-数据库服务器-变更公告.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/telecom/parse-input/C-zjyd-20260500552-数据库服务器-变更公告.pdf",
+      "sha256": "b6f7df314d4d41a9a0c1ddd40be5fc1b96725817675d351f6b0e04e7bce323b8"
+    },
+    {
+      "bytes": 12713,
+      "category": "other",
+      "large": false,
+      "parse_digest": "edbc73db20730abcbe3a289b6c675278a1550ef80d6629eae370c2ac35a5a2ce",
+      "parse_json": "baseline/parse/real-corpus/telecom/refetch-report.json.json",
+      "parse_status": "failed",
+      "path": "real-corpus/telecom/refetch-report.json",
+      "sha256": "a11239a113cab6415edcb9934241bc4bef3962b758367c7256f18f915e68f108"
     },
     {
       "bytes": 65747,
@@ -972,6 +1223,66 @@
       "parse_status": "failed",
       "path": "real-corpus/telecom/sources/unicom-bj-bpm-fail-20260908.txt",
       "sha256": "28a393b0bae956daa48c544880749ea43df5ad24fe2e7634ced3e7153e62fedc"
+    },
+    {
+      "bytes": 2917,
+      "category": "other",
+      "large": false,
+      "parse_digest": "7d3d4ac709cd25b27e86b79f7273fad9c78b2d7b01edfaea1f62c7138e30f363",
+      "parse_json": "baseline/parse/real-corpus/water/README.md.json",
+      "parse_status": "failed",
+      "path": "real-corpus/water/README.md",
+      "sha256": "088063b07d020576624a2db07025122d8658e6822f9e037de248a3e890d321bd"
+    },
+    {
+      "bytes": 1841340,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "258e38f0ecdb7ea7dfdb61d301af4d6401e1681e415e4704ba668924d63173ef",
+      "parse_json": "baseline/parse/real-corpus/water/files/A-伊犁水库质量检测招标文件.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/water/files/A-伊犁水库质量检测招标文件.pdf",
+      "sha256": "815dfcf7ef5316c8005c4e2a7ef9017168beceddd84da6685f167d2dbbfe85a9"
+    },
+    {
+      "bytes": 2291179,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "d4e95758da3c024e2a06582b61a2ba8266fe7f4f951c30893a8d5e722349b29e",
+      "parse_json": "baseline/parse/real-corpus/water/files/A-塔里木水库除险加固招标文件.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/water/files/A-塔里木水库除险加固招标文件.pdf",
+      "sha256": "b2e91214675d74230fd34e3e1d25f03681ed25ff78e781f1223801ea9a77faba"
+    },
+    {
+      "bytes": 902459,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "1e9c01dba808298b591efde425976f12593e06af55fe671413dcdcbaf5d297d5",
+      "parse_json": "baseline/parse/real-corpus/water/files/A-某水利施工标段招标文件.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/water/files/A-某水利施工标段招标文件.pdf",
+      "sha256": "6a9814b28e1a4f34c2c508b1a8d982d02ee2249dba59301cf36175a508154910"
+    },
+    {
+      "bytes": 1418562,
+      "category": "zip",
+      "large": false,
+      "parse_digest": "6007d0bfb9b6054a349883a994176766f2816dede31ceff218e2c8bb0d161c63",
+      "parse_json": "baseline/parse/real-corpus/water/files/B3-北京示范文本2025.zip.json",
+      "parse_status": "failed",
+      "path": "real-corpus/water/files/B3-北京示范文本2025.zip",
+      "sha256": "c06df5cb08d9479699a8410ceb17a6f57506098b1b24afcd9da28f3a89428a4a"
+    },
+    {
+      "bytes": 2213393,
+      "category": "pdf",
+      "large": false,
+      "parse_digest": "e3911a70c1be496d91aa661884d535c479d5503dbdc1a4cd16410e111c5201e6",
+      "parse_json": "baseline/parse/real-corpus/water/files/C-福建修订通知-扫描件.pdf.json",
+      "parse_status": "ok",
+      "path": "real-corpus/water/files/C-福建修订通知-扫描件.pdf",
+      "sha256": "77c95e9778eabb34ae20b9a8a9aa527002cdc69a6cc6a0993563a790aa296f9c"
     }
   ],
   "generated_by": "scripts/baseline_run.py（issue #2 · B1）",

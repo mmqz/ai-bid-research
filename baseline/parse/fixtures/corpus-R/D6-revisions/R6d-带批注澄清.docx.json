@@ -1,0 +1,53 @@
+{
+  "blocks": [
+    {
+      "cells": [],
+      "idx": 0,
+      "kind": "para",
+      "locator": "",
+      "text": "示例项目澄清文件（第 4 次·批注面）"
+    },
+    {
+      "cells": [],
+      "idx": 1,
+      "kind": "para",
+      "locator": "",
+      "text": "澄清一：类似业绩认定年限以合同签订时间为准。"
+    },
+    {
+      "cells": [],
+      "idx": 2,
+      "kind": "para",
+      "locator": "",
+      "text": "澄清二：开标地点为示例大厦三层第二开标室。"
+    },
+    {
+      "cells": [],
+      "idx": 3,
+      "kind": "para",
+      "locator": "",
+      "text": "澄清三：本澄清文件与招标文件具有同等效力。"
+    }
+  ],
+  "components": [
+    {
+      "component": "正文",
+      "extracted": 1,
+      "note": "",
+      "present": 1
+    },
+    {
+      "component": "批注",
+      "extracted": 0,
+      "note": "G7：批注部件在位、零提取（批注读面待 M2+）",
+      "present": 1
+    }
+  ],
+  "elapsed_ms": 0,
+  "file": "fixtures/corpus-R/D6-revisions/R6d-带批注澄清.docx",
+  "has_text_layer": true,
+  "pages": 1,
+  "parse_summary": "docx: 0 表格，4 块｜部件对账 1 面（零提取件显式登记）",
+  "sha256": "02f1c26d817760383f1ea019f18cbf01393ab35db3ac1af1be7d55776cd53737",
+  "status": "ok"
+}

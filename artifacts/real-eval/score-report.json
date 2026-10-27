@@ -5,24 +5,11 @@
   "gt_file_target": "04_某水利工程施工标段_施工招标文件.pdf（142 页）",
   "reqs_in_file": 898,
   "gt_total": 24,
-  "recall": 18,
-  "recall_rate": 0.75,
+  "recall": 17,
+  "recall_rate": 0.7083,
   "category_match": 12,
   "category_match_rate": 0.5,
   "category_mismatches": [
-    {
-      "gt_id": "GT-R01",
-      "category": "资格条件",
-      "risk": "高（一票否决型资格）",
-      "recall_hit": true,
-      "matched_reqs": 1,
-      "first_clause_no": "1.4.1",
-      "category_match": false,
-      "matched_category": "其他",
-      "citation_supported": true,
-      "supported_elsewhere": false,
-      "page_delta": 0
-    },
     {
       "gt_id": "GT-V05",
       "category": "否决项",
@@ -89,20 +76,20 @@
       "page_delta": 0
     }
   ],
-  "citation_supported": 18,
+  "citation_supported": 17,
   "citation_support_rate": 1.0,
   "citation_support_criterion": "严格：excerpt 归一串出现在 anchor 自报页 ±1（R3-S3-4；原任意页子串判据恒真风险已除）",
   "supported_elsewhere_ids": [],
   "page_delta_distribution": {
-    "0": 17,
+    "0": 16,
     "-1": 1
   },
   "by_category": {
     "资格条件": {
       "total": 6,
-      "recall": 5,
+      "recall": 4,
       "cat_match": 4,
-      "supported": 5
+      "supported": 4
     },
     "否决项": {
       "total": 7,
@@ -134,14 +121,14 @@
       "gt_id": "GT-R01",
       "category": "资格条件",
       "risk": "高（一票否决型资格）",
-      "recall_hit": true,
-      "matched_reqs": 1,
-      "first_clause_no": "1.4.1",
+      "recall_hit": false,
+      "matched_reqs": 0,
+      "first_clause_no": null,
       "category_match": false,
-      "matched_category": "其他",
-      "citation_supported": true,
+      "matched_category": null,
+      "citation_supported": null,
       "supported_elsewhere": false,
-      "page_delta": 0
+      "page_delta": null
     },
     {
       "gt_id": "GT-R05",

@@ -34,7 +34,7 @@ from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas as rl_canvas
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ooxml_util import XLSX_FIXED_CORE, freeze_zip, freeze_docx  # noqa: E402
+from ooxml_util import XLSX_FIXED_CORE, freeze_zip, freeze_docx, write_json  # noqa: E402
 
 NOTO_PATH = "/usr/share/fonts/truetype/chinese/SarasaMonoSC-Regular.ttf"
 # 字体事实（v0.4 B2 修复同步）：NotoSansSC[wght].ttf 可变字体在 PIL 下渲染全空白
@@ -50,7 +50,7 @@ def _assert_pixels_text(img, min_dark: int, label: str):
     assert dark >= min_dark, f"{label} 暗像素过少（{dark}<{min_dark}）——文字未渲染（可变字体空白回归？）"
     return dark
 
-CORPUS_R_VERSION = "v0.1（V1-a 首批 D1/D2/D5）"
+CORPUS_R_VERSION = "v0.2（T2 批：+D6-revisions 修订/批注专项层——引擎 #17/#18/#19 验收夹具）"
 
 # 产出文件清单（run_tests 期望文件数单一真源；gen_corpus_r 断言保持同步）
 OUTPUT_FILES = (
@@ -59,11 +59,19 @@ OUTPUT_FILES = (
     "D2-nonbody/D2a-非正文条款.docx",
     "D5-scanned/D5a-全扫描双栏盖章.pdf",
     "D5-scanned/D5b-图文混排.pdf",
+    "D6-revisions/R6a-纯插入澄清.docx",
+    "D6-revisions/R6b-纯删除澄清.docx",
+    "D6-revisions/R6c-混合修订澄清.docx",
+    "D6-revisions/R6d-带批注澄清.docx",
+    "D6-revisions/R6e-修订批注组合澄清.docx",
+    "D6-revisions/expected-readback.json",
 )
 
 README = """# corpus-R：真实结构分布测试集
 
 > v0.1（V1-a 首批）：D1-tables / D2-nonbody / D5-scanned 三结构层已建。
+> v0.2（T2 批，issue #2 评论 2026-10-27 03:28 派发）：+D6-revisions 修订/批注专项层
+>（5 变体 + 期望读回契约）——引擎 mdcore#17/#18/#19 验收夹具 + 标书侧回归基线。
 > 生成器：`scripts/v1_corpus_r.py`（确定性合成——复刻真实件的**结构特征**而非内容）。
 
 ## 已建分层
@@ -75,10 +83,20 @@ README = """# corpus-R：真实结构分布测试集
 | D2-nonbody | D2a-非正文条款.docx | 页眉页脚载明限制条款、首页不同页眉、文本框条款（VML）、批注（comments part）、修订（w:ins/w:del） | 页眉页脚可读可定位；文本框/批注/修订**盘点但无定位器**（引擎缺口 G6，业务侧 M1 同边界——诚实上报不伪装支持） |
 | D5-scanned | D5a-全扫描双栏盖章.pdf | 全页无文本层（图像字）、双栏排版、半透明印章遮挡 | 文本层检测=none → OCR 路径（M1 解析面外，登记不伪装） |
 | D5-scanned | D5b-图文混排.pdf | 第 1 页文本层 + 第 2 页纯图像 | 文本层检测=partial（逐页判定，非全有全无） |
+| D6-revisions | R6a-纯插入澄清.docx | 纯 w:ins 插入（2 处、单作者）——澄清补录形态 | ins 当前文本必须进入读出面（ECMA-376 §17.13.5；mdcore#17 验收） |
+| D6-revisions | R6b-纯删除澄清.docx | 纯 w:del 删除（2 处 delText、整段/句中两形态）——废止条款形态 | delText 历史文本不进正文、入删除登记面（§17.13.4；#17 验收） |
+| D6-revisions | R6c-混合修订澄清.docx | 同段替换（del+ins 相邻）+ 表格内修订 + 三作者异日期 | 替换/表格修订双面；作者/日期归属可读（#17 验收） |
+| D6-revisions | R6d-带批注澄清.docx | 双批注（2 作者、commentRange 锚定）无修订 | comments 面可读可数（#19 验收）；正文文本不受批注污染 |
+| D6-revisions | R6e-修订批注组合澄清.docx | del+ins+批注锚定组合——澄清实务形态 | 修订+批注双面组合（#17+#19 验收） |
+
+D6-revisions/expected-readback.json：逐变体**期望读回契约**（按 OOXML 规范：
+ins=当前生效文本、del 内 delText=历史文本；含作者/日期/编号归属）——引擎 #17 验收
+测试与标书侧回归判分共用单一真源。
 
 ## 待建分层（需真实样本去标识化）
 
 - D3-revisions/ 多版本修订链：补遗/答疑/澄清多次修改、相互矛盾、部分撤销
+  （**文档级版本链**——与 D6-revisions 的 w:ins/w:del ** tracked changes 结构层**互补，勿混淆）
 - D4-wording/ 表述漂移：同一要求不同表达、无固定编号、口语化、"参照执行"类引用
 - D6-scale/ 超长超大：500 页级正文、附件图纸包、Excel 量价清单
 
@@ -427,24 +445,368 @@ def gen_d5b(out: Path) -> dict:
             "page1_text": True, "page2_image_only": True}
 
 
+# ---------------------------------------------------------------- D6 修订/批注层（T2 批）
+# issue #2 评论 2026-10-27 03:28 派发：修订（w:ins/w:del）/批注（comments part）专项
+# 用例集——引擎 mdcore#17（修订提取 P0）/#19（批注脚注读面 P2）验收夹具 + 标书侧回归
+# 基线。期望读回按 ECMA-376：w:ins 内 w:r/w:t 为**当前生效文本**（最终视图可见），
+# w:del 内 w:delText 为**历史文本**（最终视图不可见，入删除登记面）。
+# 与 README「待建 D3-revisions」的区别：D3 是文档级多版本链，D6 是 OOXML tracked
+# changes 结构层——互补关系，勿混淆。
+
+_W_NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+D6_AUTHORS = ("示例澄清专员甲", "示例澄清专员乙", "示例澄清专家丙")
+D6_DATES = ("2026-10-21T09:00:00Z", "2026-10-22T09:00:00Z", "2026-10-23T09:00:00Z")
+
+
+def _d6_p_xml(children: str) -> str:
+    """拼一个 w:p 的 XML（children 为已拼好的 run/ins/del 序列）。"""
+    return f'<w:p {_W_NS}>{children}</w:p>'
+
+
+def _d6_base(text: str) -> str:
+    return f'<w:r><w:t xml:space="preserve">{text}</w:t></w:r>'
+
+
+def _d6_ins(rid: int, author: str, date: str, text: str) -> str:
+    """w:ins 修订插入：内含 run 为当前生效文本（ECMA-376 §17.13.5）。"""
+    return (f'<w:ins w:id="{rid}" w:author="{author}" w:date="{date}">'
+            f'<w:r><w:t xml:space="preserve">{text}</w:t></w:r></w:ins>')
+
+
+def _d6_del(rid: int, author: str, date: str, text: str) -> str:
+    """w:del 修订删除：内含 delText 为历史文本（ECMA-376 §17.13.4——注意非 w:t）。"""
+    return (f'<w:del w:id="{rid}" w:author="{author}" w:date="{date}">'
+            f'<w:r><w:delText xml:space="preserve">{text}</w:delText></w:r></w:del>')
+
+
+def _d6_ns_wrap(elem_xml: str) -> str:
+    """独立解析单个修订元素时的命名空间注入（嵌套于 _d6_p_xml 内时由 w:p 根声明继承，无需）。"""
+    head, rest = elem_xml.split(">", 1)
+    return f"{head} {_W_NS}>{rest}"
+
+
+def _d6_append_paras(doc, paras_xml: list[str]):
+    from docx.oxml import parse_xml
+    for xml in paras_xml:
+        doc.element.body.append(parse_xml(xml))
+
+
+def _d6_anchor_comment(doc, paragraph, cid: int):
+    """commentRange 锚定：目标段落首 run 前 Start、末尾 End+Reference（同 D2a 协议，id 参数化）。"""
+    from docx.oxml import parse_xml
+    W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    first = paragraph.runs[0]._r if paragraph.runs else paragraph._p[0]
+    paragraph._p.insert(0 if not paragraph.runs else list(paragraph._p).index(first),
+                       parse_xml(f'<w:commentRangeStart xmlns:w="{W}" w:id="{cid}"/>'))
+    paragraph._p.append(parse_xml(f'<w:commentRangeEnd xmlns:w="{W}" w:id="{cid}"/>'))
+    paragraph._p.append(parse_xml(
+        f'<w:r xmlns:w="{W}"><w:rPr><w:rStyle w:val="a5"/></w:rPr>'
+        f'<w:commentReference w:id="{cid}"/></w:r>'))
+
+
+def _d6_inject_comments(path: Path, comments: list[dict]):
+    """comments part zip 层注入（同 gen_d2a 协议；支持多批注+多作者）。"""
+    W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    body = "".join(
+        f'<w:comment w:id="{c["id"]}" w:author="{c["author"]}" w:date="{c["date"]}" '
+        f'w:initials="{c["initials"]}"><w:p><w:r><w:t>{c["text"]}</w:t></w:r></w:p></w:comment>'
+        for c in comments)
+    comments_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        f'<w:comments xmlns:w="{W}">{body}</w:comments>'
+    ).encode("utf-8")
+    with zipfile.ZipFile(path) as zin:
+        items = {i.filename: zin.read(i.filename) for i in zin.infolist()}
+        types = items["[Content_Types].xml"].decode("utf-8")
+        if "comments+xml" not in types:
+            types = types.replace(
+                "</Types>",
+                '<Override PartName="/word/comments.xml" ContentType='
+                '"application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/></Types>')
+            items["[Content_Types].xml"] = types.encode("utf-8")
+        rels = items["word/_rels/document.xml.rels"].decode("utf-8")
+        if "comments.xml" not in rels:
+            rels = rels.replace(
+                "</Relationships>",
+                '<Relationship Id="rIdD6Cmt" '
+                'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" '
+                'Target="comments.xml"/></Relationships>')
+            items["word/_rels/document.xml.rels"] = rels.encode("utf-8")
+        items["word/comments.xml"] = comments_xml
+    tmp = path.with_suffix(".docx.tmp")
+    with zipfile.ZipFile(tmp, "w", compression=zipfile.ZIP_DEFLATED) as zout:
+        for name, data in items.items():
+            zout.writestr(name, data)
+    tmp.replace(path)
+
+
+# ---- R6a 纯插入（澄清补录形态：base + ins，2 处、单作者） ----
+_D6A_INS1 = "示例大厦三层第二开标室（插入后生效）"
+_D6A_INS2 = "2026-11-20 12:00（顺延两小时）"
+
+def _gen_r6a(out: Path) -> dict:
+    path = out / "R6a-纯插入澄清.docx"
+    doc = Document()
+    doc.add_heading("示例项目澄清文件（第 1 次·纯插入修订）", level=1)
+    doc.add_paragraph("澄清一：开标地点调整如下（插入内容为当前生效口径）。")
+    _d6_append_paras(doc, [
+        _d6_p_xml(_d6_base("开标地点：") + _d6_ins(101, D6_AUTHORS[0], D6_DATES[0], _D6A_INS1)),
+        _d6_p_xml(_d6_base("投标保证金缴纳截止时间：") + _d6_ins(102, D6_AUTHORS[0], D6_DATES[0], _D6A_INS2)),
+        _d6_p_xml(_d6_base("澄清二：本澄清文件与招标文件具有同等效力；插入内容为修订生效口径。")),
+    ])
+    doc.save(str(path))
+    freeze_docx(path)
+    return {"path": path.name, "kind": "pure-insert", "ins": 2, "del": 0, "comments": 0}
+
+
+# ---- R6b 纯删除（废止条款形态：句中删除 + 整段删除，2 处 delText） ----
+_D6B_DEL1 = "具备建筑工程施工总承包三级及以上资质"
+_D6B_DEL2 = "项目经理须持有一级注册建造师执业资格证书"
+
+def _gen_r6b(out: Path) -> dict:
+    path = out / "R6b-纯删除澄清.docx"
+    doc = Document()
+    doc.add_heading("示例项目澄清文件（第 2 次·纯删除修订）", level=1)
+    _d6_append_paras(doc, [
+        _d6_p_xml(_d6_base("原资格条款：") + _d6_del(201, D6_AUTHORS[1], D6_DATES[1], _D6B_DEL1)),
+        _d6_p_xml(_d6_del(202, D6_AUTHORS[1], D6_DATES[1], _D6B_DEL2)),
+        _d6_p_xml(_d6_base("上述两条资格要求经复核后删除，不再执行；删除内容为历史文本，不属于当前生效条款。")),
+    ])
+    doc.save(str(path))
+    freeze_docx(path)
+    return {"path": path.name, "kind": "pure-delete", "ins": 0, "del": 2, "comments": 0}
+
+
+# ---- R6c 混合修订（同段替换 + 表格内修订 + 三作者异日期） ----
+_D6C_DEL1 = "原开标时间：2026-11-15 09:30"
+_D6C_INS1 = "更正后开标时间：2026-11-27 09:30"
+_D6C_INS2 = "1.5%（原空白，现补充明确）"
+_D6C_DEL2 = "原付款条款：预付合同价款 30% 后开工"
+_D6C_TBL_INS = "商务偏差表（修订后表头）"
+_D6C_TBL_DEL = "技术偏差表（原表头）"
+
+def _gen_r6c(out: Path) -> dict:
+    from docx.oxml import parse_xml
+    path = out / "R6c-混合修订澄清.docx"
+    doc = Document()
+    doc.add_heading("示例项目澄清文件（第 3 次·混合修订）", level=1)
+    _d6_append_paras(doc, [
+        # 同段替换：del 在前 ins 在后——Word「修订替换」最典型形态
+        _d6_p_xml(_d6_del(301, D6_AUTHORS[0], D6_DATES[0], _D6C_DEL1)
+                  + _d6_ins(302, D6_AUTHORS[1], D6_DATES[1], _D6C_INS1)),
+        _d6_p_xml(_d6_base("评标基准价计算公式中的下浮率K取值：")
+                  + _d6_ins(303, D6_AUTHORS[2], D6_DATES[2], _D6C_INS2)),
+        # 整段删除：段落仅含 del（历史文本整体废止）
+        _d6_p_xml(_d6_del(304, D6_AUTHORS[1], D6_DATES[1], _D6C_DEL2)),
+    ])
+    # 表格内修订：表头格 ins 修正 + 数据格 del 废止（独立解析片段需 ns 注入）
+    tbl = doc.add_table(rows=2, cols=2)
+    tbl.cell(0, 0).paragraphs[0].add_run("偏差表类别")
+    p_hdr = tbl.cell(0, 1).paragraphs[0]
+    p_hdr._p.append(parse_xml(_d6_ns_wrap(_d6_ins(305, D6_AUTHORS[2], D6_DATES[2], _D6C_TBL_INS))))
+    p_old = tbl.cell(1, 0).paragraphs[0]
+    p_old._p.append(parse_xml(_d6_ns_wrap(_d6_del(306, D6_AUTHORS[0], D6_DATES[0], _D6C_TBL_DEL))))
+    tbl.cell(1, 1).paragraphs[0].add_run("以澄清后口径为准")
+    doc.save(str(path))
+    freeze_docx(path)
+    return {"path": path.name, "kind": "mixed", "ins": 3, "del": 3, "comments": 0, "table_cells": "ins+del"}
+
+
+# ---- R6d 带批注（双作者锚定，无修订——隔离批注面） ----
+_D6D_CMT1 = "评审注记一：本条澄清与招标文件第 3.2 条冲突时以本澄清为准。"
+_D6D_CMT2 = "评审注记二：类似业绩年限口径已按本澄清统一，评分细则同步修订。"
+
+def _gen_r6d(out: Path) -> dict:
+    path = out / "R6d-带批注澄清.docx"
+    doc = Document()
+    doc.add_heading("示例项目澄清文件（第 4 次·批注面）", level=1)
+    p1 = doc.add_paragraph("澄清一：类似业绩认定年限以合同签订时间为准。")
+    doc.add_paragraph("澄清二：开标地点为示例大厦三层第二开标室。")
+    p3 = doc.add_paragraph("澄清三：本澄清文件与招标文件具有同等效力。")
+    _d6_anchor_comment(doc, p1, 801)
+    _d6_anchor_comment(doc, p3, 802)
+    doc.save(str(path))
+    _d6_inject_comments(path, [
+        {"id": 801, "author": "示例评审专家一", "date": D6_DATES[1], "initials": "PS1", "text": _D6D_CMT1},
+        {"id": 802, "author": "示例评审专家二", "date": D6_DATES[2], "initials": "PS2", "text": _D6D_CMT2},
+    ])
+    freeze_docx(path)
+    return {"path": path.name, "kind": "comments-only", "ins": 0, "del": 0, "comments": 2}
+
+
+# ---- R6e 修订批注组合（澄清实务形态：del+ins+批注锚定） ----
+_D6E_DEL1 = "原响应截止时间 2026-11-20 09:30"
+_D6E_INS1 = "更正后响应截止时间 2026-11-27 09:30"
+_D6E_INS2 = "评分细则第 2.2.2 项业绩认定年限以合同签订时间为准"
+_D6E_CMT1 = "澄清说明一：本条按投标人疑问第 3 条澄清，原表述废止。"
+_D6E_CMT2 = "澄清说明二：本条插入内容为新增评分口径，评审时按此执行。"
+
+def _gen_r6e(out: Path) -> dict:
+    path = out / "R6e-修订批注组合澄清.docx"
+    doc = Document()
+    doc.add_heading("示例项目澄清文件（第 5 次·修订批注组合）", level=1)
+    _d6_append_paras(doc, [
+        _d6_p_xml(_d6_base("澄清一：") + _d6_del(501, D6_AUTHORS[0], D6_DATES[0], _D6E_DEL1)
+                  + _d6_ins(502, D6_AUTHORS[0], D6_DATES[0], _D6E_INS1)),
+        _d6_p_xml(_d6_base("澄清二：") + _d6_ins(503, D6_AUTHORS[1], D6_DATES[1], _D6E_INS2)),
+    ])
+    # 批注锚定：澄清一（del+ins 条，body 第 2 段）与澄清二（ins 条，第 3 段）。
+    # 注：注入段落内 run 嵌套于 w:ins，paragraph.runs 为空——commentRangeStart 落段首（结构合法）。
+    _d6_anchor_comment(doc, doc.paragraphs[1], 811)
+    _d6_anchor_comment(doc, doc.paragraphs[2], 812)
+    doc.save(str(path))
+    _d6_inject_comments(path, [
+        {"id": 811, "author": "示例澄清专员甲", "date": D6_DATES[0], "initials": "CZJ", "text": _D6E_CMT1},
+        {"id": 812, "author": "示例评审专家二", "date": D6_DATES[1], "initials": "PS2", "text": _D6E_CMT2},
+    ])
+    freeze_docx(path)
+    return {"path": path.name, "kind": "combo", "ins": 2, "del": 1, "comments": 2}
+
+
+def _gen_d6_expected(out: Path) -> dict:
+    """期望读回契约（单一真源）：期望值直接由构造常量派生，防双处漂移。"""
+    A, B, C = D6_AUTHORS
+    expected = {
+        "spec_ref": (
+            "ECMA-376 §17.13.5（w:ins：内含 run 为当前生效文本）/"
+            "§17.13.4（w:del：内含 delText 为历史文本）；"
+            "comments part 按 §17.13.4.x commentRange/Reference 锚定"
+        ),
+        "acceptance_mapping": {
+            "mdcore#17": "expected_final_view + inserted_runs + deleted_runs 逐变体可验",
+            "mdcore#19": "expected_comments 逐变体可验（R6d/R6e）",
+            "bid-side-baseline": "baseline/parse/R6*.json 记录当前真实行为（对照项）",
+        },
+        "variants": {
+            "R6a-纯插入澄清.docx": {
+                "kind": "pure-insert",
+                "expected_final_view_paragraphs": [
+                    "示例项目澄清文件（第 1 次·纯插入修订）",
+                    "澄清一：开标地点调整如下（插入内容为当前生效口径）。",
+                    f"开标地点：{_D6A_INS1}",
+                    f"投标保证金缴纳截止时间：{_D6A_INS2}",
+                    "澄清二：本澄清文件与招标文件具有同等效力；插入内容为修订生效口径。",
+                ],
+                "inserted_runs": [
+                    {"id": 101, "author": A, "date": D6_DATES[0], "text": _D6A_INS1},
+                    {"id": 102, "author": A, "date": D6_DATES[0], "text": _D6A_INS2},
+                ],
+                "deleted_runs": [],
+                "comments": [],
+                "note": "ins 文本必须出现在读出面正文流中（Word 最终视图即此形态）",
+            },
+            "R6b-纯删除澄清.docx": {
+                "kind": "pure-delete",
+                "expected_final_view_paragraphs": [
+                    "示例项目澄清文件（第 2 次·纯删除修订）",
+                    "原资格条款：",
+                    "",
+                    "上述两条资格要求经复核后删除，不再执行；删除内容为历史文本，不属于当前生效条款。",
+                ],
+                "inserted_runs": [],
+                "deleted_runs": [
+                    {"id": 201, "author": B, "date": D6_DATES[1], "text": _D6B_DEL1},
+                    {"id": 202, "author": B, "date": D6_DATES[1], "text": _D6B_DEL2},
+                ],
+                "comments": [],
+                "note": "delText 不得进入正文流；整段删除形态下段落最终视图为空串",
+            },
+            "R6c-混合修订澄清.docx": {
+                "kind": "mixed",
+                "expected_final_view_paragraphs": [
+                    "示例项目澄清文件（第 3 次·混合修订）",
+                    _D6C_INS1,
+                    f"评标基准价计算公式中的下浮率K取值：{_D6C_INS2}",
+                    "",
+                ],
+                "expected_table_final_view": {
+                    "cells": [["偏差表类别", _D6C_TBL_INS], ["", "以澄清后口径为准"]],
+                },
+                "inserted_runs": [
+                    {"id": 302, "author": B, "date": D6_DATES[1], "text": _D6C_INS1},
+                    {"id": 303, "author": C, "date": D6_DATES[2], "text": _D6C_INS2},
+                    {"id": 305, "author": C, "date": D6_DATES[2], "text": _D6C_TBL_INS},
+                ],
+                "deleted_runs": [
+                    {"id": 301, "author": A, "date": D6_DATES[0], "text": _D6C_DEL1},
+                    {"id": 304, "author": B, "date": D6_DATES[1], "text": _D6C_DEL2},
+                    {"id": 306, "author": A, "date": D6_DATES[0], "text": _D6C_TBL_DEL},
+                ],
+                "comments": [],
+                "note": "同段替换（del 前 ins 后）与表格内修订为真实澄清件高频形态；作者/日期三值分布供归属判定验收",
+            },
+            "R6d-带批注澄清.docx": {
+                "kind": "comments-only",
+                "expected_final_view_paragraphs": [
+                    "示例项目澄清文件（第 4 次·批注面）",
+                    "澄清一：类似业绩认定年限以合同签订时间为准。",
+                    "澄清二：开标地点为示例大厦三层第二开标室。",
+                    "澄清三：本澄清文件与招标文件具有同等效力。",
+                ],
+                "inserted_runs": [],
+                "deleted_runs": [],
+                "comments": [
+                    {"id": 801, "author": "示例评审专家一", "text": _D6D_CMT1, "anchor": "澄清一段"},
+                    {"id": 802, "author": "示例评审专家二", "text": _D6D_CMT2, "anchor": "澄清三段"},
+                ],
+                "note": "批注不改变正文文本（正文 4 段与无批注件全同）；批注面独立可读可数",
+            },
+            "R6e-修订批注组合澄清.docx": {
+                "kind": "combo",
+                "expected_final_view_paragraphs": [
+                    "示例项目澄清文件（第 5 次·修订批注组合）",
+                    f"澄清一：{_D6E_INS1}",
+                    f"澄清二：{_D6E_INS2}",
+                ],
+                "inserted_runs": [
+                    {"id": 502, "author": A, "date": D6_DATES[0], "text": _D6E_INS1},
+                    {"id": 503, "author": B, "date": D6_DATES[1], "text": _D6E_INS2},
+                ],
+                "deleted_runs": [
+                    {"id": 501, "author": A, "date": D6_DATES[0], "text": _D6E_DEL1},
+                ],
+                "comments": [
+                    {"id": 811, "author": "示例澄清专员甲", "text": _D6E_CMT1, "anchor": "澄清一段（del+ins 条）"},
+                    {"id": 812, "author": "示例评审专家二", "text": _D6E_CMT2, "anchor": "澄清二段（ins 条）"},
+                ],
+                "note": "澄清实务形态：del+ins 同段 + 批注锚定双面组合——#17+#19 联合验收",
+            },
+        },
+    }
+    write_json(out / "expected-readback.json", expected)
+    return {"path": "expected-readback.json", "variants": len(expected["variants"])}
+
+
+def gen_d6_revisions(d6: Path) -> dict:
+    """d6 即目标目录（gen_corpus_r 已传入 corpus-R/D6-revisions——内部不得再拼层名）。"""
+    d6.mkdir(parents=True, exist_ok=True)
+    variants = [
+        _gen_r6a(d6), _gen_r6b(d6), _gen_r6c(d6), _gen_r6d(d6), _gen_r6e(d6),
+        _gen_d6_expected(d6),
+    ]
+    return {"files": variants}
+
+
 # ---------------------------------------------------------------- 汇总入口
 def gen_corpus_r(corpus_r_dir: Path) -> dict:
     d1 = corpus_r_dir / "D1-tables"
     d2 = corpus_r_dir / "D2-nonbody"
     d5 = corpus_r_dir / "D5-scanned"
-    for d in (d1, d2, d5):
+    d6 = corpus_r_dir / "D6-revisions"
+    for d in (d1, d2, d5, d6):
         d.mkdir(parents=True, exist_ok=True)
     layers = {
         "D1-tables": [gen_d1a(d1), gen_d1b(d1)],
         "D2-nonbody": [gen_d2a(d2)],
         "D5-scanned": [gen_d5a(d5), gen_d5b(d5)],
+        "D6-revisions": gen_d6_revisions(d6)["files"],
     }
     (corpus_r_dir / "README.md").write_text(README, encoding="utf-8")
     files = [f["path"] for rows in layers.values() for f in rows]
     assert sorted(Path(f).name for f in files) == sorted(Path(f).name for f in OUTPUT_FILES), \
         f"corpus-R 产出与 OUTPUT_FILES 漂移：{files}"
     return {"version": CORPUS_R_VERSION, "files": files, "layers": layers,
-            "counts": {"D1": 2, "D2": 1, "D5": 2, "total": len(files)}}
+            "counts": {"D1": 2, "D2": 1, "D5": 2, "D6": 6, "total": len(files)}}
 
 
 if __name__ == "__main__":

@@ -1,0 +1,1300 @@
+{
+  "blocks": [
+    {
+      "cells": [],
+      "idx": 0,
+      "kind": "pdf_line",
+      "locator": "第1页 行1",
+      "text": "理系 理系"
+    },
+    {
+      "cells": [],
+      "idx": 1,
+      "kind": "pdf_line",
+      "locator": "第1页 行2",
+      "text": "管"
+    },
+    {
+      "cells": [],
+      "idx": 2,
+      "kind": "pdf_line",
+      "locator": "第1页 行3",
+      "text": "设 三日 公 室) 管"
+    },
+    {
+      "cells": [],
+      "idx": 3,
+      "kind": "pdf_line",
+      "locator": "第1页 行4",
+      "text": "设 三日 公 室)"
+    },
+    {
+      "cells": [],
+      "idx": 4,
+      "kind": "pdf_line",
+      "locator": "第1页 行5",
+      "text": "建 办 建 办"
+    },
+    {
+      "cells": [],
+      "idx": 5,
+      "kind": "pdf_line",
+      "locator": "第1页 行6",
+      "text": "动 计划 六月十 振兴 动 计划 六月十 振兴"
+    },
+    {
+      "cells": [],
+      "idx": 6,
+      "kind": "pdf_line",
+      "locator": "第1页 行7",
+      "text": "移 年 村 移 年 村"
+    },
+    {
+      "cells": [],
+      "idx": 7,
+      "kind": "pdf_line",
+      "locator": "第1页 行8",
+      "text": "中国 〇二六 部（"
+    },
+    {
+      "cells": [],
+      "idx": 8,
+      "kind": "pdf_line",
+      "locator": "第1页 行9",
+      "text": "乡"
+    },
+    {
+      "cells": [],
+      "idx": 9,
+      "kind": "pdf_line",
+      "locator": "第1页 行10",
+      "text": "9 6 871 中国 〇二六 部（"
+    },
+    {
+      "cells": [],
+      "idx": 10,
+      "kind": "pdf_line",
+      "locator": "第1页 行11",
+      "text": "乡"
+    },
+    {
+      "cells": [],
+      "idx": 11,
+      "kind": "pdf_line",
+      "locator": "第1页 行12",
+      "text": "9 6 871"
+    },
+    {
+      "cells": [],
+      "idx": 12,
+      "kind": "pdf_line",
+      "locator": "第1页 行13",
+      "text": "81 81"
+    },
+    {
+      "cells": [],
+      "idx": 13,
+      "kind": "pdf_line",
+      "locator": "第1页 行14",
+      "text": "二"
+    },
+    {
+      "cells": [],
+      "idx": 14,
+      "kind": "pdf_line",
+      "locator": "第1页 行15",
+      "text": "划 技术 1373 二"
+    },
+    {
+      "cells": [],
+      "idx": 15,
+      "kind": "pdf_line",
+      "locator": "第1页 行16",
+      "text": "划 技术 1373"
+    },
+    {
+      "cells": [],
+      "idx": 16,
+      "kind": "pdf_line",
+      "locator": "第1页 行17",
+      "text": "公 司规 玮 公 司规 玮"
+    },
+    {
+      "cells": [],
+      "idx": 17,
+      "kind": "pdf_line",
+      "locator": "第1页 行18",
+      "text": "浙江 陈韩"
+    },
+    {
+      "cells": [],
+      "idx": 18,
+      "kind": "pdf_line",
+      "locator": "第1页 行19",
+      "text": "中国移动通信集团浙江有限公司 浙江 陈韩"
+    },
+    {
+      "cells": [],
+      "idx": 19,
+      "kind": "pdf_line",
+      "locator": "第1页 行20",
+      "text": "统"
+    },
+    {
+      "cells": [],
+      "idx": 20,
+      "kind": "pdf_line",
+      "locator": "第1页 行21",
+      "text": "理系"
+    },
+    {
+      "cells": [],
+      "idx": 21,
+      "kind": "pdf_line",
+      "locator": "第1页 行22",
+      "text": "建 计划建设文件"
+    },
+    {
+      "cells": [],
+      "idx": 22,
+      "kind": "pdf_line",
+      "locator": "第1页 行23",
+      "text": "管"
+    },
+    {
+      "cells": [],
+      "idx": 23,
+      "kind": "pdf_line",
+      "locator": "第1页 行24",
+      "text": "设 三日"
+    },
+    {
+      "cells": [],
+      "idx": 24,
+      "kind": "pdf_line",
+      "locator": "第1页 行25",
+      "text": "计划 六月十 振兴"
+    },
+    {
+      "cells": [],
+      "idx": 25,
+      "kind": "pdf_line",
+      "locator": "第1页 行26",
+      "text": "办 公 室)"
+    },
+    {
+      "cells": [],
+      "idx": 26,
+      "kind": "pdf_line",
+      "locator": "第1页 行27",
+      "text": "移 动 年 村 移动"
+    },
+    {
+      "cells": [],
+      "idx": 27,
+      "kind": "pdf_line",
+      "locator": "第1页 行28",
+      "text": "中国 〇二六 部（"
+    },
+    {
+      "cells": [],
+      "idx": 28,
+      "kind": "pdf_line",
+      "locator": "第1页 行29",
+      "text": "乡"
+    },
+    {
+      "cells": [],
+      "idx": 29,
+      "kind": "pdf_line",
+      "locator": "第1页 行30",
+      "text": "9 6 871 中国 〇"
+    },
+    {
+      "cells": [],
+      "idx": 30,
+      "kind": "pdf_line",
+      "locator": "第1页 行31",
+      "text": "二 技术 381"
+    },
+    {
+      "cells": [],
+      "idx": 31,
+      "kind": "pdf_line",
+      "locator": "第1页 行32",
+      "text": "浙江立项批复[2026] 321 号 二"
+    },
+    {
+      "cells": [],
+      "idx": 32,
+      "kind": "pdf_line",
+      "locator": "第1页 行33",
+      "text": "划 137"
+    },
+    {
+      "cells": [],
+      "idx": 33,
+      "kind": "pdf_line",
+      "locator": "第1页 行34",
+      "text": "规 司规"
+    },
+    {
+      "cells": [],
+      "idx": 34,
+      "kind": "pdf_line",
+      "locator": "第1页 行35",
+      "text": "公司 玮 公"
+    },
+    {
+      "cells": [],
+      "idx": 35,
+      "kind": "pdf_line",
+      "locator": "第1页 行36",
+      "text": "浙 江 陈韩 浙江 陈"
+    },
+    {
+      "cells": [],
+      "idx": 36,
+      "kind": "pdf_line",
+      "locator": "第1页 行37",
+      "text": "统 关于浙江公司2025年算网能力二阶段建设项目立项变更的批复 统"
+    },
+    {
+      "cells": [],
+      "idx": 37,
+      "kind": "pdf_line",
+      "locator": "第1页 行38",
+      "text": "理 系 理系"
+    },
+    {
+      "cells": [],
+      "idx": 38,
+      "kind": "pdf_line",
+      "locator": "第1页 行39",
+      "text": "管 室 ) 管 室)"
+    },
+    {
+      "cells": [],
+      "idx": 39,
+      "kind": "pdf_line",
+      "locator": "第1页 行40",
+      "text": "建 设 三日 公 建 设 三日 公"
+    },
+    {
+      "cells": [],
+      "idx": 40,
+      "kind": "pdf_line",
+      "locator": "第1页 行41",
+      "text": "办 办"
+    },
+    {
+      "cells": [],
+      "idx": 41,
+      "kind": "pdf_line",
+      "locator": "第1页 行42",
+      "text": "动 计划 六月十 振兴 动 计划 六月十 振兴"
+    },
+    {
+      "cells": [],
+      "idx": 42,
+      "kind": "pdf_line",
+      "locator": "第1页 行43",
+      "text": "移 年 村 村"
+    },
+    {
+      "cells": [],
+      "idx": 43,
+      "kind": "pdf_line",
+      "locator": "第1页 行44",
+      "text": "中国 〇二六 部（"
+    },
+    {
+      "cells": [],
+      "idx": 44,
+      "kind": "pdf_line",
+      "locator": "第1页 行45",
+      "text": "乡 工程建设部："
+    },
+    {
+      "cells": [],
+      "idx": 45,
+      "kind": "pdf_line",
+      "locator": "第1页 行46",
+      "text": "6 871 中 国移 二六年 （乡 6 871"
+    },
+    {
+      "cells": [],
+      "idx": 46,
+      "kind": "pdf_line",
+      "locator": "第1页 行47",
+      "text": "81 9 部 9"
+    },
+    {
+      "cells": [],
+      "idx": 47,
+      "kind": "pdf_line",
+      "locator": "第1页 行48",
+      "text": "二 技术 1373 二〇 技术 381"
+    },
+    {
+      "cells": [],
+      "idx": 48,
+      "kind": "pdf_line",
+      "locator": "第1页 行49",
+      "text": "划 划 137"
+    },
+    {
+      "cells": [],
+      "idx": 49,
+      "kind": "pdf_line",
+      "locator": "第1页 行50",
+      "text": "公 司规 玮 因供应短缺、需求变化、自主可控考核及市场价格波动等因素影响，对本项目进行"
+    },
+    {
+      "cells": [],
+      "idx": 50,
+      "kind": "pdf_line",
+      "locator": "第1页 行51",
+      "text": "公 司规 玮"
+    },
+    {
+      "cells": [],
+      "idx": 51,
+      "kind": "pdf_line",
+      "locator": "第1页 行52",
+      "text": "韩 陈韩"
+    },
+    {
+      "cells": [],
+      "idx": 52,
+      "kind": "pdf_line",
+      "locator": "第1页 行53",
+      "text": "浙江 陈 浙江"
+    },
+    {
+      "cells": [],
+      "idx": 53,
+      "kind": "pdf_line",
+      "locator": "第1页 行54",
+      "text": "立项变更，调整建设内容及投资。经总经理办公会（总经理办公会议纪要〔2026〕13号"
+    },
+    {
+      "cells": [],
+      "idx": 54,
+      "kind": "pdf_line",
+      "locator": "第1页 行55",
+      "text": "统"
+    },
+    {
+      "cells": [],
+      "idx": 55,
+      "kind": "pdf_line",
+      "locator": "第1页 行56",
+      "text": "理系"
+    },
+    {
+      "cells": [],
+      "idx": 56,
+      "kind": "pdf_line",
+      "locator": "第1页 行57",
+      "text": "）决策，现对工程建设部承建的“浙江公司2025年算网能力二阶段建设项目”（浙江立"
+    },
+    {
+      "cells": [],
+      "idx": 57,
+      "kind": "pdf_line",
+      "locator": "第1页 行58",
+      "text": "建"
+    },
+    {
+      "cells": [],
+      "idx": 58,
+      "kind": "pdf_line",
+      "locator": "第1页 行59",
+      "text": "管"
+    },
+    {
+      "cells": [],
+      "idx": 59,
+      "kind": "pdf_line",
+      "locator": "第1页 行60",
+      "text": "设 三日 公 室)"
+    },
+    {
+      "cells": [],
+      "idx": 60,
+      "kind": "pdf_line",
+      "locator": "第1页 行61",
+      "text": "办"
+    },
+    {
+      "cells": [],
+      "idx": 61,
+      "kind": "pdf_line",
+      "locator": "第1页 行62",
+      "text": "动 计划 六月十 振兴"
+    },
+    {
+      "cells": [],
+      "idx": 62,
+      "kind": "pdf_line",
+      "locator": "第1页 行63",
+      "text": "项批复[2025] 270 号）进行变更调整，情况如下："
+    },
+    {
+      "cells": [],
+      "idx": 63,
+      "kind": "pdf_line",
+      "locator": "第1页 行64",
+      "text": "移 年 村 移动"
+    },
+    {
+      "cells": [],
+      "idx": 64,
+      "kind": "pdf_line",
+      "locator": "第1页 行65",
+      "text": "中国 〇二六 部（"
+    },
+    {
+      "cells": [],
+      "idx": 65,
+      "kind": "pdf_line",
+      "locator": "第1页 行66",
+      "text": "乡"
+    },
+    {
+      "cells": [],
+      "idx": 66,
+      "kind": "pdf_line",
+      "locator": "第1页 行67",
+      "text": "9 6 871 中国 〇"
+    },
+    {
+      "cells": [],
+      "idx": 67,
+      "kind": "pdf_line",
+      "locator": "第1页 行68",
+      "text": "81"
+    },
+    {
+      "cells": [],
+      "idx": 68,
+      "kind": "pdf_line",
+      "locator": "第1页 行69",
+      "text": "二 技术 1373 二"
+    },
+    {
+      "cells": [],
+      "idx": 69,
+      "kind": "pdf_line",
+      "locator": "第1页 行70",
+      "text": "变更前： 司规"
+    },
+    {
+      "cells": [],
+      "idx": 70,
+      "kind": "pdf_line",
+      "locator": "第1页 行71",
+      "text": "划"
+    },
+    {
+      "cells": [],
+      "idx": 71,
+      "kind": "pdf_line",
+      "locator": "第1页 行72",
+      "text": "司规"
+    },
+    {
+      "cells": [],
+      "idx": 72,
+      "kind": "pdf_line",
+      "locator": "第1页 行73",
+      "text": "公 玮 公"
+    },
+    {
+      "cells": [],
+      "idx": 73,
+      "kind": "pdf_line",
+      "locator": "第1页 行74",
+      "text": "浙江 陈韩 浙江 陈"
+    },
+    {
+      "cells": [],
+      "idx": 74,
+      "kind": "pdf_line",
+      "locator": "第1页 行75",
+      "text": "项目规模：部署大模型推理设备100台、通用服务器通用服务器892台、硬盘"
+    },
+    {
+      "cells": [],
+      "idx": 75,
+      "kind": "pdf_line",
+      "locator": "第1页 行76",
+      "text": "统 统"
+    },
+    {
+      "cells": [],
+      "idx": 76,
+      "kind": "pdf_line",
+      "locator": "第1页 行77",
+      "text": "理系10704块、通用交换机104台、防火墙8台、硬件负载均衡4台。"
+    },
+    {
+      "cells": [],
+      "idx": 77,
+      "kind": "pdf_line",
+      "locator": "第1页 行78",
+      "text": ") 理系"
+    },
+    {
+      "cells": [],
+      "idx": 78,
+      "kind": "pdf_line",
+      "locator": "第1页 行79",
+      "text": "管"
+    },
+    {
+      "cells": [],
+      "idx": 79,
+      "kind": "pdf_line",
+      "locator": "第1页 行80",
+      "text": "设 三日 公 室 管"
+    },
+    {
+      "cells": [],
+      "idx": 80,
+      "kind": "pdf_line",
+      "locator": "第1页 行81",
+      "text": "设 三日 公 室)"
+    },
+    {
+      "cells": [],
+      "idx": 81,
+      "kind": "pdf_line",
+      "locator": "第1页 行82",
+      "text": "建 办 建 办"
+    },
+    {
+      "cells": [],
+      "idx": 82,
+      "kind": "pdf_line",
+      "locator": "第1页 行83",
+      "text": "计划 六月十 振兴 计划 六月十 振兴"
+    },
+    {
+      "cells": [],
+      "idx": 83,
+      "kind": "pdf_line",
+      "locator": "第1页 行84",
+      "text": "移 动 年 村 立项批复金额（万元）：本项目立项估算总投资为20517万元人民币。 动"
+    },
+    {
+      "cells": [],
+      "idx": 84,
+      "kind": "pdf_line",
+      "locator": "第1页 行85",
+      "text": "国移 二六年 （乡"
+    },
+    {
+      "cells": [],
+      "idx": 85,
+      "kind": "pdf_line",
+      "locator": "第1页 行86",
+      "text": "村"
+    },
+    {
+      "cells": [],
+      "idx": 86,
+      "kind": "pdf_line",
+      "locator": "第1页 行87",
+      "text": "中国 〇二六 部（"
+    },
+    {
+      "cells": [],
+      "idx": 87,
+      "kind": "pdf_line",
+      "locator": "第1页 行88",
+      "text": "乡"
+    },
+    {
+      "cells": [],
+      "idx": 88,
+      "kind": "pdf_line",
+      "locator": "第1页 行89",
+      "text": "9 6 871 中 9 6 871"
+    },
+    {
+      "cells": [],
+      "idx": 89,
+      "kind": "pdf_line",
+      "locator": "第1页 行90",
+      "text": "81 部"
+    },
+    {
+      "cells": [],
+      "idx": 90,
+      "kind": "pdf_line",
+      "locator": "第1页 行91",
+      "text": "二 技术 1373 二〇 技术 381"
+    },
+    {
+      "cells": [],
+      "idx": 91,
+      "kind": "pdf_line",
+      "locator": "第1页 行92",
+      "text": "划 投产时间：本项目要求于2025-12-31前具备上线运行条件。 划 137"
+    },
+    {
+      "cells": [],
+      "idx": 92,
+      "kind": "pdf_line",
+      "locator": "第1页 行93",
+      "text": "公 司规 玮 公 司规 玮"
+    },
+    {
+      "cells": [],
+      "idx": 93,
+      "kind": "pdf_line",
+      "locator": "第1页 行94",
+      "text": "韩 陈韩"
+    },
+    {
+      "cells": [],
+      "idx": 94,
+      "kind": "pdf_line",
+      "locator": "第1页 行95",
+      "text": "浙江 陈 变更后： 浙江"
+    },
+    {
+      "cells": [],
+      "idx": 95,
+      "kind": "pdf_line",
+      "locator": "第1页 行96",
+      "text": "统"
+    },
+    {
+      "cells": [],
+      "idx": 96,
+      "kind": "pdf_line",
+      "locator": "第1页 行97",
+      "text": "项目规模：部署大模型推理设备100台、通用服务器通用服务器585台、硬盘3080块"
+    },
+    {
+      "cells": [],
+      "idx": 97,
+      "kind": "pdf_line",
+      "locator": "第1页 行98",
+      "text": "管理"
+    },
+    {
+      "cells": [],
+      "idx": 98,
+      "kind": "pdf_line",
+      "locator": "第1页 行99",
+      "text": "系"
+    },
+    {
+      "cells": [],
+      "idx": 99,
+      "kind": "pdf_line",
+      "locator": "第1页 行100",
+      "text": ") 室"
+    },
+    {
+      "cells": [],
+      "idx": 100,
+      "kind": "pdf_line",
+      "locator": "第1页 行101",
+      "text": "划 建设 十三日 办公"
+    },
+    {
+      "cells": [],
+      "idx": 101,
+      "kind": "pdf_line",
+      "locator": "第1页 行102",
+      "text": "、通用交换机104台、防火墙8台、硬件负载均衡4台。"
+    },
+    {
+      "cells": [],
+      "idx": 102,
+      "kind": "pdf_line",
+      "locator": "第1页 行103",
+      "text": "移 动计 年六月 村振"
+    },
+    {
+      "cells": [],
+      "idx": 103,
+      "kind": "pdf_line",
+      "locator": "第1页 行104",
+      "text": "兴"
+    },
+    {
+      "cells": [],
+      "idx": 104,
+      "kind": "pdf_line",
+      "locator": "第1页 行105",
+      "text": "移动"
+    },
+    {
+      "cells": [],
+      "idx": 105,
+      "kind": "pdf_line",
+      "locator": "第1页 行106",
+      "text": "中国 〇二六 部（"
+    },
+    {
+      "cells": [],
+      "idx": 106,
+      "kind": "pdf_line",
+      "locator": "第1页 行107",
+      "text": "乡"
+    },
+    {
+      "cells": [],
+      "idx": 107,
+      "kind": "pdf_line",
+      "locator": "第1页 行108",
+      "text": "9 6 871 中国 〇"
+    },
+    {
+      "cells": [],
+      "idx": 108,
+      "kind": "pdf_line",
+      "locator": "第1页 行109",
+      "text": "81"
+    },
+    {
+      "cells": [],
+      "idx": 109,
+      "kind": "pdf_line",
+      "locator": "第1页 行110",
+      "text": "立项批复金额（万元）：本项目立项估算总投资为20509万元人民币。"
+    },
+    {
+      "cells": [],
+      "idx": 110,
+      "kind": "pdf_line",
+      "locator": "第1页 行111",
+      "text": "二"
+    },
+    {
+      "cells": [],
+      "idx": 111,
+      "kind": "pdf_line",
+      "locator": "第1页 行112",
+      "text": "划 技术 1373 二"
+    },
+    {
+      "cells": [],
+      "idx": 112,
+      "kind": "pdf_line",
+      "locator": "第1页 行113",
+      "text": "公 司规 玮 公 司规"
+    },
+    {
+      "cells": [],
+      "idx": 113,
+      "kind": "pdf_line",
+      "locator": "第1页 行114",
+      "text": "投产时间：本项目要求于2026-12-31前具备上线运行条件。"
+    },
+    {
+      "cells": [],
+      "idx": 114,
+      "kind": "pdf_line",
+      "locator": "第1页 行115",
+      "text": "浙江 陈韩 浙江 陈"
+    },
+    {
+      "cells": [],
+      "idx": 115,
+      "kind": "pdf_line",
+      "locator": "第1页 行116",
+      "text": "统 统"
+    },
+    {
+      "cells": [],
+      "idx": 116,
+      "kind": "pdf_line",
+      "locator": "第1页 行117",
+      "text": "理系 理系"
+    },
+    {
+      "cells": [],
+      "idx": 117,
+      "kind": "pdf_line",
+      "locator": "第1页 行118",
+      "text": "管"
+    },
+    {
+      "cells": [],
+      "idx": 118,
+      "kind": "pdf_line",
+      "locator": "第1页 行119",
+      "text": "设 三日 公 室) 管"
+    },
+    {
+      "cells": [],
+      "idx": 119,
+      "kind": "pdf_line",
+      "locator": "第1页 行120",
+      "text": "设 三日 公 室)"
+    },
+    {
+      "cells": [],
+      "idx": 120,
+      "kind": "pdf_line",
+      "locator": "第1页 行121",
+      "text": "建 办 建 办"
+    },
+    {
+      "cells": [],
+      "idx": 121,
+      "kind": "pdf_line",
+      "locator": "第1页 行122",
+      "text": "动 计划 六月十 振兴 动 计划 六月十 振兴"
+    },
+    {
+      "cells": [],
+      "idx": 122,
+      "kind": "pdf_line",
+      "locator": "第1页 行123",
+      "text": "移 年 村 移 年 村"
+    },
+    {
+      "cells": [],
+      "idx": 123,
+      "kind": "pdf_line",
+      "locator": "第1页 行124",
+      "text": "中国 〇二六 部（"
+    },
+    {
+      "cells": [],
+      "idx": 124,
+      "kind": "pdf_line",
+      "locator": "第1页 行125",
+      "text": "乡"
+    },
+    {
+      "cells": [],
+      "idx": 125,
+      "kind": "pdf_line",
+      "locator": "第1页 行126",
+      "text": "9 6 871 中国 〇二六 部（"
+    },
+    {
+      "cells": [],
+      "idx": 126,
+      "kind": "pdf_line",
+      "locator": "第1页 行127",
+      "text": "乡"
+    },
+    {
+      "cells": [],
+      "idx": 127,
+      "kind": "pdf_line",
+      "locator": "第1页 行128",
+      "text": "9 6 871"
+    },
+    {
+      "cells": [],
+      "idx": 128,
+      "kind": "pdf_line",
+      "locator": "第1页 行129",
+      "text": "81 81"
+    },
+    {
+      "cells": [],
+      "idx": 129,
+      "kind": "pdf_line",
+      "locator": "第1页 行130",
+      "text": "二"
+    },
+    {
+      "cells": [],
+      "idx": 130,
+      "kind": "pdf_line",
+      "locator": "第1页 行131",
+      "text": "划 技术 1373 二"
+    },
+    {
+      "cells": [],
+      "idx": 131,
+      "kind": "pdf_line",
+      "locator": "第1页 行132",
+      "text": "划 技术 1373"
+    },
+    {
+      "cells": [],
+      "idx": 132,
+      "kind": "pdf_line",
+      "locator": "第1页 行133",
+      "text": "公 司规 玮 公 司规 玮"
+    },
+    {
+      "cells": [],
+      "idx": 133,
+      "kind": "pdf_line",
+      "locator": "第1页 行134",
+      "text": "浙江 陈韩 浙江 陈韩"
+    },
+    {
+      "cells": [],
+      "idx": 134,
+      "kind": "pdf_line",
+      "locator": "第1页 行135",
+      "text": "中国移动通信集团浙江有限公司"
+    },
+    {
+      "cells": [],
+      "idx": 135,
+      "kind": "pdf_line",
+      "locator": "第1页 行136",
+      "text": "统 二〇二六年六月十三日"
+    },
+    {
+      "cells": [],
+      "idx": 136,
+      "kind": "pdf_line",
+      "locator": "第1页 行137",
+      "text": "理系"
+    },
+    {
+      "cells": [],
+      "idx": 137,
+      "kind": "pdf_line",
+      "locator": "第1页 行138",
+      "text": "管"
+    },
+    {
+      "cells": [],
+      "idx": 138,
+      "kind": "pdf_line",
+      "locator": "第1页 行139",
+      "text": "设 三日 公 室)"
+    },
+    {
+      "cells": [],
+      "idx": 139,
+      "kind": "pdf_line",
+      "locator": "第1页 行140",
+      "text": "建 办"
+    },
+    {
+      "cells": [],
+      "idx": 140,
+      "kind": "pdf_line",
+      "locator": "第1页 行141",
+      "text": "动 计划 六月十 振兴"
+    },
+    {
+      "cells": [],
+      "idx": 141,
+      "kind": "pdf_line",
+      "locator": "第1页 行142",
+      "text": "联系人：陈韩玮 移 年 村 电话：13738196871 移动"
+    },
+    {
+      "cells": [],
+      "idx": 142,
+      "kind": "pdf_line",
+      "locator": "第1页 行143",
+      "text": "中国 〇二六 部（"
+    },
+    {
+      "cells": [],
+      "idx": 143,
+      "kind": "pdf_line",
+      "locator": "第1页 行144",
+      "text": "乡"
+    },
+    {
+      "cells": [],
+      "idx": 144,
+      "kind": "pdf_line",
+      "locator": "第1页 行145",
+      "text": "9 6 871 中国 〇"
+    },
+    {
+      "cells": [],
+      "idx": 145,
+      "kind": "pdf_line",
+      "locator": "第1页 行146",
+      "text": "81"
+    },
+    {
+      "cells": [],
+      "idx": 146,
+      "kind": "pdf_line",
+      "locator": "第1页 行147",
+      "text": "二"
+    },
+    {
+      "cells": [],
+      "idx": 147,
+      "kind": "pdf_line",
+      "locator": "第1页 行148",
+      "text": "划 技术 1373 二"
+    },
+    {
+      "cells": [],
+      "idx": 148,
+      "kind": "pdf_line",
+      "locator": "第1页 行149",
+      "text": "公 司规 玮 公 司规"
+    },
+    {
+      "cells": [],
+      "idx": 149,
+      "kind": "pdf_line",
+      "locator": "第1页 行150",
+      "text": "浙江 陈韩 浙江 陈"
+    },
+    {
+      "cells": [],
+      "idx": 150,
+      "kind": "pdf_line",
+      "locator": "第1页 行151",
+      "text": "统 统"
+    },
+    {
+      "cells": [],
+      "idx": 151,
+      "kind": "pdf_line",
+      "locator": "第1页 行152",
+      "text": "理系 理系"
+    },
+    {
+      "cells": [],
+      "idx": 152,
+      "kind": "pdf_line",
+      "locator": "第1页 行153",
+      "text": "管"
+    },
+    {
+      "cells": [],
+      "idx": 153,
+      "kind": "pdf_line",
+      "locator": "第1页 行154",
+      "text": "设 三日 公 室) 管"
+    },
+    {
+      "cells": [],
+      "idx": 154,
+      "kind": "pdf_line",
+      "locator": "第1页 行155",
+      "text": "设 三日 公 室)"
+    },
+    {
+      "cells": [],
+      "idx": 155,
+      "kind": "pdf_line",
+      "locator": "第1页 行156",
+      "text": "建 办 建 办"
+    },
+    {
+      "cells": [],
+      "idx": 156,
+      "kind": "pdf_line",
+      "locator": "第1页 行157",
+      "text": "动 计划 六月十 振兴 动 计划 六月十 振兴"
+    },
+    {
+      "cells": [],
+      "idx": 157,
+      "kind": "pdf_line",
+      "locator": "第1页 行158",
+      "text": "移 年 村 移 年 村"
+    },
+    {
+      "cells": [],
+      "idx": 158,
+      "kind": "pdf_line",
+      "locator": "第1页 行159",
+      "text": "中国 〇二六 部（"
+    },
+    {
+      "cells": [],
+      "idx": 159,
+      "kind": "pdf_line",
+      "locator": "第1页 行160",
+      "text": "乡"
+    },
+    {
+      "cells": [],
+      "idx": 160,
+      "kind": "pdf_line",
+      "locator": "第1页 行161",
+      "text": "9 6 871 中国 〇二六 部（"
+    },
+    {
+      "cells": [],
+      "idx": 161,
+      "kind": "pdf_line",
+      "locator": "第1页 行162",
+      "text": "乡"
+    },
+    {
+      "cells": [],
+      "idx": 162,
+      "kind": "pdf_line",
+      "locator": "第1页 行163",
+      "text": "9 6 871"
+    },
+    {
+      "cells": [],
+      "idx": 163,
+      "kind": "pdf_line",
+      "locator": "第1页 行164",
+      "text": "81 81"
+    },
+    {
+      "cells": [],
+      "idx": 164,
+      "kind": "pdf_line",
+      "locator": "第1页 行165",
+      "text": "二"
+    },
+    {
+      "cells": [],
+      "idx": 165,
+      "kind": "pdf_line",
+      "locator": "第1页 行166",
+      "text": "划 技术 1373 二"
+    },
+    {
+      "cells": [],
+      "idx": 166,
+      "kind": "pdf_line",
+      "locator": "第1页 行167",
+      "text": "划 技术 1373"
+    },
+    {
+      "cells": [],
+      "idx": 167,
+      "kind": "pdf_line",
+      "locator": "第1页 行168",
+      "text": "公 司规 玮 公 司规 玮"
+    },
+    {
+      "cells": [],
+      "idx": 168,
+      "kind": "pdf_line",
+      "locator": "第1页 行169",
+      "text": "浙江 陈韩 浙江 陈韩"
+    },
+    {
+      "cells": [],
+      "idx": 169,
+      "kind": "pdf_line",
+      "locator": "第1页 行170",
+      "text": "统"
+    },
+    {
+      "cells": [],
+      "idx": 170,
+      "kind": "pdf_line",
+      "locator": "第1页 行171",
+      "text": "理系"
+    },
+    {
+      "cells": [],
+      "idx": 171,
+      "kind": "pdf_line",
+      "locator": "第1页 行172",
+      "text": "管"
+    },
+    {
+      "cells": [],
+      "idx": 172,
+      "kind": "pdf_line",
+      "locator": "第1页 行173",
+      "text": "设 三日 公 室)"
+    },
+    {
+      "cells": [],
+      "idx": 173,
+      "kind": "pdf_line",
+      "locator": "第1页 行174",
+      "text": "建 办"
+    },
+    {
+      "cells": [],
+      "idx": 174,
+      "kind": "pdf_line",
+      "locator": "第1页 行175",
+      "text": "动 计划 六月十 振兴"
+    },
+    {
+      "cells": [],
+      "idx": 175,
+      "kind": "pdf_line",
+      "locator": "第1页 行176",
+      "text": "移 年 村 移动"
+    },
+    {
+      "cells": [],
+      "idx": 176,
+      "kind": "pdf_line",
+      "locator": "第1页 行177",
+      "text": "中国 〇二六 部（"
+    },
+    {
+      "cells": [],
+      "idx": 177,
+      "kind": "pdf_line",
+      "locator": "第1页 行178",
+      "text": "乡"
+    },
+    {
+      "cells": [],
+      "idx": 178,
+      "kind": "pdf_line",
+      "locator": "第1页 行179",
+      "text": "9 6 871 中国 〇"
+    },
+    {
+      "cells": [],
+      "idx": 179,
+      "kind": "pdf_line",
+      "locator": "第1页 行180",
+      "text": "81"
+    },
+    {
+      "cells": [],
+      "idx": 180,
+      "kind": "pdf_line",
+      "locator": "第1页 行181",
+      "text": "二"
+    },
+    {
+      "cells": [],
+      "idx": 181,
+      "kind": "pdf_line",
+      "locator": "第1页 行182",
+      "text": "划 技术 1373 二"
+    },
+    {
+      "cells": [],
+      "idx": 182,
+      "kind": "pdf_line",
+      "locator": "第1页 行183",
+      "text": "公 司规 玮 公 司规"
+    },
+    {
+      "cells": [],
+      "idx": 183,
+      "kind": "pdf_line",
+      "locator": "第1页 行184",
+      "text": "浙江 陈韩 浙江 陈"
+    }
+  ],
+  "components": [],
+  "elapsed_ms": 20,
+  "file": "real-corpus/telecom/parse-input/B-zjyd-立项批复.pdf",
+  "has_text_layer": true,
+  "pages": 1,
+  "parse_summary": "pdf 文本层: 1 页 184 行块",
+  "sha256": "ac5ed3a06cd0f6db5f4671de1d25d05ca9feb1ef594f82bb5f2664b1030743c3",
+  "status": "ok"
+}

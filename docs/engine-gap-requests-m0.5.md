@@ -16,7 +16,12 @@
 
 ---
 
-## §1 · D4 文本框文本提取（txbxContent）【引擎缺口 · P1】
+## §1 · D4 文本框文本提取（txbxContent）【✅ 已修复并验收：mdcore#18 @ 977f4c9 → f7ddd39】
+
+> **状态（2026-10-27 T3 验收复测）**：`Block::TextBox` 双形态（VML/DrawingML）已合入；
+> 标书侧探针+差分独立验收通过（D2a text_boxes=1、宿主零截断、差分 D4 面缺口 2→0）；
+> **连带勘误**：引擎发现的「bid 基线 2 块命中 = 标书侧双重提取缺陷」经差分独立确认
+>（D4-DOUBLE-EXTRACT）——登记为 bid_parse 第三项实证缺陷，B4 删除旧实现时消除。见 `docs/mdcore-pr-plan.md`。
 
 **标书用例**：`fixtures/corpus-R/D2-nonbody/D2a-非正文条款.docx`（zip 注入文本框，
 条款「文本框条款：本文件所附技术参数表以最新澄清版本为准」）。bid-parse 现行为：
@@ -34,7 +39,12 @@
 **验收测试**：引擎侧读 D2a 同族样本，断言文本框条款文本出现在读回块流，且
 宿主段落文本完整（无截断）。
 
-## §2 · D6 修订痕迹当前文本提取（w:ins）【引擎缺口 · P0】
+## §2 · D6 修订痕迹当前文本提取（w:ins）【✅ 已修复并验收：mdcore#17 @ c60214f → f7ddd39】
+
+> **状态（2026-10-27 T3 验收复测）**：ins 入读回 + run 级 `revision_inserted` 标记 +
+> delText 逐段 `WarningKind::RevisionDelete` 登记已合入；标书侧独立验收通过（R6a/R6c/R6e
+> ins 全入读回、warnings 计数与 del 数逐件吻合 2/3/1/1、差分 D6-INS 缺口 7→0）。验收详情
+> `docs/mdcore-pr-plan.md`；前后双基线证据 `artifacts/engine-probe/report{,-after-fixes-f7ddd39}.json`。
 
 **标书用例**：同 D2a（修订插入「响应截止时间顺延至 2026-12-01 09:30」）。bid-parse
 现行为：`w:ins` 内联并入宿主段（**当前生效文本**被提取），`w:delText` 不提取
@@ -67,7 +77,11 @@ delText 不出现但 warning 计数≥1。
 - **处置**：bid_parse 不在本轮修（B3/B4 由 bid-engine 替换，引擎 #17 修复后继承正确语义）；
   现状如实登记为回归基线（`baseline/parse/fixtures/corpus-R/D6-revisions/`）。
 
-## §3 · D5 批注/脚注/尾注读面【引擎缺口 · P2】
+## §3 · D5 批注/脚注/尾注读面【✅ 已修复并验收：mdcore#19 @ f7ddd39】
+
+> **状态（2026-10-27 T3 验收复测）**：`CommentData{anchor_block_idx}` + `FootnoteData` +
+> `ParagraphData.footnote_refs` 已合入；标书侧验收通过（R6d/R6e comments=2、D2a=1、
+> TR2 真 Word 件=1）。电信脚注部件 2 件留作 B3 全量差分扩展对。见 `docs/mdcore-pr-plan.md`。
 
 **标书用例**：D2a（zip 注入批注条款通道）——「批注条款」是澄清文件真实形态
 （评审专家补遗常载于批注）。bid-parse 现行为：仅计数零提取（ComponentLedger

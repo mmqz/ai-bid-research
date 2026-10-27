@@ -54,6 +54,42 @@ fn dump_docx(bytes: &[u8]) -> Result<serde_json::Value, String> {
                     }));
                 }
             }
+            // #18（f7ddd39）：文本框内段落/表与正文同构承载——与旧实现口径对齐入块流
+            mdc_office_io::docx::Block::TextBox(tb) => {
+                for b2 in &tb.blocks {
+                    match b2 {
+                        mdc_office_io::docx::Block::Paragraph(p) => {
+                            blocks.push(serde_json::json!({
+                                "idx": blocks.len(),
+                                "kind": "para",
+                                "locator": "文本框",
+                                "text": p.text(),
+                                "cells": [],
+                            }));
+                        }
+                        mdc_office_io::docx::Block::Table(t2) => {
+                            for (ri, row) in t2.rows.iter().enumerate() {
+                                let cells: Vec<String> =
+                                    row.iter().map(|c| c.clone()).collect::<Vec<_>>();
+                                let text = cells
+                                    .iter()
+                                    .filter(|c| !c.trim().is_empty())
+                                    .cloned()
+                                    .collect::<Vec<_>>()
+                                    .join(" ");
+                                blocks.push(serde_json::json!({
+                                    "idx": blocks.len(),
+                                    "kind": "table_row",
+                                    "locator": format!("文本框表 行{}", ri + 1),
+                                    "text": text,
+                                    "cells": cells,
+                                }));
+                            }
+                        }
+                        mdc_office_io::docx::Block::TextBox(_) => {}
+                    }
+                }
+            }
         }
     }
     let mut components: Vec<Obj> = Vec::new();

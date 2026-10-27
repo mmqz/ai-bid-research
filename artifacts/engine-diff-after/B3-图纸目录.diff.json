@@ -1,0 +1,243 @@
+{
+  "aligned_pairs": 23,
+  "file": "fixtures/corpus-A/files/B3-图纸目录.xlsx",
+  "items": [
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行1",
+      "old_locator": "图纸目录!行1",
+      "rule": "",
+      "text_new": "附件 B3：图纸目录",
+      "text_old": "附件 B3：图纸目录",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行2",
+      "old_locator": "图纸目录!行2",
+      "rule": "",
+      "text_new": "项目编号：ZFCG-2026-GK-0311",
+      "text_old": "项目编号：ZFCG-2026-GK-0311",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行4",
+      "old_locator": "图纸目录!行4",
+      "rule": "",
+      "text_new": "序号 图纸编号 图纸名称 图幅 张数 版本",
+      "text_old": "序号 图纸编号 图纸名称 图幅 张数 版本",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行5",
+      "old_locator": "图纸目录!行5",
+      "rule": "",
+      "text_new": "1 GC-01 弱电系统总图 A1 1 V1.0",
+      "text_old": "1 GC-01 弱电系统总图 A1 1 V1.0",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行6",
+      "old_locator": "图纸目录!行6",
+      "rule": "",
+      "text_new": "2 GC-02 综合布线平面图-1F A3 2 V1.0",
+      "text_old": "2 GC-02 综合布线平面图-1F A3 2 V1.0",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行7",
+      "old_locator": "图纸目录!行7",
+      "rule": "",
+      "text_new": "3 GC-03 综合布线平面图-2F A3 3 V1.0",
+      "text_old": "3 GC-03 综合布线平面图-2F A3 3 V1.0",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行8",
+      "old_locator": "图纸目录!行8",
+      "rule": "",
+      "text_new": "4 GC-04 综合布线平面图-3F A1 4 V1.0",
+      "text_old": "4 GC-04 综合布线平面图-3F A1 4 V1.0",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行9",
+      "old_locator": "图纸目录!行9",
+      "rule": "",
+      "text_new": "5 GC-05 计算机网络拓扑图 A3 1 V1.0",
+      "text_old": "5 GC-05 计算机网络拓扑图 A3 1 V1.0",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行10",
+      "old_locator": "图纸目录!行10",
+      "rule": "",
+      "text_new": "6 GC-06 机房平面布置图 A3 2 V1.0",
+      "text_old": "6 GC-06 机房平面布置图 A3 2 V1.0",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行11",
+      "old_locator": "图纸目录!行11",
+      "rule": "",
+      "text_new": "7 GC-07 机房配电系统图 A1 3 V1.0",
+      "text_old": "7 GC-07 机房配电系统图 A1 3 V1.0",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行12",
+      "old_locator": "图纸目录!行12",
+      "rule": "",
+      "text_new": "8 GC-08 UPS 供电系统图 A3 4 V1.0",
+      "text_old": "8 GC-08 UPS 供电系统图 A3 4 V1.0",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行13",
+      "old_locator": "图纸目录!行13",
+      "rule": "",
+      "text_new": "9 GC-09 视频监控系统图 A3 1 V1.0",
+      "text_old": "9 GC-09 视频监控系统图 A3 1 V1.0",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行14",
+      "old_locator": "图纸目录!行14",
+      "rule": "",
+      "text_new": "10 GC-10 视频监控平面图-1F A1 2 V1.0",
+      "text_old": "10 GC-10 视频监控平面图-1F A1 2 V1.0",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行15",
+      "old_locator": "图纸目录!行15",
+      "rule": "",
+      "text_new": "11 GC-11 视频监控平面图-2F A3 3 V1.0",
+      "text_old": "11 GC-11 视频监控平面图-2F A3 3 V1.0",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行16",
+      "old_locator": "图纸目录!行16",
+      "rule": "",
+      "text_new": "12 GC-12 门禁系统图 A3 4 V1.0",
+      "text_old": "12 GC-12 门禁系统图 A3 4 V1.0",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行17",
+      "old_locator": "图纸目录!行17",
+      "rule": "",
+      "text_new": "13 GC-13 门禁平面布置图 A1 1 V1.0",
+      "text_old": "13 GC-13 门禁平面布置图 A1 1 V1.0",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行18",
+      "old_locator": "图纸目录!行18",
+      "rule": "",
+      "text_new": "14 GC-14 入侵报警系统图 A3 2 V1.0",
+      "text_old": "14 GC-14 入侵报警系统图 A3 2 V1.0",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行19",
+      "old_locator": "图纸目录!行19",
+      "rule": "",
+      "text_new": "15 GC-15 会议系统连接图 A3 3 V1.0",
+      "text_old": "15 GC-15 会议系统连接图 A3 3 V1.0",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行20",
+      "old_locator": "图纸目录!行20",
+      "rule": "",
+      "text_new": "16 GC-16 LED 大屏安装图 A1 4 V1.0",
+      "text_old": "16 GC-16 LED 大屏安装图 A1 4 V1.0",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行21",
+      "old_locator": "图纸目录!行21",
+      "rule": "",
+      "text_new": "17 GC-17 信息发布系统图 A3 1 V1.0",
+      "text_old": "17 GC-17 信息发布系统图 A3 1 V1.0",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行22",
+      "old_locator": "图纸目录!行22",
+      "rule": "",
+      "text_new": "18 GC-18 能耗监测系统图 A3 2 V1.0",
+      "text_old": "18 GC-18 能耗监测系统图 A3 2 V1.0",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行23",
+      "old_locator": "图纸目录!行23",
+      "rule": "",
+      "text_new": "19 GC-19 桥架路由图 A1 3 V1.0",
+      "text_old": "19 GC-19 桥架路由图 A1 3 V1.0",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "xlsx_row",
+      "kind_old": "xlsx_row",
+      "new_locator": "图纸目录 行24",
+      "old_locator": "图纸目录!行24",
+      "rule": "",
+      "text_new": "20 GC-20 系统接地示意图 A3 4 V1.0",
+      "text_old": "20 GC-20 系统接地示意图 A3 4 V1.0",
+      "verdict": "EQUIVALENT"
+    }
+  ],
+  "new_blocks": 23,
+  "new_status": "ok",
+  "old_blocks": 23,
+  "old_status": "ok",
+  "verdict_counts": {
+    "EQUIVALENT": 23
+  }
+}

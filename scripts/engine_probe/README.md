@@ -1,10 +1,12 @@
 # engine_probe —— issue #2 · B2 引擎侧探针（只读审计 harness）
 
-> **对象**：mdcore @ `f8c860aa3a377fa96b15982132b69a657bbba728`（2026-10-27 main）。
-> **纪律**：path 依赖指向**只读 git worktree**
-> `/home/z/my-project/repos/mdcore-audit-f8c860a`（`git worktree add <path> f8c860a`
-> 生成）——不修改引擎任何源码、不向 mdcore 提交任何内容（B1 红线）。
-> 与 `scripts/baseline_harness` 同模式：scripts/ 下独立验证 crate，非产品代码。
+> **对象与基线演变**：B2 原基线 mdcore @ `f8c860aa`（报告入库 `report.json`，历史保留）；
+> **T3 后基线 @ `f7ddd39`**（2026-10-27：mdcore#17/#18/#19 + A1–A4 合入后前移，验收报告
+> `report-after-fixes-f7ddd39.json`）。两个 worktree 并存：`mdcore-audit-f8c860a`（历史基线
+> 复现通道）/ `mdcore-audit-f7ddd39`（当前基线）。
+> **纪律**：path 依赖指向**只读 git worktree**——不修改引擎任何源码、不向 mdcore 提交
+> 任何内容（B1 红线）。与 `scripts/baseline_harness` 同模式：scripts/ 下独立验证 crate，
+> 非产品代码。
 
 ## 探针清单（10 项，`cargo run` 一次全跑）
 
@@ -32,8 +34,14 @@
 | d6rev_r6e_combo | R6e-修订批注组合澄清.docx | del/ins 内容全缺 + 批注 0 提取——澄清实务形态双缺口叠加 |
 
 期望读回契约（引擎 #17/#19 修复验收的对照标准）：`fixtures/corpus-R/D6-revisions/expected-readback.json`；
-标书侧当前行为基线：`baseline/parse/fixtures/corpus-R/D6-revisions/*.json`（bid_parse ins 合规/ delText
-条件性泄漏——粘性 capture_text，见 docs/engine-gap-requests-m0.5.md §D6 与 T2 报告）。
+标书侧当前行为基线：`baseline/parse/fixtures/corpus-R/D6-revisions/*.json`。
+
+**#17/#18/#19 修复验收（f7ddd39，T3）**：d6rev 探针后验全绿——ins 入读回+`revision_inserted`
+标记、delText warnings 计数逐件吻合（R6b=2/R6c=3/R6e=1/D2a=1）、D2a text_boxes=1（坐实
+bid 双重提取缺陷）、R6d/R6e comments=2；A2 修复（word-complex「1.1 表格」）、A1 修复
+（headings=4，`heading_level` 四链解析）同步验收。证据：
+`artifacts/engine-probe/report-after-fixes-f7ddd39.json` + `artifacts/engine-diff-after/`
+（差分总账：等价 54→61、引擎缺口 9→**0**、UNCLASSIFIED 双侧 0——`docs/mdcore-pr-plan.md`）。
 
 ## P1 双侧对跑（`engine-probe-p1` 二进制）
 

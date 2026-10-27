@@ -1,0 +1,66 @@
+{
+  "changed_gts": [
+    {
+      "category": "评分项",
+      "gt_id": "GT-S01",
+      "v0": {
+        "cat": "评分项",
+        "clause": null,
+        "hit": true
+      },
+      "v1": {
+        "cat": null,
+        "clause": null,
+        "hit": false
+      },
+      "v2": {
+        "cat": "评分项",
+        "clause": null,
+        "hit": true
+      }
+    },
+    {
+      "category": "评分项",
+      "gt_id": "GT-S02",
+      "v0": {
+        "cat": "评分项",
+        "clause": null,
+        "hit": true
+      },
+      "v1": {
+        "cat": "其他",
+        "clause": "2.2.2.2",
+        "hit": true
+      },
+      "v2": {
+        "cat": "评分项",
+        "clause": null,
+        "hit": true
+      }
+    }
+  ],
+  "method": "对齐逻辑与 real_eval_score.py 同源（norm_n2 + 前24互含 + 12滑窗）；GT=A-某水利施工标段招标文件.pdf 24 条草案",
+  "summary": {
+    "v0": {
+      "category_match": "12/24",
+      "category_match_pct": 50.0,
+      "recall": "17/24",
+      "recall_pct": 70.8,
+      "reqs_04": 898
+    },
+    "v1": {
+      "category_match": "10/24",
+      "category_match_pct": 41.7,
+      "recall": "16/24",
+      "recall_pct": 66.7,
+      "reqs_04": 875
+    },
+    "v2": {
+      "category_match": "12/24",
+      "category_match_pct": 50.0,
+      "recall": "17/24",
+      "recall_pct": 70.8,
+      "reqs_04": 898
+    }
+  }
+}

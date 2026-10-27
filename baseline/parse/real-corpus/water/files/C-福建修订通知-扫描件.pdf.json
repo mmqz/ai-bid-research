@@ -1,0 +1,712 @@
+{
+  "blocks": [
+    {
+      "cells": [],
+      "idx": 0,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行1",
+      "text": "福建省水利厅文件"
+    },
+    {
+      "cells": [],
+      "idx": 1,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行2",
+      "text": "国水规 [52024] 5 号"
+    },
+    {
+      "cells": [],
+      "idx": 2,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行3",
+      "text": "福建省水利厅关于修订"
+    },
+    {
+      "cells": [],
+      "idx": 3,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行4",
+      "text": "福建省水利工程电子招标文件示范文本"
+    },
+    {
+      "cells": [],
+      "idx": 4,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行5",
+      "text": "(2022 年版 ) 部分条秋的通知"
+    },
+    {
+      "cells": [],
+      "idx": 5,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行6",
+      "text": "各设区市水利局、平漂综合实验区农业农村局，各有具 (市、区 )"
+    },
+    {
+      "cells": [],
+      "idx": 6,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行7",
+      "text": "水利局:"
+    },
+    {
+      "cells": [],
+      "idx": 7,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行8",
+      "text": "为适应福建省水利工程电子招标投标信用管理相关要求，暂"
+    },
+    {
+      "cells": [],
+      "idx": 8,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行9",
+      "text": "时停止信用分应用。现对福建省水利工程电子招标投标招标文件"
+    },
+    {
+      "cells": [],
+      "idx": 9,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行10",
+      "text": "示范文本有关信用分应用部分进行修订，主要如下:"
+    },
+    {
+      "cells": [],
+      "idx": 10,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行11",
+      "text": "一、福建省水利工程电子招标投标施工招标文件示范文本"
+    },
+    {
+      "cells": [],
+      "idx": 11,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行12",
+      "text": "(2022 年版) 修订内容"
+    },
+    {
+      "cells": [],
+      "idx": 12,
+      "kind": "ocr_line",
+      "locator": "第1页 OCR 行13",
+      "text": "一 工 一"
+    },
+    {
+      "cells": [],
+      "idx": 13,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行1",
+      "text": "1， 删除第二章“投标人须知”7.1“中标候选人公示”(5 )"
+    },
+    {
+      "cells": [],
+      "idx": 14,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行2",
+      "text": "(6) 中提到的“投标人信用分”以及“信用分取值?。"
+    },
+    {
+      "cells": [],
+      "idx": 15,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行3",
+      "text": "2删除第二章“投标人须知”附件二“开标记录表”中的信"
+    },
+    {
+      "cells": [],
+      "idx": 16,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行4",
+      "text": "用分栏。"
+    },
+    {
+      "cells": [],
+      "idx": 17,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行5",
+      "text": "3， 第三章“评标办法 (综合评估法) 评标办法前附表中"
+    },
+    {
+      "cells": [],
+      "idx": 18,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行6",
+      "text": "2. 2. 4 (1)“商务评分标准 (满分 10 分)，信用分与商务评分挂"
+    },
+    {
+      "cells": [],
+      "idx": 19,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行7",
+      "text": "钩，信用满分为 10 分。暂停信用得分对所有施工企业的使用,全"
+    },
+    {
+      "cells": [],
+      "idx": 20,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行8",
+      "text": "部按 0 分计算。"
+    },
+    {
+      "cells": [],
+      "idx": 21,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行9",
+      "text": "4.， 第三章“评标办法 (经评审的最低投标价法 )”评标办法"
+    },
+    {
+      "cells": [],
+      "idx": 22,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行10",
+      "text": "前附表中 2. 2“详细评审标准”中“投标价 (评标价 ) 评审方法”"
+    },
+    {
+      "cells": [],
+      "idx": 23,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行11",
+      "text": "P2 点用到投标人信用系数。为考虑后期重新启用信用评价体系，"
+    },
+    {
+      "cells": [],
+      "idx": 24,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行12",
+      "text": "范本中公式保持不变，p2 分数以1.0 分计算。"
+    },
+    {
+      "cells": [],
+      "idx": 25,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行13",
+      "text": "5，删除第八章“投标文件格式”第一节“资格文件格式”的"
+    },
+    {
+      "cells": [],
+      "idx": 26,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行14",
+      "text": "“十六、投标人承诺书”中“保证《福建省水利建设市场信用评"
+    },
+    {
+      "cells": [],
+      "idx": 27,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行15",
+      "text": "价平台》公布的填报资料内容真实、准确，为我单位的真实意愿"
+    },
+    {
+      "cells": [],
+      "idx": 28,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行16",
+      "text": "表达.”相关内容。"
+    },
+    {
+      "cells": [],
+      "idx": 29,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行17",
+      "text": "二、福建省水利工程电子招标投标监理招标文件示范文本"
+    },
+    {
+      "cells": [],
+      "idx": 30,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行18",
+      "text": "〈《2022 年版) 修订内容"
+    },
+    {
+      "cells": [],
+      "idx": 31,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行19",
+      "text": "1，删除第二章“投标人须知”7.1“中标候选人公示” (5 )"
+    },
+    {
+      "cells": [],
+      "idx": 32,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行20",
+      "text": "(6) 中提到的“投标人信用分”以及“信用分取值?。"
+    },
+    {
+      "cells": [],
+      "idx": 33,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行21",
+      "text": "2，删除第二章“投标人须知”附件二“开标记录表”中的信"
+    },
+    {
+      "cells": [],
+      "idx": 34,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行22",
+      "text": "用分栏。"
+    },
+    {
+      "cells": [],
+      "idx": 35,
+      "kind": "ocr_line",
+      "locator": "第2页 OCR 行23",
+      "text": "_ 9-"
+    },
+    {
+      "cells": [],
+      "idx": 36,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行1",
+      "text": "3.， 第三章“评标办法 (综合评估法 )”评标办法前附表中"
+    },
+    {
+      "cells": [],
+      "idx": 37,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行2",
+      "text": "2. 2.4 (1)“资信业绩评分标准 (满分 30 分)，信用分与资信业"
+    },
+    {
+      "cells": [],
+      "idx": 38,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行3",
+      "text": "绩评分挂钩，信用满分为 10 分。 暂停信用得分对所有监理企业的"
+    },
+    {
+      "cells": [],
+      "idx": 39,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行4",
+      "text": "使用，全部按 0 分计算。"
+    },
+    {
+      "cells": [],
+      "idx": 40,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行5",
+      "text": "4，删除第六章“投标文件格式”第一节“资格文件格式”的"
+    },
+    {
+      "cells": [],
+      "idx": 41,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行6",
+      "text": "“十六、投标人承诺书”中 “保证《福建省水利建设市场信用评"
+    },
+    {
+      "cells": [],
+      "idx": 42,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行7",
+      "text": "价平台》公布的填报资料内容真实、准确，为我单位的真实意愿"
+    },
+    {
+      "cells": [],
+      "idx": 43,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行8",
+      "text": "表达.”相关内容。"
+    },
+    {
+      "cells": [],
+      "idx": 44,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行9",
+      "text": "三、福建省水利工程电子招标投标勘察设计招标文件示范文"
+    },
+    {
+      "cells": [],
+      "idx": 45,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行10",
+      "text": "本 〈2022 年版) 修订内容"
+    },
+    {
+      "cells": [],
+      "idx": 46,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行11",
+      "text": "1.， 删除第二章“投标人须知”7.1“中标候选人公示” (5 )"
+    },
+    {
+      "cells": [],
+      "idx": 47,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行12",
+      "text": "(6) 中提到的“投标人信用分”以及“信用分取值”。"
+    },
+    {
+      "cells": [],
+      "idx": 48,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行13",
+      "text": "2，删除第二章“投标人须知”附件二“开标记录表”中的信"
+    },
+    {
+      "cells": [],
+      "idx": 49,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行14",
+      "text": "用分栏。"
+    },
+    {
+      "cells": [],
+      "idx": 50,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行15",
+      "text": "3， 第三章“评标办法 (综合评估法 )”评标办法前附表中"
+    },
+    {
+      "cells": [],
+      "idx": 51,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行16",
+      "text": "2. 2.4 (1)“资信业绩评分标准 (满分 35 分)，信用分与资信业"
+    },
+    {
+      "cells": [],
+      "idx": 52,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行17",
+      "text": "绩评分挂钩，信用满分为 10 分。 暂停信用得分对所有勘察设计企"
+    },
+    {
+      "cells": [],
+      "idx": 53,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行18",
+      "text": "业的使用，全部按 0 分计算。"
+    },
+    {
+      "cells": [],
+      "idx": 54,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行19",
+      "text": "4，删除第六章“投标文件格式”第一节“资格文件格式”的"
+    },
+    {
+      "cells": [],
+      "idx": 55,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行20",
+      "text": "“十五、投标人承诺书”中 “保证《福建省水利建设市场信用评"
+    },
+    {
+      "cells": [],
+      "idx": 56,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行21",
+      "text": "价平台》公布的填报资料内容真实、准确，为我单位的真实意愿"
+    },
+    {
+      "cells": [],
+      "idx": 57,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行22",
+      "text": "表达.”相关内容。"
+    },
+    {
+      "cells": [],
+      "idx": 58,
+      "kind": "ocr_line",
+      "locator": "第3页 OCR 行23",
+      "text": "_ 3-"
+    },
+    {
+      "cells": [],
+      "idx": 59,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行1",
+      "text": "四、福建省水利工程电子招标投标设备采购招标文件示范文"
+    },
+    {
+      "cells": [],
+      "idx": 60,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行2",
+      "text": "本 〈2022 年版) 修订内容"
+    },
+    {
+      "cells": [],
+      "idx": 61,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行3",
+      "text": "1，删除第二章“投标人须知”7.1“中标候选人公示” (5 )"
+    },
+    {
+      "cells": [],
+      "idx": 62,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行4",
+      "text": "(6) 中提到的“投标人信用分”以及“信用分取值?。"
+    },
+    {
+      "cells": [],
+      "idx": 63,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行5",
+      "text": "2，删除第二章“投标人须知”附件二“开标记录表”中的信"
+    },
+    {
+      "cells": [],
+      "idx": 64,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行6",
+      "text": "用分栏。"
+    },
+    {
+      "cells": [],
+      "idx": 65,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行7",
+      "text": "3， 第三章“评标办法 (综合评估法 )”评标办法前附表中"
+    },
+    {
+      "cells": [],
+      "idx": 66,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行8",
+      "text": "2. 2. 4 (1 )“商务评分标准 ( 满分 20 分)，信用分与商务评分挂"
+    },
+    {
+      "cells": [],
+      "idx": 67,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行9",
+      "text": "钩,信用满分为 10 分.暂停信用得分对所有设备供应企业的使用，"
+    },
+    {
+      "cells": [],
+      "idx": 68,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行10",
+      "text": "全部按 0 分计算。"
+    },
+    {
+      "cells": [],
+      "idx": 69,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行11",
+      "text": "4.， 第三章“评标办法 (经评审的最低投标价法 )”评标办法"
+    },
+    {
+      "cells": [],
+      "idx": 70,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行12",
+      "text": "前附表中 2. 2“详细评审标准”中“投标价 (评标价 ) 评审方法”"
+    },
+    {
+      "cells": [],
+      "idx": 71,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行13",
+      "text": "P2 点用到投标人信用系数，为考虑后期重新雇用信用评价体系，"
+    },
+    {
+      "cells": [],
+      "idx": 72,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行14",
+      "text": "范本中公式保持不变，p2 分数以1.0 分计算。"
+    },
+    {
+      "cells": [],
+      "idx": 73,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行15",
+      "text": "5，删除第六章“投标文件格式”第一节“资格文件格式”的"
+    },
+    {
+      "cells": [],
+      "idx": 74,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行16",
+      "text": "“十三、投标人承诺书”中的“保证《福建省水利建设市场信用"
+    },
+    {
+      "cells": [],
+      "idx": 75,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行17",
+      "text": "评价平台》公布的填报资料内容真实、准确，为我单位的真实总"
+    },
+    {
+      "cells": [],
+      "idx": 76,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行18",
+      "text": "愿表达.”相关内容。"
+    },
+    {
+      "cells": [],
+      "idx": 77,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行19",
+      "text": "五、福建省水利工程电子招标投标材料采购招标文件示范文"
+    },
+    {
+      "cells": [],
+      "idx": 78,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行20",
+      "text": "本 〈2022 年版) 修订内容"
+    },
+    {
+      "cells": [],
+      "idx": 79,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行21",
+      "text": "1，删除第二章“投标人须知”7.1“中标候选人公示” (5 )"
+    },
+    {
+      "cells": [],
+      "idx": 80,
+      "kind": "ocr_line",
+      "locator": "第4页 OCR 行22",
+      "text": "(6) 中提到的“投标人信用分”以及“信用分取值?。"
+    },
+    {
+      "cells": [],
+      "idx": 81,
+      "kind": "ocr_line",
+      "locator": "第5页 OCR 行1",
+      "text": "2，删除第二章“投标人须知”附件二“开标记录表”中的信"
+    },
+    {
+      "cells": [],
+      "idx": 82,
+      "kind": "ocr_line",
+      "locator": "第5页 OCR 行2",
+      "text": "用分栏"
+    },
+    {
+      "cells": [],
+      "idx": 83,
+      "kind": "ocr_line",
+      "locator": "第5页 OCR 行3",
+      "text": "3， 第三章“评标办法 (综合评估法 )”评标办法前附表中"
+    },
+    {
+      "cells": [],
+      "idx": 84,
+      "kind": "ocr_line",
+      "locator": "第5页 OCR 行4",
+      "text": "2.2.4 (1)“商务评分标准 (满分 20 分郑，信用分与商务评分挂"
+    },
+    {
+      "cells": [],
+      "idx": 85,
+      "kind": "ocr_line",
+      "locator": "第5页 OCR 行5",
+      "text": "钩。 暂停信用得分对所有材料供应企业的使用, 全部按 0 分计算。"
+    },
+    {
+      "cells": [],
+      "idx": 86,
+      "kind": "ocr_line",
+      "locator": "第5页 OCR 行6",
+      "text": "4. 第三章“评标办法 (经评审的最低投标价法 )”评标办法"
+    },
+    {
+      "cells": [],
+      "idx": 87,
+      "kind": "ocr_line",
+      "locator": "第5页 OCR 行7",
+      "text": "前附表中 2. 2“详细评审标准”中“投标价 (评标价 ) 评审方法"
+    },
+    {
+      "cells": [],
+      "idx": 88,
+      "kind": "ocr_line",
+      "locator": "第5页 OCR 行8",
+      "text": "P2 点用到投标人信用系数，为考虑后期重新启用信用评价体系，"
+    },
+    {
+      "cells": [],
+      "idx": 89,
+      "kind": "ocr_line",
+      "locator": "第5页 OCR 行9",
+      "text": "范本中公式保持不变，p2 分数以 1. 0 分计算."
+    },
+    {
+      "cells": [],
+      "idx": 90,
+      "kind": "ocr_line",
+      "locator": "第5页 OCR 行10",
+      "text": "5，删除第六章“投标文件格式”第一节“资格文件格式”的"
+    },
+    {
+      "cells": [],
+      "idx": 91,
+      "kind": "ocr_line",
+      "locator": "第5页 OCR 行11",
+      "text": "“十三、投标人承诺书”中的“保证《福建省水利建设市场信用"
+    },
+    {
+      "cells": [],
+      "idx": 92,
+      "kind": "ocr_line",
+      "locator": "第5页 OCR 行12",
+      "text": "评价平台》公布的填报资料内容真实、准确，为我单位的真实总"
+    },
+    {
+      "cells": [],
+      "idx": 93,
+      "kind": "ocr_line",
+      "locator": "第5页 OCR 行13",
+      "text": "愿表达.”相关内容。"
+    },
+    {
+      "cells": [],
+      "idx": 94,
+      "kind": "ocr_line",
+      "locator": "第5页 OCR 行14",
+      "text": "本通知自 2024 年 5 月 1 日起实施，有效期 5 年。"
+    },
+    {
+      "cells": [],
+      "idx": 95,
+      "kind": "ocr_line",
+      "locator": "第5页 OCR 行15",
+      "text": "泡尖"
+    },
+    {
+      "cells": [],
+      "idx": 96,
+      "kind": "ocr_line",
+      "locator": "第5页 OCR 行16",
+      "text": "太太"
+    },
+    {
+      "cells": [],
+      "idx": 97,
+      "kind": "ocr_line",
+      "locator": "第5页 OCR 行17",
+      "text": "20Ak年4月2日"
+    },
+    {
+      "cells": [],
+      "idx": 98,
+      "kind": "ocr_line",
+      "locator": "第5页 OCR 行18",
+      "text": "(此件主动公开 )"
+    },
+    {
+      "cells": [],
+      "idx": 99,
+      "kind": "ocr_line",
+      "locator": "第8页 OCR 行1",
+      "text": "上 |"
+    }
+  ],
+  "components": [],
+  "elapsed_ms": 19007,
+  "file": "real-corpus/water/files/C-福建修订通知-扫描件.pdf",
+  "has_text_layer": false,
+  "pages": 8,
+  "parse_summary": "pdf 扫描层 OCR: 8 页，100 行块（chi_sim）",
+  "sha256": "77c95e9778eabb34ae20b9a8a9aa527002cdc69a6cc6a0993563a790aa296f9c",
+  "status": "ok"
+}

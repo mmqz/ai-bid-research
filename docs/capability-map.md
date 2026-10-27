@@ -1,26 +1,32 @@
-# 能力映射表（capability-map）—— issue #2 · B1 产物
+# 能力映射表（capability-map）—— issue #2 · B1 产物（B1.5 语料扩充后更新）
 
 > **范围**：三套旧实现（`bidcore/crates/bid-parse` 产品层 / `m1/` 研究层第二套 / `scripts/ooxml_util.py` Python 语义仿真）× mdcore 引擎公开 API 的逐能力比对。
-> **锚点**：ai-bid-research @ `e0d6ffc7`（本仓基线跑点）；mdcore @ `b317e95e`（只记录，不依赖——issue #2 §3.1 rev 钉子属 B3）。
+> **锚点**：ai-bid-research @ `e0d6ffc7`（B1 跑点）；mdcore @ `b317e95e`（只记录，不依赖——issue #2 §3.1 rev 钉子属 B3）。
+> **B1.5 更新（2026-10-27）**：语料 93→118 件（+`real-corpus/water/` 5 件水利真实文件 +
+> `real-corpus/telecom/parse-input/` 17 件通信真实解析输入 + 3 件登记文档）——真实
+> docx/xlsx/pdf 由 24 件合成层扩充至 45 件（含 21 件真实件），基线重跑双跑一致
+> （MANIFEST `97b98fc2…` 两连跑同值）。§1 观测面按 118 件全量更新；§2/§3 判定不受影响。
 > **判定词典**（只允许以下四值）：`有` / `无` / `部分` / `待验证`。
 > **证据**：`baseline/` 内 JSON（B1 实测）或引擎源码锚点（`mdcore:文件:行号`）。
 > **去向**：本表为 B2 缺口清单（`docs/engine-gap-requests-m0.5.md`）的直接输入；「无/部分/待验证」条目数见 §3（不展开，B2 再细化）。
 
 ---
 
-## 1. BlockKind 观测面（B1 baseline 实测）
+## 1. BlockKind 观测面（B1 baseline 实测 · B1.5 真实件扩充后全量更新）
 
-93 件语料双跑：**24 ok / 69 failed**（69 件全部为「不支持的文件类型」显式拒绝——公告级语料主体为 txt/html/json 镜像件，`parse_file` 按扩展名分发不支持即拒，无静默、无伪装）。观测到的**全部** BlockKind（§2 主表必须全覆盖）：
+118 件语料双跑：**45 ok / 73 failed**（73 件全部为「不支持的文件类型」显式拒绝——公告级语料主体为 txt/html/json 镜像件，`parse_file` 按扩展名分发不支持即拒，无静默、无伪装）。观测到的**全部** BlockKind（§2 主表必须全覆盖）：
 
-| BlockKind | 观测块数 | 出现面（证据文件） |
-|---|---|---|
-| `para` | 185 | corpus-A A-/C-/缺陷样本 docx、corpus-R D1a/D2a、real-samples 示范文本 |
-| `table_row` | 48 | 同上（含合并表头跨页表 D1a） |
-| `pdf_line` | 132 | corpus-A B1/EV 系列、corpus-R D5b 图文混排文本层 |
-| `ocr_line` | 28 | corpus-A B2 扫描件、corpus-R D5a 全扫描（tesseract chi_sim 通道真跑） |
-| `xlsx_row` | 38 | corpus-A B3 图纸目录、corpus-R D1b 宽表公式 |
+| BlockKind | B1 块数（93 件） | **B1.5 块数（118 件）** | 出现面（证据文件，B1.5 新增面加粗） |
+|---|---|---|---|
+| `pdf_line` | 132 | **15,688**（24 件） | corpus-A B1/EV 系列、corpus-R D5b；**水利 3 主文件（塔里木 8107/施工标段 3525/伊犁 2272）+ 电信 7 件 PDF（含公告/公示/变更 675 页总量主体）** |
+| `para` | 185 | **7,304**（12 件） | corpus-A/corpus-R/real-samples；**电信真实 docx 7 件（联通软研院主文件 2269 块为单件最大）** |
+| `table_row` | 48 | **1,115**（9 件） | 同上（含合并表头跨页表 D1a）；**电信真实 docx 表格面（技术规范书/合同/主文件）** |
+| `ocr_line` | 28 | **279**（4 件） | corpus-A B2 扫描件、corpus-R D5a；**福建修订通知 8 页 100 块 + 电信河北公告 6 页 151 块（tesseract chi_sim 通道真跑）** |
+| `xlsx_row` | 38 | **116**（5 件） | corpus-A B3、corpus-R D1b；**电信真实 xlsx 3 件（投标一览表/详细评审表/报价文件）** |
 
-五种 BlockKind 全数观测到；解析分支覆盖：docx/xlsx/pdf 三通道 + 不支持类型显式拒绝 + 容器防护拒绝（敌意件 §2.4）。`large` 文件：无（93 件最大解析输出 < 5MB）。
+五种 BlockKind 全数观测到；解析分支覆盖：docx/xlsx/pdf 三通道 + OCR 分通道 + 不支持类型显式拒绝 + 容器防护拒绝（敌意件 §2.1）。`large` 文件：无（118 件最大解析输出 < 5MB）。
+
+**B1.5 真实件耗时画像**（`elapsed_ms` 观测字段）：OCR 件主导（河北公告 26.7s/6 页、福建修订 19.5s/8 页）；文本层大件塔里木 283 页 2.14s；docx/xlsx 均值 <1s——与 real-eval 首轮画像一致，性能回归基线就位。
 
 ## 2. 主映射表
 
@@ -94,10 +100,17 @@
 | **重复实现**（B4 删除/处置对象） | 2 | m1 三件（L6）+ ooxml_util.py SEMUL 族（S11/L1 内含） |
 
 > 「无/部分/待验证」初步条目数：**无 3 / 部分 8 / 待验证 7**（含口径性差异；B2 逐条细化并转 `docs/engine-gap-requests-m0.5.md` 按 §B2 格式落账）。
+>
+> **B2 落账完成（2026-10-27）**：7 条「待验证」已全部经 `scripts/engine_probe/` 引擎侧
+> 真跑核实（mdcore @ f8c860a）——S7/S8 判据差异实测定谳、D4/D5/D6 确证引擎缺口、
+> P1 布局保真双侧对跑非空白字符比 1.000（无内容缺口）、X3 merges API 实测生效。
+> 逐条结论与 mdcore issue 转化清单见 `docs/engine-gap-requests-m0.5.md`（16 独立条目
+> + A1–A4 引擎侧对齐）；量化影响面见 `docs/title-impact-analysis.md`（B2.5）。
 
 ## 4. 证据索引
 
-- 解析/拒绝实测：`baseline/parse/`（93 件逐文件 JSON，双跑 digest 一致）+ `baseline/MANIFEST.json`
-- 敌意行为基线：`baseline/security/01~06`（zip 炸弹 64MB 实读门拒、路径穿越拒、重复条目 EOCD 守恒拒、截断 EOCD 丢失拒、实体炸弹解析层拒、稀疏 xlsx succeeded=1 格如实登记）+ 敌意件本体 `baseline/security/hostile/`
+- 解析/拒绝实测：`baseline/parse/`（**118 件**逐文件 JSON，双跑 digest 一致）+ `baseline/MANIFEST.json`（B1.5 后 `97b98fc2…` 两连跑同值）
+- **B1.5 真实件语料**：`real-corpus/water/`（水利 5 件，sha256 与 `artifacts/real-eval/parse/` 评测登记逐一相符）+ `real-corpus/telecom/parse-input/`（通信 17 件，sha256 与 `real-corpus/telecom/file-level-report.json` 逐一致；重取复现链 `scripts/telecom_refetch.py` 16/16 哈希复核 + `refetch-report.json`）+ `real-corpus/PROVENANCE.md`（逐件来源 URL 与许可证）
+- 敌意行为基线：`baseline/security/01~06`（zip 炸弹 64MB 实读门拒、路径穿越拒、重复条目 EOCD 守恒拒、截断 EOCD 丢失拒、实体炸弹解析层拒、稀疏 xlsx succeeded=1 格如实登记——**B1.5 重跑行为不变**）+ 敌意件本体 `baseline/security/hostile/`
 - 引擎锚点：mdcore @ `b317e95e`（`office-io/src/{io,docx}.rs`、`evidence/src/{locator,fingerprint}.rs`、`pdf/src/command.rs`——本表「引擎 API」列行号即锚点）
 - 环境指纹与阻塞：`baseline/env.json` + `baseline/ENV_BLOCKED.md`

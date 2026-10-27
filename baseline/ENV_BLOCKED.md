@@ -3,4 +3,4 @@
 无（本轮无环境阻塞项）
 
 > 探测时间轴外记录：usr_bin_time = MISSING(以 rusage 替代)（峰值内存以 rusage children 替代，非阻塞）。
-> ai-bid-research rev = e0d6ffc7ef1e5c7d7e078f5f783c3dfe1ad1349d；mdcore main rev（只记录）= b317e95e16dc23aebce9f2a0af835e76bbd7f1a2。
+> ai-bid-research rev = e57cac2de2369c4847099ef05ff08ea039afc6be；mdcore main rev（只记录）= f8c860aa3a377fa96b15982132b69a657bbba728。

@@ -1,0 +1,33 @@
+[package]
+name = "engine-probe"
+version = "0.1.0"
+edition = "2021"
+
+# 见上：只读审计 harness
+
+# B2 引擎侧探针（issue #2 §B2 重点核实 7 条「待验证」）：
+# 只读审计 mdcore @ f8c860a（path 依赖指向只读 worktree，不修改引擎任何源码；
+# 与 baseline_harness 同纪律——scripts/ 下独立验证 harness，非产品代码）。
+
+[dependencies]
+mdc-office-io = { path = "/home/z/my-project/repos/mdcore-audit-f8c860a/crates/office-io" }
+
+[workspace]
+
+[dependencies.zip]
+package = "zip"
+version = "2"
+default-features = false
+features = ["deflate"]
+
+[dependencies.serde_json]
+version = "1"
+
+[dependencies.mdc-pdf]
+package = "mdc-pdf"
+path = "/home/z/my-project/repos/mdcore-audit-f8c860a/crates/pdf"
+features = ["engine-pdfium"]
+
+[[bin]]
+name = "engine-probe-p1"
+path = "src/bin/p1.rs"

@@ -1,10 +1,10 @@
 {
   "bytes": 1016,
   "construction": "word/document.xml 携带 10 层嵌套实体 DTD（&lol9; → 10^9 次展开型实体炸弹）",
-  "elapsed_ms": 1,
+  "elapsed_ms": 0,
   "error_text": "docx 解析失败 05-billion-laughs.docx: at 1..5: unrecognized entity `lol9`",
   "file": "05-billion-laughs.docx",
-  "peak_mem_mb": 12.6,
+  "peak_mem_mb": 12.5,
   "result": "rejected",
   "sha256": "ba988fd09c95b8eb8e799615f1d8e5e008e72eee5cb4a747b57856b3cb8b524a"
 }

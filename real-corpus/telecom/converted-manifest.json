@@ -53,16 +53,17 @@
   {
    "src": "extracted/招标文件-2026年中国联通软研院管理中台国资监管中心研发项目/招标文件-2026年中国联通软研院管理中台国资监管中心研发项目/附件4：投标一览表.xls",
    "product": "converted/3556d01ebe-附件4：投标一览表.xlsx",
-   "status": "SKIP_EXISTS",
+   "status": "OK",
    "src_sha256": "2ae1f11ef3f61d242632927e2302092d14b1efebb98f6e4b68b9f7538729c383",
-   "product_sha256": "a1a3b2bcab44bdf10be97b0895eba8eedfc00d2ebc75757bd2639bd74229b57d"
+   "product_sha256": "96ae879e106ba94dad3f2946f52f43a26b2d520b0c2d8507101f767733e37f68",
+   "lo_rc": 0
   },
   {
    "src": "extracted/招标文件-2026年中国联通软研院管理中台国资监管中心研发项目/招标文件-2026年中国联通软研院管理中台国资监管中心研发项目/0.招标文件-2026年中国联通软研院管理中台国资监管中心研发项目.doc",
    "product": "converted/1d77120d6d-0.招标文件-2026年中国联通软研院管理中台国资监管中心研发项目.docx",
    "status": "OK",
    "src_sha256": "fbf3553ccec50cb3d3e431ba268fe1b74903d77fc5c1c413a636b53933e26da7",
-   "product_sha256": "fc54d802805b3ce073327e45f20a743298f47250b23aa2800ece463eb255c7b4",
+   "product_sha256": "c6e225afd9425256ee890576f3da410195e2ab5311ffc81e44f4b4edb1ec1ac9",
    "lo_rc": 0
   }
  ]

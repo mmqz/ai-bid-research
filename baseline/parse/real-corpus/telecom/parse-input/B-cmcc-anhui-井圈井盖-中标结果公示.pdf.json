@@ -1,0 +1,82 @@
+{
+  "blocks": [
+    {
+      "cells": [],
+      "idx": 0,
+      "kind": "pdf_line",
+      "locator": "第1页 行1",
+      "text": "中国移动安徽公司2026年至2029年复合型井圈井盖产品采购项目_中标"
+    },
+    {
+      "cells": [],
+      "idx": 1,
+      "kind": "pdf_line",
+      "locator": "第1页 行2",
+      "text": "结果公示"
+    },
+    {
+      "cells": [],
+      "idx": 2,
+      "kind": "pdf_line",
+      "locator": "第1页 行3",
+      "text": "中国移动安徽公司2026年至2029年复合型井圈井盖产品采购项目："
+    },
+    {
+      "cells": [],
+      "idx": 3,
+      "kind": "pdf_line",
+      "locator": "第1页 行4",
+      "text": "标包1的中标人："
+    },
+    {
+      "cells": [],
+      "idx": 4,
+      "kind": "pdf_line",
+      "locator": "第1页 行5",
+      "text": "1.安徽江皖机械制造有限公司"
+    },
+    {
+      "cells": [],
+      "idx": 5,
+      "kind": "pdf_line",
+      "locator": "第1页 行6",
+      "text": "2.河北双龙通讯器材有限公司"
+    },
+    {
+      "cells": [],
+      "idx": 6,
+      "kind": "pdf_line",
+      "locator": "第1页 行7",
+      "text": "招标人/招标代理机构：中国移动通信集团安徽有限公司/北京煜金桥通信建设监理咨询有限责任公"
+    },
+    {
+      "cells": [],
+      "idx": 7,
+      "kind": "pdf_line",
+      "locator": "第1页 行8",
+      "text": "司"
+    },
+    {
+      "cells": [],
+      "idx": 8,
+      "kind": "pdf_line",
+      "locator": "第1页 行9",
+      "text": "项目负责人："
+    },
+    {
+      "cells": [],
+      "idx": 9,
+      "kind": "pdf_line",
+      "locator": "第1页 行10",
+      "text": "2026年10月26日"
+    }
+  ],
+  "components": [],
+  "elapsed_ms": 20,
+  "file": "real-corpus/telecom/parse-input/B-cmcc-anhui-井圈井盖-中标结果公示.pdf",
+  "has_text_layer": true,
+  "pages": 1,
+  "parse_summary": "pdf 文本层: 1 页 10 行块",
+  "sha256": "c55b2ed9400dda9b9a21acd4738f49c98dada4dd8214e00e31917a1ac9064c2b",
+  "status": "ok"
+}

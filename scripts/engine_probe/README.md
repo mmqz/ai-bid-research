@@ -21,6 +21,20 @@
 | x3 TR2 excel-complex | X3 | 真 Excel 件 | merges=0——openpyxl 独立核证该件本无合并（TR-2D 特性表勘误）；公式 2/超链接 1 读面对 |
 | x3 corpus-A B3 图纸目录 | X3 | 真实合并 A1:F1 | **merges API 生效**（r1-1c1-6 读出） |
 
+### D6 修订/批注专项（T2 批，issue #2 评论 2026-10-27 03:28 派发；2026-10-27 追加）
+
+| 探针 | 输入（`fixtures/corpus-R/D6-revisions/`） | 引擎现状结论（修复前「前」证据） |
+|---|---|---|
+| d6rev_r6a_pure_insert | R6a-纯插入澄清.docx（2 处 w:ins） | ins 内容**缺失**（「开标地点：」后空——w:ins 容器整体跳过，B2 P0 发现在新夹具复现） |
+| d6rev_r6b_pure_delete | R6b-纯删除澄清.docx（2 处 w:del） | delText 不入正文（final-view 合规）但**零删除登记面**；del-only 段落保留为空段 |
+| d6rev_r6c_mixed | R6c-混合修订澄清.docx（同段替换+表格内修订） | del+ins 同段内容**全缺**（段落空壳）；表格读出但格内修订内容缺 |
+| d6rev_r6d_comments | R6d-带批注澄清.docx（双批注） | 批注 **0 提取**（#19）；正文文本不受批注污染 |
+| d6rev_r6e_combo | R6e-修订批注组合澄清.docx | del/ins 内容全缺 + 批注 0 提取——澄清实务形态双缺口叠加 |
+
+期望读回契约（引擎 #17/#19 修复验收的对照标准）：`fixtures/corpus-R/D6-revisions/expected-readback.json`；
+标书侧当前行为基线：`baseline/parse/fixtures/corpus-R/D6-revisions/*.json`（bid_parse ins 合规/ delText
+条件性泄漏——粘性 capture_text，见 docs/engine-gap-requests-m0.5.md §D6 与 T2 报告）。
+
 ## P1 双侧对跑（`engine-probe-p1` 二进制）
 
 pdfium（mdc-pdf `Command::ExtractText` 引擎面）vs `pdftotext -layout`，三件真实招标

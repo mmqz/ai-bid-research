@@ -51,6 +51,22 @@
 **验收测试**：引擎侧读含 `w:ins` 样本，断言 ins 内文本出现在读回文本且带标记；
 delText 不出现但 warning 计数≥1。
 
+**T2 批增补（2026-10-27，专项夹具已入库）**：
+- **验收夹具**：`fixtures/corpus-R/D6-revisions/`（5 变体 + `expected-readback.json` 期望读回契约，
+  ECMA-376 口径：ins=当前生效文本 / delText=历史文本）——R6a 纯插入 / R6b 纯删除 /
+  R6c 同段替换+表格内修订 / R6d 双批注 / R6e 组合（澄清实务形态）；
+- **引擎侧「前」证据**：`report.json` d6rev_* 5 探针（2026-10-27）——ins 缺失与批注 0
+  在新夹具全量复现（R6a「开标地点：」后空、R6c 同段空壳、R6e 双缺口叠加）；
+- **bid 侧勘误（本条「w:delText 不提取」表述修正）**：bid_parse 对 delText 并非一律不提取——
+  `capture_text` 为**粘性标志**（`w:t` 置位后至段落/单元格结束才复位，`docx.rs:85-97`），
+  delText 前若有 w:t 则历史文本**泄漏进当前文本**：R6b「原资格条款：具备建筑工程施工
+  总承包三级及以上资质」、R6e「澄清一：原响应截止时间…更正后…」实测泄漏；delText 居段首
+  （R6c 形态）或居单元格首（无前置 w:t）不泄漏；del-only 段落整段无块。`docx.rs:210` ledger
+  「未提取（不在捕获面）」应读作「**条件性泄漏**」；既有单测（`docx.rs:345`）delText 样本前置
+  无 w:t，断言盲区被 R6b/R6e 实件暴露——**被废止的历史条款会被当作现行条款读出**（合规误读风险）；
+- **处置**：bid_parse 不在本轮修（B3/B4 由 bid-engine 替换，引擎 #17 修复后继承正确语义）；
+  现状如实登记为回归基线（`baseline/parse/fixtures/corpus-R/D6-revisions/`）。
+
 ## §3 · D5 批注/脚注/尾注读面【引擎缺口 · P2】
 
 **标书用例**：D2a（zip 注入批注条款通道）——「批注条款」是澄清文件真实形态
@@ -66,6 +82,10 @@ word-complex.docx（真 Word 批注件）读回 0 批注文本。
 业务可达）。理由（AD-07）：同 §1。
 **验收测试**：读含批注样本断言批注文本+锚段落关联读出；含脚注样本断言
 footnotes.xml 文本读回。
+
+**T2 批增补（2026-10-27）**：专项夹具 `fixtures/corpus-R/D6-revisions/R6d-带批注澄清.docx`
+（双作者双批注、commentRange 锚定、期望读回见 `expected-readback.json`）；引擎侧「前」
+证据 `report.json` `d6rev_r6d_comments_engine`（批注 0 提取，正文不受批注污染）。
 
 ## §4 · S7 压缩比门【判据差异 · 实测定谳】
 
@@ -263,7 +283,7 @@ Python 仿真是 B4 删除对象——同 §10）。
 
 | 优先级 | 条目 | mdcore issue 标题草案 | 标书侧可复现样例 | 验收测试 |
 |---|---|---|---|---|
-| **P0** | §2 D6 修订 | `feat(office-io): w:ins 当前文本提取 + delText 登记（for ai-bid-research#2）` | corpus-R D2a（澄清四修订插入条款丢失对照：引擎 6 段 vs bid 7 块） | ins 文本入读回+标记；delText warning 计数 |
+| **P0** | §2 D6 修订 | `feat(office-io): w:ins 当前文本提取 + delText 登记（for ai-bid-research#2）` | corpus-R D2a（澄清四修订插入条款丢失对照：引擎 6 段 vs bid 7 块）+ **T2 批验收夹具 `D6-revisions/` 5 变体 + `expected-readback.json` 期望读回契约** | ins 文本入读回+标记；delText warning 计数；**期望读回逐变体断言（expected-readback.json）** |
 | **P1** | §1 D4 文本框 | `feat(office-io): txbxContent 文本块提取（for ai-bid-research#2）` | corpus-R D2a（文本框条款 2 块对照） | 文本框文本入块流且宿主段不截断 |
 | P2 | §3 D5 批注/脚注 | `feat(office-io): comments/footnotes 读面（for ai-bid-research#2）` | corpus-R D2a + TR2 word-complex（0 批注对照） | 批注文本+锚段关联；footnotes.xml 读回 |
 | P2 | §11 S4 可选吸收 | `harden(office-io): EOCD 声明计数守恒显式判据 + 全文件镜像扫描（for ai-bid-research#2）` | V6/V7/V8 exotica 族生成器（`guard.rs:323-410` 可供样例） | exotica 族 typed reject |

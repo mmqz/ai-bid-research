@@ -1,0 +1,58 @@
+{
+  "blocks": [
+    {
+      "cells": [],
+      "idx": 0,
+      "kind": "para",
+      "locator": "",
+      "text": "示例项目澄清文件（第 5 次·修订批注组合）"
+    },
+    {
+      "cells": [],
+      "idx": 1,
+      "kind": "para",
+      "locator": "",
+      "text": "澄清一：原响应截止时间 2026-11-20 09:30更正后响应截止时间 2026-11-27 09:30"
+    },
+    {
+      "cells": [],
+      "idx": 2,
+      "kind": "para",
+      "locator": "",
+      "text": "澄清二：评分细则第 2.2.2 项业绩认定年限以合同签订时间为准"
+    }
+  ],
+  "components": [
+    {
+      "component": "正文",
+      "extracted": 1,
+      "note": "",
+      "present": 1
+    },
+    {
+      "component": "批注",
+      "extracted": 0,
+      "note": "G7：批注部件在位、零提取（批注读面待 M2+）",
+      "present": 1
+    },
+    {
+      "component": "修订插入",
+      "extracted": 0,
+      "note": "插入文本内联并入宿主段落（非独立块）；修订语义读面待 M2+",
+      "present": 2
+    },
+    {
+      "component": "修订删除",
+      "extracted": 0,
+      "note": "删除文本 w:delText 未提取（不在捕获面——真实丢失面，登记在案）",
+      "present": 1
+    }
+  ],
+  "elapsed_ms": 0,
+  "file": "fixtures/corpus-R/D6-revisions/R6e-修订批注组合澄清.docx",
+  "has_text_layer": true,
+  "pages": 1,
+  "parse_summary": "docx: 0 表格，3 块｜部件对账 3 面（零提取件显式登记）",
+  "sha256": "ec931d0da4f1f309a57bb21c717c50f2b138cbda8347fccabf537e04aae8c6a8",
+  "status": "ok"
+}

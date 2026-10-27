@@ -6,6 +6,11 @@
 > `real-corpus/telecom/parse-input/` 17 件通信真实解析输入 + 3 件登记文档）——真实
 > docx/xlsx/pdf 由 24 件合成层扩充至 45 件（含 21 件真实件），基线重跑双跑一致
 > （MANIFEST `97b98fc2…` 两连跑同值）。§1 观测面按 118 件全量更新；§2/§3 判定不受影响。
+> **T2 更新（2026-10-27，修订/批注专项层）**：语料 118→124 件（+`fixtures/corpus-R/D6-revisions/`
+> 5 变体修订/批注夹具 + 1 件期望读回契约 JSON 显式拒绝）——解析 ok 45→50，双跑一致
+> （MANIFEST `847fdec3…` 两连跑同值，钉 `BASELINE_MDCORE_REV=f8c860a`）。修订/批注面观测精化：bid_parse ins 合规并入；**delText 条件性泄漏**
+> （粘性 capture_text——delText 前置 w:t 则历史文本入当前文本，§2/§3「未提取」表述按此修正，
+> 详见 engine-gap-requests §2 T2 增补）；批注仍零提取。§2/§3 判定结论不变。
 > **判定词典**（只允许以下四值）：`有` / `无` / `部分` / `待验证`。
 > **证据**：`baseline/` 内 JSON（B1 实测）或引擎源码锚点（`mdcore:文件:行号`）。
 > **去向**：本表为 B2 缺口清单（`docs/engine-gap-requests-m0.5.md`）的直接输入；「无/部分/待验证」条目数见 §3（不展开，B2 再细化）。
@@ -24,7 +29,7 @@
 | `ocr_line` | 28 | **279**（4 件） | corpus-A B2 扫描件、corpus-R D5a；**福建修订通知 8 页 100 块 + 电信河北公告 6 页 151 块（tesseract chi_sim 通道真跑）** |
 | `xlsx_row` | 38 | **116**（5 件） | corpus-A B3、corpus-R D1b；**电信真实 xlsx 3 件（投标一览表/详细评审表/报价文件）** |
 
-五种 BlockKind 全数观测到；解析分支覆盖：docx/xlsx/pdf 三通道 + OCR 分通道 + 不支持类型显式拒绝 + 容器防护拒绝（敌意件 §2.1）。`large` 文件：无（118 件最大解析输出 < 5MB）。
+五种 BlockKind 全数观测到；解析分支覆盖：docx/xlsx/pdf 三通道 + OCR 分通道 + 不支持类型显式拒绝 + 容器防护拒绝（敌意件 §2.1）。`large` 文件：无（T2 后 124 件最大解析输出 < 5MB）。
 
 **B1.5 真实件耗时画像**（`elapsed_ms` 观测字段）：OCR 件主导（河北公告 26.7s/6 页、福建修订 19.5s/8 页）；文本层大件塔里木 283 页 2.14s；docx/xlsx 均值 <1s——与 real-eval 首轮画像一致，性能回归基线就位。
 

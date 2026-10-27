@@ -62,7 +62,53 @@ def _echo_regex():
     return _ECHO_RE
 
 
-_passed, _failed = [], []
+_passed, _failed, _skipped = [], [], []
+
+# ---------------------------------------------------------------- SKIP 机制（issue #9）
+# 「依赖缺失」不得判成「业务 FAIL」：T0 预检登记缺失清单，
+# 受影响的 T 项跳过并显式登记原因（ENV_MISSING），汇总行单列 skipped 计数；
+# 清单同步追加 baseline/ENV_BLOCKED.md（B1 机制复用）。
+_ENV_MISSING: dict[str, str] = {}   # 工具名 -> 补装指引
+
+
+def register_env_missing(tool: str, hint: str):
+    """登记缺失工具（幂等）——供后续 T 项的 env_ok() 判定与汇总/登记消费。"""
+    _ENV_MISSING.setdefault(tool, hint)
+
+
+def env_ok(tools: list[str]) -> bool:
+    """给定工具是否全部在位（在位 = 未被 T0 登记为缺失）。"""
+    return all(t not in _ENV_MISSING for t in tools)
+
+
+def skip(name: str, reason: str):
+    """登记 SKIP 项（非失败）——issue #9 判定标准：N passed / M skipped / K failed。"""
+    print(f"  ○ {name} —— SKIP: {reason}")
+    _skipped.append(name)
+
+
+def require_tools_or_skip(name: str, tools: list[str], what: str) -> bool:
+    """T 项入口守卫：工具缺件则 SKIP 该项并返回 False（调用方应提前 return）。"""
+    missing = [t for t in tools if t in _ENV_MISSING]
+    if missing:
+        skip(name, f"ENV_MISSING: {', '.join(missing)}（{what}）")
+        return False
+    return True
+
+
+def write_env_blocked():
+    """缺失清单追加 baseline/ENV_BLOCKED.md（B1 机制复用，issue #9 要求 4）。"""
+    if not _ENV_MISSING:
+        return
+    import datetime
+    p = REPO / "baseline" / "ENV_BLOCKED.md"
+    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    lines = ["", f"## {stamp} run_tests.py 预检登记（issue #9 SKIP 机制）", ""]
+    for tool, hint in _ENV_MISSING.items():
+        lines.append(f"- {tool} —— {hint}")
+    lines += ["", f"受影响测试项已 SKIP（{len(_skipped)} 项），未计为失败。", ""]
+    with open(p, "a", encoding="utf-8") as f:
+        f.write("\n".join(lines))
 
 
 # ---------------------------------------------------------------- T0（环境契约预检，SC-12）
@@ -91,22 +137,33 @@ def t_env_preflight():
           "; ".join(bad) if bad else "")
 
     # T0b 外部解析引擎四件（poppler 双件 / tesseract / LibreOffice headless）
+    # issue #9：缺件不判 FAIL——登记入 _ENV_MISSING，受影响 T 项（T4c-OCR/T7/T10~T13）
+    # 由 require_tools_or_skip 跳过；汇总行单列 skipped。
     import shutil as _sh
     bins = {"pdftotext": "apt install poppler-utils",
             "pdftoppm": "apt install poppler-utils",
+            "pdfinfo": "apt install poppler-utils",
             "tesseract": "apt install tesseract-ocr",
             "soffice": "apt install libreoffice-writer"}
-    miss = [f"{b} 缺失（{hint}）" for b, hint in bins.items() if not _sh.which(b)]
-    check("T0b 外部引擎四件在位（pdftotext/pdftoppm/tesseract/soffice）", not miss,
-          "; ".join(miss) if miss else "")
+    miss = [b for b in bins if not _sh.which(b)]
+    for b in miss:
+        register_env_missing(b, bins[b])
+    if miss:
+        skip("T0b 外部引擎五件在位（pdftotext/pdftoppm/pdfinfo/tesseract/soffice）",
+             f"ENV_MISSING: {', '.join(miss)}——已登记，受影响测试项将 SKIP（非失败）")
+    else:
+        check("T0b 外部引擎五件在位（pdftotext/pdftoppm/pdfinfo/tesseract/soffice）", True, "")
 
-    # T0c chi_sim 语言数据（OCR 分档——缺件时 T4c-OCR 与 cargo e2e_m1 响亮红）
+    # T0c chi_sim 语言数据（OCR 分档——issue #9 实测变体：二进制在位而数据缺失同样阻断链路）
     tessdata = Path.home() / ".tessdata"
     ok_c = (tessdata / "chi_sim.traineddata").exists()
-    check("T0c chi_sim 语言数据在位（~/.tessdata，tessdata_fast）", ok_c,
-          "" if ok_c else
-          "补装：github.com/tesseract-ocr/tessdata_fast → chi_sim.traineddata 放 ~/.tessdata/；"
-          "缺失时 T4c-OCR 与 cargo e2e_m1 将响亮 FAIL（设计如此，非代码回归）")
+    if not ok_c:
+        register_env_missing("chi_sim.traineddata",
+                             "github.com/tesseract-ocr/tessdata_fast → chi_sim.traineddata 放 ~/.tessdata/")
+        skip("T0c chi_sim 语言数据在位（~/.tessdata，tessdata_fast）",
+             "ENV_MISSING: chi_sim.traineddata——受影响测试项将 SKIP（非失败）")
+    else:
+        check("T0c chi_sim 语言数据在位（~/.tessdata，tessdata_fast）", True, "")
 
     # T0d 渲染字体（可变字体陷阱后钉版——PIL 像素层/B2 扫描件/插图全依赖）
     font = Path("/usr/share/fonts/truetype/chinese/SarasaMonoSC-Regular.ttf")
@@ -313,9 +370,15 @@ def t_readback():
           b2_text.strip() == "" and S.B2_KEY_CLAUSE in S.B2_PAGE_TEXT, f"提取到 {len(b2_text.strip())} 字符")
     # T4c-OCR（v0.4）：扫描件 OCR 通道真实性——嵌入图像须有像素文字 + tesseract 回读关键条款与四要素。
     # 背景：v0.4 前可变字体静默渲染空白（图像只有公章没有字），OCR 通道建立在空图像上未被任何测试发现。
-    ocr_note = _b2_ocr_roundtrip(files / "B2-投标函格式页-扫描件.pdf")
-    check("T4c-OCR B2 扫描件 OCR 回读（像素层有字 + 条款归一化包含 + 四要素）",
-          ocr_note == "ok", ocr_note if ocr_note != "ok" else "OCR 通道真实可用")
+    # issue #9：tesseract/chi_sim 缺件 → SKIP（不伪装成业务 FAIL）
+    _ocr_missing = [t for t in ("tesseract", "chi_sim.traineddata") if t in _ENV_MISSING]
+    if _ocr_missing:
+        skip("T4c-OCR B2 扫描件 OCR 回读（像素层有字 + 条款归一化包含 + 四要素）",
+             f"ENV_MISSING: {', '.join(_ocr_missing)}")
+    else:
+        ocr_note = _b2_ocr_roundtrip(files / "B2-投标函格式页-扫描件.pdf")
+        check("T4c-OCR B2 扫描件 OCR 回读（像素层有字 + 条款归一化包含 + 四要素）",
+              ocr_note == "ok", ocr_note if ocr_note != "ok" else "OCR 通道真实可用")
     check("T4d B3 图纸目录 GC-01~GC-20 在位", all(f"GC-{i:02d}" in b3_text for i in range(1, 21)))
     check("T4e 补遗 C 三变更在位（新型号/新开标日/新控制价）",
           S.MODELS["firewall_new"] in c_text and "2026-11-27 09:30" in c_text and "人民币 465 万元（含税）" in c_text)
@@ -374,6 +437,13 @@ def _anchor_hit(block_texts: list[str], excerpt: str) -> bool:
 
 def t_m1():
     print("[T10] m1 并行线 Rust 工具链（构建 + 单测）")
+    # issue #9：m1 链路依赖 poppler（pdftotext/pdfimages）+ tesseract + chi_sim——
+    # 缺件则 T10~T13 整组 SKIP（测试需真实 OCR 通道，非业务失败）
+    if not require_tools_or_skip(
+            "T10~T13 m1 并行线（构建/单测/场景/覆盖/确定性）",
+            ["pdftotext", "pdfinfo", "tesseract", "chi_sim.traineddata"],
+            "m1 OCR 链路"):
+        return
     cargo = _cargo()
     if not cargo:
         check("T10a cargo 可用（~/.cargo/bin）", False, "未找到 cargo 工具链")
@@ -466,6 +536,11 @@ def t_v1():
     """V1 全链路四段验证（verification-plan §3.1）：解析覆盖→引用回填→导出保真→暗标口径。
     共享一个临时目录：明标件构建一次供 T7b/c/d/e 复用（LO 渲染 3 次，约 15s）。"""
     print("[T7] V1 四段验证（解析覆盖 / 引用回填 / 导出保真 / 暗标口径）")
+    # issue #9：导出保真段需 soffice（LO headless 渲染）——缺件则 T7 整组 SKIP
+    if not require_tools_or_skip(
+            "T7 V1 四段验证（解析覆盖 / 引用回填 / 导出保真 / 暗标口径）",
+            ["soffice", "pdftotext"], "LO headless 导出渲染"):
+        return
     import v1_citation
     import v1_darkbid
     import v1_export
@@ -624,9 +699,13 @@ def t_telecom():
           and len(files) == 16 and n_ok == 14 and n_mm == 2
           and all((f.get("sha256") or f.get("md5_platform")) for f in files),
           f"nodes={len(nodes)} files={len(files)} ok={n_ok} mm={n_mm}")
-    code, out = run(["scripts/telecom_chain.py"])
-    check("T16b 电信四节点链闭环全绿（P0 溯源/P1 变更提取/P2 影响面/P3 输出复验/P4 文件级 = 46 断言）",
-          code == 0 and "46/46" in out, fail_detail(out) if code else "")
+    if env_ok(["pdftotext"]):
+        code, out = run(["scripts/telecom_chain.py"])
+        check("T16b 电信四节点链闭环全绿（P0 溯源/P1 变更提取/P2 影响面/P3 输出复验/P4 文件级 = 46 断言）",
+              code == 0 and "46/46" in out, fail_detail(out) if code else "")
+    else:
+        skip("T16b 电信四节点链闭环全绿（P0 溯源/P1 变更提取/P2 影响面/P3 输出复验/P4 文件级 = 46 断言）",
+             "ENV_MISSING: pdftotext（文件级解析通道）")
     flr = json.loads((rc / "file-level-report.json").read_text(encoding="utf-8"))
     check("T16c 文件级解析亲跑在案（Rust 17/17 真实文件 + 条款抽取≥2000（资格/否决/评分非零）+ 跨向锚点 14/14 PASS）",
           len(flr["parse_summary"]) == 17 and not flr["parse_failures"]
@@ -712,9 +791,13 @@ def main() -> int:
     t_telecom()
     t_engine_diff()
     print("-" * 62)
-    print(f"结果：{len(_passed)} 通过 / {len(_failed)} 失败")
+    # issue #9 判定标准：N passed / M skipped / K failed（依赖缺失 ≠ 业务失败）
+    print(f"结果：{len(_passed)} 通过 / {len(_skipped)} 跳过 / {len(_failed)} 失败")
+    if _skipped:
+        print("跳过项（环境缺件，非业务失败）：", _skipped)
     if _failed:
         print("失败项：", _failed)
+    write_env_blocked()
     return 0 if not _failed else 1
 
 

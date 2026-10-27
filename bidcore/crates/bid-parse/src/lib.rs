@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 pub mod docx;
+pub mod env_preflight;
 pub mod extract;
 pub mod guard;
 pub mod pdf;

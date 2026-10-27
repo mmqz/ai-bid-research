@@ -35,20 +35,25 @@ jobs:
       - name: Configure mdcore read access (deploy key)
         # issue #2 §3.1：mdcore 私有仓凭据 = 只读 deploy key（secret MD_CORE_DEPLOY_KEY）。
         # PAT 不入库、不入日志——key 只写 runner 的 ~/.ssh/id_ed25519。
+        # 访问是否真通由 cargo check 门禁证明（fetch 失败即红）；本步骤只布置凭据。
         shell: pwsh
         env:
           MD_CORE_DEPLOY_KEY: ${{ secrets.MD_CORE_DEPLOY_KEY }}
         run: |
           $sshDir = "$env:USERPROFILE\.ssh"
           New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
-          $env:MD_CORE_DEPLOY_KEY | Out-File -FilePath "$sshDir\id_ed25519" -Encoding ascii -NoNewline
+          # 行尾归一（secret 传输面可能引入 CRLF）+ 精确字节写入（绕开 Out-File 编码面）
+          $key = $env:MD_CORE_DEPLOY_KEY -replace "`r`n", "`n"
+          [IO.File]::WriteAllText("$sshDir\id_ed25519", $key + "`n")
+          echo "key bytes: $((Get-Item "$sshDir\id_ed25519").Length)"
           # Windows OpenSSH 权限收紧（防 "bad permissions" 拒载）
           icacls "$sshDir\id_ed25519" /inheritance:r /grant:r "$($env:USERNAME):R" | Out-Null
           ssh-keyscan -t ed25519 github.com 2>$null | Out-File -FilePath "$sshDir\known_hosts" -Encoding ascii
           # https → ssh 改道（仅 mdcore 仓——其他 git 依赖不受影响）
           git config --global url."git@github.com:mmqz/mdcore.git".insteadOf "https://github.com/mmqz/mdcore"
-          ssh -o StrictHostKeyChecking=accept-new -T git@github.com 2>$null | Out-Null
-          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 1) { exit 1 }  # exit 1 = 认证 OK 但 shell 拒绝（GitHub 常态）
+          # 凭据连通性探测（诊断面：打印退出码不判死——真门禁是 cargo check 的 fetch）
+          ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -T git@github.com 2>$null | Out-Null
+          echo "ssh -T exit code: $LASTEXITCODE (0/1=认证面 OK，255=见 cargo check 结果)"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable

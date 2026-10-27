@@ -11,6 +11,13 @@ fn repo_root() -> PathBuf {
 
 #[test]
 fn e2e_m1_all_scenarios_pass() {
+    // issue #9：外部工具缺件 → SKIP（ENV_MISSING），不伪装成业务 FAIL
+    if bid_parse::env_preflight::skip_if_env_missing(
+        "e2e_m1_all_scenarios_pass",
+        bid_parse::env_preflight::FULL_PDF_CHAIN,
+    ) {
+        return;
+    }
     let root = repo_root();
     let fixtures_dir = std::env::var("BID_FIXTURES")
         .map(PathBuf::from)

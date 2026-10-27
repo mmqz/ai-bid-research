@@ -14,6 +14,13 @@ fn fixtures() -> PathBuf {
 
 #[test]
 fn probe_exact_25_queries() {
+    // issue #9：外部工具缺件 → SKIP（ENV_MISSING），不伪装成业务 FAIL
+    if bid_parse::env_preflight::skip_if_env_missing(
+        "probe_exact_25_queries",
+        bid_parse::env_preflight::FULL_PDF_CHAIN,
+    ) {
+        return;
+    }
     let fx = fixtures();
     let files_dir = fx.join("corpus-A/files");
     let mut names: Vec<(String, String)> = vec![

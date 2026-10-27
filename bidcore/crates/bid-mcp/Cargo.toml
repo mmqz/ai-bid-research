@@ -1,0 +1,17 @@
+[package]
+name = "bid-mcp"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "bid_mcp"
+path = "src/lib.rs"
+
+[[bin]]
+name = "bid-mcp-stdio"
+path = "src/bin/stdio.rs"
+
+[dependencies]
+bid-domain = { path = "../bid-domain" }
+serde = { workspace = true }
+serde_json = { workspace = true }

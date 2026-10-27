@@ -82,6 +82,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bid-mcp"
+version = "0.1.0"
+dependencies = [
+ "bid-domain",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "bid-parse"
 version = "0.1.0"
 dependencies = [

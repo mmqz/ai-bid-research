@@ -6,6 +6,7 @@ members = [
     "crates/bid-kb",
     "crates/bid-tools",
     "crates/bid-grade",
+    "crates/bid-mcp",
     "crates/bid-engine",
 ]
 

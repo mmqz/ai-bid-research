@@ -57,14 +57,6 @@ fn tool_available(tool: &str) -> bool {
         .is_ok()
 }
 
-/// 受控查找路径：`BID_PREFLIGHT_PATH` 优先（模拟缺件环境用），否则继承当前 PATH。
-fn search_dirs() -> Vec<PathBuf> {
-    if let Ok(over) = std::env::var("BID_PREFLIGHT_PATH") {
-        return std::env::split_paths(&over).collect();
-    }
-    std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default()
-}
-
 /// 在给定目录集合里查工具（POSIX 直名；Windows 追加 .exe——与 Command 的
 /// 查找口径对齐，覆盖本仓两类开发环境）。
 fn tool_in_dirs(tool: &str, dirs: &[PathBuf]) -> bool {

@@ -31,10 +31,9 @@ fn unknown_tool_is_typed_not_found() {
 
 #[test]
 fn unimplemented_tools_return_typed_unimplemented_not_ok() {
-    // 8 个未落地工具：必须全部返回 UNIMPLEMENTED_INTERNAL，一个都不能"空成功"
+    // 6 个未落地工具：必须全部返回 UNIMPLEMENTED_INTERNAL，一个都不能"空成功"
+    // （B-1 已落地 create_bid_project / import_tender_files——不在此清单）
     let unimplemented = [
-        "create_bid_project",
-        "import_tender_files",
         "extract_requirements",
         "get_compliance_matrix",
         "search_evidence",
@@ -103,5 +102,6 @@ fn tools_schema_lists_all_nine() {
         .filter(|t| t["implemented"] == true)
         .map(|t| t["name"].as_str().unwrap())
         .collect();
-    assert_eq!(implemented, vec!["get_bid_project_state"]);
+    // B-1 后：create_bid_project / import_tender_files / get_bid_project_state（TOOL_NAMES 声明序）
+    assert_eq!(implemented, vec!["create_bid_project", "import_tender_files", "get_bid_project_state"]);
 }

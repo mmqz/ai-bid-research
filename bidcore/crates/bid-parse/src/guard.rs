@@ -630,7 +630,7 @@ impl Drop for SubprocSlot {
 }
 
 /// 杀整个进程组（Unix；`pgid == child_pid` 因 spawn 时 `process_group(0)`）。
-fn kill_process_tree(child: &Child) {
+fn kill_process_tree(child: &mut Child) {
     #[cfg(unix)]
     {
         // negative pid = 进程组；errno 检查省略（组可能已空——kill 返回 ESRCH 属正常竞态）
@@ -727,19 +727,19 @@ pub fn run_limited(mut cmd: Command, timeout: Duration, stdout_limit: u64) -> Ru
             Ok(Some(_)) => break,
             Ok(None) => {
                 if overflow.load(Ordering::SeqCst) {
-                    kill_process_tree(&child);
+                    kill_process_tree(&mut child);
                     let _ = child.wait();
                     return RunOutcome::OutputOverflow { program, limit: stdout_limit };
                 }
                 if started.elapsed() >= timeout {
-                    kill_process_tree(&child);
+                    kill_process_tree(&mut child);
                     let _ = child.wait();
                     return RunOutcome::Timeout { program, secs: timeout.as_secs() };
                 }
                 std::thread::sleep(Duration::from_millis(20));
             }
             Err(e) => {
-                kill_process_tree(&child);
+                kill_process_tree(&mut child);
                 let _ = child.wait();
                 return RunOutcome::Spawn { program, why: format!("wait 失败: {e}") };
             }
@@ -751,7 +751,7 @@ pub fn run_limited(mut cmd: Command, timeout: Duration, stdout_limit: u64) -> Ru
     let stdout_bytes = match out_rx.recv_timeout(Duration::from_millis(1500)) {
         Ok(b) => b,
         Err(_) => {
-            kill_process_tree(&child);
+            kill_process_tree(&mut child);
             let _ = child.wait();
             return RunOutcome::Timeout { program, secs: timeout.as_secs() };
         }

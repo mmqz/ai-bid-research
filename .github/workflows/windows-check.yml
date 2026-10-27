@@ -7,7 +7,7 @@ name: windows-check
 #   2. 本机复检时发现 Windows 直接 cargo check 失败。
 #
 # B3-1 增补（issue #2 §B3/§3.1）：
-#   - 修复触发分支损坏（此前 `ain]` 永不匹配 = CI 从未在 PR 上跑过）；
+#   - 条件执行（PR #15 Lead review 指定模式）：secret 未配置时步骤跳过而非失败；
 #   - bid-engine 引入 mdc-office-io git 依赖（mdcore 为私有仓）——
 #     CI 用**只读 deploy key** 拉取（issue #2 §3.1 纪律：不得把 PAT 写进仓库或 CI 日志）；
 #   - CARGO_NET_GIT_FETCH_WITH_CLI=true 让 cargo 走 git CLI（尊重 SSH 配置）。
@@ -29,16 +29,20 @@ jobs:
   check:
     name: windows / cargo check
     runs-on: windows-latest
+    env:
+      # job 级 env 才能被 step 的 if 读到（GitHub 不允许 if 直接用 secrets）
+      # ——PR #15 Lead review 指定的条件执行模式：无 secret 时跳过凭据布置。
+      MD_CORE_DEPLOY_KEY: ${{ secrets.MD_CORE_DEPLOY_KEY }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Configure mdcore read access (deploy key)
         # issue #2 §3.1：mdcore 私有仓凭据 = 只读 deploy key（secret MD_CORE_DEPLOY_KEY）。
         # PAT 不入库、不入日志——key 只写 runner 的 ~/.ssh/id_ed25519。
-        # 访问是否真通由 cargo check 门禁证明（fetch 失败即红）；本步骤只布置凭据。
+        # **条件执行**：无 secret 时跳过（mdcore public 窗口匿名 clone 即可）；
+        # 真门禁 = cargo check 的 fetch（fetch 失败即红），本步骤只布置凭据。
+        if: env.MD_CORE_DEPLOY_KEY != ''
         shell: pwsh
-        env:
-          MD_CORE_DEPLOY_KEY: ${{ secrets.MD_CORE_DEPLOY_KEY }}
         run: |
           $sshDir = "$env:USERPROFILE\.ssh"
           New-Item -ItemType Directory -Force -Path $sshDir | Out-Null

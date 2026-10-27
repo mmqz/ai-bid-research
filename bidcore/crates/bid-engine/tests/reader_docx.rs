@@ -256,3 +256,130 @@ fn borrowed_r6b_delete_registered_via_warning_count() {
         .count();
     assert_eq!(del, 2, "T17d：R6b RevisionDelete warnings=2");
 }
+
+// ---------------------------------------------------------------------------
+// PR #15 Lead review 整改：BlockSource 分流测试（引擎 PR #25 BREAKING 变更面）
+// ---------------------------------------------------------------------------
+
+/// 镜像三块型 source 字段全链搬运 + 正文流纯净性（借鉴 mdcore
+/// docx_roundtrip.rs::header_footer_roundtrip 的 source 断言口径——P2-1）：
+/// body 块恒 `Body`、页眉块恒 `Header`、页脚块恒 `Footer`，变体透传。
+#[test]
+fn reader_docx_blocksource_mirror_and_purity() {
+    let doc = read_docx("../../../fixtures/engine-borrowed/TR2/word-complex.docx");
+
+    // 正文块全 Body（引擎口径：doc.blocks 恒 Body 源——镜像保真搬运）
+    for b in &doc.blocks {
+        assert_eq!(
+            b.source(),
+            bid_engine::EngineBlockSource::Body,
+            "正文块 source 应恒 Body：{:?}",
+            match b {
+                bid_engine::EngineBlock::Paragraph(p) => p.text.clone(),
+                _ => "<非段落>".to_string(),
+            }
+        );
+    }
+
+    // 页眉块全 Header + 变体透传（word-complex 六槽位全挂接：default/first/even）
+    assert_eq!(doc.headers.len(), 3, "word-complex 三页眉槽位（引擎验收口径）");
+    let variants: Vec<_> = doc.headers.iter().map(|h| h.variant).collect();
+    use bid_engine::EngineHeaderFooterVariant::{Default, Even, First};
+    assert!(variants.contains(&Default) && variants.contains(&First) && variants.contains(&Even),
+        "三变体齐备：{variants:?}");
+    for h in &doc.headers {
+        for b in &h.blocks {
+            assert_eq!(b.source(), bid_engine::EngineBlockSource::Header,
+                "页眉块 source 应恒 Header（槽位 {:?}）", h.variant);
+        }
+    }
+
+    // 页脚块全 Footer
+    for f in &doc.footers {
+        for b in &f.blocks {
+            assert_eq!(b.source(), bid_engine::EngineBlockSource::Footer,
+                "页脚块 source 应恒 Footer（槽位 {:?}）", f.variant);
+        }
+    }
+
+    // 页眉文本不进正文块流（PR #15 review 验收：导入含页眉 docx，
+    // 断言页眉文本不进 ParsedFile.blocks 的镜像前驱面）
+    let body_texts: Vec<String> = doc
+        .body_blocks()
+        .filter_map(|b| match b {
+            bid_engine::EngineBlock::Paragraph(p) => Some(p.text.clone()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        !body_texts.iter().any(|t| t.contains("HEADER-TENDER-2026")),
+        "页眉文本不得混入正文流（HF-MIXED-BODY bug 面）：{body_texts:?}"
+    );
+    // 页眉登记计数（分流不静默丢——账本面）
+    let (h_cnt, f_cnt) = doc.header_footer_block_counts();
+    assert!(h_cnt >= 1 && f_cnt >= 1, "页眉/页脚块登记计数：({h_cnt}, {f_cnt})");
+
+    // EngineHeaderFooter::texts() 文本行序便捷面（旧 Vec<Vec<String>> 语义等价）
+    let default_header = doc
+        .headers
+        .iter()
+        .find(|h| h.variant == Default)
+        .expect("default 页眉槽位在位");
+    let texts = default_header.texts();
+    assert!(
+        texts.iter().any(|t| t.contains("HEADER-TENDER-2026")),
+        "default 页眉文本在位（引擎 gen-log 验收口径）：{texts:?}"
+    );
+}
+
+/// D2a 标书语义陷阱：页眉/页脚载明「与正文具有同等效力」的条款文本——
+/// 语义上属页面装置，必须走登记面而非条款抽取流（自研用例：招投标
+/// 场景下页眉项目名/页脚受控编号被误抽会产生幽灵条款）。
+#[test]
+fn reader_docx_d2a_header_footer_device_not_clause() {
+    let doc = read_docx("../../../fixtures/corpus-R/D2-nonbody/D2a-非正文条款.docx");
+
+    // D2a 挂接面：2 页眉（default + first）+ 1 页脚（default）
+    assert_eq!(doc.headers.len(), 2, "D2a 页眉槽位数");
+    assert_eq!(doc.footers.len(), 1, "D2a 页脚槽位数");
+    let (h_cnt, f_cnt) = doc.header_footer_block_counts();
+    assert_eq!((h_cnt, f_cnt), (2, 1), "页眉/页脚块计数登记面");
+
+    // 陷阱文本不得进正文流（「同等效力」页眉 + 受控编号页脚）
+    let body_texts: Vec<String> = doc
+        .body_blocks()
+        .filter_map(|b| match b {
+            bid_engine::EngineBlock::Paragraph(p) => Some(p.text.clone()),
+            _ => None,
+        })
+        .collect();
+    for trap in ["页眉所示内容与正文具有同等效力", "受控文件编号：CL-2026-SY-001"] {
+        assert!(
+            !body_texts.iter().any(|t| t.contains(trap)),
+            "页面装置文本混入正文流（幽灵条款 bug 面）：{trap}"
+        );
+    }
+
+    // 陷阱文本必须在登记面可及（读了、分流了、没丢——texts() 便捷面）
+    let all_hf_texts: Vec<String> = doc
+        .headers
+        .iter()
+        .chain(doc.footers.iter())
+        .flat_map(|hf| hf.texts())
+        .collect();
+    assert!(
+        all_hf_texts.iter().any(|t| t.contains("同等效力")),
+        "页眉陷阱文本在登记面：{all_hf_texts:?}"
+    );
+    assert!(
+        all_hf_texts.iter().any(|t| t.contains("受控文件编号")),
+        "页脚受控编号在登记面"
+    );
+
+    // body_blocks() 与 blocks 等长（引擎正文流恒 Body——分流为防御面自证）
+    assert_eq!(
+        doc.body_blocks().count(),
+        doc.blocks.len(),
+        "引擎面 blocks 恒 Body，body_blocks() 应全量通过"
+    );
+}

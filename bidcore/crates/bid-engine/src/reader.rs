@@ -30,7 +30,8 @@ pub trait EngineReader {
 // ---------------------------------------------------------------------------
 
 use crate::types::{
-    EngineBlock, EngineComment, EngineImage, EngineParagraph, EngineTable, EngineTextBox,
+    EngineBlock, EngineBlockSource, EngineComment, EngineHeaderFooter,
+    EngineHeaderFooterVariant, EngineImage, EngineParagraph, EngineTable, EngineTextBox,
     EngineWarning,
 };
 use mdc_office_io::docx::{self, DocxError};
@@ -75,45 +76,41 @@ fn convert_block(b: &docx::Block) -> EngineBlock {
                 .map(|r| r.text.clone())
                 .collect(),
             revision_deleted: Vec::new(), // #17 口径：delText 不入正文，计数走 warnings
+            source: map_source(p.source),
         }),
         docx::Block::Table(t) => EngineBlock::Table(EngineTable {
             rows: t.rows.clone(),
+            source: map_source(t.source),
         }),
         docx::Block::TextBox(tb) => EngineBlock::TextBox(EngineTextBox {
             blocks: tb.blocks.iter().map(convert_block).collect(),
+            source: map_source(tb.source),
         }),
     }
 }
 
-/// 页眉/页脚部件块 → 文本行序（段落文本直连；表格行以空格连接——
-/// 账本/前导展示面，非块流口径）。
-fn hf_texts(blocks: &[docx::Block]) -> Vec<String> {
-    let mut out = Vec::new();
-    for b in blocks {
-        match b {
-            docx::Block::Paragraph(p) => out.push(p.text()),
-            docx::Block::Table(t) => {
-                for row in &t.rows {
-                    out.push(
-                        row.iter()
-                            .filter(|c| !c.trim().is_empty())
-                            .cloned()
-                            .collect::<Vec<_>>()
-                            .join(" "),
-                    );
-                }
-            }
-            docx::Block::TextBox(tb) => {
-                for inner in &tb.blocks {
-                    if let docx::Block::Paragraph(p) = inner {
-                        out.push(p.text());
-                    }
-                }
-            }
-        }
+/// 引擎 `BlockSource` → 镜像（PR #15 review：三块型 source 字段搬运）。
+fn map_source(s: docx::BlockSource) -> EngineBlockSource {
+    match s {
+        docx::BlockSource::Body => EngineBlockSource::Body,
+        docx::BlockSource::Header => EngineBlockSource::Header,
+        docx::BlockSource::Footer => EngineBlockSource::Footer,
     }
-    out
 }
+
+/// 页眉/页脚挂接镜像（变体 + source 标记块序——文本行序便捷面在
+/// `EngineHeaderFooter::texts`，块结构面保真供 B3-3 账本映射）。
+fn convert_hf(hf: &docx::HeaderFooterData) -> EngineHeaderFooter {
+    EngineHeaderFooter {
+        variant: match hf.variant {
+            docx::HeaderFooterVariant::Default => EngineHeaderFooterVariant::Default,
+            docx::HeaderFooterVariant::First => EngineHeaderFooterVariant::First,
+            docx::HeaderFooterVariant::Even => EngineHeaderFooterVariant::Even,
+        },
+        blocks: hf.blocks.iter().map(convert_block).collect(),
+    }
+}
+
 
 fn convert_warning(w: &io::CompatibilityWarning) -> EngineWarning {
     let code = match w.kind {
@@ -151,8 +148,8 @@ impl EngineReader for MdcoreReader {
 
         Ok(crate::types::EngineDoc {
             blocks: doc.blocks.iter().map(convert_block).collect(),
-            headers: doc.headers.iter().map(|h| hf_texts(&h.blocks)).collect(),
-            footers: doc.footers.iter().map(|f| hf_texts(&f.blocks)).collect(),
+            headers: doc.headers.iter().map(convert_hf).collect(),
+            footers: doc.footers.iter().map(convert_hf).collect(),
             images: doc
                 .images
                 .iter()

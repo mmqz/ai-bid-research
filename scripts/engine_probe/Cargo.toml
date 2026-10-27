@@ -3,16 +3,23 @@ name = "engine-probe"
 version = "0.1.0"
 edition = "2021"
 
-# 见上：只读审计 harness
-
 # B2 引擎侧探针（issue #2 §B2 重点核实 7 条「待验证」）：
-# 只读审计 mdcore @ f8c860a（path 依赖指向只读 worktree，不修改引擎任何源码；
-# 与 baseline_harness 同纪律——scripts/ 下独立验证 harness，非产品代码）。
+# 只读审计 harness——scripts/ 下独立验证工具，非产品代码（与 baseline_harness 同纪律）。
+#
+# PR #15：本地路径依赖改为 git 固定 rev（与 bid-engine 同 rev——双跑差分两侧
+# 必须同引擎版本；path 依赖绑死原审计机路径，换环境即断）。
+# mdcore 私仓凭据走本机 ~/.gitconfig insteadOf（PAT 不入仓）。
 
-[dependencies]
-mdc-office-io = { path = "/home/z/my-project/repos/mdcore-audit-f7ddd39/crates/office-io" }
+[dependencies.mdc-office-io]
+package = "mdc-office-io"
+git = "https://github.com/mmqz/mdcore"
+rev = "2d0144456162389cccdfadfbed22b9e7c30d697d"
 
-[workspace]
+[dependencies.mdc-pdf]
+package = "mdc-pdf"
+git = "https://github.com/mmqz/mdcore"
+rev = "2d0144456162389cccdfadfbed22b9e7c30d697d"
+features = ["engine-pdfium"]
 
 [dependencies.zip]
 package = "zip"
@@ -23,10 +30,7 @@ features = ["deflate"]
 [dependencies.serde_json]
 version = "1"
 
-[dependencies.mdc-pdf]
-package = "mdc-pdf"
-path = "/home/z/my-project/repos/mdcore-audit-f7ddd39/crates/pdf"
-features = ["engine-pdfium"]
+[workspace]
 
 [[bin]]
 name = "engine-probe-p1"

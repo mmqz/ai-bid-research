@@ -1,0 +1,2134 @@
+{
+  "aligned_pairs": 182,
+  "file": "fixtures/corpus-A/files/A-招标文件.docx",
+  "items": [
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段1",
+      "old_locator": "第一章 招标公告",
+      "rule": "",
+      "text_new": "第一章招标公告",
+      "text_old": "第一章招标公告",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段2",
+      "old_locator": "第一章 招标公告",
+      "rule": "",
+      "text_new": "项目名称：某市政务服务中心智能化系统工程（货物及服务）；项目编号：ZFCG-2026-GK-0311。",
+      "text_old": "项目名称：某市政务服务中心智能化系统工程（货物及服务）；项目编号：ZFCG-2026-GK-0311。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段3",
+      "old_locator": "第一章 招标公告",
+      "rule": "",
+      "text_new": "某市政务服务中心拟对智能化系统工程（货物及服务）进行公开招标，欢迎符合条件的供应商参加投标。",
+      "text_old": "某市政务服务中心拟对智能化系统工程（货物及服务）进行公开招标，欢迎符合条件的供应商参加投标。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段4",
+      "old_locator": "第一章 招标公告",
+      "rule": "",
+      "text_new": "本项目预算金额：设备采购预算350万元（含税）；最高限价（招标控制价）：人民币480万元（含税），投标报价超过最高限价的作否决投标处理。",
+      "text_old": "本项目预算金额：设备采购预算350万元（含税）；最高限价（招标控制价）：人民币480万元（含税），投标报价超过最高限价的作否决投标处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段5",
+      "old_locator": "第一章 招标公告",
+      "rule": "",
+      "text_new": "开标时间：2026-11-15 09:30（北京时间）；投标截止时间（递交截止时间）：2026-11-13 09:30。",
+      "text_old": "开标时间：2026-11-15 09:30（北京时间）；投标截止时间（递交截止时间）：2026-11-13 09:30。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段6",
+      "old_locator": "第一章 招标公告",
+      "rule": "",
+      "text_new": "获取招标文件时间：2026-10-16至2026-10-23（工作日）。质疑截止时间：2026-10-30。",
+      "text_old": "获取招标文件时间：2026-10-16至2026-10-23（工作日）。质疑截止时间：2026-10-30。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段8",
+      "old_locator": "第二章 投标人须知前附表",
+      "rule": "",
+      "text_new": "第二章投标人须知前附表",
+      "text_old": "第二章投标人须知前附表",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段9",
+      "old_locator": "第二章 投标人须知前附表",
+      "rule": "",
+      "text_new": "本前附表是对投标人须知正文的具体补充和修改，与须知正文具有同等效力；不一致时以前附表为准。",
+      "text_old": "本前附表是对投标人须知正文的具体补充和修改，与须知正文具有同等效力；不一致时以前附表为准。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行1",
+      "old_locator": "第二章 投标人须知前附表 表1 行1",
+      "rule": "",
+      "text_new": "序号条款名称编列内容",
+      "text_old": "序号条款名称编列内容",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行2",
+      "old_locator": "第二章 投标人须知前附表 表1 行2",
+      "rule": "",
+      "text_new": "1项目名称某市政务服务中心智能化系统工程（货物及服务）",
+      "text_old": "1项目名称某市政务服务中心智能化系统工程（货物及服务）",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行3",
+      "old_locator": "第二章 投标人须知前附表 表1 行3",
+      "rule": "",
+      "text_new": "2项目编号ZFCG-2026-GK-0311",
+      "text_old": "2项目编号ZFCG-2026-GK-0311",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行4",
+      "old_locator": "第二章 投标人须知前附表 表1 行4",
+      "rule": "",
+      "text_new": "3工期90日历天（自开工令下达之日起算）",
+      "text_old": "3工期90日历天（自开工令下达之日起算）",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行5",
+      "old_locator": "第二章 投标人须知前附表 表1 行5",
+      "rule": "",
+      "text_new": "4质量标准符合国家现行验收规范合格标准",
+      "text_old": "4质量标准符合国家现行验收规范合格标准",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行6",
+      "old_locator": "第二章 投标人须知前附表 表1 行6",
+      "rule": "",
+      "text_new": "5投标有效期自投标截止之日起90日历天",
+      "text_old": "5投标有效期自投标截止之日起90日历天",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行7",
+      "old_locator": "第二章 投标人须知前附表 表1 行7",
+      "rule": "",
+      "text_new": "6投标保证金人民币9万元（大写：玖万元整）",
+      "text_old": "6投标保证金人民币9万元（大写：玖万元整）",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行8",
+      "old_locator": "第二章 投标人须知前附表 表1 行8",
+      "rule": "",
+      "text_new": "7投标文件份数正本1份，副本4份",
+      "text_old": "7投标文件份数正本1份，副本4份",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行9",
+      "old_locator": "第二章 投标人须知前附表 表1 行9",
+      "rule": "",
+      "text_new": "8评标办法综合评分法",
+      "text_old": "8评标办法综合评分法",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行10",
+      "old_locator": "第二章 投标人须知前附表 表1 行10",
+      "rule": "",
+      "text_new": "9技术偏离表按第七章附件7-3格式填写",
+      "text_old": "9技术偏离表按第七章附件7-3格式填写",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行11",
+      "old_locator": "第二章 投标人须知前附表 表1 行11",
+      "rule": "",
+      "text_new": "10否决条款提示未按本表第9项规定格式填写技术偏离表的，其投标作否决投标处理",
+      "text_old": "10否决条款提示未按本表第9项规定格式填写技术偏离表的，其投标作否决投标处理",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行12",
+      "old_locator": "第二章 投标人须知前附表 表1 行12",
+      "rule": "",
+      "text_new": "11开标时间2026-11-15 09:30",
+      "text_old": "11开标时间2026-11-15 09:30",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行13",
+      "old_locator": "第二章 投标人须知前附表 表1 行13",
+      "rule": "",
+      "text_new": "12投标截止时间2026-11-13 09:30",
+      "text_old": "12投标截止时间2026-11-13 09:30",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段11",
+      "old_locator": "第三章 投标人须知",
+      "rule": "",
+      "text_new": "第三章投标人须知",
+      "text_old": "第三章投标人须知",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段12",
+      "old_locator": "第三章 投标人须知 > 一、总则",
+      "rule": "",
+      "text_new": "一、总则",
+      "text_old": "一、总则",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段13",
+      "old_locator": "第三章 投标人须知 > 一、总则",
+      "rule": "",
+      "text_new": "3.1.1适用范围：本须知适用于本项目投标、开标、评标、定标及合同签订全过程。",
+      "text_old": "3.1.1适用范围：本须知适用于本项目投标、开标、评标、定标及合同签订全过程。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段14",
+      "old_locator": "第三章 投标人须知 > 一、总则",
+      "rule": "",
+      "text_new": "3.1.2项目资金来源：财政性资金，已落实。",
+      "text_old": "3.1.2项目资金来源：财政性资金，已落实。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段15",
+      "old_locator": "第三章 投标人须知 > 二、投标人资格要求",
+      "rule": "",
+      "text_new": "二、投标人资格要求",
+      "text_old": "二、投标人资格要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段16",
+      "old_locator": "第三章 投标人须知 > 二、投标人资格要求",
+      "rule": "",
+      "text_new": "3.2.1投标人须具有独立承担民事责任能力的法人营业执照，提供营业执照副本复印件并加盖公章。",
+      "text_old": "3.2.1投标人须具有独立承担民事责任能力的法人营业执照，提供营业执照副本复印件并加盖公章。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段17",
+      "old_locator": "第三章 投标人须知 > 二、投标人资格要求",
+      "rule": "",
+      "text_new": "3.2.2投标人须具备电子与智能化工程专业承包二级（含）以上资质，且资质证书在有效期内。",
+      "text_old": "3.2.2投标人须具备电子与智能化工程专业承包二级（含）以上资质，且资质证书在有效期内。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段18",
+      "old_locator": "第三章 投标人须知 > 二、投标人资格要求",
+      "rule": "",
+      "text_new": "3.2.3投标人近三年（自2023年1月1日以来，以合同签订时间为准）须至少完成2个合同额200万元（含）以上的类似智能化工程项目业绩。",
+      "text_old": "3.2.3投标人近三年（自2023年1月1日以来，以合同签订时间为准）须至少完成2个合同额200万元（含）以上的类似智能化工程项目业绩。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段19",
+      "old_locator": "第三章 投标人须知 > 二、投标人资格要求",
+      "rule": "",
+      "text_new": "3.2.4拟派项目经理须具备二级（含）以上注册建造师执业资格（机电工程专业），并提供无在建项目承诺书。",
+      "text_old": "3.2.4拟派项目经理须具备二级（含）以上注册建造师执业资格（机电工程专业），并提供无在建项目承诺书。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段20",
+      "old_locator": "第三章 投标人须知 > 二、投标人资格要求",
+      "rule": "",
+      "text_new": "3.2.5投标人须提供经审计的上一年度（2025年度）财务审计报告。",
+      "text_old": "3.2.5投标人须提供经审计的上一年度（2025年度）财务审计报告。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段21",
+      "old_locator": "第三章 投标人须知 > 二、投标人资格要求",
+      "rule": "",
+      "text_new": "3.2.6投标人须提供未被列入失信被执行人、重大税收违法案件当事人名单的书面承诺及信用中国网站查询记录截图。",
+      "text_old": "3.2.6投标人须提供未被列入失信被执行人、重大税收违法案件当事人名单的书面承诺及信用中国网站查询记录截图。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段22",
+      "old_locator": "第三章 投标人须知 > 三、投标文件的编制",
+      "rule": "",
+      "text_new": "三、投标文件的编制",
+      "text_old": "三、投标文件的编制",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段23",
+      "old_locator": "第三章 投标人须知 > 三、投标文件的编制",
+      "rule": "",
+      "text_new": "3.3.1投标文件须按第七章规定的格式编制，包括：投标函、开标一览表、投标分项报价表、技术方案、商务部分及资格证明文件。",
+      "text_old": "3.3.1投标文件须按第七章规定的格式编制，包括：投标函、开标一览表、投标分项报价表、技术方案、商务部分及资格证明文件。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段24",
+      "old_locator": "第三章 投标人须知 > 三、投标文件的编制",
+      "rule": "",
+      "text_new": "3.3.2投标文件正本1份，副本4份，每册均须在封面明确标注\"正本\"或\"副本\"字样。",
+      "text_old": "3.3.2投标文件正本1份，副本4份，每册均须在封面明确标注\"正本\"或\"副本\"字样。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段25",
+      "old_locator": "第三章 投标人须知 > 三、投标文件的编制",
+      "rule": "",
+      "text_new": "3.3.3技术标部分采用暗标评审：技术标正文中不得出现投标人名称、投标人Logo、项目班子成员姓名及其他可识别投标人身份的标记，否则作否决投标处理。",
+      "text_old": "3.3.3技术标部分采用暗标评审：技术标正文中不得出现投标人名称、投标人Logo、项目班子成员姓名及其他可识别投标人身份的标记，否则作否决投标处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段26",
+      "old_locator": "第三章 投标人须知 > 三、投标文件的编制",
+      "rule": "",
+      "text_new": "3.3.4投标文件总页数不得超过200页（含封面、目录及附件），超过页数上限的作否决投标处理。",
+      "text_old": "3.3.4投标文件总页数不得超过200页（含封面、目录及附件），超过页数上限的作否决投标处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段27",
+      "old_locator": "第三章 投标人须知 > 四、投标报价",
+      "rule": "",
+      "text_new": "四、投标报价",
+      "text_old": "四、投标报价",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段28",
+      "old_locator": "第三章 投标人须知 > 四、投标报价",
+      "rule": "",
+      "text_new": "3.4.1投标报价为一次包干总价，包含货物、安装、调试、运输、保险、税费及质保期服务等全部费用。报价口径以人民币\"万元/含税\"计。",
+      "text_old": "3.4.1投标报价为一次包干总价，包含货物、安装、调试、运输、保险、税费及质保期服务等全部费用。报价口径以人民币\"万元/含税\"计。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段29",
+      "old_locator": "第三章 投标人须知 > 四、投标报价",
+      "rule": "",
+      "text_new": "3.4.2投标报价超过本章及商务要求所列招标控制价的，作否决投标处理。",
+      "text_old": "3.4.2投标报价超过本章及商务要求所列招标控制价的，作否决投标处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段30",
+      "old_locator": "第三章 投标人须知 > 五、投标保证金",
+      "rule": "",
+      "text_new": "五、投标保证金",
+      "text_old": "五、投标保证金",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段31",
+      "old_locator": "第三章 投标人须知 > 五、投标保证金",
+      "rule": "",
+      "text_new": "3.5.1投标人须在本须知前附表规定金额（人民币9万元）内提交投标保证金，未按要求提交的作否决投标处理。",
+      "text_old": "3.5.1投标人须在本须知前附表规定金额（人民币9万元）内提交投标保证金，未按要求提交的作否决投标处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段32",
+      "old_locator": "第三章 投标人须知 > 六、投标文件的递交",
+      "rule": "",
+      "text_new": "六、投标文件的递交",
+      "text_old": "六、投标文件的递交",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段33",
+      "old_locator": "第三章 投标人须知 > 六、投标文件的递交",
+      "rule": "",
+      "text_new": "3.6.1投标文件递交截止时间（投标截止时间）：2026-11-13 09:30，逾期送达或不符合规定的恕不接收。",
+      "text_old": "3.6.1投标文件递交截止时间（投标截止时间）：2026-11-13 09:30，逾期送达或不符合规定的恕不接收。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段34",
+      "old_locator": "第三章 投标人须知 > 七、开标、评标与否决条款",
+      "rule": "",
+      "text_new": "七、开标、评标与否决条款",
+      "text_old": "七、开标、评标与否决条款",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段35",
+      "old_locator": "第三章 投标人须知 > 七、开标、评标与否决条款",
+      "rule": "",
+      "text_new": "3.7.1开标时间及地点见前附表第11项；投标人法定代表人或授权代表须出席。",
+      "text_old": "3.7.1开标时间及地点见前附表第11项；投标人法定代表人或授权代表须出席。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段36",
+      "old_locator": "第三章 投标人须知 > 七、开标、评标与否决条款",
+      "rule": "",
+      "text_new": "3.7.2.1投标文件未按招标文件规定格式要求签署、盖章的，评标委员会应当否决其投标。",
+      "text_old": "3.7.2.1投标文件未按招标文件规定格式要求签署、盖章的，评标委员会应当否决其投标。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段37",
+      "old_locator": "第三章 投标人须知 > 七、开标、评标与否决条款",
+      "rule": "",
+      "text_new": "3.7.2.2投标报价超过招标控制价（最高限价）的，作否决投标处理。",
+      "text_old": "3.7.2.2投标报价超过招标控制价（最高限价）的，作否决投标处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段38",
+      "old_locator": "第三章 投标人须知 > 七、开标、评标与否决条款",
+      "rule": "",
+      "text_new": "3.7.2.3投标工期不满足90日历天要求的，作否决投标处理。",
+      "text_old": "3.7.2.3投标工期不满足90日历天要求的，作否决投标处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段39",
+      "old_locator": "第三章 投标人须知 > 七、开标、评标与否决条款",
+      "rule": "",
+      "text_new": "3.7.2.4未按要求提交投标保证金的，作否决投标处理。",
+      "text_old": "3.7.2.4未按要求提交投标保证金的，作否决投标处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段40",
+      "old_locator": "第三章 投标人须知 > 八、合同授予",
+      "rule": "",
+      "text_new": "八、合同授予",
+      "text_old": "八、合同授予",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段41",
+      "old_locator": "第三章 投标人须知 > 八、合同授予",
+      "rule": "",
+      "text_new": "3.8.1中标人须在中标通知书发出之日起30日内签订合同；合同签订前须提交履约保证金（合同价的5%）。",
+      "text_old": "3.8.1中标人须在中标通知书发出之日起30日内签订合同；合同签订前须提交履约保证金（合同价的5%）。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段43",
+      "old_locator": "第四章 评标办法（综合评分法）",
+      "rule": "",
+      "text_new": "第四章评标办法（综合评分法）",
+      "text_old": "第四章评标办法（综合评分法）",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段44",
+      "old_locator": "第四章 评标办法（综合评分法）",
+      "rule": "",
+      "text_new": "评分构成：价格分30分＋技术分55分＋商务分15分，满分100分。",
+      "text_old": "评分构成：价格分30分＋技术分55分＋商务分15分，满分100分。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段45",
+      "old_locator": "第四章 评标办法（综合评分法）",
+      "rule": "",
+      "text_new": "4.1价格分（30分）：以通过初步评审的有效投标报价的算术平均值下浮5%为基准价，价格分＝（基准价／投标报价）×30，四舍五入保留两位小数。",
+      "text_old": "4.1价格分（30分）：以通过初步评审的有效投标报价的算术平均值下浮5%为基准价，价格分＝（基准价／投标报价）×30，四舍五入保留两位小数。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段46",
+      "old_locator": "第四章 评标办法（综合评分法）",
+      "rule": "",
+      "text_new": "4.2技术分（55分）：技术方案完整性针对性30分；项目实施方案与进度保障10分；售后服务方案（含响应时限承诺）8分；持有效安全生产许可证且有效期覆盖工期全程的得2分；项目团队人员配置（含职称及执业资格证书）5分。",
+      "text_old": "4.2技术分（55分）：技术方案完整性针对性30分；项目实施方案与进度保障10分；售后服务方案（含响应时限承诺）8分；持有效安全生产许可证且有效期覆盖工期全程的得2分；项目团队人员配置（含职称及执业资格证书）5分。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段47",
+      "old_locator": "第四章 评标办法（综合评分法）",
+      "rule": "",
+      "text_new": "4.3商务分（15分）：近三年（自2023年1月1日以来）完成的合同额200万元（含）以上的类似智能化工程业绩，每提供1个得2分，最多得6分；企业认证体系（ISO9001）1分；企业认证体系（ISO27001）1分；银行资信等级AAA级2分；类似项目获省级以上奖项每个1分，最多3分；注册建造师（机电工程）人员数量1名2分。",
+      "text_old": "4.3商务分（15分）：近三年（自2023年1月1日以来）完成的合同额200万元（含）以上的类似智能化工程业绩，每提供1个得2分，最多得6分；企业认证体系（ISO9001）1分；企业认证体系（ISO27001）1分；银行资信等级AAA级2分；类似项目获省级以上奖项每个1分，最多3分；注册建造师（机电工程）人员数量1名2分。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段48",
+      "old_locator": "第四章 评标办法（综合评分法）",
+      "rule": "",
+      "text_new": "4.4项目团队评分：项目经理具备一级注册建造师（机电工程）资格且无在建项目的加3分；项目团队具有高级网络工程师职称证书的每人1分，最多2分。",
+      "text_old": "4.4项目团队评分：项目经理具备一级注册建造师（机电工程）资格且无在建项目的加3分；项目团队具有高级网络工程师职称证书的每人1分，最多2分。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段50",
+      "old_locator": "第五章 技术需求（5 组参数表）",
+      "rule": "",
+      "text_new": "第五章技术需求（5组参数表）",
+      "text_old": "第五章技术需求（5组参数表）",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段51",
+      "old_locator": "第五章 技术需求（5 组参数表）",
+      "rule": "",
+      "text_new": "5.0总则：本章设备采购预算350万元（含税）；供货及安装范围包括机房、网络、安防、会议及集成管理平台五大部分。",
+      "text_old": "5.0总则：本章设备采购预算350万元（含税）；供货及安装范围包括机房、网络、安防、会议及集成管理平台五大部分。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段52",
+      "old_locator": "第五章 技术需求（5 组参数表）",
+      "rule": "",
+      "text_new": "5.1参数表1：机房设备（服务器）",
+      "text_old": "5.1参数表1：机房设备（服务器）",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表2 行1",
+      "old_locator": "第五章 技术需求（5 组参数表） 表2 行1",
+      "rule": "",
+      "text_new": "序号设备名称型号规格（响应须精确一致）单位数量关键参数",
+      "text_old": "序号设备名称型号规格（响应须精确一致）单位数量关键参数",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表2 行2",
+      "old_locator": "第五章 技术需求（5 组参数表） 表2 行2",
+      "rule": "",
+      "text_new": "1应用服务器GW-8000-T4台4 2×Intel Xeon Silver 4310/256G/2×960G SSD/双电源",
+      "text_old": "1应用服务器GW-8000-T4台4 2×Intel Xeon Silver 4310/256G/2×960G SSD/双电源",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表2 行3",
+      "old_locator": "第五章 技术需求（5 组参数表） 表2 行3",
+      "rule": "",
+      "text_new": "2数据库服务器GW-8000-T4台2 2×Intel Xeon Silver 4310/512G/4×1.92T SSD/双电源",
+      "text_old": "2数据库服务器GW-8000-T4台2 2×Intel Xeon Silver 4310/512G/4×1.92T SSD/双电源",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段53",
+      "old_locator": "第五章 技术需求（5 组参数表）",
+      "rule": "",
+      "text_new": "5.2参数表2：网络设备（交换机）",
+      "text_old": "5.2参数表2：网络设备（交换机）",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表3 行1",
+      "old_locator": "第五章 技术需求（5 组参数表） 表3 行1",
+      "rule": "",
+      "text_new": "序号设备名称型号规格（响应须精确一致）单位数量关键参数",
+      "text_old": "序号设备名称型号规格（响应须精确一致）单位数量关键参数",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表3 行2",
+      "old_locator": "第五章 技术需求（5 组参数表） 表3 行2",
+      "rule": "",
+      "text_new": "1核心交换机S5735-L48T4X-A1台2 48口10/100/1000Base-T＋4口10GE SFP＋，交换容量≥2.4Tbps",
+      "text_old": "1核心交换机S5735-L48T4X-A1台2 48口10/100/1000Base-T＋4口10GE SFP＋，交换容量≥2.4Tbps",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表3 行3",
+      "old_locator": "第五章 技术需求（5 组参数表） 表3 行3",
+      "rule": "",
+      "text_new": "2接入交换机S5735-L48T4X-A1台12 48口10/100/1000Base-T＋4口10GE SFP＋",
+      "text_old": "2接入交换机S5735-L48T4X-A1台12 48口10/100/1000Base-T＋4口10GE SFP＋",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段54",
+      "old_locator": "第五章 技术需求（5 组参数表）",
+      "rule": "",
+      "text_new": "5.3参数表3：网络安全设备",
+      "text_old": "5.3参数表3：网络安全设备",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表4 行1",
+      "old_locator": "第五章 技术需求（5 组参数表） 表4 行1",
+      "rule": "",
+      "text_new": "序号设备名称型号规格（响应须精确一致）单位数量关键参数",
+      "text_old": "序号设备名称型号规格（响应须精确一致）单位数量关键参数",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表4 行2",
+      "old_locator": "第五章 技术需求（5 组参数表） 表4 行2",
+      "rule": "",
+      "text_new": "1防火墙USG6650E-AC550台2吞吐≥10Gbps，并发连接≥400万，含3年特征库升级",
+      "text_old": "1防火墙USG6650E-AC550台2吞吐≥10Gbps，并发连接≥400万，含3年特征库升级",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表4 行3",
+      "old_locator": "第五章 技术需求（5 组参数表） 表4 行3",
+      "rule": "",
+      "text_new": "2上网行为管理USG6650E-AC550台1吞吐≥2Gbps，审计日志保存≥180天",
+      "text_old": "2上网行为管理USG6650E-AC550台1吞吐≥2Gbps，审计日志保存≥180天",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段55",
+      "old_locator": "第五章 技术需求（5 组参数表）",
+      "rule": "",
+      "text_new": "5.4参数表4：安防设备",
+      "text_old": "5.4参数表4：安防设备",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表5 行1",
+      "old_locator": "第五章 技术需求（5 组参数表） 表5 行1",
+      "rule": "",
+      "text_new": "序号设备名称型号规格单位数量关键参数",
+      "text_old": "序号设备名称型号规格单位数量关键参数",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表5 行2",
+      "old_locator": "第五章 技术需求（5 组参数表） 表5 行2",
+      "rule": "",
+      "text_new": "1高清网络摄像机IPC-4T-IR-D2台86 400万像素，H.265，红外50米",
+      "text_old": "1高清网络摄像机IPC-4T-IR-D2台86 400万像素，H.265，红外50米",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表5 行3",
+      "old_locator": "第五章 技术需求（5 组参数表） 表5 行3",
+      "rule": "",
+      "text_new": "2 NVR存储主机NVR-64H-8P台2 64路，8盘位，RAID5",
+      "text_old": "2 NVR存储主机NVR-64H-8P台2 64路，8盘位，RAID5",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段56",
+      "old_locator": "第五章 技术需求（5 组参数表）",
+      "rule": "",
+      "text_new": "5.5参数表5：会议系统",
+      "text_old": "5.5参数表5：会议系统",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表6 行1",
+      "old_locator": "第五章 技术需求（5 组参数表） 表6 行1",
+      "rule": "",
+      "text_new": "序号设备名称型号规格单位数量关键参数",
+      "text_old": "序号设备名称型号规格单位数量关键参数",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表6 行2",
+      "old_locator": "第五章 技术需求（5 组参数表） 表6 行2",
+      "rule": "",
+      "text_new": "1 LED显示屏P1.875-6.25㎡套1模组间距1.875mm，刷新率≥3840Hz",
+      "text_old": "1 LED显示屏P1.875-6.25㎡套1模组间距1.875mm，刷新率≥3840Hz",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表6 行3",
+      "old_locator": "第五章 技术需求（5 组参数表） 表6 行3",
+      "rule": "",
+      "text_new": "2数字会议主机DCS-4000台1支持64席位，双机热备",
+      "text_old": "2数字会议主机DCS-4000台1支持64席位，双机热备",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段57",
+      "old_locator": "第五章 技术需求（5 组参数表）",
+      "rule": "",
+      "text_new": "5.6交货期要求：全部设备须于2026-12-30前到场并完成安装调试。",
+      "text_old": "5.6交货期要求：全部设备须于2026-12-30前到场并完成安装调试。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段59",
+      "old_locator": "第六章 商务要求",
+      "rule": "",
+      "text_new": "第六章商务要求",
+      "text_old": "第六章商务要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段60",
+      "old_locator": "第六章 商务要求",
+      "rule": "",
+      "text_new": "6.1招标控制价：本项目招标控制价为人民币480万元（含税）。",
+      "text_old": "6.1招标控制价：本项目招标控制价为人民币480万元（含税）。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段61",
+      "old_locator": "第六章 商务要求",
+      "rule": "",
+      "text_new": "6.2质保期：整体项目质保期2年，自最终验收合格之日起算；主要设备质保按厂家标准且不低于3年。",
+      "text_old": "6.2质保期：整体项目质保期2年，自最终验收合格之日起算；主要设备质保按厂家标准且不低于3年。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段62",
+      "old_locator": "第六章 商务要求",
+      "rule": "",
+      "text_new": "6.3付款节点：合同签订并生效后10个工作日内支付预付款30%；全部设备到场并安装调试完成、验收合格后支付至合同总价60%（即再付30%）；终验合格满质保期2年且无质量问题后支付尾款10%。",
+      "text_old": "6.3付款节点：合同签订并生效后10个工作日内支付预付款30%；全部设备到场并安装调试完成、验收合格后支付至合同总价60%（即再付30%）；终验合格满质保期2年且无质量问题后支付尾款10%。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段64",
+      "old_locator": "第七章 投标文件格式",
+      "rule": "",
+      "text_new": "第七章投标文件格式",
+      "text_old": "第七章投标文件格式",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段65",
+      "old_locator": "第七章 投标文件格式",
+      "rule": "",
+      "text_new": "7.1投标函格式（略，详见附件B2样例页）；投标函须按样例格式签署并加盖单位公章及法定代表人签字。",
+      "text_old": "7.1投标函格式（略，详见附件B2样例页）；投标函须按样例格式签署并加盖单位公章及法定代表人签字。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段66",
+      "old_locator": "第七章 投标文件格式",
+      "rule": "",
+      "text_new": "7.2开标一览表、投标分项报价表格式（略）。",
+      "text_old": "7.2开标一览表、投标分项报价表格式（略）。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段67",
+      "old_locator": "第七章 投标文件格式",
+      "rule": "",
+      "text_new": "7.3技术偏离表格式（略，按前附表第9项要求填写）。",
+      "text_old": "7.3技术偏离表格式（略，按前附表第9项要求填写）。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段68",
+      "old_locator": "第七章 投标文件格式",
+      "rule": "",
+      "text_new": "7.4资格审查文件装订顺序：营业执照→资质证书→业绩合同→财务审计报告→信用承诺（略）。",
+      "text_old": "7.4资格审查文件装订顺序：营业执照→资质证书→业绩合同→财务审计报告→信用承诺（略）。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段70",
+      "old_locator": "第八章 合同主要条款（摘要）",
+      "rule": "",
+      "text_new": "第八章合同主要条款（摘要）",
+      "text_old": "第八章合同主要条款（摘要）",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段71",
+      "old_locator": "第八章 合同主要条款（摘要）",
+      "rule": "",
+      "text_new": "8.1合同价格形式：固定总价合同，除招标文件约定的调整情形外不做调整。",
+      "text_old": "8.1合同价格形式：固定总价合同，除招标文件约定的调整情形外不做调整。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段72",
+      "old_locator": "第八章 合同主要条款（摘要）",
+      "rule": "",
+      "text_new": "8.2违约责任：逾期交付每日按合同总价0.5‰计违约金，上限5%；逾期超过30日采购人有权解除合同。",
+      "text_old": "8.2违约责任：逾期交付每日按合同总价0.5‰计违约金，上限5%；逾期超过30日采购人有权解除合同。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段73",
+      "old_locator": "第八章 合同主要条款（摘要）",
+      "rule": "",
+      "text_new": "8.3争议解决：协商不成提交项目所在地人民法院诉讼解决。",
+      "text_old": "8.3争议解决：协商不成提交项目所在地人民法院诉讼解决。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段75",
+      "old_locator": "第九章 技术规范与验收要求 9.1 总体架构要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.1总体架构要求",
+      "text_old": "第九章技术规范与验收要求9.1总体架构要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段76",
+      "old_locator": "第九章 技术规范与验收要求 9.1 总体架构要求",
+      "rule": "",
+      "text_new": "9.1.1本节规定总体架构要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.1.1本节规定总体架构要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段77",
+      "old_locator": "第九章 技术规范与验收要求 9.1 总体架构要求",
+      "rule": "",
+      "text_new": "9.1.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.1.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段78",
+      "old_locator": "第九章 技术规范与验收要求 9.1 总体架构要求",
+      "rule": "",
+      "text_new": "9.1.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.1.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段80",
+      "old_locator": "第九章 技术规范与验收要求 9.2 网络系统技术要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.2网络系统技术要求",
+      "text_old": "第九章技术规范与验收要求9.2网络系统技术要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段81",
+      "old_locator": "第九章 技术规范与验收要求 9.2 网络系统技术要求",
+      "rule": "",
+      "text_new": "9.2.1本节规定网络系统技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.2.1本节规定网络系统技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段82",
+      "old_locator": "第九章 技术规范与验收要求 9.2 网络系统技术要求",
+      "rule": "",
+      "text_new": "9.2.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.2.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段83",
+      "old_locator": "第九章 技术规范与验收要求 9.2 网络系统技术要求",
+      "rule": "",
+      "text_new": "9.2.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.2.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段85",
+      "old_locator": "第九章 技术规范与验收要求 9.3 综合布线系统技术要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.3综合布线系统技术要求",
+      "text_old": "第九章技术规范与验收要求9.3综合布线系统技术要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段86",
+      "old_locator": "第九章 技术规范与验收要求 9.3 综合布线系统技术要求",
+      "rule": "",
+      "text_new": "9.3.1本节规定综合布线系统技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.3.1本节规定综合布线系统技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段87",
+      "old_locator": "第九章 技术规范与验收要求 9.3 综合布线系统技术要求",
+      "rule": "",
+      "text_new": "9.3.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.3.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段88",
+      "old_locator": "第九章 技术规范与验收要求 9.3 综合布线系统技术要求",
+      "rule": "",
+      "text_new": "9.3.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.3.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段90",
+      "old_locator": "第九章 技术规范与验收要求 9.4 视频监控系统技术要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.4视频监控系统技术要求",
+      "text_old": "第九章技术规范与验收要求9.4视频监控系统技术要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段91",
+      "old_locator": "第九章 技术规范与验收要求 9.4 视频监控系统技术要求",
+      "rule": "",
+      "text_new": "9.4.1本节规定视频监控系统技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.4.1本节规定视频监控系统技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段92",
+      "old_locator": "第九章 技术规范与验收要求 9.4 视频监控系统技术要求",
+      "rule": "",
+      "text_new": "9.4.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.4.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段93",
+      "old_locator": "第九章 技术规范与验收要求 9.4 视频监控系统技术要求",
+      "rule": "",
+      "text_new": "9.4.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.4.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段95",
+      "old_locator": "第九章 技术规范与验收要求 9.5 门禁与入侵报警技术要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.5门禁与入侵报警技术要求",
+      "text_old": "第九章技术规范与验收要求9.5门禁与入侵报警技术要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段96",
+      "old_locator": "第九章 技术规范与验收要求 9.5 门禁与入侵报警技术要求",
+      "rule": "",
+      "text_new": "9.5.1本节规定门禁与入侵报警技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.5.1本节规定门禁与入侵报警技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段97",
+      "old_locator": "第九章 技术规范与验收要求 9.5 门禁与入侵报警技术要求",
+      "rule": "",
+      "text_new": "9.5.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.5.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段98",
+      "old_locator": "第九章 技术规范与验收要求 9.5 门禁与入侵报警技术要求",
+      "rule": "",
+      "text_new": "9.5.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.5.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段100",
+      "old_locator": "第九章 技术规范与验收要求 9.6 机房工程与 UPS 供电技术要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.6机房工程与UPS供电技术要求",
+      "text_old": "第九章技术规范与验收要求9.6机房工程与UPS供电技术要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段101",
+      "old_locator": "第九章 技术规范与验收要求 9.6 机房工程与 UPS 供电技术要求",
+      "rule": "",
+      "text_new": "9.6.1本节规定机房工程与UPS供电技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.6.1本节规定机房工程与UPS供电技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段102",
+      "old_locator": "第九章 技术规范与验收要求 9.6 机房工程与 UPS 供电技术要求",
+      "rule": "",
+      "text_new": "9.6.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.6.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段103",
+      "old_locator": "第九章 技术规范与验收要求 9.6 机房工程与 UPS 供电技术要求",
+      "rule": "",
+      "text_new": "9.6.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.6.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段105",
+      "old_locator": "第九章 技术规范与验收要求 9.7 会议系统技术要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.7会议系统技术要求",
+      "text_old": "第九章技术规范与验收要求9.7会议系统技术要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段106",
+      "old_locator": "第九章 技术规范与验收要求 9.7 会议系统技术要求",
+      "rule": "",
+      "text_new": "9.7.1本节规定会议系统技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.7.1本节规定会议系统技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段107",
+      "old_locator": "第九章 技术规范与验收要求 9.7 会议系统技术要求",
+      "rule": "",
+      "text_new": "9.7.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.7.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段108",
+      "old_locator": "第九章 技术规范与验收要求 9.7 会议系统技术要求",
+      "rule": "",
+      "text_new": "9.7.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.7.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段110",
+      "old_locator": "第九章 技术规范与验收要求 9.8 集成管理平台技术要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.8集成管理平台技术要求",
+      "text_old": "第九章技术规范与验收要求9.8集成管理平台技术要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段111",
+      "old_locator": "第九章 技术规范与验收要求 9.8 集成管理平台技术要求",
+      "rule": "",
+      "text_new": "9.8.1本节规定集成管理平台技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.8.1本节规定集成管理平台技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段112",
+      "old_locator": "第九章 技术规范与验收要求 9.8 集成管理平台技术要求",
+      "rule": "",
+      "text_new": "9.8.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.8.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段113",
+      "old_locator": "第九章 技术规范与验收要求 9.8 集成管理平台技术要求",
+      "rule": "",
+      "text_new": "9.8.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.8.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段115",
+      "old_locator": "第九章 技术规范与验收要求 9.9 信息发布系统技术要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.9信息发布系统技术要求",
+      "text_old": "第九章技术规范与验收要求9.9信息发布系统技术要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段116",
+      "old_locator": "第九章 技术规范与验收要求 9.9 信息发布系统技术要求",
+      "rule": "",
+      "text_new": "9.9.1本节规定信息发布系统技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.9.1本节规定信息发布系统技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段117",
+      "old_locator": "第九章 技术规范与验收要求 9.9 信息发布系统技术要求",
+      "rule": "",
+      "text_new": "9.9.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.9.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段118",
+      "old_locator": "第九章 技术规范与验收要求 9.9 信息发布系统技术要求",
+      "rule": "",
+      "text_new": "9.9.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.9.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段120",
+      "old_locator": "第九章 技术规范与验收要求 9.10 运维与网络安全技术要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.10运维与网络安全技术要求",
+      "text_old": "第九章技术规范与验收要求9.10运维与网络安全技术要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段121",
+      "old_locator": "第九章 技术规范与验收要求 9.10 运维与网络安全技术要求",
+      "rule": "",
+      "text_new": "9.10.1本节规定运维与网络安全技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.10.1本节规定运维与网络安全技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段122",
+      "old_locator": "第九章 技术规范与验收要求 9.10 运维与网络安全技术要求",
+      "rule": "",
+      "text_new": "9.10.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.10.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段123",
+      "old_locator": "第九章 技术规范与验收要求 9.10 运维与网络安全技术要求",
+      "rule": "",
+      "text_new": "9.10.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.10.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段125",
+      "old_locator": "第九章 技术规范与验收要求 9.11 竣工资料与验收规范",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.11竣工资料与验收规范",
+      "text_old": "第九章技术规范与验收要求9.11竣工资料与验收规范",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段126",
+      "old_locator": "第九章 技术规范与验收要求 9.11 竣工资料与验收规范",
+      "rule": "",
+      "text_new": "9.11.1本节规定竣工资料与验收规范的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.11.1本节规定竣工资料与验收规范的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段127",
+      "old_locator": "第九章 技术规范与验收要求 9.11 竣工资料与验收规范",
+      "rule": "",
+      "text_new": "9.11.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.11.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段128",
+      "old_locator": "第九章 技术规范与验收要求 9.11 竣工资料与验收规范",
+      "rule": "",
+      "text_new": "9.11.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.11.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段130",
+      "old_locator": "第九章 技术规范与验收要求 9.12 培训与知识转移要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.12培训与知识转移要求",
+      "text_old": "第九章技术规范与验收要求9.12培训与知识转移要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段131",
+      "old_locator": "第九章 技术规范与验收要求 9.12 培训与知识转移要求",
+      "rule": "",
+      "text_new": "9.12.1本节规定培训与知识转移要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.12.1本节规定培训与知识转移要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段132",
+      "old_locator": "第九章 技术规范与验收要求 9.12 培训与知识转移要求",
+      "rule": "",
+      "text_new": "9.12.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.12.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段133",
+      "old_locator": "第九章 技术规范与验收要求 9.12 培训与知识转移要求",
+      "rule": "",
+      "text_new": "9.12.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.12.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段135",
+      "old_locator": "第九章 技术规范与验收要求 9.13 总体架构要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.13总体架构要求",
+      "text_old": "第九章技术规范与验收要求9.13总体架构要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段136",
+      "old_locator": "第九章 技术规范与验收要求 9.13 总体架构要求",
+      "rule": "",
+      "text_new": "9.13.1本节规定总体架构要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.13.1本节规定总体架构要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段137",
+      "old_locator": "第九章 技术规范与验收要求 9.13 总体架构要求",
+      "rule": "",
+      "text_new": "9.13.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.13.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段138",
+      "old_locator": "第九章 技术规范与验收要求 9.13 总体架构要求",
+      "rule": "",
+      "text_new": "9.13.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.13.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段140",
+      "old_locator": "第九章 技术规范与验收要求 9.14 网络系统技术要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.14网络系统技术要求",
+      "text_old": "第九章技术规范与验收要求9.14网络系统技术要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段141",
+      "old_locator": "第九章 技术规范与验收要求 9.14 网络系统技术要求",
+      "rule": "",
+      "text_new": "9.14.1本节规定网络系统技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.14.1本节规定网络系统技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段142",
+      "old_locator": "第九章 技术规范与验收要求 9.14 网络系统技术要求",
+      "rule": "",
+      "text_new": "9.14.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.14.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段143",
+      "old_locator": "第九章 技术规范与验收要求 9.14 网络系统技术要求",
+      "rule": "",
+      "text_new": "9.14.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.14.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段145",
+      "old_locator": "第九章 技术规范与验收要求 9.15 综合布线系统技术要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.15综合布线系统技术要求",
+      "text_old": "第九章技术规范与验收要求9.15综合布线系统技术要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段146",
+      "old_locator": "第九章 技术规范与验收要求 9.15 综合布线系统技术要求",
+      "rule": "",
+      "text_new": "9.15.1本节规定综合布线系统技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.15.1本节规定综合布线系统技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段147",
+      "old_locator": "第九章 技术规范与验收要求 9.15 综合布线系统技术要求",
+      "rule": "",
+      "text_new": "9.15.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.15.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段148",
+      "old_locator": "第九章 技术规范与验收要求 9.15 综合布线系统技术要求",
+      "rule": "",
+      "text_new": "9.15.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.15.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段150",
+      "old_locator": "第九章 技术规范与验收要求 9.16 视频监控系统技术要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.16视频监控系统技术要求",
+      "text_old": "第九章技术规范与验收要求9.16视频监控系统技术要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段151",
+      "old_locator": "第九章 技术规范与验收要求 9.16 视频监控系统技术要求",
+      "rule": "",
+      "text_new": "9.16.1本节规定视频监控系统技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.16.1本节规定视频监控系统技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段152",
+      "old_locator": "第九章 技术规范与验收要求 9.16 视频监控系统技术要求",
+      "rule": "",
+      "text_new": "9.16.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.16.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段153",
+      "old_locator": "第九章 技术规范与验收要求 9.16 视频监控系统技术要求",
+      "rule": "",
+      "text_new": "9.16.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.16.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段155",
+      "old_locator": "第九章 技术规范与验收要求 9.17 门禁与入侵报警技术要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.17门禁与入侵报警技术要求",
+      "text_old": "第九章技术规范与验收要求9.17门禁与入侵报警技术要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段156",
+      "old_locator": "第九章 技术规范与验收要求 9.17 门禁与入侵报警技术要求",
+      "rule": "",
+      "text_new": "9.17.1本节规定门禁与入侵报警技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.17.1本节规定门禁与入侵报警技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段157",
+      "old_locator": "第九章 技术规范与验收要求 9.17 门禁与入侵报警技术要求",
+      "rule": "",
+      "text_new": "9.17.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.17.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段158",
+      "old_locator": "第九章 技术规范与验收要求 9.17 门禁与入侵报警技术要求",
+      "rule": "",
+      "text_new": "9.17.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.17.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段160",
+      "old_locator": "第九章 技术规范与验收要求 9.18 机房工程与 UPS 供电技术要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.18机房工程与UPS供电技术要求",
+      "text_old": "第九章技术规范与验收要求9.18机房工程与UPS供电技术要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段161",
+      "old_locator": "第九章 技术规范与验收要求 9.18 机房工程与 UPS 供电技术要求",
+      "rule": "",
+      "text_new": "9.18.1本节规定机房工程与UPS供电技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.18.1本节规定机房工程与UPS供电技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段162",
+      "old_locator": "第九章 技术规范与验收要求 9.18 机房工程与 UPS 供电技术要求",
+      "rule": "",
+      "text_new": "9.18.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.18.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段163",
+      "old_locator": "第九章 技术规范与验收要求 9.18 机房工程与 UPS 供电技术要求",
+      "rule": "",
+      "text_new": "9.18.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.18.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段165",
+      "old_locator": "第九章 技术规范与验收要求 9.19 会议系统技术要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.19会议系统技术要求",
+      "text_old": "第九章技术规范与验收要求9.19会议系统技术要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段166",
+      "old_locator": "第九章 技术规范与验收要求 9.19 会议系统技术要求",
+      "rule": "",
+      "text_new": "9.19.1本节规定会议系统技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.19.1本节规定会议系统技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段167",
+      "old_locator": "第九章 技术规范与验收要求 9.19 会议系统技术要求",
+      "rule": "",
+      "text_new": "9.19.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.19.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段168",
+      "old_locator": "第九章 技术规范与验收要求 9.19 会议系统技术要求",
+      "rule": "",
+      "text_new": "9.19.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.19.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段170",
+      "old_locator": "第九章 技术规范与验收要求 9.20 集成管理平台技术要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.20集成管理平台技术要求",
+      "text_old": "第九章技术规范与验收要求9.20集成管理平台技术要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段171",
+      "old_locator": "第九章 技术规范与验收要求 9.20 集成管理平台技术要求",
+      "rule": "",
+      "text_new": "9.20.1本节规定集成管理平台技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.20.1本节规定集成管理平台技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段172",
+      "old_locator": "第九章 技术规范与验收要求 9.20 集成管理平台技术要求",
+      "rule": "",
+      "text_new": "9.20.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.20.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段173",
+      "old_locator": "第九章 技术规范与验收要求 9.20 集成管理平台技术要求",
+      "rule": "",
+      "text_new": "9.20.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.20.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段175",
+      "old_locator": "第九章 技术规范与验收要求 9.21 信息发布系统技术要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.21信息发布系统技术要求",
+      "text_old": "第九章技术规范与验收要求9.21信息发布系统技术要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段176",
+      "old_locator": "第九章 技术规范与验收要求 9.21 信息发布系统技术要求",
+      "rule": "",
+      "text_new": "9.21.1本节规定信息发布系统技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.21.1本节规定信息发布系统技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段177",
+      "old_locator": "第九章 技术规范与验收要求 9.21 信息发布系统技术要求",
+      "rule": "",
+      "text_new": "9.21.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.21.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段178",
+      "old_locator": "第九章 技术规范与验收要求 9.21 信息发布系统技术要求",
+      "rule": "",
+      "text_new": "9.21.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.21.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段180",
+      "old_locator": "第九章 技术规范与验收要求 9.22 运维与网络安全技术要求",
+      "rule": "",
+      "text_new": "第九章技术规范与验收要求9.22运维与网络安全技术要求",
+      "text_old": "第九章技术规范与验收要求9.22运维与网络安全技术要求",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段181",
+      "old_locator": "第九章 技术规范与验收要求 9.22 运维与网络安全技术要求",
+      "rule": "",
+      "text_new": "9.22.1本节规定运维与网络安全技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "text_old": "9.22.1本节规定运维与网络安全技术要求的总体技术要求。承包人应确保所供货物与服务符合国家现行标准、行业标准及本招标文件技术需求的规定；标准之间不一致时按较高标准执行。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段182",
+      "old_locator": "第九章 技术规范与验收要求 9.22 运维与网络安全技术要求",
+      "rule": "",
+      "text_new": "9.22.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "text_old": "9.22.2承包人应在投标文件中对本节要求逐条应答，明确响应程度（满足/部分满足/偏离），并对偏离项说明原因及替代方案；未应答的条款按不利于投标人处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段183",
+      "old_locator": "第九章 技术规范与验收要求 9.22 运维与网络安全技术要求",
+      "rule": "",
+      "text_new": "9.22.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "text_old": "9.22.3本节所有技术参数均以货物到货验收时的实测值为准；实测不达标的，采购人有权要求退换货并按合同违约条款处理，由此产生的费用由承包人承担。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段7",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段10",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段42",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段49",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段58",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段63",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段69",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段74",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段79",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段84",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段89",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段94",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段99",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段104",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段109",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段114",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段119",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段124",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段129",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段134",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段139",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段144",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段149",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段154",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段159",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段164",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段169",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段174",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段179",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段184",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    }
+  ],
+  "new_blocks": 212,
+  "new_status": "ok",
+  "old_blocks": 182,
+  "old_status": "ok",
+  "verdict_counts": {
+    "EQUIVALENT": 182,
+    "EXPECTED_DIFF": 30
+  }
+}

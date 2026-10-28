@@ -373,6 +373,31 @@ def gen_queries(queries_dir: Path):
 
 
 # ---------------------------------------------------------------- manifest
+def gen_engine_borrowed(out: Path) -> dict:
+    """TR2 借鉴夹具面（PR #15 引入）：从仓内 fixtures/engine-borrowed/TR2/ 复制到输出根。
+
+    这些是 mdcore 引擎仓借鉴二进制（word-complex / word-merged / excel-complex +
+    gen-log + PROVENANCE 溯源），非生成器产物——确定性语义 = 字节级复制（sha256 恒定）。
+    T6 重生成比对依赖本画（复制到 --out 临时目录后由 gen_manifest 收录，与仓内
+    manifest 双向一致）；T3a 反向校验由此消除「游离文件未入清单」。
+    """
+    src_root = REPO / "fixtures" / "engine-borrowed"
+    if not src_root.exists():
+        return {"files": 0}
+    copied = 0
+    for p in sorted(src_root.rglob("*")):
+        if not p.is_file():
+            continue
+        dst = out / "engine-borrowed" / p.relative_to(src_root)
+        if dst.resolve() == p.resolve():
+            copied += 1  # 默认输出 = 仓内 fixtures 本身，原地即目标
+            continue
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(p, dst)
+        copied += 1
+    return {"files": copied}
+
+
 def gen_manifest(fixtures_root: Path, stats: dict):
     """覆盖整个 fixtures 根（corpus-A + queries + corpus-R），路径相对 fixtures/。"""
     files = []
@@ -441,6 +466,7 @@ def main():
     stats["transitions"] = gen_transitions(corpus)
     stats["queries"] = gen_queries(out / "queries")
     stats["corpus_r"] = v1_corpus_r.gen_corpus_r(out / "corpus-R")
+    stats["engine_borrowed"] = gen_engine_borrowed(out)
     manifest = gen_manifest(out, stats)
 
     print(json.dumps({

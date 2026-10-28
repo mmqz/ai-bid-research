@@ -1,0 +1,53 @@
+{
+  "aligned_pairs": 4,
+  "file": "fixtures/corpus-R/D6-revisions/R6d-带批注澄清.docx",
+  "items": [
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段1",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "示例项目澄清文件（第4次·批注面）",
+      "text_old": "示例项目澄清文件（第4次·批注面）",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段2",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "澄清一：类似业绩认定年限以合同签订时间为准。",
+      "text_old": "澄清一：类似业绩认定年限以合同签订时间为准。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段3",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "澄清二：开标地点为示例大厦三层第二开标室。",
+      "text_old": "澄清二：开标地点为示例大厦三层第二开标室。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段4",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "澄清三：本澄清文件与招标文件具有同等效力。",
+      "text_old": "澄清三：本澄清文件与招标文件具有同等效力。",
+      "verdict": "EQUIVALENT"
+    }
+  ],
+  "new_blocks": 4,
+  "new_status": "ok",
+  "old_blocks": 4,
+  "old_status": "ok",
+  "verdict_counts": {
+    "EQUIVALENT": 4
+  }
+}

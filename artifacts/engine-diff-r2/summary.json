@@ -1,0 +1,164 @@
+[
+  {
+    "file": "real-corpus/telecom/parse-input/A-telecom-huaian-主文件.docx",
+    "new_blocks": 1559,
+    "old_blocks": 1364,
+    "verdict_counts": {
+      "ENGINE_MISSING": 84,
+      "EQUIVALENT": 1106,
+      "EXPECTED_DIFF": 316,
+      "OLD_BUG": 170,
+      "UNCLASSIFIED": 1
+    }
+  },
+  {
+    "file": "real-corpus/telecom/parse-input/A-telecom-shanghai-songjiang-光终端放装-招标文件.docx",
+    "new_blocks": 2621,
+    "old_blocks": 2269,
+    "verdict_counts": {
+      "ENGINE_MISSING": 153,
+      "EQUIVALENT": 1986,
+      "EXPECTED_DIFF": 526,
+      "OLD_BUG": 123,
+      "UNCLASSIFIED": 5
+    }
+  },
+  {
+    "file": "real-corpus/telecom/parse-input/A-telecom-shanxi-灵枢智关-招标正文.docx",
+    "new_blocks": 2576,
+    "old_blocks": 2226,
+    "verdict_counts": {
+      "ENGINE_MISSING": 110,
+      "EQUIVALENT": 1889,
+      "EXPECTED_DIFF": 482,
+      "OLD_BUG": 223,
+      "UNCLASSIFIED": 1
+    }
+  },
+  {
+    "file": "real-corpus/telecom/parse-input/A-unicom-ry-2026CUC-RJY-PT0783-招标文件.docx",
+    "new_blocks": 1207,
+    "old_blocks": 1087,
+    "verdict_counts": {
+      "ENGINE_MISSING": 1,
+      "EQUIVALENT": 984,
+      "EXPECTED_DIFF": 317,
+      "OLD_BUG": 8
+    }
+  },
+  {
+    "file": "fixtures/corpus-A/files/A-招标文件.docx",
+    "new_blocks": 212,
+    "old_blocks": 182,
+    "verdict_counts": {
+      "EQUIVALENT": 182,
+      "EXPECTED_DIFF": 30
+    }
+  },
+  {
+    "file": "real-corpus/telecom/parse-input/B-telecom-huaian-合同.docx",
+    "new_blocks": 747,
+    "old_blocks": 696,
+    "verdict_counts": {
+      "EQUIVALENT": 696,
+      "EXPECTED_DIFF": 51
+    }
+  },
+  {
+    "file": "real-corpus/telecom/parse-input/B-telecom-huaian-技术规范书.docx",
+    "new_blocks": 183,
+    "old_blocks": 174,
+    "verdict_counts": {
+      "EQUIVALENT": 174,
+      "EXPECTED_DIFF": 9
+    }
+  },
+  {
+    "file": "real-corpus/telecom/parse-input/B-unicom-ry-技术规范书.docx",
+    "new_blocks": 394,
+    "old_blocks": 370,
+    "verdict_counts": {
+      "EQUIVALENT": 322,
+      "EXPECTED_DIFF": 70,
+      "OLD_BUG": 48
+    }
+  },
+  {
+    "file": "fixtures/corpus-A/files/C-补遗文件01.docx",
+    "new_blocks": 11,
+    "old_blocks": 11,
+    "verdict_counts": {
+      "EQUIVALENT": 11
+    }
+  },
+  {
+    "file": "fixtures/corpus-R/D1-tables/D1a-合并表头跨页表.docx",
+    "new_blocks": 23,
+    "old_blocks": 23,
+    "verdict_counts": {
+      "EQUIVALENT": 23
+    }
+  },
+  {
+    "file": "fixtures/corpus-R/D2-nonbody/D2a-非正文条款.docx",
+    "new_blocks": 10,
+    "old_blocks": 7,
+    "verdict_counts": {
+      "EQUIVALENT": 5,
+      "EXPECTED_DIFF": 4,
+      "OLD_BUG": 2
+    }
+  },
+  {
+    "file": "fixtures/corpus-R/D6-revisions/R6a-纯插入澄清.docx",
+    "new_blocks": 5,
+    "old_blocks": 5,
+    "verdict_counts": {
+      "EQUIVALENT": 5
+    }
+  },
+  {
+    "file": "fixtures/corpus-R/D6-revisions/R6b-纯删除澄清.docx",
+    "new_blocks": 4,
+    "old_blocks": 3,
+    "verdict_counts": {
+      "EQUIVALENT": 2,
+      "EXPECTED_DIFF": 1,
+      "OLD_BUG": 1
+    }
+  },
+  {
+    "file": "fixtures/corpus-R/D6-revisions/R6c-混合修订澄清.docx",
+    "new_blocks": 6,
+    "old_blocks": 5,
+    "verdict_counts": {
+      "EQUIVALENT": 5,
+      "EXPECTED_DIFF": 1
+    }
+  },
+  {
+    "file": "fixtures/corpus-R/D6-revisions/R6d-带批注澄清.docx",
+    "new_blocks": 4,
+    "old_blocks": 4,
+    "verdict_counts": {
+      "EQUIVALENT": 4
+    }
+  },
+  {
+    "file": "fixtures/corpus-R/D6-revisions/R6e-修订批注组合澄清.docx",
+    "new_blocks": 3,
+    "old_blocks": 3,
+    "verdict_counts": {
+      "EQUIVALENT": 2,
+      "OLD_BUG": 1
+    }
+  },
+  {
+    "file": "fixtures/corpus-A/defect-drafts/技术标草稿-缺陷样本.docx",
+    "new_blocks": 10,
+    "old_blocks": 10,
+    "verdict_counts": {
+      "EQUIVALENT": 10
+    }
+  }
+]

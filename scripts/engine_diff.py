@@ -23,10 +23,15 @@ canon = norm + 域指令码剥离：旧实现把 w:instrText（`PAGEREF _TocN \\
   OLD_BUG      旧实现缺陷（旧多出/新多出）——规则：D6-DEL-LEAK（契约 deleted_runs 段）、
                HOST-TRUNC（宿主段截断方向）、
                FIELD-CODE-LEAK（v2：旧侧域指令码泄漏——PAGEREF/HYPERLINK/TOC，含孤块与残留面）、
-               OLD-TABLE-MISS（v2：旧侧表格区拆散为散落 para，引擎整行 table_row）
+               OLD-TABLE-MISS（v2：旧侧表格区拆散为散落 para，引擎整行 table_row；
+                 v5 孤块对偶面：旧孤 para 空白不敏感包含于引擎整行）、
+               DUP-EMISSION（v5：旧孤 table_row 同 locator 多次发射余量——
+                 嵌套表区域的旧侧累积重复发射，基线变体已配对）
   EXPECTED_DIFF 已知预期差异——规则：A2（编号叠加 regex）；
                HF-NEWCAP（PR #15 review：新侧页眉/页脚 source 标注块——引擎新能力，
-               旧实现未读页眉页脚，非缺陷）
+                 旧实现未读页眉页脚，非缺陷）；
+               DUP-RESIDUE-WS（v5：旧孤 para 空白不敏感在册——同内容空白形态差异，
+                 引擎侧已有同文本，旧侧多重发射余量）
   UNCLASSIFIED 兜底——报告显式列出，B3 验收要求清零（人工裁决）。
                含 HF-MIXED-BODY（PR #15 review：正文流（source=body）出现页眉/页脚
                文本——引擎或适配层把页面装置混进内容流，bug 面要报，验收前清零）
@@ -41,12 +46,18 @@ D6 系文件自动加载同目录 expected-readback.json 契约（插入/删除�
 
 from __future__ import annotations
 
+import collections
 import json
 import re
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+
+# v5：空白不敏感键（孤块证据面专用——判定主链仍用 norm/canon 压一空格口径，
+# 本键只做「同内容不同空白形态」的在册反查，不参与 EQUIVALENT 判定）
+def _ws(t: str) -> str:
+    return re.sub(r"\s+", "", t or "")
 
 # ---------------------------------------------------------------- 归一
 _WS = re.compile(r"\s+")
@@ -237,6 +248,28 @@ def classify_pair(old_blk: dict, new_blk: dict | None, contract: dict,
             # v2：旧孤块携带域指令码（TOC 主指令整段泄漏等）——引擎已剥离，旧侧缺陷
             item.update(verdict="OLD_BUG",
                         rule="FIELD-CODE-LEAK（旧孤块域指令码——引擎 A2 族已剥离）")
+        elif (kind_o == "table_row"
+              and ctx.get("old_row_loc_counts", {}).get(old_blk.get("locator", ""), 0) > 1):
+            # v5：旧侧同 locator 重复发射余量——r3 实证（引擎 #39 修复嵌套表后
+            # 暴露）：huaian 表2行11 ×23 / shanghai 表2行3 ×30 / shanxi 表5行11
+            # ×24，旧侧嵌套表区域累积重复发射（单元格数递增 3→4→7→8→11…），
+            # 基线变体（与引擎一致的最短形态）已被配对消费，余量为旧侧多发。
+            # 非引擎缺口——引擎侧该行恰一次、内容完整。
+            item.update(verdict="OLD_BUG",
+                        rule="DUP-EMISSION（旧侧同 locator 重复发射余量——基线变体已配对）")
+        elif (kind_o == "para" and _ws(o_t) in ctx.get("new_ws_set", set())):
+            # v5：空白不敏感在册——同内容空白形态差异（r3 实证：日期签署行族
+            # 「___月_ __日」vs「___月___日」，表单下划线空格位漂移），引擎侧
+            # 已有同文本 → 旧侧多重发射余量，非缺口。
+            item.update(verdict="EXPECTED_DIFF",
+                        rule="DUP-RESIDUE-WS（同内容空白形态差异在册——旧侧多发余量）")
+        elif (kind_o == "para"
+              and any(_ws(o_t) in t for t in ctx.get("new_tbl_ws_texts", []) if t)):
+            # v5：OLD-TABLE-MISS 孤块对偶面——旧侧散落 para 空白不敏感包含于
+            # 引擎某整行 table_row（r3 实证：huaian 表1行52 整行聚合了旧侧
+            # 代理服务费条款段+算例段+合计段——引擎形态优于旧侧拆散）。
+            item.update(verdict="OLD_BUG",
+                        rule="OLD-TABLE-MISS（孤块对偶面：旧散落 para ⊂ 引擎整行 table_row）")
         elif kind_o == "table_row" or ctx.get("old_tbl_gap", 0) > 0:
             # v2.3：嵌套表格缺口——旧侧表数 > 引擎表数（实测 huaian 21>20 /
             #   shanghai 30>28 / shanxi 31>30，费率表 w:tbl@w:tc 内嵌、depth=2）；
@@ -368,8 +401,20 @@ def diff_file(old: dict, new: dict) -> dict:
                     for m in [re.search(r"表\d+", b.get("locator", ""))] if m}
     _new_tbl_ids = {b.get("locator", "").split()[0] for b in new_blocks
                     if b.get("locator", "").startswith("表")}
+    # v5：孤块三级证据面——①旧侧 table_row 同 locator 发射计数（DUP-EMISSION 锚：
+    #   嵌套表区域旧侧累积重复发射，基线变体已被配对消费）；②引擎侧空白不敏感
+    #   文本集（DUP-RESIDUE-WS 锚：同内容空白形态差异在册）；③引擎 table_row 的
+    #   空白不敏感文本列表（OLD-TABLE-MISS 孤块对偶面锚：旧散落 para ⊂ 引擎整行）。
+    #   （r3 重跑实证：引擎 #39 修复嵌套表后 old_tbl_gap ≤ 0，旧侧嵌套表区域的
+    #   重复发射/散落形态暴露为孤块——需真实归类而非笼统记引擎缺口）
+    _ws = lambda t: re.sub(r"\s+", "", t or "")
     ctx = {"old_tbl_gap": len(_old_tbl_ids) - len(_new_tbl_ids),
-           "old_has_codes": any(has_field_codes(b.get("text", "")) for b in old_blocks)}
+           "old_has_codes": any(has_field_codes(b.get("text", "")) for b in old_blocks),
+           "old_row_loc_counts": collections.Counter(
+               b.get("locator", "") for b in old_blocks if b.get("kind") == "table_row"),
+           "new_ws_set": {_ws(b.get("text", "")) for b in new_blocks},
+           "new_tbl_ws_texts": [_ws(b.get("text", "")) for b in new_blocks
+                                if b.get("kind") == "table_row"]}
     items = []
     for ob, nb in pairs:
         if nb is None:
@@ -612,6 +657,45 @@ def selftest() -> list[str]:
     if len(hit) != 1:
         failures.append(f"OLD_BUG(OLD-TABLE-MISS 对偶面): {r['verdict_counts']}")
 
+    # 14) v5 OLD_BUG / DUP-EMISSION（旧侧同 locator 重复发射余量：基线变体配对 +
+    #     同 locator 长文本孤儿；引擎侧一行恰一次——r3 嵌套表实证形态）
+    old = {**base_old, "file": "DUP-自测.docx",
+           "blocks": [blk(0, "table_row", "100亿以上 0.004% 0.004%", loc="第二章 表2 行11"),
+                       blk(1, "table_row", "100亿以上 0.004% 0.004% 0.004%", loc="第二章 表2 行11")]}
+    new = {"file": "DUP-自测.docx", "status": "ok",
+           "blocks": [blk(0, "table_row", "100亿以上 0.004% 0.004%", loc="表2 行11")]}
+    r = diff_file(old, new)
+    hit = [it for it in r["items"] if "DUP-EMISSION" in it.get("rule", "")]
+    if len(hit) != 1 or r["verdict_counts"].get("OLD_BUG") != 1:
+        failures.append(f"OLD_BUG(DUP-EMISSION): {r['verdict_counts']}")
+
+    # 15) v5 EXPECTED_DIFF / DUP-RESIDUE-WS（空白形态差异在册：旧「月_ __日」
+    #     vs 新「月___日」，norm 不等且近配对失败 → 孤儿路径；引擎在册非缺口。
+    #     结构同真实数据：旧侧多发一份（精确变体已配对 EQUIVALENT，空白变体成孤儿）
+    old = {**base_old, "file": "WS-自测.docx",
+           "blocks": [blk(0, "para", "日期：___年___月_ __日"),
+                       blk(1, "para", "日期：___年___月___日")]}
+    new = {"file": "WS-自测.docx", "status": "ok",
+           "blocks": [blk(0, "para", "日期：___年___月___日")]}
+    r = diff_file(old, new)
+    hit = [it for it in r["items"] if "DUP-RESIDUE-WS" in it.get("rule", "")]
+    if len(hit) != 1 or r["verdict_counts"].get("EXPECTED_DIFF") != 1 \
+            or r["verdict_counts"].get("EQUIVALENT") != 1:
+        failures.append(f"EXPECTED_DIFF(DUP-RESIDUE-WS): {r['verdict_counts']}")
+
+    # 16) v5 OLD_BUG / OLD-TABLE-MISS 孤块对偶面（旧孤 para 空白不敏感包含于引擎
+    #     整行中位：r3 实证 huaian 表1行52 聚合面。中位包含 → 近配对不成立 →
+    #     孤儿路径；新整行以 new-only 面另行计入 OLD-TABLE-MISS 族（两面同源，
+    #     与真实数据双重计数口径一致）
+    old = {**base_old, "file": "TDUAL-自测.docx",
+           "blocks": [blk(0, "para", "10 0万元×1.5%=1.5万元")]}
+    new = {"file": "TDUAL-自测.docx", "status": "ok",
+           "blocks": [blk(0, "table_row", "服务费说明：10 0万元×1.5%=1.5万元，按差额定率累进")]}
+    r = diff_file(old, new)
+    hit = [it for it in r["items"] if "孤块对偶面" in it.get("rule", "")]
+    if len(hit) != 1 or r["verdict_counts"].get("OLD_BUG") != 2:
+        failures.append(f"OLD_BUG(OLD-TABLE-MISS 孤块对偶面): {r['verdict_counts']}")
+
     return failures
 
 
@@ -628,7 +712,8 @@ def main() -> int:
         print("engine_diff 自测通过：EQUIVALENT/ENGINE_MISSING(D6-INS)/OLD_BUG(D6-DEL-LEAK)/"
               "EXPECTED_DIFF(A2+HF-NEWCAP)/UNCLASSIFIED(含 HF-MIXED-BODY) "
               "+ v2：CJK-SPACE/FIELD-CODE-LEAK(配对+孤块)/OLD-TABLE-MISS(kind冲突+聚合+对偶面)/"
-              "ASCII 假等价防御 十三例全命中")
+              "ASCII 假等价防御 "
+              "+ v5：DUP-EMISSION/DUP-RESIDUE-WS/OLD-TABLE-MISS孤块对偶 十六例全命中")
         return 0
 
     if "--pair-dir" in args:

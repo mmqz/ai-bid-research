@@ -1,0 +1,44 @@
+{
+  "aligned_pairs": 3,
+  "file": "fixtures/corpus-R/D6-revisions/R6e-修订批注组合澄清.docx",
+  "items": [
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段1",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "示例项目澄清文件（第5次·修订批注组合）",
+      "text_old": "示例项目澄清文件（第5次·修订批注组合）",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段3",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "澄清二：评分细则第2.2.2项业绩认定年限以合同签订时间为准",
+      "text_old": "澄清二：评分细则第2.2.2项业绩认定年限以合同签订时间为准",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段2",
+      "old_locator": "",
+      "rule": "D6-DEL-LEAK",
+      "text_new": "澄清一：更正后响应截止时间2026-11-27 09:30",
+      "text_old": "澄清一：原响应截止时间2026-11-20 09:30更正后响应截止时间2026-11-27 09:30",
+      "verdict": "OLD_BUG"
+    }
+  ],
+  "new_blocks": 3,
+  "new_status": "ok",
+  "old_blocks": 3,
+  "old_status": "ok",
+  "verdict_counts": {
+    "EQUIVALENT": 2,
+    "OLD_BUG": 1
+  }
+}

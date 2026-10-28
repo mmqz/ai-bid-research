@@ -1,0 +1,456 @@
+{
+  "blocks": 1462,
+  "bytes": 509642,
+  "category_hit": {
+    "by_category": {
+      "其他": 2,
+      "否决项": 4,
+      "评分项": 1
+    },
+    "hit_samples": [
+      {
+        "category": "否决项",
+        "clause_no": "3.5",
+        "excerpt": "3.5 未按上述规定操作引起的无效投标，由投标人自行负责。",
+        "id": "REQ-0062",
+        "words": [
+          "无效"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "（5）废标项目重新招标时，必须按修改后的招标文件重新缴纳",
+        "id": "REQ-0065",
+        "words": [
+          "废标"
+        ]
+      },
+      {
+        "category": "其他",
+        "clause_no": "3.4.2",
+        "excerpt": "3.4.2 投标人不按本章第 3.4.1 项要求提交投标保证金的，评标委员会将否决其投标。",
+        "id": "REQ-0130",
+        "words": [
+          "否决"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "1、投标人在生成电子化投标文件后，应对电子化投标文件进行签章，未进行签章的视为无效投标。",
+        "id": "REQ-0151",
+        "words": [
+          "无效"
+        ]
+      },
+      {
+        "category": "其他",
+        "clause_no": "4.2",
+        "excerpt": "4.2 投标文件的修改与撤回",
+        "id": "REQ-0156",
+        "words": [
+          "撤回"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "立书面合同。中标人无正当理由拒签合同的，招标人取消其中标资格，其投标保证金不予退还；给招标",
+        "id": "REQ-0171",
+        "words": [
+          "取消"
+        ]
+      },
+      {
+        "category": "评分项",
+        "clause_no": "3.1.2",
+        "excerpt": "3.1.2 投标人有以下情形之一的，评标委员会应当否决其投标：",
+        "id": "REQ-0215",
+        "words": [
+          "否决"
+        ]
+      }
+    ],
+    "lexicon_hit_reqs": 7,
+    "strong_phrase_not_veto": 0,
+    "strong_phrase_reqs": 4,
+    "strong_phrase_suspects": []
+  },
+  "chars": 33331,
+  "components_ledger": [],
+  "elapsed_extract_ms": 3,
+  "elapsed_parse_ms": 95,
+  "elapsed_total_ms": 98,
+  "engine_error": null,
+  "est_100page_ms": 175.0,
+  "file": "A-16_郏县老虎洞水库监理_招标文件.pdf",
+  "has_text_layer": true,
+  "legacy_probe": {
+    "blocks": 1410,
+    "chars": 33385,
+    "elapsed_ms": 102,
+    "note": "诊断探针：与生产路由（engine_pdf）同源文件对照；不参与吞吐主指标",
+    "reqs": 226,
+    "route": "legacy_pdftotext",
+    "veto_truth_blocks": 31
+  },
+  "locator_check": {
+    "checked": 22,
+    "fail_no_block": 0,
+    "fail_text_mismatch": 0,
+    "pass": 22,
+    "samples": [
+      {
+        "anchor_excerpt": "5.1、建设地点：郏县境内。",
+        "block_text": "5.1、建设地点：郏县境内。",
+        "category": "其他",
+        "locator": "第3页 行20",
+        "req_id": "REQ-0001",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "上资质，具有有效的安全生产许可证；",
+        "block_text": "上资质，具有有效的安全生产许可证；",
+        "category": "资格条件",
+        "locator": "第4页 行20",
+        "req_id": "REQ-0012",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "3.5 为贯彻落实《关于促进政府采购公平竞争优化营商环境的通知》（财库〔2019〕",
+        "block_text": "3.5 为贯彻落实《关于促进政府采购公平竞争优化营商环境的通知》（财库〔2019〕",
+        "category": "其他",
+        "locator": "第5页 行4",
+        "req_id": "REQ-0023",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "6.5 解密完成后，供应商可登录到交易系统查看自己的投标报价。如对自己的报价",
+        "block_text": "6.5 解密完成后，供应商可登录到交易系统查看自己的投标报价。如对自己的报价",
+        "category": "其他",
+        "locator": "第8页 行12",
+        "req_id": "REQ-0034",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "1.9.1 踏勘现场 不组织",
+        "block_text": "1.9.1 踏勘现场 不组织",
+        "category": "其他",
+        "locator": "第9页 行22",
+        "req_id": "REQ-0045",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "3.4.1 投标保证金",
+        "block_text": "3.4.1 投标保证金",
+        "category": "其他",
+        "locator": "第10页 行12",
+        "req_id": "REQ-0056",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "3.5.3",
+        "block_text": "3.5.3",
+        "category": "其他",
+        "locator": "第11页 行12",
+        "req_id": "REQ-0067",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "7.4.1 履约保证金 本项目不收取",
+        "block_text": "7.4.1 履约保证金 本项目不收取",
+        "category": "其他",
+        "locator": "第12页 行12",
+        "req_id": "REQ-0078",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "1.1.5 本招标项目实施地点：见投标人须知前附表。",
+        "block_text": "1.1.5 本招标项目实施地点：见投标人须知前附表。",
+        "category": "其他",
+        "locator": "第14页 行10",
+        "req_id": "REQ-0089",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "1.4.3 单位负责人为同一人或者存在控股、管理关系的不同单位，不得同时参加本招标项目投标。",
+        "block_text": "1.4.3 单位负责人为同一人或者存在控股、管理关系的不同单位，不得同时参加本招标项目投标。",
+        "category": "其他",
+        "locator": "第15页 行7",
+        "req_id": "REQ-0100",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "2.2 招标文件的澄清",
+        "block_text": "2.2 招标文件的澄清",
+        "category": "其他",
+        "locator": "第16页 行3",
+        "req_id": "REQ-0111",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "3.2.2 投标人在投标截止时间前修改投标函中的投标报价总额，应同时修改“投标函附录”中的相",
+        "block_text": "3.2.2 投标人在投标截止时间前修改投标函中的投标报价总额，应同时修改“投标函附录”中的相",
+        "category": "其他",
+        "locator": "第16页 行25",
+        "req_id": "REQ-0122",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "3.4.5 投标保证金有效期同投标有效期",
+        "block_text": "3.4.5 投标保证金有效期同投标有效期",
+        "category": "资格条件",
+        "locator": "第17页 行15",
+        "req_id": "REQ-0133",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "3.6 投标文件的编制",
+        "block_text": "3.6 投标文件的编制",
+        "category": "其他",
+        "locator": "第18页 行6",
+        "req_id": "REQ-0144",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "4.1.2 投标人所上传的电子化投标文件，应是通过中心投标文件制作系统制作的，经过签章和加密后",
+        "block_text": "4.1.2 投标人所上传的电子化投标文件，应是通过中心投标文件制作系统制作的，经过签章和加密后",
+        "category": "其他",
+        "locator": "第19页 行11",
+        "req_id": "REQ-0155",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "7.3 中标通知",
+        "block_text": "7.3 中标通知",
+        "category": "其他",
+        "locator": "第21页 行5",
+        "req_id": "REQ-0166",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "8.5 投诉",
+        "block_text": "8.5 投诉",
+        "category": "其他",
+        "locator": "第22页 行4",
+        "req_id": "REQ-0177",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "投标人投标报价在最高投标限价的 95%-100%之间（含",
+        "block_text": "投标人投标报价在最高投标限价的 95%-100%之间（含",
+        "category": "评分项",
+        "locator": "第23页 行42",
+        "req_id": "REQ-0188",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "企业实力（10 分）",
+        "block_text": "企业实力（10 分）",
+        "category": "资格条件",
+        "locator": "第25页 行15",
+        "req_id": "REQ-0199",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "评标基准价计算方法：见评标办法前附表。",
+        "block_text": "评标基准价计算方法：见评标办法前附表。",
+        "category": "评分项",
+        "locator": "第26页 行15",
+        "req_id": "REQ-0210",
+        "verdict": "pass"
+      }
+    ]
+  },
+  "ms_per_page": 1.75,
+  "ocr_blocks": 0,
+  "pages": 56,
+  "parse_summary": "engine-pdf @ 2d0144456162389cccdfadfbed22b9e7c30d697d｜文本层: 56 页 1462 行块（pdfium）",
+  "requirements": {
+    "by_category": {
+      "其他": 152,
+      "否决项": 7,
+      "评分项": 43,
+      "资格条件": 30
+    },
+    "per_1000_chars": 6.9605,
+    "total": 232,
+    "with_clause_no": 194
+  },
+  "route": "engine_pdf(94ms)",
+  "schema": "bid-health-check/1",
+  "sha256": "6b5ae227b04fcfe4f1328e54080aa083080e4815caf057cfbc6dcab9486e7a16",
+  "status": "ok",
+  "tables": 0,
+  "veto": {
+    "covered_blocks": 7,
+    "missed_samples": [
+      {
+        "block_idx": 100,
+        "kind": "PdfLine",
+        "locator": "第5页 行15",
+        "text": "（6）未被列入失信被执行人、重大税收违法失信主体、政府采购严重违法失信行为记",
+        "words": [
+          "列入"
+        ]
+      },
+      {
+        "block_idx": 237,
+        "kind": "PdfLine",
+        "locator": "第10页 行8",
+        "text": "投标人在投标截止时间前可撤回已提交至电子投标系统的投标",
+        "words": [
+          "撤回"
+        ]
+      },
+      {
+        "block_idx": 267,
+        "kind": "PdfLine",
+        "locator": "第10页 行38",
+        "text": "（2）投标人少交保证金属于无效缴纳。",
+        "words": [
+          "无效"
+        ]
+      },
+      {
+        "block_idx": 269,
+        "kind": "PdfLine",
+        "locator": "第10页 行40",
+        "text": "除外（超时到账视同未交保证金，取消报名资格）。",
+        "words": [
+          "取消"
+        ]
+      },
+      {
+        "block_idx": 412,
+        "kind": "PdfLine",
+        "locator": "第15页 行4",
+        "text": "（8）被暂停或取消投标资格的；",
+        "words": [
+          "取消"
+        ]
+      },
+      {
+        "block_idx": 476,
+        "kind": "PdfLine",
+        "locator": "第17页 行4",
+        "text": "标人拒绝延长的，其投标失效，但投标人有权收回其投标保证金。",
+        "words": [
+          "拒绝",
+          "失效"
+        ]
+      },
+      {
+        "block_idx": 555,
+        "kind": "PdfLine",
+        "locator": "第19页 行20",
+        "text": "在本章“投标人须知前附表”第 2.2.2 项规定的投标截止时间前，投标人可以修改或撤回已递交的",
+        "words": [
+          "撤回"
+        ]
+      },
+      {
+        "block_idx": 811,
+        "kind": "PdfLine",
+        "locator": "第26页 行26",
+        "text": "的，评标委员会应当否决其投标。",
+        "words": [
+          "否决"
+        ]
+      },
+      {
+        "block_idx": 819,
+        "kind": "PdfLine",
+        "locator": "第27页 行6",
+        "text": "并要求投标人书面澄清确认。投标人拒不澄清确认的，评标委员会应当否决其投标：",
+        "words": [
+          "否决"
+        ]
+      },
+      {
+        "block_idx": 826,
+        "kind": "PdfLine",
+        "locator": "第27页 行13",
+        "text": "明材料的，评标委员会应当认定该投标人以低于成本报价竞标，并否决其投标。",
+        "words": [
+          "否决"
+        ]
+      },
+      {
+        "block_idx": 1019,
+        "kind": "PdfLine",
+        "locator": "第33页 行27",
+        "text": "第十七条、第十九条约定的义务和责任，除按专用合同条款约定向监理人支付违约金外，还应继续履行",
+        "words": [
+          "违约金"
+        ]
+      },
+      {
+        "block_idx": 1022,
+        "kind": "PdfLine",
+        "locator": "第33页 行30",
+        "text": "除按专用合同条款约定向监理人支付逾期付款违约金外，还应继续履行合同约定的支付义务。",
+        "words": [
+          "违约金"
+        ]
+      },
+      {
+        "block_idx": 1025,
+        "kind": "PdfLine",
+        "locator": "第33页 行33",
+        "text": "委托人支付违约金外，还应继续履行合同约定的义务和责任。",
+        "words": [
+          "违约金"
+        ]
+      },
+      {
+        "block_idx": 1073,
+        "kind": "PdfLine",
+        "locator": "第35页 行24",
+        "text": "第四十条 委托人违约，应支付给监理人违约金或赔偿经济损失，计算办法：",
+        "words": [
+          "违约金"
+        ]
+      },
+      {
+        "block_idx": 1074,
+        "kind": "PdfLine",
+        "locator": "第35页 行25",
+        "text": "一、违约金：与监理人实际损失数额相同，但总数不超过监理合同额的 10%。",
+        "words": [
+          "违约金"
+        ]
+      }
+    ],
+    "per_word_covered_blocks": {
+      "取消": 1,
+      "否决": 2,
+      "废标": 1,
+      "撤回": 1,
+      "无效": 2
+    },
+    "per_word_extracted_reqs": {
+      "取消": 1,
+      "否决": 2,
+      "废标": 1,
+      "撤回": 1,
+      "无效": 2
+    },
+    "per_word_truth": {
+      "列入": 1,
+      "取消": 3,
+      "否决": 5,
+      "失效": 1,
+      "实质性响应": 1,
+      "废标": 1,
+      "拒绝": 1,
+      "撤回": 4,
+      "无效": 4,
+      "违约金": 11
+    },
+    "recall": 0.2258,
+    "truth_blocks": 31
+  },
+  "wall_ms_incl_unwind": 206
+}

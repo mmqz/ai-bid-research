@@ -1,0 +1,544 @@
+{
+  "blocks": 3402,
+  "bytes": 894945,
+  "category_hit": {
+    "by_category": {
+      "其他": 13,
+      "否决项": 10,
+      "资格条件": 1
+    },
+    "hit_samples": [
+      {
+        "category": "资格条件",
+        "clause_no": "3.3",
+        "excerpt": "3.3 本次招标实行资格后审，资格审查的具体要求见招标文件。资格后审不合格的投标人投标",
+        "id": "REQ-0006",
+        "words": [
+          "不合格"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "文件将按废标处理。",
+        "id": "REQ-0007",
+        "words": [
+          "废标"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "标；在中标公示期的，取消其中标候选人资格，且将该投标单位不良行",
+        "id": "REQ-0049",
+        "words": [
+          "取消"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "场监督人员验明身份，总监理工程师未到场的一律作废标处理。",
+        "id": "REQ-0070",
+        "words": [
+          "废标",
+          "作废"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "⑽ 已确认属于有关法规规定为无效投标的其他情形。",
+        "id": "REQ-0073",
+        "words": [
+          "无效"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "⑵ 经评标委员会评审后否决所有投标的；",
+        "id": "REQ-0077",
+        "words": [
+          "否决"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "⑶ 评标委员会否决不合格投标或者界定为废标后因有效投标不足 3",
+        "id": "REQ-0078",
+        "words": [
+          "否决",
+          "不合格",
+          "废标"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "行为一经查出，按废标处理，且不得退还保证金。",
+        "id": "REQ-0081",
+        "words": [
+          "废标"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "应，否则，投标人的投标将被否决。实质性要求和条件见投标人须知前附表。",
+        "id": "REQ-0120",
+        "words": [
+          "否决"
+        ]
+      },
+      {
+        "category": "其他",
+        "clause_no": "2.2.4",
+        "excerpt": "2.2.4 除非招标人认为确有必要答复，否则，招标人有权拒绝回复投标人在本章第 2.2.1 项",
+        "id": "REQ-0128",
+        "words": [
+          "拒绝"
+        ]
+      },
+      {
+        "category": "其他",
+        "clause_no": "3.4.2",
+        "excerpt": "3.4.2 投标人不按本章第 3.4.1 项要求提交投标保证金的，评标委员会将否决其投标。",
+        "id": "REQ-0151",
+        "words": [
+          "否决"
+        ]
+      },
+      {
+        "category": "其他",
+        "clause_no": "4.1.3",
+        "excerpt": "4.1.3 未按本章第 4.1.1 项要求密封的投标文件，招标人将予以拒收。",
+        "id": "REQ-0181",
+        "words": [
+          "拒收"
+        ]
+      },
+      {
+        "category": "其他",
+        "clause_no": "4.2.5",
+        "excerpt": "4.2.5（A） 逾期送达的投标文件，招标人将予以拒收。",
+        "id": "REQ-0189",
+        "words": [
+          "拒收"
+        ]
+      },
+      {
+        "category": "其他",
+        "clause_no": "4.2.5",
+        "excerpt": "4.2.5（B） 逾期送达的投标文件，电子招标投标交易平台将予以拒收。",
+        "id": "REQ-0190",
+        "words": [
+          "拒收"
+        ]
+      },
+      {
+        "category": "其他",
+        "clause_no": "4.3",
+        "excerpt": "4.3 投标文件的修改与撤回",
+        "id": "REQ-0191",
+        "words": [
+          "撤回"
+        ]
+      }
+    ],
+    "lexicon_hit_reqs": 24,
+    "strong_phrase_not_veto": 0,
+    "strong_phrase_reqs": 10,
+    "strong_phrase_suspects": []
+  },
+  "chars": 87755,
+  "components_ledger": [],
+  "elapsed_extract_ms": 4,
+  "elapsed_parse_ms": 177,
+  "elapsed_total_ms": 181,
+  "engine_error": null,
+  "est_100page_ms": 153.39,
+  "file": "A-18_塔里木河希尼尔水库监理I标二次_招标文件.pdf",
+  "has_text_layer": true,
+  "legacy_probe": {
+    "blocks": 3291,
+    "chars": 88050,
+    "elapsed_ms": 606,
+    "note": "诊断探针：与生产路由（engine_pdf）同源文件对照；不参与吞吐主指标",
+    "reqs": 542,
+    "route": "legacy_pdftotext",
+    "veto_truth_blocks": 68
+  },
+  "locator_check": {
+    "checked": 21,
+    "fail_no_block": 0,
+    "fail_text_mismatch": 0,
+    "pass": 21,
+    "samples": [
+      {
+        "anchor_excerpt": "2.1 项目概况",
+        "block_text": "2.1 项目概况",
+        "category": "其他",
+        "locator": "第9页 行12",
+        "req_id": "REQ-0001",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "1.10.3 招标文件澄清",
+        "block_text": "1.10.3 招标文件澄清",
+        "category": "其他",
+        "locator": "第12页 行36",
+        "req_id": "REQ-0028",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "4.1.2 封套上应载明",
+        "block_text": "4.1.2 封套上应载明",
+        "category": "其他",
+        "locator": "第15页 行24",
+        "req_id": "REQ-0055",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "1.1 招标项目概况",
+        "block_text": "1.1 招标项目概况",
+        "category": "其他",
+        "locator": "第20页 行4",
+        "req_id": "REQ-0082",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "1.9.1 投标人须知前附表规定组织踏勘现场的，招标人按投标人须知前附表规定的时间、",
+        "block_text": "1.9.1 投标人须知前附表规定组织踏勘现场的，招标人按投标人须知前附表规定的时间、",
+        "category": "其他",
+        "locator": "第22页 行4",
+        "req_id": "REQ-0109",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "⑹ 资格审查资料；",
+        "block_text": "⑹ 资格审查资料；",
+        "category": "资格条件",
+        "locator": "第23页 行33",
+        "req_id": "REQ-0136",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "3.5.3 “近年完成的类似监理项目情况表”应附中标通知书和（或）合同协议书、委托人出",
+        "block_text": "3.5.3 “近年完成的类似监理项目情况表”应附中标通知书和（或）合同协议书、委托人出",
+        "category": "其他",
+        "locator": "第25页 行18",
+        "req_id": "REQ-0163",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "4.2.5（B） 逾期送达的投标文件，电子招标投标交易平台将予以拒收。",
+        "block_text": "4.2.5（B） 逾期送达的投标文件，电子招标投标交易平台将予以拒收。",
+        "category": "其他",
+        "locator": "第27页 行10",
+        "req_id": "REQ-0190",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "7.7 签订合同",
+        "block_text": "7.7 签订合同",
+        "category": "其他",
+        "locator": "第29页 行25",
+        "req_id": "REQ-0217",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "1.5分（保留一位小数，下同）；",
+        "block_text": "1.5分（保留一位小数，下同）；",
+        "category": "其他",
+        "locator": "第41页 行10",
+        "req_id": "REQ-0244",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "4.8",
+        "block_text": "4.8",
+        "category": "其他",
+        "locator": "第46页 行5",
+        "req_id": "REQ-0271",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "1.1.1 合同",
+        "block_text": "1.1.1 合同",
+        "category": "其他",
+        "locator": "第51页 行8",
+        "req_id": "REQ-0298",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "1.1.4.6 天：除特别指明外，指日历天。合同中按天计算时间的，开始当天不计入，从次",
+        "block_text": "1.1.4.6 天：除特别指明外，指日历天。合同中按天计算时间的，开始当天不计入，从次",
+        "category": "其他",
+        "locator": "第52页 行14",
+        "req_id": "REQ-0325",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "1.12.1 监理人应认真阅读、复核委托人要求，发现错误的，应及时书面通知委托人。无论",
+        "block_text": "1.12.1 监理人应认真阅读、复核委托人要求，发现错误的，应及时书面通知委托人。无论",
+        "category": "其他",
+        "locator": "第54页 行10",
+        "req_id": "REQ-0352",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "4.3 联合体",
+        "block_text": "4.3 联合体",
+        "category": "其他",
+        "locator": "第56页 行9",
+        "req_id": "REQ-0379",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "5.4 监理文件要求",
+        "block_text": "5.4 监理文件要求",
+        "category": "其他",
+        "locator": "第58页 行26",
+        "req_id": "REQ-0406",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "9.1.2 除专用合同条款另有约定外，合同价格应当包括收集资料、踏勘现场、制订纲要、",
+        "block_text": "9.1.2 除专用合同条款另有约定外，合同价格应当包括收集资料、踏勘现场、制订纲要、",
+        "category": "其他",
+        "locator": "第60页 行22",
+        "req_id": "REQ-0433",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "11.2 委托人违约",
+        "block_text": "11.2 委托人违约",
+        "category": "其他",
+        "locator": "第62页 行9",
+        "req_id": "REQ-0460",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "1.19 监理人信息管理必须符合以下要求：",
+        "block_text": "1.19 监理人信息管理必须符合以下要求：",
+        "category": "其他",
+        "locator": "第75页 行34",
+        "req_id": "REQ-0487",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "8.1.1 监理服务期限和监理报酬的调整方法同本专用合同条款第 6.2 款的而规定。",
+        "block_text": "8.1.1 监理服务期限和监理报酬的调整方法同本专用合同条款第 6.2 款的而规定。",
+        "category": "其他",
+        "locator": "第83页 行3",
+        "req_id": "REQ-0514",
+        "verdict": "pass"
+      }
+    ]
+  },
+  "ms_per_page": 1.53,
+  "ocr_blocks": 0,
+  "pages": 118,
+  "parse_summary": "engine-pdf @ 2d0144456162389cccdfadfbed22b9e7c30d697d｜文本层: 118 页 3402 行块（pdfium）",
+  "requirements": {
+    "by_category": {
+      "其他": 478,
+      "否决项": 14,
+      "评分项": 11,
+      "资格条件": 39
+    },
+    "per_1000_chars": 6.1763,
+    "total": 542,
+    "with_clause_no": 487
+  },
+  "route": "engine_pdf(176ms)",
+  "schema": "bid-health-check/1",
+  "sha256": "b3ca90637bc7d6a2323181b35679f4b745d57cb2a59ae24bfec56d5e34736144",
+  "status": "ok",
+  "tables": 0,
+  "veto": {
+    "covered_blocks": 27,
+    "missed_samples": [
+      {
+        "block_idx": 52,
+        "kind": "PdfLine",
+        "locator": "第4页 行12",
+        "text": "4.3 投标文件的修改与撤回..............................................................................................21",
+        "words": [
+          "撤回"
+        ]
+      },
+      {
+        "block_idx": 336,
+        "kind": "PdfLine",
+        "locator": "第13页 行37",
+        "text": "标人发布的最高投标限价为无效报价，投标人投标文件无效，不再评审。",
+        "words": [
+          "无效"
+        ]
+      },
+      {
+        "block_idx": 340,
+        "kind": "PdfLine",
+        "locator": "第13页 行41",
+        "text": "户转出且已交存的有效凭证；未提交有效凭证的，招标人拒收投标文件。",
+        "words": [
+          "拒收"
+        ]
+      },
+      {
+        "block_idx": 381,
+        "kind": "PdfLine",
+        "locator": "第14页 行20",
+        "text": "性的，需另行提供相关的业主证明文件，否则该业绩无效。",
+        "words": [
+          "无效"
+        ]
+      },
+      {
+        "block_idx": 393,
+        "kind": "PdfLine",
+        "locator": "第14页 行32",
+        "text": "三、投标单位存在提供虚假业绩或证明文件的，否决相关投标单位投",
+        "words": [
+          "否决"
+        ]
+      },
+      {
+        "block_idx": 397,
+        "kind": "PdfLine",
+        "locator": "第14页 行36",
+        "text": "情况属实被取消中标资格的，不能作为其业绩。投标单位如隐瞒相关事",
+        "words": [
+          "取消"
+        ]
+      },
+      {
+        "block_idx": 579,
+        "kind": "PdfLine",
+        "locator": "第18页 行14",
+        "text": "缺少任何一种证件原件及复印件其投标文件将被拒绝。",
+        "words": [
+          "拒绝"
+        ]
+      },
+      {
+        "block_idx": 610,
+        "kind": "PdfLine",
+        "locator": "第19页 行11",
+        "text": "个使得投标明显缺乏竞争，评标委员会决定否决全部投标的；",
+        "words": [
+          "否决"
+        ]
+      },
+      {
+        "block_idx": 668,
+        "kind": "PdfLine",
+        "locator": "第21页 行5",
+        "text": "关投标均无效。",
+        "words": [
+          "无效"
+        ]
+      },
+      {
+        "block_idx": 680,
+        "kind": "PdfLine",
+        "locator": "第21页 行17",
+        "text": "⑽ 被依法暂停或者取消投标资格；",
+        "words": [
+          "取消"
+        ]
+      },
+      {
+        "block_idx": 685,
+        "kind": "PdfLine",
+        "locator": "第21页 行22",
+        "text": "⒁ 被工商行政管理机关在全国企业信用信息公示系统中列入严重违法失信企业名单；",
+        "words": [
+          "列入"
+        ]
+      },
+      {
+        "block_idx": 687,
+        "kind": "PdfLine",
+        "locator": "第21页 行24",
+        "text": "台中列入失信被执行人名单；",
+        "words": [
+          "列入"
+        ]
+      },
+      {
+        "block_idx": 794,
+        "kind": "PdfLine",
+        "locator": "第24页 行24",
+        "text": "求或被允许修改其投标文件；投标人拒绝延长的，其投标失效，但投标人有权收回其投标保证",
+        "words": [
+          "拒绝",
+          "失效"
+        ]
+      },
+      {
+        "block_idx": 941,
+        "kind": "PdfLine",
+        "locator": "第28页 行25",
+        "text": "标 的，招标人有权更换。被更换的评标委员会成员作出的评审结论无效，由更换后的评标委员",
+        "words": [
+          "无效"
+        ]
+      },
+      {
+        "block_idx": 1184,
+        "kind": "PdfLine",
+        "locator": "第40页 行26",
+        "text": "但不以此否决其投标。",
+        "words": [
+          "否决"
+        ]
+      }
+    ],
+    "per_word_covered_blocks": {
+      "不合格": 2,
+      "作废": 1,
+      "取消": 2,
+      "否决": 6,
+      "废标": 4,
+      "拒收": 6,
+      "拒绝": 1,
+      "撤回": 5,
+      "放弃": 1,
+      "无效": 2
+    },
+    "per_word_extracted_reqs": {
+      "不合格": 2,
+      "作废": 1,
+      "取消": 2,
+      "否决": 5,
+      "废标": 4,
+      "拒收": 4,
+      "拒绝": 1,
+      "撤回": 5,
+      "放弃": 1,
+      "无效": 2
+    },
+    "per_word_truth": {
+      "不合格": 8,
+      "作废": 2,
+      "列入": 2,
+      "取消": 5,
+      "否决": 15,
+      "失效": 3,
+      "废标": 4,
+      "拒收": 7,
+      "拒绝": 8,
+      "撤回": 7,
+      "放弃": 1,
+      "无效": 6,
+      "违约金": 4
+    },
+    "recall": 0.3971,
+    "truth_blocks": 68
+  },
+  "wall_ms_incl_unwind": 797
+}

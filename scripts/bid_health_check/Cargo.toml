@@ -1,0 +1,17 @@
+[package]
+name = "bid-health-check"
+version = "0.1.0"
+edition = "2021"
+description = "E 组竞品体检 harness（issue #11 E-RUN）：竞品真实语料跑标书链路（引擎路径解析 + 条款抽取），六维统计落盘——不修改 bidcore 任何源码"
+publish = false
+
+[dependencies]
+bid-parse = { path = "../../bidcore/crates/bid-parse" }
+bid-engine = { path = "../../bidcore/crates/bid-engine" }
+bid-domain = { path = "../../bidcore/crates/bid-domain" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = 2
+strip = true

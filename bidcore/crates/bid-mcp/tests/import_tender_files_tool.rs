@@ -197,7 +197,9 @@ fn real_docx_import_transitions_draft_to_files_imported() {
     // chunks=9 = 7 非空段 + 2 表行（引擎侧 paras=13 含空段口径，见文件头注）
     assert_eq!(pf["tables"], 1, "统计面对照 gen-log.txt：word-complex tables=1");
     assert_eq!(pf["chunks"], 9);
-    assert_eq!(pf["pages"], 2, "docx 结构页口径：1 + 章标题数");
+    // B5 起 docx 走引擎路径：pages=0（engine-bid-mapping §1 既定口径——
+    // 旧「结构页 1+章标题数」为旧实现启发式，引擎不做页数推断）
+    assert_eq!(pf["pages"], 0, "engine-docx 页数口径：0（映射表 §1）");
     assert!(pf.get("errors").is_none(), "成功件不带 errors 字段（条件序列化）");
     // totals 对账
     assert_eq!(data["totals"]["files"], 1);

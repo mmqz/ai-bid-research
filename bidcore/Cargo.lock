@@ -71,8 +71,10 @@ name = "bid-engine"
 version = "0.1.0"
 dependencies = [
  "bid-parse",
+ "hex",
  "mdc-office-io",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -104,6 +106,7 @@ name = "bid-mcp"
 version = "0.1.0"
 dependencies = [
  "bid-domain",
+ "bid-parse",
  "bid-tools",
  "serde",
  "serde_json",
@@ -132,6 +135,7 @@ name = "bid-tools"
 version = "0.1.0"
 dependencies = [
  "bid-domain",
+ "bid-engine",
  "bid-kb",
  "bid-parse",
  "hex",

@@ -29,7 +29,12 @@
 //! V3-3 扩展（issue #11 批次 v3——技术参数响应面）：
 //! - [`param`]：T-4 ParamResponse 参数响应表（偏离自动检出——正/负/无/不可比，
 //!   负偏离=废标级全量查询面）。
+//!
+//! V3-4 扩展（issue #11 批次 v3——任务分工面）：
+//! - [`assignment`]：T-6 Assignment 任务分工（章节/条款批量分配 + list_tasks
+//!   owner/status 双过滤 + 重指派复位语义——S-8 并发调度的前置实体）。
 
+pub mod assignment;
 pub mod dates;
 pub mod evidence;
 pub mod export_gate;
@@ -208,6 +213,9 @@ pub struct DomainStore {
     evidence_bindings: Vec<evidence::EvidenceBinding>,
     /// T-5 章节树（SEC-xxxx——树校验/推导/状态推进见 outline.rs 的 impl 块）
     sections: Vec<outline::OutlineNode>,
+    /// T-6 任务分工台账（target_id → 执行人/截止日/人侧进度——见 assignment.rs
+    /// 的 impl 块；target_id 引用 SEC-/REQ-，无独立 id）
+    assignments: Vec<assignment::Assignment>,
     /// T-2 矩阵行（CMP-xxxx——派生态，build_matrix 幂等重建；blocking = 导出闸门）
     matrix: Vec<matrix::MatrixRow>,
     /// T-2 人工覆写（不适用/偏离——派生态之上的唯一人工输入）
@@ -223,6 +231,7 @@ impl DomainStore {
     pub fn new() -> Self {
         Self { project: None, files: vec![], requirements: vec![],
                evidences: vec![], evidence_bindings: vec![], sections: vec![],
+               assignments: vec![],
                matrix: vec![], matrix_overrides: HashMap::new(),
                params: vec![],
                idempotency: HashMap::new(), id_seq: 0 }
@@ -431,6 +440,8 @@ pub struct StoreSnapshot {
     #[serde(default)]
     pub sections: Vec<outline::OutlineNode>,
     #[serde(default)]
+    pub assignments: Vec<assignment::Assignment>,
+    #[serde(default)]
     pub matrix: Vec<matrix::MatrixRow>,
     #[serde(default)]
     pub matrix_overrides: HashMap<String, matrix::MatrixOverride>,
@@ -454,6 +465,7 @@ impl DomainStore {
             evidences: self.evidences.clone(),
             evidence_bindings: self.evidence_bindings.clone(),
             sections: self.sections.clone(),
+            assignments: self.assignments.clone(),
             matrix: self.matrix.clone(),
             matrix_overrides: self.matrix_overrides.clone(),
             params: self.params.clone(),
@@ -493,10 +505,24 @@ impl DomainStore {
         {
             return Err(un(e));
         }
+        // assignments 的唯一键是 target_id（T-6 本实体无独立 id——幂等 upsert 的
+        // 自然键，见 assignment.rs 模块头），消息必须指名真键而非笼统的「id 重复」。
+        {
+            let mut seen = std::collections::HashSet::new();
+            if let Some(a) = snap.assignments.iter().find(|a| !seen.insert(a.target_id.clone())) {
+                return Err(un(format!("assignments target_id 重复: {}", a.target_id)));
+            }
+        }
         // id_seq 水位（防重启后重签碰撞——续跑的第一件事就是签新 id）。
         // 注意：只校验 **store 签发**的命名空间（PRJ/TF/EV/SEC/PR——PR 为 T-4
         // 参数行前缀）——REQ id 由 extract 层自有计数器签发（每次抽取重置，
         // 与 store 序列无关），不在本水位管辖面。
+        // 注意：只校验 **store 签发**的命名空间（PRJ/TF/EV/SEC）——REQ id 由
+        // extract 层自有计数器签发（每次抽取重置，与 store 序列无关），
+        // 不在本水位管辖面。
+        // assignments 同样**不入水位数组**：本实体无自签 id（target_id 引用外部
+        // 实体——SEC- 目标经幽灵门必存在于 sections，其后缀已被上面的 sections
+        // 水位覆盖；REQ-/其他前缀本就豁免）——加入只重复计算，不会抬高水位。
         let watermark = [
             max_suffix(snap.files.iter().map(|f| f.id.clone())),
             max_suffix(snap.evidences.iter().map(|e| e.id.clone())),
@@ -512,7 +538,8 @@ impl DomainStore {
         }
         // 孤儿数据（有集合无项目 = 半个库）
         if snap.project.is_none() && (!snap.files.is_empty() || !snap.requirements.is_empty()
-            || !snap.evidences.is_empty() || !snap.sections.is_empty())
+            || !snap.evidences.is_empty() || !snap.sections.is_empty()
+            || !snap.assignments.is_empty())
         {
             return Err(un("快照有数据但无项目（孤儿集合——拒绝加载半个库）".into()));
         }
@@ -523,6 +550,7 @@ impl DomainStore {
             evidences: snap.evidences,
             evidence_bindings: snap.evidence_bindings,
             sections: snap.sections,
+            assignments: snap.assignments,
             matrix: snap.matrix,
             matrix_overrides: snap.matrix_overrides,
             params: snap.params,

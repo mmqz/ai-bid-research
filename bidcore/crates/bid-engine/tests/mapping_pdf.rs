@@ -15,6 +15,18 @@ fn fixture(rel: &str) -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join(rel)
 }
 
+/// 真实样本在位预检（issue #9 SKIP 机制文件面——PR #24 修复批次）：
+/// 该测试文件依赖的 fixture 目录缺失 → 响亮横幅 + 调用方立即 return
+/// （缺件不是业务失败，也绝不静默假装通过）。
+fn fixtures_ready(test_id: &str) -> bool {
+    let dirs: Vec<std::path::PathBuf> = ["../../../fixtures/corpus-A/files"]
+        .iter()
+        .map(|d| fixture(d))
+        .collect();
+    let refs: Vec<&std::path::Path> = dirs.iter().map(|p| p.as_path()).collect();
+    !bid_parse::env_preflight::skip_if_fixture_missing(test_id, &refs)
+}
+
 fn pdfium_available() -> bool {
     // 与 reader 同款定位序：env → 编译期候选（试探打开一个最小 pdf）
     let probe = fixture("../../../fixtures/corpus-A/files/B1-设备清单.pdf");
@@ -45,6 +57,9 @@ fn skip_if_no_pdfium() -> bool {
 /// 引擎路径 vs 旧路径逐块等价（行切分/locator/text 口径）。
 #[test]
 fn pdf_mapping_matches_legacy_on_b1() {
+    if !fixtures_ready("pdf_mapping_matches_legacy_on_b1") {
+        return;
+    }
     if skip_if_no_pdfium() {
         return;
     }
@@ -93,6 +108,9 @@ fn pdf_mapping_matches_legacy_on_b1() {
 /// B2-扫描件（无文本层）：引擎路径必须 MappingGap（OCR 留旧路径——映射表 §3）。
 #[test]
 fn pdf_scanned_file_maps_to_gap() {
+    if !fixtures_ready("pdf_scanned_file_maps_to_gap") {
+        return;
+    }
     if skip_if_no_pdfium() {
         return;
     }
@@ -110,6 +128,9 @@ fn pdf_scanned_file_maps_to_gap() {
 /// 敌意面：截断 pdf 必须被引擎拒绝（打开失败——不伪装部分结果）。
 #[test]
 fn pdf_engine_rejects_truncated() {
+    if !fixtures_ready("pdf_engine_rejects_truncated") {
+        return;
+    }
     if skip_if_no_pdfium() {
         return;
     }
@@ -124,6 +145,9 @@ fn pdf_engine_rejects_truncated() {
 /// 行号与页号口径：locator `第{N}页 行{M}`（非空行计数——空行不占号）。
 #[test]
 fn pdf_locator_conventions() {
+    if !fixtures_ready("pdf_locator_conventions") {
+        return;
+    }
     if skip_if_no_pdfium() {
         return;
     }

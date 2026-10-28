@@ -59,6 +59,13 @@ fn evidence_spec() -> EvidenceSpec {
 fn restart_resumes_full_service_state() {
     let dir = store_dir("main");
     let a_docx = fixtures().join("corpus-A/files/A-招标文件.docx");
+    // PR #24 修复批次：真实样本缺件 → SKIP 横幅（issue #9 机制文件面）
+    if bid_parse::env_preflight::skip_if_fixture_missing(
+        "restart_resumes_full_service_state",
+        &[&a_docx],
+    ) {
+        return;
+    }
 
     // ---- 生命周期 1：全链路写入（写后自动 checkpoint）
     let (snap1, parsed1, req_count, ev_id, sec_count) = {

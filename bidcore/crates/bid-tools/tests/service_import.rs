@@ -5,6 +5,7 @@
 //! 校验属壳，服务层透传——运行器「证据」类别依赖此分层）。
 
 use bid_domain::{DomainStore, ParseStatus, ProjectStatus};
+use bid_parse::env_preflight::skip_if_fixture_missing;
 use bid_tools::service::{import_files, BidService, ImportSpec};
 use std::path::PathBuf;
 
@@ -30,6 +31,9 @@ fn service_imports_corpus_a_main_file_into_store() {
     store.create_project("p", "ZFCG-2026-GK-0311", "明标", "ext-svc").unwrap();
     let mut parsed = vec![];
     let a = fixtures().join("corpus-A/files/A-招标文件.docx");
+    if skip_if_fixture_missing("service_imports_corpus_a_main_file_into_store", &[&a]) {
+        return;
+    }
 
     let report = import_files(&mut store, &mut parsed, &[spec(a.clone(), "A-招标文件.docx", "招标文件")]);
 
@@ -54,6 +58,9 @@ fn unreadable_upload_is_item_failure_and_not_recorded() {
     store.create_project("p", "c", "明标", "ext-svc-ghost").unwrap();
     let mut parsed = vec![];
     let good = fixtures().join("corpus-R/D6-revisions/R6b-纯删除澄清.docx");
+    if skip_if_fixture_missing("unreadable_upload_is_item_failure_and_not_recorded", &[&good]) {
+        return;
+    }
     let ghost = fixtures().join("no-such/ghost.docx");
 
     let report = import_files(
@@ -78,6 +85,9 @@ fn service_passes_kind_through_without_contract_enum() {
     store.create_project("p", "c", "明标", "ext-svc-kind").unwrap();
     let mut parsed = vec![];
     let ev = fixtures().join("corpus-A/files/evidence/EV-01-营业执照.pdf");
+    if skip_if_fixture_missing("service_passes_kind_through_without_contract_enum", &[&ev]) {
+        return;
+    }
 
     let report = import_files(&mut store, &mut parsed, &[spec(ev, "evidence/EV-01-营业执照.pdf", "证据")]);
 
@@ -93,6 +103,9 @@ fn bid_service_holds_store_and_parsed_together() {
     assert!(svc.store().project().is_err());
     svc.store_mut().create_project("p", "c", "暗标", "ext-svc-bid").unwrap();
     let d1a = fixtures().join("corpus-R/D1-tables/D1a-合并表头跨页表.docx");
+    if skip_if_fixture_missing("bid_service_holds_store_and_parsed_together", &[&d1a]) {
+        return;
+    }
 
     let report = svc.import(&[spec(d1a, "D1a-合并表头跨页表.docx", "招标文件")]).unwrap();
 

@@ -13,6 +13,20 @@ fn fixture(rel: &str) -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(rel)
 }
 
+/// 真实样本在位预检（issue #9 SKIP 机制文件面——PR #24 修复批次）：
+/// 该测试文件依赖的 fixture 目录缺失 → 响亮横幅 + 调用方立即 return
+/// （缺件不是业务失败，也绝不静默假装通过）。
+fn fixtures_ready(test_id: &str) -> bool {
+    let dirs: Vec<std::path::PathBuf> = ["../../../fixtures/corpus-R/D2-nonbody",
+        "../../../fixtures/corpus-R/D6-revisions",
+        "../../../fixtures/engine-borrowed/TR2"]
+        .iter()
+        .map(|d| fixture(d))
+        .collect();
+    let refs: Vec<&std::path::Path> = dirs.iter().map(|p| p.as_path()).collect();
+    !bid_parse::env_preflight::skip_if_fixture_missing(test_id, &refs)
+}
+
 fn read_docx(rel: &str) -> bid_engine::EngineDoc {
     let bytes = std::fs::read(fixture(rel)).expect("夹具在位");
     MdcoreReader::new().read_docx(&bytes).expect("引擎读链成功")
@@ -54,6 +68,9 @@ fn assert_subsequence(expected: &[String], actual: &[String], ctx: &str) {
 /// D2a：镜像块数/块型与引擎块序一一对应（TextBox 保持结构——映射层才拍平）。
 #[test]
 fn reader_docx_mirror_preserves_block_structure() {
+    if !fixtures_ready("reader_docx_mirror_preserves_block_structure") {{
+        return;
+    }}
     let doc = read_docx("../../../fixtures/corpus-R/D2-nonbody/D2a-非正文条款.docx");
     assert!(!doc.blocks.is_empty(), "块流非空");
 
@@ -101,6 +118,9 @@ fn reader_docx_mirror_preserves_block_structure() {
 /// D2a：批注镜像携带锚与内容文本（#19）。
 #[test]
 fn reader_docx_carries_comments_with_anchor() {
+    if !fixtures_ready("reader_docx_carries_comments_with_anchor") {{
+        return;
+    }}
     let doc = read_docx("../../../fixtures/corpus-R/D2-nonbody/D2a-非正文条款.docx");
     assert_eq!(doc.comments.len(), 1, "D2a 批注数（引擎验收口径）");
     let c = &doc.comments[0];
@@ -112,6 +132,9 @@ fn reader_docx_carries_comments_with_anchor() {
 /// `EngineFailed`。敌意面差分依赖此分类（B4 前置 A3）。
 #[test]
 fn reader_docx_truncated_rejected_with_engine_rejected_variant() {
+    if !fixtures_ready("reader_docx_truncated_rejected_with_engine_rejected_variant") {{
+        return;
+    }}
     let bytes = std::fs::read(fixture(
         "../../../fixtures/corpus-R/D2-nonbody/D2a-非正文条款.docx",
     ))
@@ -128,6 +151,9 @@ fn reader_docx_truncated_rejected_with_engine_rejected_variant() {
 /// footnote_refs（#19）/ has_numbering。
 #[test]
 fn reader_docx_carries_paragraph_extension_fields() {
+    if !fixtures_ready("reader_docx_carries_paragraph_extension_fields") {{
+        return;
+    }}
     let doc = read_docx("../../../real-samples/北京水利施工示范文本2025-LO.docx");
     // 真实件必有标题段（A1 四链解析——真 Word 中文版 styleId="1" 形覆盖）
     let headings = doc
@@ -149,6 +175,9 @@ fn reader_docx_carries_paragraph_extension_fields() {
 /// （"paras=13 tables=1 comments=1 revisions=1 fields=1"——引擎侧验收口径）。
 #[test]
 fn borrowed_word_complex_matches_gen_log_stats() {
+    if !fixtures_ready("borrowed_word_complex_matches_gen_log_stats") {{
+        return;
+    }}
     let doc = read_docx("../../../fixtures/engine-borrowed/TR2/word-complex.docx");
 
     let tables = doc
@@ -190,6 +219,9 @@ fn borrowed_word_complex_matches_gen_log_stats() {
 /// expected_final_view_paragraphs 必须以子序列出现在镜像段落流。
 #[test]
 fn borrowed_expected_readback_r6_final_view() {
+    if !fixtures_ready("borrowed_expected_readback_r6_final_view") {{
+        return;
+    }}
     let readback: serde_json::Value = serde_json::from_reader(
         std::fs::File::open(fixture(
             "../../../fixtures/corpus-R/D6-revisions/expected-readback.json",
@@ -217,6 +249,9 @@ fn borrowed_expected_readback_r6_final_view() {
 /// R6a：插入修订文本 == expected-readback inserted_runs（#17 标记面与文本面双验）。
 #[test]
 fn borrowed_r6a_inserted_runs_match_readback() {
+    if !fixtures_ready("borrowed_r6a_inserted_runs_match_readback") {{
+        return;
+    }}
     let doc = read_docx("../../../fixtures/corpus-R/D6-revisions/R6a-纯插入澄清.docx");
     let readback: serde_json::Value = serde_json::from_reader(
         std::fs::File::open(fixture(
@@ -248,6 +283,9 @@ fn borrowed_r6a_inserted_runs_match_readback() {
 /// R6b：删除修订登记计数 == 2（T17d 验收口径——RevisionDelete 警告逐段计）。
 #[test]
 fn borrowed_r6b_delete_registered_via_warning_count() {
+    if !fixtures_ready("borrowed_r6b_delete_registered_via_warning_count") {{
+        return;
+    }}
     let doc = read_docx("../../../fixtures/corpus-R/D6-revisions/R6b-纯删除澄清.docx");
     let del = doc
         .warnings
@@ -266,6 +304,9 @@ fn borrowed_r6b_delete_registered_via_warning_count() {
 /// body 块恒 `Body`、页眉块恒 `Header`、页脚块恒 `Footer`，变体透传。
 #[test]
 fn reader_docx_blocksource_mirror_and_purity() {
+    if !fixtures_ready("reader_docx_blocksource_mirror_and_purity") {{
+        return;
+    }}
     let doc = read_docx("../../../fixtures/engine-borrowed/TR2/word-complex.docx");
 
     // 正文块全 Body（引擎口径：doc.blocks 恒 Body 源——镜像保真搬运）
@@ -337,6 +378,9 @@ fn reader_docx_blocksource_mirror_and_purity() {
 /// 场景下页眉项目名/页脚受控编号被误抽会产生幽灵条款）。
 #[test]
 fn reader_docx_d2a_header_footer_device_not_clause() {
+    if !fixtures_ready("reader_docx_d2a_header_footer_device_not_clause") {{
+        return;
+    }}
     let doc = read_docx("../../../fixtures/corpus-R/D2-nonbody/D2a-非正文条款.docx");
 
     // D2a 挂接面：2 页眉（default + first）+ 1 页脚（default）

@@ -6,9 +6,13 @@
 //! - 第 4 条「加 3 分」为子项分（首次匹配语义）——sanity 总分 103 > 100 触发
 //!   告警，人工核对兜底（确定性抽取不猜测语义，分值缺失/越界显式登记）；
 //! - 否决项全量 is_hard_gate（漏响应即废标的独立闸门）。
+//!
+//! SKIP 面（PR #24 修复批次，issue #9 机制）：真实样本缺失 → 响亮横幅 +
+//! 提前 return（缺件不是业务失败，也绝不静默假装通过）。
 
-use bid_domain::scoring::{derive_scoring_items, scoring_sanity};
+use bid_domain::scoring::scoring_sanity;
 use bid_parse::extract::extract_requirements;
+use bid_parse::env_preflight::skip_if_fixture_missing;
 use bid_tools::service::{BidService, ImportSpec};
 use std::path::PathBuf;
 
@@ -26,11 +30,16 @@ fn spec(path: PathBuf, filename: &str, kind: &str) -> ImportSpec {
 
 #[test]
 fn corpus_a_scoring_items_carry_real_weights() {
+    let a = fixtures().join("corpus-A/files/A-招标文件.docx");
+    let c = fixtures().join("corpus-A/files/C-补遗文件01.docx");
+    if skip_if_fixture_missing("corpus_a_scoring_items_carry_real_weights", &[&a, &c]) {
+        return;
+    }
     let mut svc = BidService::new();
     svc.create_project("评分真件验收", "ZFCG-2026-GK-0311", "明标", "scr-real-key").unwrap();
     let report = svc.import(&[
-        spec(fixtures().join("corpus-A/files/A-招标文件.docx"), "A-招标文件.docx", "招标文件"),
-        spec(fixtures().join("corpus-A/files/C-补遗文件01.docx"), "C-补遗文件01.docx", "补遗"),
+        spec(a, "A-招标文件.docx", "招标文件"),
+        spec(c, "C-补遗文件01.docx", "补遗"),
     ]).unwrap();
     assert_eq!(report.item_failures, 0, "双件引擎路径零失败");
     let reqs = extract_requirements(svc.parsed());

@@ -14,14 +14,25 @@
 //! - [`impact`]：影响面引擎（补遗级联/DIRTY/content_version/终裁门禁/幂等）；
 //! - [`linkage`]：证据链状态账本（只降不升 + 显式重验 + 外部修改不自动 adopt）；
 //! - [`export_gate`]：两阶段导出门（EXPORTING → sha256 落库为界 → EXPORTED）。
+//!
+//! V3-1 扩展（issue #11 批次 v3——三份台账起步 + 持久化地基）：
+//! - [`locator`]：引擎定位器七变体镜像（serde 形态与 mdcore 逐字节一致）；
+//! - [`dates`]：ISO 日期工具（有效期窗口推算的单一真源）；
+//! - [`evidence`]：T-1 Evidence 证据台账（只降不升 + R-03 过期禁绑 + 换版 Superseded）；
+//! - [`outline`]：T-5 OutlineNode 章节树（九不变量 + 从 REQ 推导 + 配额最大余数法）；
+//! - [`StoreSnapshot`]：T-8 持久化快照 DTO（本 crate 仍零 IO——磁盘读写住 bid-tools）。
 
+pub mod dates;
+pub mod evidence;
 pub mod export_gate;
 pub mod impact;
 pub mod linkage;
+pub mod locator;
+pub mod outline;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 // ---------------------------------------------------------------- 错误码（mcp-contract §0）
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -118,7 +129,7 @@ impl ProjectStatus {
 }
 
 // ---------------------------------------------------------------- 领域对象（M1 子集）
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BidProject {
     pub id: String, // PRJ-xxxx
     pub name: String,
@@ -137,7 +148,7 @@ pub enum ParseStatus {
     Failed,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TenderFile {
     pub id: String, // TF-xxxx
     pub name: String,
@@ -151,7 +162,7 @@ pub struct TenderFile {
     pub parse_summary: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Requirement {
     pub id: String, // REQ-xxxx
     pub category: String,     // 资格条件|否决项|评分项|技术参数|商务要求|格式要求|其他
@@ -161,7 +172,7 @@ pub struct Requirement {
     pub source_file: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Anchor {
     pub file: String,
     pub kind: String,    // para|table|ocr|xlsx_cell
@@ -172,10 +183,20 @@ pub struct Anchor {
 // ---------------------------------------------------------------- 权威状态机存储
 /// 领域库（内存态）：项目/文件/条款 + 幂等键存储 + content_version。
 /// 所有写入经 `apply` 走状态机裁决——直接改字段绕过状态机是不可能的（字段私有 + 仅经受审方法）。
+///
+/// V3-1（T-8 扩面）：证据台账 / 绑定 / 章节树三集合入列。快照互操作经
+/// [`DomainStore::to_snapshot`] / [`DomainStore::restore`]（纯函数——磁盘 IO 在
+/// bid-tools `store_io`，本 crate 零 IO 纪律不变）。
 pub struct DomainStore {
     project: Option<BidProject>,
     files: Vec<TenderFile>,
     requirements: Vec<Requirement>,
+    /// T-1 证据台账（EV-xxxx——登记/换版/有效期裁决见 evidence.rs 的 impl 块）
+    evidences: Vec<evidence::Evidence>,
+    /// T-1 证据↔条款绑定（T-2 MatrixRow 落地后由矩阵行消费）
+    evidence_bindings: Vec<evidence::EvidenceBinding>,
+    /// T-5 章节树（SEC-xxxx——树校验/推导/状态推进见 outline.rs 的 impl 块）
+    sections: Vec<outline::OutlineNode>,
     /// 幂等键 → 首次结果 JSON（同 key 重放返回首次结果，不重复执行）
     idempotency: HashMap<String, serde_json::Value>,
     id_seq: u64,
@@ -184,6 +205,7 @@ pub struct DomainStore {
 impl DomainStore {
     pub fn new() -> Self {
         Self { project: None, files: vec![], requirements: vec![],
+               evidences: vec![], evidence_bindings: vec![], sections: vec![],
                idempotency: HashMap::new(), id_seq: 0 }
     }
 
@@ -343,6 +365,132 @@ impl Default for DomainStore {
     }
 }
 
+// ---------------------------------------------------------------- T-8 持久化快照（纯函数面）
+/// 快照 schema 版本（加性演进：新字段一律 `#[serde(default)]`，旧数据可加载；
+/// 结构性变更 → 版本号 +1 + `migrate`（bid-tools store_io）——参考 mdcore sidecar）。
+pub const STORE_SCHEMA_VERSION: u32 = 1;
+
+fn default_schema_version() -> u32 {
+    STORE_SCHEMA_VERSION
+}
+
+/// 领域库快照（T-8）——`DomainStore` 全量状态的 serde DTO。
+///
+/// - 全字段 `#[serde(default)]`：旧版快照缺新集合字段 → 空集合加载（加性迁移）；
+/// - `content_version` 住在 `BidProject` 内随快照走；
+/// - 语义完整性由 [`DomainStore::restore`] 把关（id 唯一 / 序列水位 / 孤儿数据），
+///   JSON 语法与版本门在 bid-tools `store_io`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StoreSnapshot {
+    #[serde(default = "default_schema_version")]
+    pub schema_version: u32,
+    #[serde(default)]
+    pub project: Option<BidProject>,
+    #[serde(default)]
+    pub files: Vec<TenderFile>,
+    #[serde(default)]
+    pub requirements: Vec<Requirement>,
+    #[serde(default)]
+    pub evidences: Vec<evidence::Evidence>,
+    #[serde(default)]
+    pub evidence_bindings: Vec<evidence::EvidenceBinding>,
+    #[serde(default)]
+    pub sections: Vec<outline::OutlineNode>,
+    #[serde(default)]
+    pub idempotency: BTreeMap<String, serde_json::Value>,
+    #[serde(default)]
+    pub id_seq: u64,
+}
+
+impl DomainStore {
+    /// 全量快照（纯读——checkpoint 的素材面）。
+    pub fn to_snapshot(&self) -> StoreSnapshot {
+        StoreSnapshot {
+            schema_version: STORE_SCHEMA_VERSION,
+            project: self.project.clone(),
+            files: self.files.clone(),
+            requirements: self.requirements.clone(),
+            evidences: self.evidences.clone(),
+            evidence_bindings: self.evidence_bindings.clone(),
+            sections: self.sections.clone(),
+            // HashMap → BTreeMap：持久化 DTO 要求跨进程字节一致（HashMap 迭代序不确定）
+            idempotency: self.idempotency.clone().into_iter().collect(),
+            id_seq: self.id_seq,
+        }
+    }
+
+    /// 从快照恢复（重启续跑的领域半边）。
+    ///
+    /// 语义完整性把关（损坏但语法合法的 JSON 也拒——fail-closed 不猜测）：
+    /// - schema_version 必须等于当前版本（旧版本由 IO 层 migrate 后再进这里）；
+    /// - 各集合 id 唯一；
+    /// - `id_seq` 水位 ≥ 全体 id 的数字后缀（防重启后 id 重签碰撞）；
+    /// - 有数据必有项目（孤儿集合 = 半个库）。
+    pub fn restore(snap: StoreSnapshot) -> Result<Self, ToolError> {
+        if snap.schema_version != STORE_SCHEMA_VERSION {
+            return Err(ToolError::EUnprocessable {
+                reason: format!(
+                    "快照 schema_version={} ≠ 当前支持 {}（migrate 先行——bid-tools store_io）",
+                    snap.schema_version, STORE_SCHEMA_VERSION
+                ),
+            });
+        }
+        let un = |reason: String| ToolError::EUnprocessable { reason };
+        // id 唯一性（逐集合）
+        let dup_in = |ids: Vec<String>, what: &str| -> Option<String> {
+            let mut seen = std::collections::HashSet::new();
+            ids.into_iter().find_map(|i| (!seen.insert(i)).then(|| format!("{what} id 重复")))
+        };
+        if let Some(e) = dup_in(snap.files.iter().map(|f| f.id.clone()).collect(), "files")
+            .or_else(|| dup_in(snap.requirements.iter().map(|r| r.id.clone()).collect(), "requirements"))
+            .or_else(|| dup_in(snap.evidences.iter().map(|e| e.id.clone()).collect(), "evidences"))
+            .or_else(|| dup_in(snap.sections.iter().map(|s| s.id.clone()).collect(), "sections"))
+        {
+            return Err(un(e));
+        }
+        // id_seq 水位（防重启后重签碰撞——续跑的第一件事就是签新 id）。
+        // 注意：只校验 **store 签发**的命名空间（PRJ/TF/EV/SEC）——REQ id 由
+        // extract 层自有计数器签发（每次抽取重置，与 store 序列无关），
+        // 不在本水位管辖面。
+        let watermark = [
+            max_suffix(snap.files.iter().map(|f| f.id.clone())),
+            max_suffix(snap.evidences.iter().map(|e| e.id.clone())),
+            max_suffix(snap.sections.iter().map(|s| s.id.clone())),
+            snap.project.as_ref().map(|p| max_suffix([p.id.clone()].into_iter())).unwrap_or(0),
+        ].into_iter().max().unwrap_or(0);
+        if snap.id_seq < watermark {
+            return Err(un(format!(
+                "id_seq={} 低于 id 水位 {}（重启后新 id 会与既有记录碰撞——快照被截断？",
+                snap.id_seq, watermark
+            )));
+        }
+        // 孤儿数据（有集合无项目 = 半个库）
+        if snap.project.is_none() && (!snap.files.is_empty() || !snap.requirements.is_empty()
+            || !snap.evidences.is_empty() || !snap.sections.is_empty())
+        {
+            return Err(un("快照有数据但无项目（孤儿集合——拒绝加载半个库）".into()));
+        }
+        Ok(Self {
+            project: snap.project,
+            files: snap.files,
+            requirements: snap.requirements,
+            evidences: snap.evidences,
+            evidence_bindings: snap.evidence_bindings,
+            sections: snap.sections,
+            idempotency: snap.idempotency.into_iter().collect(),
+            id_seq: snap.id_seq,
+        })
+    }
+}
+
+/// id 数字后缀最大值（水位校验：`TF-0007` → 7；非数字尾 → 忽略）。
+fn max_suffix(ids: impl Iterator<Item = String>) -> u64 {
+    ids.filter_map(|i| i.rsplit('-').next()
+        .and_then(|n| n.parse::<u64>().ok()))
+        .max()
+        .unwrap_or(0)
+}
+
 fn tool_name(tool: &str) -> &'static str {
     match tool {
         "create_bid_project" => "create_bid_project",
@@ -384,7 +532,7 @@ mod tests {
     #[test]
     fn tc11_state_guard_rejects_skip_ahead_with_no_side_effect() {
         // TC-11：FILES_IMPORTED 阶段直接调 draft_response_section → E_STATE
-        let mut s = store_with_files();
+        let s = store_with_files();
         let err = s.guard_tool("draft_response_section").unwrap_err();
         assert_eq!(err.code(), "E_STATE");
         // 无副作用：项目状态不变、无章节对象（M1 无章节面——以状态+文件数为准）
@@ -455,7 +603,7 @@ mod tests {
 
     #[test]
     fn optimistic_concurrency_conflict() {
-        let mut s = store_with_files();
+        let s = store_with_files();
         assert!(matches!(s.check_version(Some(999)), Err(ToolError::EConflict { .. })));
         let v = s.content_version();
         assert!(s.check_version(Some(v)).is_ok());

@@ -94,7 +94,7 @@ fn bid_service_holds_store_and_parsed_together() {
     svc.store_mut().create_project("p", "c", "暗标", "ext-svc-bid").unwrap();
     let d1a = fixtures().join("corpus-R/D1-tables/D1a-合并表头跨页表.docx");
 
-    let report = svc.import(&[spec(d1a, "D1a-合并表头跨页表.docx", "招标文件")]);
+    let report = svc.import(&[spec(d1a, "D1a-合并表头跨页表.docx", "招标文件")]).unwrap();
 
     assert_eq!(report.item_failures, 0);
     assert_eq!(svc.store().files().len(), 1);

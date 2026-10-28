@@ -59,6 +59,43 @@ fn map_docx_error(e: DocxError) -> EngineError {
     }
 }
 
+/// xlsx 读错误映射（`ReadError` 四变体——typed reject 原文透传不改写语义）。
+fn map_book_error(e: io::ReadError) -> EngineError {
+    match e {
+        io::ReadError::PrescanRejected { reason, entry } => EngineError::EngineRejected(format!(
+            "prescan rejected: {reason}{}", entry.map(|s| format!(" ({s})")).unwrap_or_default()
+        )),
+        io::ReadError::ContainerCorrupt(c) => EngineError::EngineRejected(c),
+        io::ReadError::InvalidPart { part, detail } => {
+            EngineError::EngineRejected(format!("invalid part {part}: {detail}"))
+        }
+        other => EngineError::EngineFailed(other.to_string()),
+    }
+}
+
+/// calamine `Data` → 单元格字符串（**旧实现口径对齐**——`bid-parse/src/xlsx.rs`
+/// 同款规则：整值 Float 压 i64、String 修剪、Error 带标记。B4 删旧实现后
+/// 本函数即唯一口径真源——块流等价的验收锚）。
+fn cell_to_string(c: &calamine::Data) -> String {
+    use calamine::Data;
+    match c {
+        Data::Empty => String::new(),
+        Data::String(s) => s.trim().to_string(),
+        Data::Float(f) => {
+            if f.fract() == 0.0 {
+                format!("{}", *f as i64)
+            } else {
+                format!("{f}")
+            }
+        }
+        Data::Int(i) => format!("{i}"),
+        Data::DateTime(d) => d.to_string(),
+        Data::DateTimeIso(s) | Data::DurationIso(s) => s.clone(),
+        Data::Bool(b) => format!("{b}"),
+        Data::Error(e) => format!("<err {e:?}>"),
+    }
+}
+
 /// 引擎块 → 镜像块（递归——文本框内层块与正文同构，#18）。
 fn convert_block(b: &docx::Block) -> EngineBlock {
     match b {
@@ -166,11 +203,54 @@ impl EngineReader for MdcoreReader {
         })
     }
 
-    fn read_xlsx(&self, _bytes: &[u8]) -> Result<crate::types::EngineBook, EngineError> {
-        // B3-4 批次实装（本 PR 仅 docx 通道——保持每批可验收）。
-        Err(EngineError::MappingGap(
-            "read_xlsx: B3-4 未实装（本批次 docx 通道先行）".to_string(),
-        ))
+    fn read_xlsx(&self, bytes: &[u8]) -> Result<crate::types::EngineBook, EngineError> {
+        // B3-4 实装：门 0（输入字节）→ 门 1（声明值预扫）→ 门 2+3（尺寸/部件
+        // 融合验证）→ calamine 五面提取 + 提取期限额（表数/累计稠密面积）——
+        // 全链在引擎侧（issue #2 §1 约束 1/2：标书侧零自研守卫）。
+        let book = io::read_book_from_bytes(bytes).map_err(map_book_error)?;
+        Ok(crate::types::EngineBook {
+            sheets: book
+                .sheets
+                .iter()
+                .map(|s| {
+                    // 值面矩阵（Range 相对迭代）+ 公式面联接：
+                    // 引擎 SheetData::formula_at 是**绝对坐标**入参的官方安全
+                    // 联接点（公式范围与值范围包围盒不同——worksheet_formula
+                    // 只覆盖公式格；镜像注释「同包围盒」不成立，此处以
+                    // values.start() 锚定换算，空串 = 无公式）。
+                    let vstart = s.values.start();
+                    let mut values: Vec<Vec<String>> = Vec::new();
+                    let mut formulas: Vec<Vec<String>> = Vec::new();
+                    for (ri, vrow) in s.values.rows().enumerate() {
+                        values.push(vrow.iter().map(cell_to_string).collect());
+                        let mut frow = vec![String::new(); vrow.len()];
+                        if let Some((sr, sc)) = vstart {
+                            for (ci, _) in vrow.iter().enumerate() {
+                                if let Some(f) = s.formula_at(sr + ri as u32, sc + ci as u32) {
+                                    frow[ci] = f.trim().to_string();
+                                }
+                            }
+                        }
+                        formulas.push(frow);
+                    }
+                    crate::types::EngineSheet {
+                        name: s.name.clone(),
+                        values,
+                        formulas,
+                        // calamine Dimensions：pub 字段 (row, col) 0 基 → 1 基
+                        merges: s
+                            .merges
+                            .iter()
+                            .map(|d| {
+                                (d.start.0 as usize + 1, d.start.1 as usize + 1,
+                                 d.end.0 as usize + 1, d.end.1 as usize + 1)
+                            })
+                            .collect(),
+                    }
+                })
+                .collect(),
+            warnings: book.warnings.iter().map(convert_warning).collect(),
+        })
     }
 
     fn extract_pdf_text(&self, _bytes: &[u8]) -> Result<crate::types::EnginePdf, EngineError> {

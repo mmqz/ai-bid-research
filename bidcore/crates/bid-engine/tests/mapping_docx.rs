@@ -10,7 +10,7 @@
 //! - **借鉴 mdcore**（fixtures/engine-borrowed/TR2，PROVENANCE.md 溯源）：
 //!   word-complex.docx 统计面（tables/comments/fields）经引擎读回后账本一致。
 
-use bid_engine::{parse_docx_via_engine, EngineReader, MdcoreReader, MDCORE_REV};
+use bid_engine::{parse_docx_via_engine, EngineReader, MDCORE_REV};
 use std::path::Path;
 
 fn fixture(rel: &str) -> std::path::PathBuf {

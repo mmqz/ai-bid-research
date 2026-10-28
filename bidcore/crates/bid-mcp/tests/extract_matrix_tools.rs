@@ -95,7 +95,7 @@ fn extract_then_matrix_end_to_end_on_corpus_a() {
     // 引擎路径 warning 登记（B5：docx 走 bid-engine——缺口登记不伪装）
     let warnings = r["warnings"].as_array().unwrap();
     assert!(
-        warnings.iter().any(|w| w.as_str().unwrap_or("").contains("ENGINE_DOCX")),
+        warnings.iter().any(|w| w.as_str().unwrap_or("").contains("ENGINE_PATH")),
         "引擎路径必须登记 ENGINE_DOCX warning（mdcore#39/#40 提示面）"
     );
 

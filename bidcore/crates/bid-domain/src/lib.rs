@@ -25,6 +25,10 @@
 //! V3-2 扩展（issue #11 批次 v3——三份台账收尾）：
 //! - [`matrix`]：T-2 MatrixRow 需求响应矩阵（四态派生 + blocking 导出闸门 R-03/R-04）；
 //! - [`scoring`]：T-3 ScoringItem 评分矩阵（分值/标准原文/硬门三维结构，派生态）。
+//!
+//! V3-3 扩展（issue #11 批次 v3——技术参数响应面）：
+//! - [`param`]：T-4 ParamResponse 参数响应表（偏离自动检出——正/负/无/不可比，
+//!   负偏离=废标级全量查询面）。
 
 pub mod dates;
 pub mod evidence;
@@ -34,6 +38,7 @@ pub mod linkage;
 pub mod locator;
 pub mod matrix;
 pub mod outline;
+pub mod param;
 pub mod scoring;
 
 use serde::{Deserialize, Serialize};
@@ -207,6 +212,8 @@ pub struct DomainStore {
     matrix: Vec<matrix::MatrixRow>,
     /// T-2 人工覆写（不适用/偏离——派生态之上的唯一人工输入）
     matrix_overrides: HashMap<String, matrix::MatrixOverride>,
+    /// T-4 参数响应表（PR-xxxx——技术参数逐行比对账本；偏离派生见 param.rs）
+    params: Vec<param::ParamResponse>,
     /// 幂等键 → 首次结果 JSON（同 key 重放返回首次结果，不重复执行）
     idempotency: HashMap<String, serde_json::Value>,
     id_seq: u64,
@@ -217,6 +224,7 @@ impl DomainStore {
         Self { project: None, files: vec![], requirements: vec![],
                evidences: vec![], evidence_bindings: vec![], sections: vec![],
                matrix: vec![], matrix_overrides: HashMap::new(),
+               params: vec![],
                idempotency: HashMap::new(), id_seq: 0 }
     }
 
@@ -426,6 +434,9 @@ pub struct StoreSnapshot {
     pub matrix: Vec<matrix::MatrixRow>,
     #[serde(default)]
     pub matrix_overrides: HashMap<String, matrix::MatrixOverride>,
+    /// T-4 参数响应表（加性迁移——V3-3 之前的旧快照无此字段 → 空集合加载）
+    #[serde(default)]
+    pub params: Vec<param::ParamResponse>,
     #[serde(default)]
     pub idempotency: BTreeMap<String, serde_json::Value>,
     #[serde(default)]
@@ -445,6 +456,7 @@ impl DomainStore {
             sections: self.sections.clone(),
             matrix: self.matrix.clone(),
             matrix_overrides: self.matrix_overrides.clone(),
+            params: self.params.clone(),
             // HashMap → BTreeMap：持久化 DTO 要求跨进程字节一致（HashMap 迭代序不确定）
             idempotency: self.idempotency.clone().into_iter().collect(),
             id_seq: self.id_seq,
@@ -477,17 +489,19 @@ impl DomainStore {
             .or_else(|| dup_in(snap.requirements.iter().map(|r| r.id.clone()).collect(), "requirements"))
             .or_else(|| dup_in(snap.evidences.iter().map(|e| e.id.clone()).collect(), "evidences"))
             .or_else(|| dup_in(snap.sections.iter().map(|s| s.id.clone()).collect(), "sections"))
+            .or_else(|| dup_in(snap.params.iter().map(|p| p.id.clone()).collect(), "params"))
         {
             return Err(un(e));
         }
         // id_seq 水位（防重启后重签碰撞——续跑的第一件事就是签新 id）。
-        // 注意：只校验 **store 签发**的命名空间（PRJ/TF/EV/SEC）——REQ id 由
-        // extract 层自有计数器签发（每次抽取重置，与 store 序列无关），
-        // 不在本水位管辖面。
+        // 注意：只校验 **store 签发**的命名空间（PRJ/TF/EV/SEC/PR——PR 为 T-4
+        // 参数行前缀）——REQ id 由 extract 层自有计数器签发（每次抽取重置，
+        // 与 store 序列无关），不在本水位管辖面。
         let watermark = [
             max_suffix(snap.files.iter().map(|f| f.id.clone())),
             max_suffix(snap.evidences.iter().map(|e| e.id.clone())),
             max_suffix(snap.sections.iter().map(|s| s.id.clone())),
+            max_suffix(snap.params.iter().map(|p| p.id.clone())),
             snap.project.as_ref().map(|p| max_suffix([p.id.clone()].into_iter())).unwrap_or(0),
         ].into_iter().max().unwrap_or(0);
         if snap.id_seq < watermark {
@@ -511,6 +525,7 @@ impl DomainStore {
             sections: snap.sections,
             matrix: snap.matrix,
             matrix_overrides: snap.matrix_overrides,
+            params: snap.params,
             idempotency: snap.idempotency.into_iter().collect(),
             id_seq: snap.id_seq,
         })

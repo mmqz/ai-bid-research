@@ -33,6 +33,9 @@
 //! V3-4 扩展（issue #11 批次 v3——任务分工面）：
 //! - [`assignment`]：T-6 Assignment 任务分工（章节/条款批量分配 + list_tasks
 //!   owner/status 双过滤 + 重指派复位语义——S-8 并发调度的前置实体）。
+//! V3-4 扩展（issue #11 批次 v3——审核闭环）：
+//! - [`review`]：T-7 ReviewRecord + RevisionTask 审核闭环（三道门门序强制 +
+//!   BLOCKER 强制派生 RT + 复审人 human: 前缀 + 导出前置裁决 `export_allowed`）。
 
 pub mod assignment;
 pub mod dates;
@@ -44,6 +47,7 @@ pub mod locator;
 pub mod matrix;
 pub mod outline;
 pub mod param;
+pub mod review;
 pub mod scoring;
 
 use serde::{Deserialize, Serialize};
@@ -222,6 +226,12 @@ pub struct DomainStore {
     matrix_overrides: HashMap<String, matrix::MatrixOverride>,
     /// T-4 参数响应表（PR-xxxx——技术参数逐行比对账本；偏离派生见 param.rs）
     params: Vec<param::ParamResponse>,
+    /// T-7 审核发现（FND-xxxx——三道门复审产出；BLOCKER 强制派生 RT）
+    findings: Vec<review::Finding>,
+    /// T-7 审核记录（REV-xxxx——过门里程碑 + 拒审过程记录）
+    reviews: Vec<review::ReviewRecord>,
+    /// T-7 修订工单（RT-xxxx——BLOCKER 的关单面；全 DONE 才可导出）
+    revision_tasks: Vec<review::RevisionTask>,
     /// 幂等键 → 首次结果 JSON（同 key 重放返回首次结果，不重复执行）
     idempotency: HashMap<String, serde_json::Value>,
     id_seq: u64,
@@ -234,6 +244,7 @@ impl DomainStore {
                assignments: vec![],
                matrix: vec![], matrix_overrides: HashMap::new(),
                params: vec![],
+               findings: vec![], reviews: vec![], revision_tasks: vec![],
                idempotency: HashMap::new(), id_seq: 0 }
     }
 
@@ -449,6 +460,12 @@ pub struct StoreSnapshot {
     #[serde(default)]
     pub params: Vec<param::ParamResponse>,
     #[serde(default)]
+    pub findings: Vec<review::Finding>,
+    #[serde(default)]
+    pub reviews: Vec<review::ReviewRecord>,
+    #[serde(default)]
+    pub revision_tasks: Vec<review::RevisionTask>,
+    #[serde(default)]
     pub idempotency: BTreeMap<String, serde_json::Value>,
     #[serde(default)]
     pub id_seq: u64,
@@ -469,6 +486,9 @@ impl DomainStore {
             matrix: self.matrix.clone(),
             matrix_overrides: self.matrix_overrides.clone(),
             params: self.params.clone(),
+            findings: self.findings.clone(),
+            reviews: self.reviews.clone(),
+            revision_tasks: self.revision_tasks.clone(),
             // HashMap → BTreeMap：持久化 DTO 要求跨进程字节一致（HashMap 迭代序不确定）
             idempotency: self.idempotency.clone().into_iter().collect(),
             id_seq: self.id_seq,
@@ -481,6 +501,8 @@ impl DomainStore {
     /// - schema_version 必须等于当前版本（旧版本由 IO 层 migrate 后再进这里）；
     /// - 各集合 id 唯一；
     /// - `id_seq` 水位 ≥ 全体 id 的数字后缀（防重启后 id 重签碰撞）；
+    /// - T-7 引用完整：RT 的 finding_id 与 ReviewRecord 引用的 FND-id 必须
+    ///   存在于 findings（孤儿 RT / 幽灵 FND 引用 = 半个闭环，拒载）；
     /// - 有数据必有项目（孤儿集合 = 半个库）。
     pub fn restore(snap: StoreSnapshot) -> Result<Self, ToolError> {
         if snap.schema_version != STORE_SCHEMA_VERSION {
@@ -502,6 +524,9 @@ impl DomainStore {
             .or_else(|| dup_in(snap.evidences.iter().map(|e| e.id.clone()).collect(), "evidences"))
             .or_else(|| dup_in(snap.sections.iter().map(|s| s.id.clone()).collect(), "sections"))
             .or_else(|| dup_in(snap.params.iter().map(|p| p.id.clone()).collect(), "params"))
+            .or_else(|| dup_in(snap.findings.iter().map(|f| f.id.clone()).collect(), "findings"))
+            .or_else(|| dup_in(snap.reviews.iter().map(|r| r.id.clone()).collect(), "reviews"))
+            .or_else(|| dup_in(snap.revision_tasks.iter().map(|t| t.id.clone()).collect(), "revision_tasks"))
         {
             return Err(un(e));
         }
@@ -523,11 +548,18 @@ impl DomainStore {
         // assignments 同样**不入水位数组**：本实体无自签 id（target_id 引用外部
         // 实体——SEC- 目标经幽灵门必存在于 sections，其后缀已被上面的 sections
         // 水位覆盖；REQ-/其他前缀本就豁免）——加入只重复计算，不会抬高水位。
+        // 注意：只校验 **store 签发**的命名空间（PRJ/TF/EV/SEC——V3-4 扩
+        // FND/REV/RT 三前缀）——REQ id 由 extract 层自有计数器签发（每次
+        // 抽取重置，与 store 序列无关），CMP id 为 REQ 后缀镜像派生（非
+        // store 序列），均不在本水位管辖面。
         let watermark = [
             max_suffix(snap.files.iter().map(|f| f.id.clone())),
             max_suffix(snap.evidences.iter().map(|e| e.id.clone())),
             max_suffix(snap.sections.iter().map(|s| s.id.clone())),
             max_suffix(snap.params.iter().map(|p| p.id.clone())),
+            max_suffix(snap.findings.iter().map(|f| f.id.clone())),
+            max_suffix(snap.reviews.iter().map(|r| r.id.clone())),
+            max_suffix(snap.revision_tasks.iter().map(|t| t.id.clone())),
             snap.project.as_ref().map(|p| max_suffix([p.id.clone()].into_iter())).unwrap_or(0),
         ].into_iter().max().unwrap_or(0);
         if snap.id_seq < watermark {
@@ -536,10 +568,32 @@ impl DomainStore {
                 snap.id_seq, watermark
             )));
         }
+        // T-7 引用完整性（半个闭环拒载——fail-closed 不猜测）：
+        // RT 的 finding_id 必须存在（孤儿 RT）；ReviewRecord 引用的 FND 必须存在。
+        let fnd_ids: std::collections::HashSet<&str> =
+            snap.findings.iter().map(|f| f.id.as_str()).collect();
+        if let Some(rt) = snap.revision_tasks.iter()
+            .find(|t| !fnd_ids.contains(t.finding_id.as_str()))
+        {
+            return Err(un(format!(
+                "revision_task {} 引用了不存在的 finding {}（孤儿 RT——半个闭环，拒载）",
+                rt.id, rt.finding_id
+            )));
+        }
+        if let Some(rev) = snap.reviews.iter()
+            .find(|r| r.findings.iter().any(|f| !fnd_ids.contains(f.as_str())))
+        {
+            return Err(un(format!(
+                "review {} 引用了不存在的 finding（幽灵 FND 引用——拒载）",
+                rev.id
+            )));
+        }
         // 孤儿数据（有集合无项目 = 半个库）
         if snap.project.is_none() && (!snap.files.is_empty() || !snap.requirements.is_empty()
             || !snap.evidences.is_empty() || !snap.sections.is_empty()
-            || !snap.assignments.is_empty())
+            || !snap.assignments.is_empty()
+            || !snap.findings.is_empty() || !snap.reviews.is_empty()
+            || !snap.revision_tasks.is_empty())
         {
             return Err(un("快照有数据但无项目（孤儿集合——拒绝加载半个库）".into()));
         }
@@ -554,6 +608,9 @@ impl DomainStore {
             matrix: snap.matrix,
             matrix_overrides: snap.matrix_overrides,
             params: snap.params,
+            findings: snap.findings,
+            reviews: snap.reviews,
+            revision_tasks: snap.revision_tasks,
             idempotency: snap.idempotency.into_iter().collect(),
             id_seq: snap.id_seq,
         })

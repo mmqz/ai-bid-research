@@ -72,9 +72,27 @@ fn tool_in_dirs(tool: &str, dirs: &[PathBuf]) -> bool {
 /// 覆盖面语义：`BID_PREFLIGHT_PATH` 未设时走真实探测（spawn 试调 + 语言数据在位）；
 /// 设置后模拟「裸机」（目录存在性检查 + 语言数据判缺——模拟面必然全缺，
 /// 与真实缺件机器的观测面一致）。
+///
+/// 纯函数入口在 [`missing_tools_impl`]——测试用它注入覆盖路径，
+/// **不在测试里 `set_var`**（见该函数文档：并行测试下的环境变量竞态）。
 pub fn missing_tools(tools: &[&str]) -> Vec<String> {
-    if let Ok(over) = std::env::var("BID_PREFLIGHT_PATH") {
-        let dirs: Vec<PathBuf> = std::env::split_paths(&over).collect();
+    missing_tools_impl(tools, std::env::var("BID_PREFLIGHT_PATH").ok().as_deref())
+}
+
+/// [`missing_tools`] 的纯函数形态：`override_path` = `BID_PREFLIGHT_PATH` 的值
+/// （`None` = 未设置，走真实探测）。
+///
+/// 拆分动机（真实事故，压测复现）：旧版测试
+/// `restricted_path_simulates_missing_env` 在测试体内 `set_var`/`remove_var`
+/// `BID_PREFLIGHT_PATH`，而 libtest 默认**同进程并行**跑测试——并行伙伴
+/// `skip_helper_returns_true_only_when_missing` 恰好在窗口期读到被覆盖的
+/// PATH，`cargo` 被误判缺失，断言 `!skip_if_env_missing(...)` 炸（
+/// `assertion failed at env_preflight.rs:142`，高 CPU 负载下调度窗口变宽，
+/// 复现率上升）。治本：**环境变量变更不进测试体**，覆盖路径作参数注入；
+/// 同进程内只剩并发读，无竞态面。
+fn missing_tools_impl(tools: &[&str], override_path: Option<&str>) -> Vec<String> {
+    if let Some(over) = override_path {
+        let dirs: Vec<PathBuf> = std::env::split_paths(over).collect();
         return tools
             .iter()
             .filter(|t| {
@@ -145,18 +163,22 @@ mod tests {
     #[test]
     fn restricted_path_simulates_missing_env() {
         // BID_PREFLIGHT_PATH 指向空目录 → 外部工具 + 语言数据全部判缺
-        // （模拟无 poppler / 无 tessdata 的机器）
+        // （模拟无 poppler / 无 tessdata 的机器）。
+        //
+        // 竞态注记（本测试的历次 flaky 根因，已治本）：旧版在此 `set_var`
+        // `BID_PREFLIGHT_PATH` 再 `remove_var`——libtest 同进程并行下，
+        // 并行伙伴 `skip_helper_returns_true_only_when_missing` 会在窗口期
+        // 读到被覆盖的 PATH，把 `cargo` 误判缺失（高负载下必现级联假红）。
+        // 现改为直调 `missing_tools_impl` 注入覆盖路径：零 env 变更、零 unsafe，
+        // 与真实缺件机器的观测面仍严格一致（同一条代码路径）。
         let empty = std::env::temp_dir().join("bid-preflight-empty-dirs");
         std::fs::create_dir_all(&empty).unwrap();
-        // SAFETY(env mut): 同 `skip_helper_returns_true_only_when_missing` 注记
-        unsafe { std::env::set_var("BID_PREFLIGHT_PATH", &empty) };
         let full_chain: Vec<&str> = PDF_CHAIN_TOOLS
             .iter()
             .copied()
             .chain(std::iter::once(OCR_LANG_CHI_SIM))
             .collect();
-        let miss = missing_tools(&full_chain);
-        unsafe { std::env::remove_var("BID_PREFLIGHT_PATH") };
+        let miss = missing_tools_impl(&full_chain, Some(empty.to_str().unwrap()));
         assert_eq!(
             miss.len(),
             full_chain.len(),

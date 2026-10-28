@@ -57,7 +57,14 @@ jobs:
           git config --global url."git@github.com:mmqz/mdcore.git".insteadOf "https://github.com/mmqz/mdcore"
           # 凭据连通性探测（诊断面：打印退出码不判死——真门禁是 cargo check 的 fetch）
           ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -T git@github.com 2>$null | Out-Null
-          echo "ssh -T exit code: $LASTEXITCODE (0/1=认证面 OK，255=见 cargo check 结果)"
+          $sshCode = $LASTEXITCODE
+          echo "ssh -T exit code: $sshCode (0/1=认证面 OK，255=见 cargo check 结果)"
+          # 退出码归一（PR #15 CI 红根因修复）：
+          # GitHub 对 `ssh -T` 不提供 shell——认证成功也返回 1。若不归一，
+          # 该 1 会成为 pwsh 步骤的最终退出码 → 步骤误判失败 → cargo check 全被跳过。
+          # 本步骤只做凭据布置 + 诊断（commit c57ce99 的设计意图即「不判死」），
+          # 真正的门禁是后续 cargo check 的 git fetch。故恒 exit 0。
+          exit 0
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable

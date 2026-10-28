@@ -349,14 +349,29 @@ impl DomainStore {
             });
         }
         // 幂等合并：dedupe_hash = sha256(排序后 (file, locator, excerpt, statement_norm))
+        //
+        // 性能治本（PR #24 修复批次——CI「12 分钟卡死」根因）：旧实现
+        // `merged.iter().position(|x| requirement_hash(x) == h)` 对每条新 REQ
+        // 线性扫描已有集且**逐个重算 sha256**——N 条全新件 = O(N²) 次哈希
+        // （12,000 条 ≈ 7,200 万次，Linux 实测 488s；Windows CI 外推 1.5-2x
+        // ≈ 12-16 分钟，即 Lead 观测的「cargo test 卡死」）。治本：已有集与
+        // 新增项各只算一次哈希，HashMap<hash, idx> O(1) 查表——O(N²) → O(N)。
+        // 语义不变：同 hash 取**首个**席位（与 position 首个命中一致），
+        // 重跑覆盖同位、新件追加——dedupe 语义零变化，仅复杂度治本。
         let mut merged: Vec<Requirement> = self.requirements.clone();
         let before = merged.len();
+        let mut index: HashMap<String, usize> = HashMap::with_capacity(merged.len());
+        for (i, r) in merged.iter().enumerate() {
+            index.entry(requirement_hash(r)).or_insert(i);
+        }
         for r in reqs {
             let h = requirement_hash(&r);
-            let existing = merged.iter().position(|x| requirement_hash(x) == h);
-            match existing {
-                Some(i) => merged[i] = r, // 重跑覆盖（同 hash → 稳定）
-                None => merged.push(r),
+            match index.get(&h) {
+                Some(&i) => merged[i] = r, // 重跑覆盖（同 hash → 稳定）
+                None => {
+                    index.insert(h, merged.len());
+                    merged.push(r);
+                }
             }
         }
         let added = merged.len() - before;

@@ -103,6 +103,13 @@ pub fn derive_matrix_rows(
     for (ev_id, req_id) in bindings {
         ev_by_req.entry(req_id.as_str()).or_default().push(ev_id.as_str());
     }
+    // 章节层级索引（PR #24 修复批次）：旧实现 and_modify 闭包内
+    // `sections.iter().find(|x| x.id == *cur)` 是 O(S)——嵌套在
+    // O(Σ|requirement_ids|) 循环里，真实章节树（S=800-1500 × 12,000 REQ 引用）
+    // ≈ 千万级扫描。预建 id→level 表后 and_modify O(1)，语义零变化
+    // （find 不到时 unwrap_or(0) 与 get().copied().unwrap_or(0) 同口径）。
+    let level_by_sec: HashMap<&str, u8> =
+        sections.iter().map(|s| (s.id.as_str(), s.level)).collect();
     let mut sec_by_req: HashMap<&str, &str> = HashMap::new();
     for s in sections {
         for rid in &s.requirement_ids {
@@ -110,7 +117,7 @@ pub fn derive_matrix_rows(
             // 不变量保证：父聚合 = 子并集，父与子都含同一 REQ 时取**最深层**（叶子）
             sec_by_req.entry(rid.as_str())
                 .and_modify(|cur| {
-                    let cur_level = sections.iter().find(|x| x.id == *cur).map(|x| x.level).unwrap_or(0);
+                    let cur_level = level_by_sec.get(*cur).copied().unwrap_or(0);
                     if s.level > cur_level {
                         *cur = &s.id;
                     }
@@ -375,13 +382,22 @@ mod tests {
         // EV-0003 需在台账（matrix_view 活证据过滤）——build_matrix 用全量绑定（含过期证据
         // 由 R-03 绑定时刻把关，视图层过滤），此处直接放行验证闸门翻转
         s.set_matrix_override("REQ-0003".into(), ResponseStatus::Responded, None).ok();
+        // 章节树真正落 store（PR #24 修复批次）：旧代码 `let _ = sections;`
+        // 构造完即丢弃——「绑定+章节全响应」的验收意图从未被检验（blocking=0
+        // 实际全靠绑定→PARTIAL 不阻断达成，章节位恒缺）。set_outline 过树校验
+        // + REQ 存在性门后，绑定（→有证据）× 章节（→有响应位）合力达成
+        // RESPONDED，闸门放行才名副其实。
         let sections: Vec<OutlineNode> = ["资格条件", "否决项", "评分项", "技术参数", "商务要求"]
             .iter().enumerate()
-            .map(|(i, t)| sec(&format!("SEC-{:04}", i + 10), 1,
-                &s.requirements().iter().filter(|r| r.category == *t)
-                    .map(|r| r.id.as_str()).collect::<Vec<_>>()))
+            .map(|(i, t)| {
+                let mut n = sec(&format!("SEC-{:04}", i + 10), 1,
+                    &s.requirements().iter().filter(|r| r.category == *t)
+                        .map(|r| r.id.as_str()).collect::<Vec<_>>());
+                n.order = i as u32 + 10; // 文档序全局唯一（sec 默认 order=level，5 节点会撞号）
+                n
+            })
             .collect();
-        let _ = sections; // 全类目章节面（叶子响应位）
+        s.set_outline(sections).unwrap();
         let (_, blocking3) = s.build_matrix().unwrap();
         assert_eq!(blocking3, 0, "绑定+章节全响应 → blocking 清零");
         assert!(s.check_export_ready().is_ok(), "闸门放行");

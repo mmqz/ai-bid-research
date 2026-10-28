@@ -34,3 +34,34 @@ pub use types::{
     EngineHeaderFooterVariant, EngineImage, EngineParagraph, EnginePdf, EngineSheet,
     EngineTable, EngineWarning,
 };
+
+/// 引擎钉住 rev（与 Cargo.toml git 依赖一致——parse_summary 溯源口径）。
+/// 升级走独立 PR（`chore(dep): bump mdcore`）并重跑基线差分（issue #2 §3.1）。
+pub const MDCORE_REV: &str = "2d0144456162389cccdfadfbed22b9e7c30d697d";
+
+/// 门面：读文件 → 引擎解析 → 映射为 `ParsedFile`（B5 import 接线入口）。
+///
+/// sha256 标书侧算（引擎不做文件级指纹——映射表 §1 末行）；错误分类：
+/// 引擎拒绝（三门）→ `EngineError::EngineRejected`（A3 敌意面差分依赖）。
+pub fn parse_docx_via_engine(path: &std::path::Path) -> Result<bid_parse::ParsedFile, EngineError> {
+    let bytes = std::fs::read(path).map_err(|e| {
+        EngineError::EngineFailed(format!("读取 {} 失败: {e}", path.display()))
+    })?;
+    let sha = {
+        use sha2::{Digest, Sha256};
+        let mut h = Sha256::new();
+        h.update(&bytes);
+        hex::encode(h.finalize())
+    };
+    let reader = MdcoreReader::new();
+    let doc = reader.read_docx(&bytes)?;
+    let meta = FileMeta {
+        name: path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| path.display().to_string()),
+        sha256: sha,
+        bytes: bytes.len(),
+    };
+    docx_to_parsed_file(doc, &meta)
+}

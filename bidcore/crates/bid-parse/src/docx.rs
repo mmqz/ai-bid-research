@@ -239,7 +239,10 @@ fn cn_num_ok(s: &str) -> bool {
     s.chars().all(|c| "一二三四五六七八九十百".contains(c))
 }
 
-fn as_chapter(t: &str) -> Option<String> {
+/// 章节模式助手（B5 起公开：bid-engine 映射层构建 locator 消费同一口径——
+/// B4 删除本文件自研解析时，这三个助手**迁入 bid-engine**（locator 语义属于
+/// 标书面呈现，非引擎能力；提取层 extract.rs 只消费 locator 字符串）。
+pub fn as_chapter(t: &str) -> Option<String> {
     // 「第X章 标题」——章号用中文数字；携带完整标题（类别映射与 GT locator 口径需要全文）
     if t.len() >= 4 && t.starts_with("第") {
         if let Some(pos) = t.find("章") {
@@ -252,7 +255,7 @@ fn as_chapter(t: &str) -> Option<String> {
     None
 }
 
-fn as_subsection(t: &str) -> Option<String> {
+pub fn as_subsection(t: &str) -> Option<String> {
     // 「一、标题」——中文序号节标题（长度短，避免把正文当标题）；携带完整标题
     if t.chars().count() <= 30 {
         if let Some(idx) = t.find('、') {

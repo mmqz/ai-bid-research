@@ -25,9 +25,9 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         "get_bid_project_state" => get_bid_project_state(svc, args),
         "create_bid_project" => create_bid_project(svc, args),
         "import_tender_files" => import_tender_files(svc, args),
+        "extract_requirements" => extract_requirements(svc, args),
+        "get_compliance_matrix" => get_compliance_matrix(svc, args),
         // ---- M0 骨架：以下工具待各自里程碑接线 ----
-        "extract_requirements" => Err(ToolError::unimplemented(name, "M1-b（抽取接线）")),
-        "get_compliance_matrix" => Err(ToolError::unimplemented(name, "M2-a（矩阵构建）")),
         "search_evidence" => Err(ToolError::unimplemented(name, "M2-b（双通道检索）")),
         "draft_response_section" => Err(ToolError::unimplemented(name, "M3（起草 + 内核 CAS 写入）")),
         "validate_bid_document" => Err(ToolError::unimplemented(name, "M4（规则注册表）")),
@@ -353,4 +353,288 @@ fn import_tender_files(svc: &mut BidService, args: Value) -> ToolResult {
         });
     }
     Ok(data)
+}
+
+// ================================================================ extract_requirements（契约 §3）
+
+/// 类别 → 契约键（counts.by_category 口径）。
+fn category_key(cn: &str) -> &'static str {
+    match cn {
+        "资格条件" => "qualification",
+        "否决项" => "veto",
+        "评分项" => "scoring",
+        "技术参数" => "tech_param",
+        "商务要求" => "commercial",
+        "格式要求" => "format",
+        _ => "other",
+    }
+}
+
+/// 条款号数值化（`3.2.1` → [3, 2, 1]——缺号检测的序比较基元）。
+fn clause_digits(no: &str) -> Option<Vec<u64>> {
+    let parts: Vec<&str> = no.split('.').collect();
+    if parts.is_empty() || parts.iter().any(|p| p.is_empty()) {
+        return None;
+    }
+    parts.iter().map(|p| p.trim().parse::<u64>().ok()).collect()
+}
+
+/// 同前缀下 1..=n 连续性检测 → 缺号清单（契约硬规则：缺号必须报告）。
+fn missing_in_run(found: &mut Vec<Vec<u64>>, out: &mut Vec<Value>, file_id: &str) {
+    found.sort();
+    let mut i = 0usize;
+    while i + 1 < found.len() {
+        let (a, b) = (&found[i], &found[i + 1]);
+        // 同父路径下的相邻兄弟：末位差 >1 → 报缺号区间
+        if a.len() == b.len() && a[..a.len() - 1] == b[..b.len() - 1] {
+            let (x, y) = (a[a.len() - 1], b[b.len() - 1]);
+            if y > x + 1 && y - x <= 50 {
+                // 防伪缺号：跳章（y - x > 50）多为主线切换而非真缺（P2 评测口径）
+                let missing: Vec<String> = ((x + 1)..y).map(|n| {
+                    let mut seg = a[..a.len() - 1].to_vec();
+                    seg.push(n);
+                    seg.iter().map(|d| d.to_string()).collect::<Vec<_>>().join(".")
+                }).collect();
+                out.push(json!({
+                    "file_id": file_id,
+                    "expected_clause_nos": missing,
+                    "after": a.iter().map(|d| d.to_string()).collect::<Vec<_>>().join("."),
+                }));
+            }
+        }
+        i += 1;
+    }
+}
+
+fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
+    // ---- 参数校验（契约 §3 in）
+    let project_id = req_str(&args, "project_id", "extract_requirements")?;
+    let scope = opt_str(&args, "scope", "extract_requirements")?.unwrap_or_else(|| "all".into());
+    if scope != "all" {
+        return Err(ToolError::EUnprocessable {
+            what: format!("scope={scope} 暂不支持（B5 最小面：all——文件子集过滤属 M2 扩展）"),
+        });
+    }
+    if args.get("options").map(Value::is_object).unwrap_or(true) == false {
+        return Err(ToolError::EUnprocessable { what: "options 必须为对象".into() });
+    }
+    let project_version = opt_u64(&args, "project_version", "extract_requirements")?;
+
+    // ---- 项目路由 + 状态机裁决（E_NOTFOUND / E_STATE）
+    let proj = svc.store().project().map_err(ToolError::from)?;
+    if proj.id != project_id {
+        return Err(ToolError::ENotFound {
+            what: format!("project 不存在：{project_id}（当前服务态项目：{}）", proj.id),
+        });
+    }
+    svc.store().guard_tool("extract_requirements").map_err(ToolError::from)?;
+    svc.store().check_version(project_version).map_err(ToolError::from)?;
+
+    // ---- 前置：导入面必须有成功解析件（空抽取面 = E_STATE 语义前置）
+    let parsed_empty = svc.parsed().is_empty();
+    if parsed_empty {
+        return Err(ToolError::EState {
+            what: format!("{} 态无已解析文件——先 import_tender_files", proj.status.as_str()),
+        });
+    }
+
+    // ---- 转发业务：确定性先行抽取（extract.rs 规则——输入为引擎/旧路径
+    //      产出的同型 ParsedFile，B5 起主文件 docx 已走 bid-engine）
+    let reqs = bid_parse::extract::extract_requirements(svc.parsed());
+
+    // ---- 完整性校验：缺号检测（契约硬规则）
+    let mut missing_sequence: Vec<Value> = Vec::new();
+    let files = svc.store().files().to_vec();
+    for f in &files {
+        let mut found: Vec<Vec<u64>> = reqs
+            .iter()
+            .filter(|r| r.source_file == f.name)
+            .filter_map(|r| r.clause_no.as_deref().and_then(clause_digits))
+            .collect();
+        if found.len() >= 2 {
+            missing_in_run(&mut found, &mut missing_sequence, &f.id);
+        }
+    }
+
+    // ---- 冲突检测（最小面）：补遗（C-）与主文件（A-）同条款号不同文本 → 双向登记
+    let mut conflicts: Vec<Value> = Vec::new();
+    let main_names: Vec<&str> = svc
+        .parsed()
+        .iter()
+        .map(|p| p.name.as_str())
+        .collect();
+    // 补遗件名集合（C- 前缀——B5 最小冲突面：主文件 × 补遗同条款号异文）
+    let addenda_names: Vec<String> = svc
+        .parsed()
+        .iter()
+        .filter(|p| p.name.starts_with("C-"))
+        .map(|p| p.name.clone())
+        .collect();
+    for ad_name in &addenda_names {
+        for r_ad in reqs.iter().filter(|r| r.source_file == *ad_name) {
+            if let Some(no) = &r_ad.clause_no {
+                for r_main in reqs.iter().filter(|r| {
+                    r.source_file != *ad_name
+                        && main_names.contains(&r.source_file.as_str())
+                        && r.clause_no.as_deref() == Some(no.as_str())
+                }) {
+                    let (ex_ad, ex_main) = (
+                        r_ad.anchors.first().map(|a| a.excerpt.as_str()).unwrap_or(""),
+                        r_main.anchors.first().map(|a| a.excerpt.as_str()).unwrap_or(""),
+                    );
+                    if ex_ad != ex_main {
+                        conflicts.push(json!({
+                            "a": r_main.id, "b": r_ad.id,
+                            "reason": format!("条款 {no}：主文件与补遗文本不一致（{} vs {}）",
+                                truncate(ex_main, 30), truncate(ex_ad, 30)),
+                        }));
+                    }
+                }
+            }
+        }
+    }
+
+    // ---- 落库（幂等合并 + 状态转换 FILES_IMPORTED → REQUIREMENTS_EXTRACTED）
+    let (total, added) = svc
+        .store_mut()
+        .set_requirements(reqs)
+        .map_err(ToolError::from)?;
+
+    // ---- counts 组装
+    let mut by_category: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+    for r in svc.store().requirements() {
+        *by_category.entry(category_key(&r.category)).or_insert(0) += 1;
+    }
+    let mut warnings: Vec<String> = Vec::new();
+    if !missing_sequence.is_empty() {
+        warnings.push(format!(
+            "MISSING_SEQUENCE: {} 处条款缺号（完整性校验面——详见 missing_sequence）",
+            missing_sequence.len()
+        ));
+    }
+    if !conflicts.is_empty() {
+        warnings.push(format!(
+            "CONFLICTS: {} 对主文件/补遗条款冲突（双向登记）",
+            conflicts.len()
+        ));
+    }
+    for p in svc.parsed() {
+        if p.parse_summary.contains("engine-docx") {
+            warnings.push(format!(
+                "ENGINE_DOCX: {} 经引擎路径解析（已知缺口：嵌套表 mdcore#39 / 域边界 mdcore#40——docs/b3-3-acceptance-report.md §6）",
+                p.name
+            ));
+            break;
+        }
+    }
+
+    Ok(json!({
+        "counts": {
+            "total": total,
+            "added": added,
+            "by_category": by_category,
+        },
+        "conflicts": conflicts,
+        "missing_sequence": missing_sequence,
+        "warnings": warnings,
+        "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
+}
+
+fn truncate(s: &str, n: usize) -> String {
+    if s.chars().count() <= n {
+        s.to_string()
+    } else {
+        let t: String = s.chars().take(n).collect();
+        format!("{t}…")
+    }
+}
+
+// ================================================================ get_compliance_matrix（契约 §4，只读）
+
+fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
+    // ---- 参数校验（契约 §4 in：project_id + filters + page）
+    let project_id = req_str(&args, "project_id", "get_compliance_matrix")?;
+    let filter_category = args
+        .get("filters")
+        .and_then(|f| f.get("category"))
+        .and_then(Value::as_str)
+        .map(|s| s.to_string());
+    let filter_status = args
+        .get("filters")
+        .and_then(|f| f.get("status"))
+        .and_then(Value::as_str)
+        .map(|s| s.to_string());
+    let page = opt_u64(&args, "page", "get_compliance_matrix")?.unwrap_or(1).max(1);
+    let page_size: usize = 200; // B5 最小面：固定页大小（M2 扩展游标分页）
+
+    // ---- 项目路由（只读工具：无状态机裁决——契约 §4 任何阶段可调）
+    let proj = svc.store().project().map_err(ToolError::from)?;
+    if proj.id != project_id {
+        return Err(ToolError::ENotFound {
+            what: format!("project 不存在：{project_id}（当前服务态项目：{}）", proj.id),
+        });
+    }
+
+    // ---- 行组装（B5 最小矩阵：REQ × 状态——证据列空、gap/response_policy 默认）
+    let reqs = svc.store().requirements().to_vec();
+    let mut rows: Vec<Value> = Vec::with_capacity(reqs.len());
+    for (i, r) in reqs.iter().enumerate() {
+        if let Some(c) = &filter_category {
+            if category_key(&r.category) != c && r.category != *c {
+                continue;
+            }
+        }
+        // B5 状态面恒「未响应」（响应登记属 M2 证据绑定/draft 面的下游写入）
+        let status = "unanswered";
+        if let Some(s) = &filter_status {
+            if status != s {
+                continue;
+            }
+        }
+        let anchor = r.anchors.first();
+        rows.push(json!({
+            "cmp_id": format!("CMP-{:04}", i + 1),
+            "requirement": {
+                "id": r.id,
+                "clause_no": r.clause_no,
+                "category": r.category,
+                "category_key": category_key(&r.category),
+                "statement": anchor.map(|a| a.excerpt.as_str()).unwrap_or(""),
+                "mandatory": r.category == "否决项" || r.category == "资格条件",
+                "source_anchor": anchor.map(|a| json!({
+                    "file": a.file, "kind": a.kind, "locator": a.locator, "excerpt": a.excerpt,
+                })),
+                "params": r.params,
+            },
+            "evidence": [],
+            "gap": Value::Null,
+            "response_policy": "default",
+            "draft_section_id": Value::Null,
+        }));
+    }
+    let total_rows = rows.len();
+    let start = ((page as usize - 1) * page_size).min(total_rows);
+    let end = (start + page_size).min(total_rows);
+    let rows = rows[start..end].to_vec();
+
+    let mut warnings: Vec<String> = Vec::new();
+    if svc.store().requirements().is_empty() {
+        warnings.push("EMPTY_MATRIX: 条款集为空（先 extract_requirements）".to_string());
+    }
+
+    Ok(json!({
+        "rows": rows,
+        "counts": {
+            "total": total_rows,
+            "returned": rows.len(),
+            "page": page,
+            "page_size": page_size,
+        },
+        "warnings": warnings,
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
 }

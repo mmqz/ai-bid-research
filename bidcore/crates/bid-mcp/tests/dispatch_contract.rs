@@ -31,11 +31,10 @@ fn unknown_tool_is_typed_not_found() {
 
 #[test]
 fn unimplemented_tools_return_typed_unimplemented_not_ok() {
-    // 6 个未落地工具：必须全部返回 UNIMPLEMENTED_INTERNAL，一个都不能"空成功"
-    // （B-1 已落地 create_bid_project / import_tender_files——不在此清单）
+    // 4 个未落地工具：必须全部返回 UNIMPLEMENTED_INTERNAL，一个都不能"空成功"
+    // （B-1 落地 create/import；B5 落地 extract_requirements/get_compliance_matrix
+    // ——不在此清单。工具落地时本清单同步收缩，防止骨架与实现脱钩）
     let unimplemented = [
-        "extract_requirements",
-        "get_compliance_matrix",
         "search_evidence",
         "draft_response_section",
         "validate_bid_document",

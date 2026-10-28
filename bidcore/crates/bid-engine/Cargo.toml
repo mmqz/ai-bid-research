@@ -21,6 +21,8 @@ bid-parse = { path = "../bid-parse" }
 #   A1 标题层级四链解析（a85decd）/ A2 表现型域剥离（338acdc）/ P2-1 BlockSource 加性扩面（f19cd6a））
 # 私有仓凭据：本机 ~/.gitconfig insteadOf 注入（PAT 不入仓、不入 CI 日志——issue #2 §3.1）。
 mdc-office-io = { git = "https://github.com/mmqz/mdcore", rev = "2d0144456162389cccdfadfbed22b9e7c30d697d", package = "mdc-office-io" }
+sha2 = "0.10"
+hex = "0.4"
 
 [dev-dependencies]
 serde_json = "1"

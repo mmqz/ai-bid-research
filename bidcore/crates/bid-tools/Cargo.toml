@@ -13,3 +13,14 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
 regex = { workspace = true }
+# docx 写入（S-6 组装导出）：版本已在依赖图中（bid-engine → mdc-office-io →
+# docx-rs 0.4.22，Cargo.lock 既有条目）——本声明不新增三方面，只把既有
+# 传递依赖提为直接依赖。0.4.22 的 Docx::pack 直接把 XML 部件流式写进 zip
+# writer（不物化整包 Vec<u8>），TableOfContents 原生支持 TOC \o 域指令。
+docx-rs = "0.4"
+
+[dev-dependencies]
+# 测试面（S-6 验收）：解包导出产物校验 zip 完整性 + XML 良构（「Word 打开
+# 不弹修复」的本地代理口径）——与 bid-parse 同源 workspace 版本，不新增条目。
+zip = { workspace = true }
+quick-xml = { workspace = true }

@@ -231,6 +231,14 @@ impl ChapterAssembler {
         self.records.len()
     }
 
+    /// 已提交章 id 的只读迭代面（BTreeMap 键序 = 字典序，确定可重放）。
+    /// 消费方：S-6 DocumentExporter 的全记录对账（幽灵章 / 记录挂结构节点
+    /// 检查需要遍历工作区侧的记录全集，而非按树逐个 probing——半个工作区
+    /// 的「多出来的记录」只能从这一侧发现）。
+    pub fn committed_ids(&self) -> impl Iterator<Item = &str> {
+        self.records.keys().map(|s| &s[..])
+    }
+
     /// 提交一章（每章生成完立即落盘——**本函数是唯一的持久化点**）。
     ///
     /// - 同 section_id 且 content+citations 与既有记录全等 → **no-op 返回既有

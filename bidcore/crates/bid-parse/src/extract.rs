@@ -12,6 +12,7 @@ use crate::{Block, BlockKind, ParsedFile};
 use bid_domain::{Anchor, Requirement};
 use regex::Regex;
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 /// 型号谱系正则：字母开头（≥1 位）+ 连字符分段（防误配纯数字编号如「附件 7-3」）。
 /// 覆盖实测谱系：GW-8000-T4 / S5735-L48T4X-A1 / USG6650E-AC550 / IPC-4T-IR-D2 / NVR-64H-8P / DCS-4000。
@@ -248,9 +249,28 @@ fn extract_b2_ocr(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize) 
     }
 }
 
+/// 评分项分值提取（T-3 评分矩阵输入面——issue #11 批次 v3）：
+/// 评分细则行「N、报价：65 分」/ 表格行「…30 分」→ `params.score`。
+/// 纯确定性正则（零模型）；「满分 100 分」类总分层可能误配为单行分值——
+/// 领域层 scoring sanity（总分 >100 告警）兑底，不在本层猜测语义。
+fn score_of(text: &str) -> Option<f64> {
+    static RE_SCORE: OnceLock<Regex> = OnceLock::new();
+    RE_SCORE
+        .get_or_init(|| Regex::new(r"(\d+(?:\.\d+)?)\s*分").unwrap())
+        .captures(text)
+        .and_then(|c| c[1].parse().ok())
+}
+
 fn push_req(reqs: &mut Vec<Requirement>, seq: &mut usize, category: &str,
             clause_no: Option<String>, anchors: Vec<Anchor>,
-            params: HashMap<String, serde_json::Value>, source: &str) {
+            mut params: HashMap<String, serde_json::Value>, source: &str) {
+    // T-3：评分项统一补分值槽位（所有推入路径单一插入点——段落/表格/前附表）
+    if category == "评分项" && !params.contains_key("score") {
+        let joined: String = anchors.iter().map(|a| a.excerpt.as_str()).collect();
+        if let Some(s) = score_of(&joined) {
+            params.insert("score".into(), serde_json::json!(s));
+        }
+    }
     *seq += 1;
     reqs.push(Requirement {
         id: format!("REQ-{seq:04}"),

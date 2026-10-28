@@ -7,7 +7,11 @@
 
 - **错误码**：`E_AUTH` / `E_NOTFOUND` / `E_STATE`（状态机拒绝越级或非法转换）/ `E_CONFLICT`（project_version 过期）/ `E_PARTIAL`（部分条目失败，附 item_errors）/ `E_UNPROCESSABLE`（解析不可恢复）/ `E_RATE` / `E_INTERNAL`。
 - **幂等策略**：写操作接受 `idempotency_key`；同一 key 重复调用返回首次结果（不重复执行）。文件按 `sha256` 天然幂等；条款抽取按 `dedupe_hash` 幂等合并。
-- **补充建议（第 9 个只读工具）**：`get_bid_project_state`——断点恢复的入口（读项目状态、各阶段完成度、DIRTY 章节、BLOCKER 计数），仿 LingYan `check_pipeline_state`。原 8 工具契约不受影响。
+- **大结果分页（S-4，V3-5）**：列表类工具（get_compliance_matrix / list_evidence / list_tasks，及 M2-b 的 search_evidence）不得一次返回全量（12,000 行矩阵 / 10,000 条证据量级）——统一游标信封：
+  `in : { project_id, filters:{...}, cursor?, limit?, page?(仅矩阵兼容) }`；
+  `out: { rows|items, total(过滤后总数), limit(生效页宽), cursor(本次生效游标), next_cursor: string|null }`，`next_cursor=null` 即取完，原样回传取下一页。
+  游标规则（fail-closed）：opaque base64（内嵌版本字节/偏移/过滤器指纹）；跨过滤器或跨工具复用游标 → `E_UNPROCESSABLE`；limit 合法域 1..=1000、缺省 100，越界/非整数**显式拒**（不静默 clamp）；游标损坏/版本不认识/偏移越界（底层列表已变化）→ `E_UNPROCESSABLE`。行序确定性（矩阵=条款位置序 CMP-0001..N；证据=id 字典序；任务=target_id 字典序）是分页安全前提，不得破坏。
+- **补充建议（第 9 个只读工具）**：`get_bid_project_state`——断点恢复的入口（读项目状态、各阶段完成度、DIRTY 章节、BLOCKER 计数），仿 LingYan `check_pipeline_state`。原 8 工具契约不受影响。V3-5（S-4）另增两个只读列表工具 `list_evidence` / `list_tasks`（§4-A/§4-B，工具面共 11）。
 
 ## 1. create_bid_project
 ```
@@ -42,10 +46,41 @@ out: { counts:{total, by_category{qualification,veto,scoring,tech_param,commerci
 
 ## 4. get_compliance_matrix（只读）
 ```
-in : { project_id, filters:{category?, response_policy?, gap?, status?}, page? }
+in : { project_id, filters:{category?, status?}, cursor?, limit?, page? }
+     category: 契约键（qualification|veto|scoring|tech_param|commercial|format|other）或中文类别名；
+     status  : NOT_RESPONDED|RESPONDED|PARTIAL|NOT_APPLICABLE（T-2 四态派生）；
+     cursor  : opaque 游标（与 filters+project_id 绑定，优先于 page）；limit: 1..=1000（缺省 100）；
+     page    : 兼容旧调用（映射 offset=(page-1)*limit；page≥1，0 → E_UNPROCESSABLE）
 out: { rows:[{cmp_id, requirement:{id, clause_no, category, statement, mandatory, source_anchor, params},
-              evidence:[{ev_id, title, status, valid_until}], gap, response_policy, draft_section_id}], counts }
-无状态副作用；任何阶段可调。
+              evidence:[{ev_id, title, status, valid_until}], gap, response_policy, draft_section_id}],
+       total(过滤后总数), limit, cursor(本次生效), next_cursor: string|null,
+       counts:{total, returned, page(信息性回显), page_size(=limit)} }
+无状态副作用；任何阶段可调。行序 = 条款位置序（cmp_id CMP-0001..N，确定性稳定）；
+先过滤后分页（total 恒为过滤后总数）。
+错误: E_UNPROCESSABLE（游标与过滤器不匹配/游标损坏/limit 或 page 越界——显式拒不 clamp）
+```
+
+## 4-A. list_evidence（只读，S-4 新增）
+```
+in : { project_id, filters:{kind?, status?}, cursor?, limit? }
+     kind    : qualification|performance|personnel|certificate|product_doc|solution_module|contract
+               （或对应中文展示名——与矩阵 category 双形态口径一致）；
+     status  : ACTIVE|EXPIRING|EXPIRED|SUPERSEDED（T-1 台账状态）
+out: { items:[{id:EV-*, kind(snake_case 机器形态), title, status, subject_name, valid_until}],
+       total(过滤后总数), limit, cursor(本次生效), next_cursor: string|null }
+无状态副作用；任何阶段可调。行序 = id 字典序（确定全序）；先过滤后分页。
+错误: E_UNPROCESSABLE（非法 kind/status、游标与过滤器不匹配、limit 越界）；E_NOTFOUND（项目路由）
+```
+
+## 4-B. list_tasks（只读，S-4 新增）
+```
+in : { project_id, filters:{owner?, status?}, cursor?, limit? }
+     owner  : 执行人精确匹配；status: ASSIGNED|IN_PROGRESS|DONE（T-6 人侧进度）
+out: { items:[{target_id:SEC-*|REQ-*, owner, deadline, status}],
+       total(过滤后总数), limit, cursor(本次生效), next_cursor: string|null }
+无状态副作用；任何阶段可调。行序 = target_id 字典序（domain BTree 语义——R-15 可重放）；
+先过滤后分页（过滤下沉 DomainStore::list_tasks 双过滤，工具层只切页）。
+错误: E_UNPROCESSABLE（非法 status、游标与过滤器不匹配、limit 越界）；E_NOTFOUND（项目路由）
 ```
 
 ## 5. search_evidence（知识库检索——双通道）
@@ -55,7 +90,9 @@ in : { project_id, query, mode:"hybrid"|"semantic"|"exact", exact?:{field:"model
 out: { hits:[{ev_id, chunk_id, content, source:{file, position}, score, match_type:"semantic|exact|both"}],
        trace:{semantic_k, exact_k, merged_by} }
 硬规则: 资格类查询默认 exact 优先；valid_until < 开标日 的证据自动降权并附 warning=EVIDENCE_EXPIRING/EXPIRED；
-      排序带确定性 tie-breaker（score, evidence_id）保证可重放（R-15）
+      排序带确定性 tie-breaker（score, evidence_id）保证可重放（R-15）；
+      **M2-b 落地时必须走 bid-mcp cursor.rs 游标模块（S-4）——hits 面同属大结果列表，
+      分页信封/游标绑定/fail-closed 语义与 §0 大结果分页约定统一，不得自带第二套分页口径**。
 错误: E_STATE（项目无企业资料库绑定）
 ```
 

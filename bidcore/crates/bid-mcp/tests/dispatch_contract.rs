@@ -14,8 +14,9 @@ fn call(tool: &str, args: serde_json::Value) -> bid_mcp::ToolReply {
 }
 
 #[test]
-fn tool_names_are_the_contract_nine() {
-    assert_eq!(TOOL_NAMES.len(), 9, "工具面必须恰为 9 个（8+1 契约）");
+fn tool_names_are_the_contract_eleven() {
+    // V3-5（S-4）：原 8 工具 + get_bid_project_state + list_evidence/list_tasks = 11
+    assert_eq!(TOOL_NAMES.len(), 11, "工具面必须恰为 11 个（8+1+2 契约——V3-5 增两列表工具）");
     for name in TOOL_NAMES {
         assert!(!name.is_empty());
     }
@@ -92,15 +93,28 @@ fn json_roundtrip_failure_is_typed() {
 }
 
 #[test]
-fn tools_schema_lists_all_nine() {
+fn tools_schema_lists_all_eleven() {
     let v = bid_mcp::tools_schema();
     let arr = v["tools"].as_array().unwrap();
-    assert_eq!(arr.len(), 9);
+    assert_eq!(arr.len(), 11);
     let implemented: Vec<&str> = arr
         .iter()
         .filter(|t| t["implemented"] == true)
         .map(|t| t["name"].as_str().unwrap())
         .collect();
-    // B-1 后：create_bid_project / import_tender_files / get_bid_project_state（TOOL_NAMES 声明序）
-    assert_eq!(implemented, vec!["create_bid_project", "import_tender_files", "get_bid_project_state"]);
+    // B-1：create/import；B5：extract/matrix；V3-5（S-4）：list_evidence/list_tasks；
+    // + get_bid_project_state（TOOL_NAMES 声明序）——B5 期漏登 extract/matrix 的
+    // implemented 位已一并修正（工具落地时本清单同步收缩，防骨架与实现脱钩）
+    assert_eq!(
+        implemented,
+        vec![
+            "create_bid_project",
+            "import_tender_files",
+            "extract_requirements",
+            "get_compliance_matrix",
+            "list_evidence",
+            "list_tasks",
+            "get_bid_project_state",
+        ]
+    );
 }

@@ -10,12 +10,19 @@
 //! 参数校验（E_UNPROCESSABLE）→ 项目路由（E_NOTFOUND）→ 状态机裁决
 //! （`guard_tool`，E_STATE）→ 乐观并发（E_CONFLICT）→ 转发 → 响应组装
 //! （契约 §2 out + 包装字段 project_version / request_id / warnings）。
+//!
+//! V3-5（issue #11 批次 v3 / S-4 游标分页）：§4 族只读列表工具
+//! （get_compliance_matrix / list_evidence / list_tasks）统一走 [`crate::cursor`]
+//! 的游标信封——先过滤后分页、行序确定性、游标与过滤器绑定（fail-closed）。
 
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
+use crate::cursor;
 use crate::error::{ToolError, ToolResult};
 use crate::state::next_request_id;
+use bid_domain::evidence::{EvidenceKind, EvidenceStatus};
 use bid_domain::{ParseStatus, ProjectStatus};
 use bid_tools::service::{BidService, ImportSpec};
 
@@ -27,8 +34,11 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         "import_tender_files" => import_tender_files(svc, args),
         "extract_requirements" => extract_requirements(svc, args),
         "get_compliance_matrix" => get_compliance_matrix(svc, args),
+        // ---- S-4 大结果分页（V3-5）：只读列表工具，游标信封见 cursor.rs ----
+        "list_evidence" => list_evidence(svc, args),
+        "list_tasks" => list_tasks(svc, args),
         // ---- M0 骨架：以下工具待各自里程碑接线 ----
-        "search_evidence" => Err(ToolError::unimplemented(name, "M2-b（双通道检索）")),
+        "search_evidence" => Err(ToolError::unimplemented(name, "M2-b（双通道检索——落地时必须走 cursor.rs 游标模块）")),
         "draft_response_section" => Err(ToolError::unimplemented(name, "M3（起草 + 内核 CAS 写入）")),
         "validate_bid_document" => Err(ToolError::unimplemented(name, "M4（规则注册表）")),
         "export_bid_document" => Err(ToolError::unimplemented(name, "M5（内核导出适配器）")),
@@ -71,6 +81,42 @@ fn opt_u64(v: &Value, key: &str, at: &str) -> Result<Option<u64>, ToolError> {
         }),
         Some(_) => Err(ToolError::EUnprocessable { what: format!("{at}: {key} 须为非负整数") }),
     }
+}
+
+/// filters 对象解包（契约 §4 族列表工具共用）：缺席/null → None；非对象 →
+/// E_UNPROCESSABLE（S-4 收紧面：把 filters 传成字符串/数组被静默吞掉是
+/// B5 期的宽松遗留，fail-closed 纪律下显式拒）。
+fn filters_of<'a>(args: &'a Value, tool: &str) -> Result<Option<&'a Value>, ToolError> {
+    match args.get("filters") {
+        None | Some(Value::Null) => Ok(None),
+        Some(v @ Value::Object(_)) => Ok(Some(v)),
+        Some(_) => Err(ToolError::EUnprocessable {
+            what: format!("{tool}: filters 须为对象（如 {{\"category\": \"scoring\"}}）"),
+        }),
+    }
+}
+
+/// filters 内的单字符串过滤位（缺席/null → None；非字符串 → 拒）。
+fn filter_str(filters: Option<&Value>, key: &str, tool: &str) -> Result<Option<String>, ToolError> {
+    match filters.and_then(|f| f.get(key)) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::String(s)) => Ok(Some(s.clone())),
+        Some(_) => Err(ToolError::EUnprocessable {
+            what: format!("{tool}: filters.{key} 须为字符串"),
+        }),
+    }
+}
+
+/// 项目路由（§4 族只读列表工具共用）：project_id 与服务态项目不符 →
+/// E_NOTFOUND（只读工具无状态机裁决——任何阶段可调）。
+fn route_project(svc: &BidService, project_id: &str, tool: &str) -> Result<(), ToolError> {
+    let proj = svc.store().project().map_err(ToolError::from)?;
+    if proj.id != project_id {
+        return Err(ToolError::ENotFound {
+            what: format!("project 不存在：{project_id}（当前服务态项目：{}）——{tool}", proj.id),
+        });
+    }
+    Ok(())
 }
 
 fn parse_status_str(s: ParseStatus) -> &'static str {
@@ -555,49 +601,69 @@ fn truncate(s: &str, n: usize) -> String {
 
 // ================================================================ get_compliance_matrix（契约 §4，只读）
 
+/// `get_compliance_matrix` —— 契约 §4（只读，任何阶段可调）。
+///
+/// **S-4 游标分页升级（V3-5）**：
+/// - 入参新增 `cursor?` / `limit?`；`page?` 保留兼容旧调用，与 cursor 并存时
+///   **cursor 优先**（page 映射 offset=(page-1)*limit 后走同一游标路径）；
+/// - 出参信封 `{ rows, total, limit, cursor(本次生效), next_cursor }`——
+///   `next_cursor=null` 即取完；`total` 是**过滤后总数**（先过滤后分页）；
+/// - 行序 = 条款集位置序（`cmp_id` CMP-0001..N 按全量位置派生——确定性稳定序，
+///   分页安全的前提）；12,000 行量级 O(N) 组装（矩阵行反查走 HashMap，
+///   不做逐行线性 find）；
+/// - 游标与过滤器绑定（cursor.rs 指纹）：跨过滤器复用 → E_UNPROCESSABLE。
 fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
-    // ---- 参数校验（契约 §4 in：project_id + filters + page）
+    // ---- 参数校验（契约 §4 in：project_id + filters + cursor/limit/page）
     let project_id = req_str(&args, "project_id", "get_compliance_matrix")?;
-    let filter_category = args
-        .get("filters")
-        .and_then(|f| f.get("category"))
-        .and_then(Value::as_str)
-        .map(|s| s.to_string());
-    let filter_status = args
-        .get("filters")
-        .and_then(|f| f.get("status"))
-        .and_then(Value::as_str)
-        .map(|s| s.to_string());
-    let page = opt_u64(&args, "page", "get_compliance_matrix")?.unwrap_or(1).max(1);
-    let page_size: usize = 200; // B5 最小面：固定页大小（M2 扩展游标分页）
+    let filters = filters_of(&args, "get_compliance_matrix")?;
+    let filter_category = filter_str(filters, "category", "get_compliance_matrix")?;
+    let filter_status = filter_str(filters, "status", "get_compliance_matrix")?;
+    // 游标窗口（S-4）：fp 绑定 工具名+project_id+过滤参数——跨过滤器游标 fail-closed 拒
+    let fp = cursor::fingerprint(&[
+        Some("get_compliance_matrix"),
+        Some(project_id.as_str()),
+        filter_category.as_deref(),
+        filter_status.as_deref(),
+    ]);
+    let window = cursor::resolve(&args, "get_compliance_matrix", &fp)?;
 
     // ---- 项目路由（只读工具：无状态机裁决——契约 §4 任何阶段可调）
-    let proj = svc.store().project().map_err(ToolError::from)?;
-    if proj.id != project_id {
-        return Err(ToolError::ENotFound {
-            what: format!("project 不存在：{project_id}（当前服务态项目：{}）", proj.id),
-        });
-    }
+    route_project(svc, &project_id, "get_compliance_matrix")?;
 
-    // ---- 行组装（V3-2：矩阵派生真源——证据列接 T-1 绑定真值，状态接 T-2 四态派生；
-    // 只读工具零状态副作用：matrix_view 派生不落库不 bump（与 build_matrix 同源））
+    // ---- 过滤（先过滤后分页——total 是过滤后总数）
+    // 矩阵派生真源（V3-2）：证据列接 T-1 绑定真值，状态接 T-2 四态派生；
+    // 只读工具零状态副作用：matrix_view 派生不落库不 bump（与 build_matrix 同源）。
+    // 反查索引（一次建表——12k 行量级禁逐行 find 的 O(N²)）。
     let view = svc.store().matrix_view();
-    let reqs = svc.store().requirements().to_vec();
-    let mut rows: Vec<Value> = Vec::with_capacity(reqs.len());
+    let row_by_req: HashMap<&str, &bid_domain::matrix::MatrixRow> =
+        view.iter().map(|m| (m.requirement_id.as_str(), m)).collect();
+    let reqs = svc.store().requirements();
+    let mut matched: Vec<usize> = Vec::with_capacity(reqs.len());
     for (i, r) in reqs.iter().enumerate() {
         if let Some(c) = &filter_category {
             if category_key(&r.category) != c && r.category != *c {
                 continue;
             }
         }
-        let row = view.iter().find(|m| m.requirement_id == r.id);
         // T-2 四态（派生：override > 证据+章节）；旧 B5 字面量 unanswered → NOT_RESPONDED
-        let status = row.map(|m| m.status.as_str()).unwrap_or("NOT_RESPONDED");
+        let status = row_by_req.get(r.id.as_str()).map(|m| m.status.as_str()).unwrap_or("NOT_RESPONDED");
         if let Some(s) = &filter_status {
             if status != s {
                 continue;
             }
         }
+        matched.push(i);
+    }
+    let total_rows = matched.len();
+
+    // ---- 切片（S-4 游标窗口；offset 越界 → E_UNPROCESSABLE fail-closed）
+    let page = cursor::slice(&window, &fp, total_rows)?;
+
+    // ---- 本页行组装（仅窗口内的行构建 JSON——大结果不付全量序列化成本）
+    let rows: Vec<Value> = matched[page.start..page.end].iter().map(|&i| {
+        let r = &reqs[i];
+        let row = row_by_req.get(r.id.as_str());
+        let status = row.map(|m| m.status.as_str()).unwrap_or("NOT_RESPONDED");
         let anchor = r.anchors.first();
         // 契约 §4 evidence 列接真值（T-1 绑定 + 台账状态/有效期随行——过期证据
         // 绑定已被 matrix_view 过滤，不进响应面）
@@ -605,7 +671,7 @@ fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
             Some(m) => bid_domain::matrix::evidence_column(svc.store().evidences(), &m.evidence_ids),
             None => vec![],
         };
-        rows.push(json!({
+        json!({
             "cmp_id": format!("CMP-{:04}", i + 1),
             "requirement": {
                 "id": r.id,
@@ -625,12 +691,8 @@ fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
             "response_policy": "default",
             "draft_section_id": row.and_then(|m| m.response_section.clone()),
             "blocking": row.map(|m| m.blocking).unwrap_or(false),
-        }));
-    }
-    let total_rows = rows.len();
-    let start = ((page as usize - 1) * page_size).min(total_rows);
-    let end = (start + page_size).min(total_rows);
-    let rows = rows[start..end].to_vec();
+        })
+    }).collect();
 
     let mut warnings: Vec<String> = Vec::new();
     if svc.store().requirements().is_empty() {
@@ -639,13 +701,179 @@ fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
 
     Ok(json!({
         "rows": rows,
+        "total": total_rows,
+        "limit": window.limit,
+        "cursor": page.cursor,
+        "next_cursor": page.next_cursor,
         "counts": {
             "total": total_rows,
-            "returned": rows.len(),
-            "page": page,
-            "page_size": page_size,
+            "returned": page.end - page.start,
+            // page 兼容回显（信息性）：含 offset 的 1 起页号——cursor 路径下
+            // offset 未必页对齐，此值仅作旧调用方对照，不构成分页依据
+            "page": window.offset / window.limit + 1,
+            "page_size": window.limit,
         },
         "warnings": warnings,
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
+}
+
+// ================================================================ list_evidence / list_tasks（契约 §4-A/§4-B，只读）
+
+/// 证据类别过滤值解析（双形态口径——与矩阵 category 过滤一致）：
+/// 机器形态 snake_case（serde 单一真源）或中文展示名（GT 夹具口径）。
+fn parse_evidence_kind(s: &str) -> Result<EvidenceKind, ToolError> {
+    if let Ok(k) = serde_json::from_value::<EvidenceKind>(Value::String(s.to_string())) {
+        return Ok(k);
+    }
+    for k in [
+        EvidenceKind::Qualification, EvidenceKind::Performance, EvidenceKind::Personnel,
+        EvidenceKind::Certificate, EvidenceKind::ProductDoc, EvidenceKind::SolutionModule,
+        EvidenceKind::Contract,
+    ] {
+        if k.as_str() == s {
+            return Ok(k);
+        }
+    }
+    Err(ToolError::EUnprocessable {
+        what: format!(
+            "list_evidence: filters.kind 非法：{s}（合法值：qualification|performance|personnel|certificate|product_doc|solution_module|contract 或对应中文展示名）"
+        ),
+    })
+}
+
+/// 证据状态过滤值解析（单一真源：serde SCREAMING_SNAKE_CASE 面）。
+fn parse_evidence_status(s: &str) -> Result<EvidenceStatus, ToolError> {
+    serde_json::from_value::<EvidenceStatus>(Value::String(s.to_string())).map_err(|_| {
+        ToolError::EUnprocessable {
+            what: format!("list_evidence: filters.status 非法：{s}（合法值：ACTIVE|EXPIRING|EXPIRED|SUPERSEDED）"),
+        }
+    })
+}
+
+/// 证据类别的机器形态（snake_case——出参 items[].kind 与过滤入参同形，
+/// 调用方可原样回填过滤器）。
+fn kind_machine(k: EvidenceKind) -> String {
+    serde_json::to_value(k)
+        .ok()
+        .and_then(|v| v.as_str().map(str::to_string))
+        .unwrap_or_else(|| k.as_str().to_string())
+}
+
+/// `list_evidence` —— 契约 §4-A（S-4 新增只读工具，无状态机裁决）。
+///
+/// 证据台账列表（T-1 Evidence）：`{ project_id, filters:{kind?, status?},
+/// cursor?, limit? }` → `{ items, total, limit, cursor, next_cursor }`。
+/// 行序 = **id 字典序**（EV-xxxx 单序列签发、全库唯一——确定全序，
+/// 分页稳定前提）。10,000 条量级不允许一次全返回（S-4 原则）。
+fn list_evidence(svc: &mut BidService, args: Value) -> ToolResult {
+    // ---- 参数校验
+    let project_id = req_str(&args, "project_id", "list_evidence")?;
+    let filters = filters_of(&args, "list_evidence")?;
+    let f_kind = filter_str(filters, "kind", "list_evidence")?;
+    let f_status = filter_str(filters, "status", "list_evidence")?;
+    let kind = match &f_kind {
+        Some(k) => Some(parse_evidence_kind(k)?),
+        None => None,
+    };
+    let status = match &f_status {
+        Some(s) => Some(parse_evidence_status(s)?),
+        None => None,
+    };
+    let fp = cursor::fingerprint(&[
+        Some("list_evidence"),
+        Some(project_id.as_str()),
+        f_kind.as_deref(),
+        f_status.as_deref(),
+    ]);
+    let window = cursor::resolve(&args, "list_evidence", &fp)?;
+
+    // ---- 项目路由（只读：任何阶段可调）
+    route_project(svc, &project_id, "list_evidence")?;
+
+    // ---- 过滤（先过滤后分页）+ id 字典序（确定全序）
+    let mut matched: Vec<&bid_domain::evidence::Evidence> = svc.store().evidences().iter()
+        .filter(|e| kind.map_or(true, |k| e.kind == k))
+        .filter(|e| status.map_or(true, |st| e.status == st))
+        .collect();
+    matched.sort_by(|a, b| a.id.cmp(&b.id));
+    let total = matched.len();
+
+    // ---- 切片 + 行组装（仅窗口内构建）
+    let page = cursor::slice(&window, &fp, total)?;
+    let items: Vec<Value> = matched[page.start..page.end].iter().map(|e| json!({
+        "id": e.id,
+        "kind": kind_machine(e.kind),
+        "title": e.title,
+        "status": e.status.as_str(),
+        "subject_name": e.subject_name,
+        "valid_until": e.valid_until,
+    })).collect();
+
+    Ok(json!({
+        "items": items,
+        "total": total,
+        "limit": window.limit,
+        "cursor": page.cursor,
+        "next_cursor": page.next_cursor,
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
+}
+
+/// 任务状态过滤值解析（单一真源：serde SCREAMING_SNAKE_CASE 面）。
+fn parse_task_status(s: &str) -> Result<bid_domain::assignment::TaskStatus, ToolError> {
+    serde_json::from_value::<bid_domain::assignment::TaskStatus>(Value::String(s.to_string()))
+        .map_err(|_| ToolError::EUnprocessable {
+            what: format!("list_tasks: filters.status 非法：{s}（合法值：ASSIGNED|IN_PROGRESS|DONE）"),
+        })
+}
+
+/// `list_tasks` —— 契约 §4-B（S-4 新增只读工具，无状态机裁决）。
+///
+/// 任务分工列表（T-6 Assignment）：`{ project_id, filters:{owner?, status?},
+/// cursor?, limit? }` → `{ items, total, limit, cursor, next_cursor }`。
+/// 行序 = **target_id 字典序**（DomainStore::list_tasks 的 BTree 语义——
+/// 双过滤 + 确定序，R-15 可重放口径）。
+fn list_tasks(svc: &mut BidService, args: Value) -> ToolResult {
+    // ---- 参数校验
+    let project_id = req_str(&args, "project_id", "list_tasks")?;
+    let filters = filters_of(&args, "list_tasks")?;
+    let f_owner = filter_str(filters, "owner", "list_tasks")?;
+    let f_status = filter_str(filters, "status", "list_tasks")?;
+    let status = match &f_status {
+        Some(s) => Some(parse_task_status(s)?),
+        None => None,
+    };
+    let fp = cursor::fingerprint(&[
+        Some("list_tasks"),
+        Some(project_id.as_str()),
+        f_owner.as_deref(),
+        f_status.as_deref(),
+    ]);
+    let window = cursor::resolve(&args, "list_tasks", &fp)?;
+
+    // ---- 项目路由（只读：任何阶段可调）
+    route_project(svc, &project_id, "list_tasks")?;
+
+    // ---- 过滤（domain 双过滤 + target_id 字典序）+ 切片 + 行组装
+    let matched = svc.store().list_tasks(f_owner.as_deref(), status);
+    let total = matched.len();
+    let page = cursor::slice(&window, &fp, total)?;
+    let items: Vec<Value> = matched[page.start..page.end].iter().map(|a| json!({
+        "target_id": a.target_id,
+        "owner": a.owner,
+        "deadline": a.deadline,
+        "status": a.status.as_str(),
+    })).collect();
+
+    Ok(json!({
+        "items": items,
+        "total": total,
+        "limit": window.limit,
+        "cursor": page.cursor,
+        "next_cursor": page.next_cursor,
         "project_version": svc.store().content_version(),
         "request_id": next_request_id(),
     }))

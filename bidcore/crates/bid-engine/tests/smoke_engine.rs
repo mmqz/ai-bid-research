@@ -14,10 +14,27 @@ fn fixture(rel: &str) -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(rel)
 }
 
+/// 真实样本在位预检（issue #9 SKIP 机制文件面——PR #24 修复批次）：
+/// 该测试文件依赖的 fixture 目录缺失 → 响亮横幅 + 调用方立即 return
+/// （缺件不是业务失败，也绝不静默假装通过）。
+fn fixtures_ready(test_id: &str) -> bool {
+    let dirs: Vec<std::path::PathBuf> = ["../../../fixtures/corpus-R/D2-nonbody",
+        "../../../fixtures/corpus-R/D6-revisions",
+        "../../../fixtures/baseline/security/hostile"]
+        .iter()
+        .map(|d| fixture(d))
+        .collect();
+    let refs: Vec<&std::path::Path> = dirs.iter().map(|p| p.as_path()).collect();
+    !bid_parse::env_preflight::skip_if_fixture_missing(test_id, &refs)
+}
+
 /// D2a-非正文条款.docx（文本框 + 批注 + 修订混合件——B3 差分基准对之一）：
 /// 引擎必须成功读出块流，且文本框/批注面非零（#18/#19 修复已在钉住的 rev 内）。
 #[test]
 fn smoke_engine_reads_d2a_nonbody_fixture() {
+    if !fixtures_ready("smoke_engine_reads_d2a_nonbody_fixture") {{
+        return;
+    }}
     let bytes = std::fs::read(fixture(
         "../../../fixtures/corpus-R/D2-nonbody/D2a-非正文条款.docx",
     ))
@@ -46,6 +63,9 @@ fn smoke_engine_reads_d2a_nonbody_fixture() {
 /// R6a-纯插入澄清.docx：#17 修订插入标记面（w:ins 内 run 的 revision_inserted）。
 #[test]
 fn smoke_engine_reads_r6a_insert_revision_fixture() {
+    if !fixtures_ready("smoke_engine_reads_r6a_insert_revision_fixture") {{
+        return;
+    }}
     let bytes = std::fs::read(fixture(
         "../../../fixtures/corpus-R/D6-revisions/R6a-纯插入澄清.docx",
     ))
@@ -79,6 +99,9 @@ fn smoke_engine_reads_r6a_insert_revision_fixture() {
 /// RevisionDelete 警告计数——映射表 T17d 验收口径 = 2）。
 #[test]
 fn smoke_engine_reads_r6b_delete_revision_fixture() {
+    if !fixtures_ready("smoke_engine_reads_r6b_delete_revision_fixture") {{
+        return;
+    }}
     let bytes = std::fs::read(fixture(
         "../../../fixtures/corpus-R/D6-revisions/R6b-纯删除澄清.docx",
     ))
@@ -97,6 +120,9 @@ fn smoke_engine_reads_r6b_delete_revision_fixture() {
 /// 引擎读大件块流 + 页眉页脚挂接面（P2-1 前读面即有 HeaderFooterData）。
 #[test]
 fn smoke_engine_reads_real_beijing_sample() {
+    if !fixtures_ready("smoke_engine_reads_real_beijing_sample") {{
+        return;
+    }}
     let bytes = std::fs::read(fixture(
         "../../../real-samples/北京水利施工示范文本2025-LO.docx",
     ))
@@ -115,6 +141,9 @@ fn smoke_engine_reads_real_beijing_sample() {
 /// 敌意容器：引擎三门必须拒绝（截断容器——baseline/security/04 同族）。
 #[test]
 fn smoke_engine_rejects_truncated_container() {
+    if !fixtures_ready("smoke_engine_rejects_truncated_container") {{
+        return;
+    }}
     let bytes = std::fs::read(fixture(
         "../../../fixtures/corpus-R/D2-nonbody/D2a-非正文条款.docx",
     ))

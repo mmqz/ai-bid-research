@@ -579,7 +579,9 @@ fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
         });
     }
 
-    // ---- 行组装（B5 最小矩阵：REQ × 状态——证据列空、gap/response_policy 默认）
+    // ---- 行组装（V3-2：矩阵派生真源——证据列接 T-1 绑定真值，状态接 T-2 四态派生；
+    // 只读工具零状态副作用：matrix_view 派生不落库不 bump（与 build_matrix 同源））
+    let view = svc.store().matrix_view();
     let reqs = svc.store().requirements().to_vec();
     let mut rows: Vec<Value> = Vec::with_capacity(reqs.len());
     for (i, r) in reqs.iter().enumerate() {
@@ -588,14 +590,21 @@ fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
                 continue;
             }
         }
-        // B5 状态面恒「未响应」（响应登记属 M2 证据绑定/draft 面的下游写入）
-        let status = "unanswered";
+        let row = view.iter().find(|m| m.requirement_id == r.id);
+        // T-2 四态（派生：override > 证据+章节）；旧 B5 字面量 unanswered → NOT_RESPONDED
+        let status = row.map(|m| m.status.as_str()).unwrap_or("NOT_RESPONDED");
         if let Some(s) = &filter_status {
             if status != s {
                 continue;
             }
         }
         let anchor = r.anchors.first();
+        // 契约 §4 evidence 列接真值（T-1 绑定 + 台账状态/有效期随行——过期证据
+        // 绑定已被 matrix_view 过滤，不进响应面）
+        let evidence = match row {
+            Some(m) => bid_domain::matrix::evidence_column(svc.store().evidences(), &m.evidence_ids),
+            None => vec![],
+        };
         rows.push(json!({
             "cmp_id": format!("CMP-{:04}", i + 1),
             "requirement": {
@@ -610,10 +619,12 @@ fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
                 })),
                 "params": r.params,
             },
-            "evidence": [],
+            "status": status,
+            "evidence": evidence,
             "gap": Value::Null,
             "response_policy": "default",
-            "draft_section_id": Value::Null,
+            "draft_section_id": row.and_then(|m| m.response_section.clone()),
+            "blocking": row.map(|m| m.blocking).unwrap_or(false),
         }));
     }
     let total_rows = rows.len();

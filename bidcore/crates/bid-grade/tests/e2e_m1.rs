@@ -22,6 +22,11 @@ fn e2e_m1_all_scenarios_pass() {
     let fixtures_dir = std::env::var("BID_FIXTURES")
         .map(PathBuf::from)
         .unwrap_or_else(|_| root.join("fixtures"));
+    // PR #24 修复批次：真实样本缺件 → SKIP（FIXTURE_MISSING 横幅——issue #9 机制文件面）
+    let corpus_a = fixtures_dir.join("corpus-A/files");
+    if bid_parse::env_preflight::skip_if_fixture_missing("e2e_m1_all_scenarios_pass", &[&corpus_a]) {
+        return;
+    }
     let fx = Fixtures::load(&fixtures_dir).expect("夹具装载失败");
     let runs_dir = root.join("runs");
     let mut summaries = vec![];

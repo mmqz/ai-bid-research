@@ -17,10 +17,28 @@ fn fixture(rel: &str) -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join(rel)
 }
 
+/// 真实样本在位预检（issue #9 SKIP 机制文件面——PR #24 修复批次）：
+/// 该测试文件依赖的 fixture 目录缺失 → 响亮横幅 + 调用方立即 return
+/// （缺件不是业务失败，也绝不静默假装通过）。
+fn fixtures_ready(test_id: &str) -> bool {
+    let dirs: Vec<std::path::PathBuf> = ["../../../fixtures/corpus-A/files",
+        "../../../fixtures/corpus-R/D2-nonbody",
+        "../../../fixtures/corpus-R/D1-tables",
+        "../../../fixtures/engine-borrowed/TR2"]
+        .iter()
+        .map(|d| fixture(d))
+        .collect();
+    let refs: Vec<&std::path::Path> = dirs.iter().map(|p| p.as_path()).collect();
+    !bid_parse::env_preflight::skip_if_fixture_missing(test_id, &refs)
+}
+
 /// A-招标文件.docx（corpus-A 主文件）：引擎路径 vs 旧路径逐块等价
 /// （B3-3 差分该件 100% EQUIVALENT——映射层不得引入新差异）。
 #[test]
 fn mapping_matches_legacy_on_corpus_a_main() {
+    if !fixtures_ready("mapping_matches_legacy_on_corpus_a_main") {{
+        return;
+    }}
     let path = fixture("../../../fixtures/corpus-A/files/A-招标文件.docx");
     let engine = parse_docx_via_engine(&path).expect("引擎路径解析成功（A 件无嵌套表）");
     let legacy = bid_parse::parse_file(&path, "A-招标文件.docx").expect("旧路径解析成功");
@@ -61,6 +79,9 @@ fn mapping_matches_legacy_on_corpus_a_main() {
 /// 章节上下文 locator：引擎映射必须携带与旧路径同款章节（extract.rs 类别映射依赖）。
 #[test]
 fn mapping_carries_chapter_context() {
+    if !fixtures_ready("mapping_carries_chapter_context") {{
+        return;
+    }}
     let path = fixture("../../../fixtures/corpus-A/files/A-招标文件.docx");
     let engine = parse_docx_via_engine(&path).expect("引擎路径解析成功");
     let legacy = bid_parse::parse_file(&path, "A-招标文件.docx").expect("旧路径解析成功");
@@ -82,6 +103,9 @@ fn mapping_carries_chapter_context() {
 /// SC-02 部件账本：引擎路径登记面（正文/页眉/页脚/文本框/批注/脚注尾注/修订/图片）。
 #[test]
 fn mapping_emits_component_ledger() {
+    if !fixtures_ready("mapping_emits_component_ledger") {{
+        return;
+    }}
     let path = fixture("../../../fixtures/corpus-R/D2-nonbody/D2a-非正文条款.docx");
     let engine = parse_docx_via_engine(&path).expect("引擎路径解析成功（D2a：文本框+批注+修订混合件）");
 
@@ -114,6 +138,9 @@ fn mapping_emits_component_ledger() {
 /// 敌意面：截断容器必须被引擎三门拒绝（A3 口径——映射层不自研守卫）。
 #[test]
 fn mapping_rejects_truncated_container() {
+    if !fixtures_ready("mapping_rejects_truncated_container") {{
+        return;
+    }}
     let path = fixture("../../../fixtures/corpus-R/D2-nonbody/D2a-非正文条款.docx");
     let bytes = std::fs::read(&path).unwrap();
     let truncated = &bytes[..bytes.len() / 2];
@@ -126,6 +153,9 @@ fn mapping_rejects_truncated_container() {
 /// 引擎读回统计面（tables=1/comments=1）经映射后账本一致。
 #[test]
 fn mapping_borrowed_word_complex_stats() {
+    if !fixtures_ready("mapping_borrowed_word_complex_stats") {{
+        return;
+    }}
     let path = fixture("../../../fixtures/engine-borrowed/TR2/word-complex.docx");
     let engine = parse_docx_via_engine(&path).expect("TR2 word-complex 引擎路径解析成功");
     // gen-log.txt 口径：tables=1 / comments=1 / revisions=1 / fields=1
@@ -142,6 +172,9 @@ fn mapping_borrowed_word_complex_stats() {
 /// 表行细节口径：全空行跳过但行号消耗；text=非空列单空格连接（旧实现对齐）。
 #[test]
 fn mapping_table_row_conventions() {
+    if !fixtures_ready("mapping_table_row_conventions") {{
+        return;
+    }}
     let path = fixture("../../../fixtures/corpus-R/D1-tables/D1a-合并表头跨页表.docx");
     let engine = parse_docx_via_engine(&path).expect("D1a 引擎路径解析成功");
     let legacy = bid_parse::parse_file(&path, "D1a-合并表头跨页表.docx").expect("旧路径解析成功");

@@ -19,6 +19,12 @@ fn corpus_a_main() -> PathBuf {
     fixtures().join("corpus-A/files/A-招标文件.docx")
 }
 
+/// 借鉴轨真件在位预检（issue #9 SKIP 机制文件面）：缺件 → 响亮横幅，
+/// 调用方立即 return（缺件不是业务失败，也绝不静默假装通过）。
+fn corpus_a_ready(test_id: &str) -> bool {
+    !bid_parse::env_preflight::skip_if_fixture_missing(test_id, &[&corpus_a_main()])
+}
+
 fn call(svc: &mut BidService, tool: &str, args: Value) -> ToolReply {
     dispatch_with(svc, ToolCall { tool: tool.to_string(), args })
 }
@@ -74,6 +80,9 @@ fn extract_rejects_wrong_project_id() {
 
 #[test]
 fn extract_then_matrix_end_to_end_on_corpus_a() {
+    if !corpus_a_ready("extract_then_matrix_end_to_end_on_corpus_a") {
+        return;
+    }
     let mut svc = BidService::new();
     let pid = create(&mut svc, "b5-e2e");
     import_main(&mut svc, &pid, &corpus_a_main(), "A-招标文件.docx");
@@ -119,6 +128,9 @@ fn extract_then_matrix_end_to_end_on_corpus_a() {
 
 #[test]
 fn extract_is_idempotent_merge_on_rerun() {
+    if !corpus_a_ready("extract_is_idempotent_merge_on_rerun") {
+        return;
+    }
     let mut svc = BidService::new();
     let pid = create(&mut svc, "b5-idem");
     import_main(&mut svc, &pid, &corpus_a_main(), "A-招标文件.docx");
@@ -138,6 +150,9 @@ fn extract_is_idempotent_merge_on_rerun() {
 
 #[test]
 fn matrix_is_read_only_no_state_side_effect() {
+    if !corpus_a_ready("matrix_is_read_only_no_state_side_effect") {
+        return;
+    }
     let mut svc = BidService::new();
     let pid = create(&mut svc, "b5-ro");
     import_main(&mut svc, &pid, &corpus_a_main(), "A-招标文件.docx");
@@ -158,6 +173,9 @@ fn matrix_is_read_only_no_state_side_effect() {
 
 #[test]
 fn matrix_category_filter_and_pagination() {
+    if !corpus_a_ready("matrix_category_filter_and_pagination") {
+        return;
+    }
     let mut svc = BidService::new();
     let pid = create(&mut svc, "b5-filter");
     import_main(&mut svc, &pid, &corpus_a_main(), "A-招标文件.docx");
@@ -184,6 +202,9 @@ fn matrix_category_filter_and_pagination() {
 
 #[test]
 fn matrix_empty_requirements_emits_warning() {
+    if !corpus_a_ready("matrix_empty_requirements_emits_warning") {
+        return;
+    }
     let mut svc = BidService::new();
     let pid = create(&mut svc, "b5-empty");
     import_main(&mut svc, &pid, &corpus_a_main(), "A-招标文件.docx");
@@ -204,6 +225,9 @@ fn matrix_empty_requirements_emits_warning() {
 
 #[test]
 fn extract_reports_missing_sequence() {
+    if !corpus_a_ready("extract_reports_missing_sequence") {
+        return;
+    }
     // 构造缺号：corpus-A 主文件抽取后，手工核对 missing_sequence 面存在性
     //（契约硬规则：缺号必须报告——非破坏性验证：字段在位且为数组）
     let mut svc = BidService::new();

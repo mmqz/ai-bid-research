@@ -23,8 +23,11 @@ fn probe_corpus_a_full_chain() {
     ) {
         return;
     }
-    let fx = fixtures();
-    let files_dir = fx.join("corpus-A/files");
+    // PR #24 修复批次：真实样本缺件 → SKIP（FIXTURE_MISSING 横幅——issue #9 机制文件面）
+    let files_dir = fixtures().join("corpus-A/files");
+    if bid_parse::env_preflight::skip_if_fixture_missing("probe_corpus_a_full_chain", &[&files_dir]) {
+        return;
+    }
     let names = [
         "A-招标文件.docx",
         "B1-设备清单.pdf",

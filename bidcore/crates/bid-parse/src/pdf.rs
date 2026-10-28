@@ -219,13 +219,15 @@ mod tests {
 
     /// R3-S1-1 回归门：超页扫描件必须被页数门拒绝（绝不开始渲染）。
     /// 201 页空白扫描 PDF 由 python3+reportlab 现场生成（环境无 reportlab 则跳过）。
+    /// 生成器调用受治（PR #24 修复批次）：`run_limited` 30s 超时——旧 `.output()`
+    /// 无限期等待外部进程（Lead 指令：所有等外部进程的地方必须有超时）。
     #[test]
     fn oversized_scanned_pdf_rejected_before_render() {
         let tmp = std::env::temp_dir().join(format!("bidparse_ocr_limit_{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
         let pdf = tmp.join("oversize_201p.pdf");
-        let gen = std::process::Command::new("python3")
-            .arg("-c")
+        let mut gen = std::process::Command::new("python3");
+        gen.arg("-c")
             .arg(
                 "from reportlab.pdfgen import canvas; \
                  import sys; \
@@ -233,10 +235,10 @@ mod tests {
                  [c.showPage() for _ in range(201)]; \
                  c.save()",
             )
-            .arg(&pdf)
-            .output();
+            .arg(&pdf);
+        let gen = guard::run_limited(gen, std::time::Duration::from_secs(30), 4096);
         match gen {
-            Ok(g) if g.status.success() => {
+            RunOutcome::Success { .. } => {
                 let started = std::time::Instant::now();
                 let r = parse(&pdf);
                 match r {

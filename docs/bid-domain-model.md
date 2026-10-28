@@ -42,6 +42,8 @@ id=EV-xxxx；project_id + org_ref（跨项目复用企业资料库）；source_t
 ### ComplianceItem（响应矩阵行）
 id=CMP-xxxx；requirement_id ⇄ evidence_ids[]；gap（NONE / PARTIAL / FULL / UNMET）；draft_section_id；owner_note。**资格条件与否决项行必须显式 policy，未填禁止进入起草阶段**（R-03/R-04 闸门；原引审计问题 Q5，编号映射见 risk-register 追溯矩阵）。
 
+> **V3-2 实装注（2026-10-28）**：矩阵行已落地 `bid-domain/src/matrix.rs`——四态（NOT_RESPONDED/PARTIAL/RESPONDED/NOT_APPLICABLE）从绑定+章节+覆写派生（单一真源 `derive_matrix_rows`）；**blocking = 必选类（资格/否决）未响应 → `check_export_ready` 阻断导出**；id = `CMP-{REQ 后缀}` 派生稳定（重建幂等）。评分面三维结构（分值/标准原文/硬门）同批落地 `scoring.rs`（分值来自 extract.rs T-3 扩展的 `params.score` 确定性正则槽位）。
+
 ### BidSection（章节任务）
 | 字段 | 说明 |
 |---|---|

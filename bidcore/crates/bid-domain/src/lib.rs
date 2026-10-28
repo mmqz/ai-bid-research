@@ -21,6 +21,10 @@
 //! - [`evidence`]：T-1 Evidence 证据台账（只降不升 + R-03 过期禁绑 + 换版 Superseded）；
 //! - [`outline`]：T-5 OutlineNode 章节树（九不变量 + 从 REQ 推导 + 配额最大余数法）；
 //! - [`StoreSnapshot`]：T-8 持久化快照 DTO（本 crate 仍零 IO——磁盘读写住 bid-tools）。
+//!
+//! V3-2 扩展（issue #11 批次 v3——三份台账收尾）：
+//! - [`matrix`]：T-2 MatrixRow 需求响应矩阵（四态派生 + blocking 导出闸门 R-03/R-04）；
+//! - [`scoring`]：T-3 ScoringItem 评分矩阵（分值/标准原文/硬门三维结构，派生态）。
 
 pub mod dates;
 pub mod evidence;
@@ -28,7 +32,9 @@ pub mod export_gate;
 pub mod impact;
 pub mod linkage;
 pub mod locator;
+pub mod matrix;
 pub mod outline;
+pub mod scoring;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -197,6 +203,10 @@ pub struct DomainStore {
     evidence_bindings: Vec<evidence::EvidenceBinding>,
     /// T-5 章节树（SEC-xxxx——树校验/推导/状态推进见 outline.rs 的 impl 块）
     sections: Vec<outline::OutlineNode>,
+    /// T-2 矩阵行（CMP-xxxx——派生态，build_matrix 幂等重建；blocking = 导出闸门）
+    matrix: Vec<matrix::MatrixRow>,
+    /// T-2 人工覆写（不适用/偏离——派生态之上的唯一人工输入）
+    matrix_overrides: HashMap<String, matrix::MatrixOverride>,
     /// 幂等键 → 首次结果 JSON（同 key 重放返回首次结果，不重复执行）
     idempotency: HashMap<String, serde_json::Value>,
     id_seq: u64,
@@ -206,6 +216,7 @@ impl DomainStore {
     pub fn new() -> Self {
         Self { project: None, files: vec![], requirements: vec![],
                evidences: vec![], evidence_bindings: vec![], sections: vec![],
+               matrix: vec![], matrix_overrides: HashMap::new(),
                idempotency: HashMap::new(), id_seq: 0 }
     }
 
@@ -338,14 +349,29 @@ impl DomainStore {
             });
         }
         // 幂等合并：dedupe_hash = sha256(排序后 (file, locator, excerpt, statement_norm))
+        //
+        // 性能治本（PR #24 修复批次——CI「12 分钟卡死」根因）：旧实现
+        // `merged.iter().position(|x| requirement_hash(x) == h)` 对每条新 REQ
+        // 线性扫描已有集且**逐个重算 sha256**——N 条全新件 = O(N²) 次哈希
+        // （12,000 条 ≈ 7,200 万次，Linux 实测 488s；Windows CI 外推 1.5-2x
+        // ≈ 12-16 分钟，即 Lead 观测的「cargo test 卡死」）。治本：已有集与
+        // 新增项各只算一次哈希，HashMap<hash, idx> O(1) 查表——O(N²) → O(N)。
+        // 语义不变：同 hash 取**首个**席位（与 position 首个命中一致），
+        // 重跑覆盖同位、新件追加——dedupe 语义零变化，仅复杂度治本。
         let mut merged: Vec<Requirement> = self.requirements.clone();
         let before = merged.len();
+        let mut index: HashMap<String, usize> = HashMap::with_capacity(merged.len());
+        for (i, r) in merged.iter().enumerate() {
+            index.entry(requirement_hash(r)).or_insert(i);
+        }
         for r in reqs {
             let h = requirement_hash(&r);
-            let existing = merged.iter().position(|x| requirement_hash(x) == h);
-            match existing {
-                Some(i) => merged[i] = r, // 重跑覆盖（同 hash → 稳定）
-                None => merged.push(r),
+            match index.get(&h) {
+                Some(&i) => merged[i] = r, // 重跑覆盖（同 hash → 稳定）
+                None => {
+                    index.insert(h, merged.len());
+                    merged.push(r);
+                }
             }
         }
         let added = merged.len() - before;
@@ -397,6 +423,10 @@ pub struct StoreSnapshot {
     #[serde(default)]
     pub sections: Vec<outline::OutlineNode>,
     #[serde(default)]
+    pub matrix: Vec<matrix::MatrixRow>,
+    #[serde(default)]
+    pub matrix_overrides: HashMap<String, matrix::MatrixOverride>,
+    #[serde(default)]
     pub idempotency: BTreeMap<String, serde_json::Value>,
     #[serde(default)]
     pub id_seq: u64,
@@ -413,6 +443,8 @@ impl DomainStore {
             evidences: self.evidences.clone(),
             evidence_bindings: self.evidence_bindings.clone(),
             sections: self.sections.clone(),
+            matrix: self.matrix.clone(),
+            matrix_overrides: self.matrix_overrides.clone(),
             // HashMap → BTreeMap：持久化 DTO 要求跨进程字节一致（HashMap 迭代序不确定）
             idempotency: self.idempotency.clone().into_iter().collect(),
             id_seq: self.id_seq,
@@ -477,6 +509,8 @@ impl DomainStore {
             evidences: snap.evidences,
             evidence_bindings: snap.evidence_bindings,
             sections: snap.sections,
+            matrix: snap.matrix,
+            matrix_overrides: snap.matrix_overrides,
             idempotency: snap.idempotency.into_iter().collect(),
             id_seq: snap.id_seq,
         })

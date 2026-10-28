@@ -44,17 +44,38 @@ fn tessdata_dir() -> PathBuf {
 
 /// 探测工具是否可调用（spawn 成功即在位——退出码无关：参数不兼容也算「有这个程序」，
 /// 与原始失败面 `"pdftotext" 无法启动: program not found` 的判定口径一致）。
+///
+/// 超时治理（PR #24 修复批次，Lead 指令：所有等外部进程的地方必须有超时）：
+/// 旧 `.status()` 无限期阻塞等待——工具在位但挂住（等待终端输入/死循环）时
+/// 整个测试二进制无限期卡死。现纳入 `guard::run_limited`（30s 超时 + 输出上限）。
+/// Busy 重试：并行测试各自探测时可能瞬时挤满 4 席子进程并发门——探测是
+/// 轻量操作，退避重试（上限 ~2s）后仍 Busy 才判缺（与旧无门探测的观测面一致）。
 fn tool_available(tool: &str) -> bool {
     if tool == OCR_LANG_CHI_SIM {
         return tessdata_dir().join(tool).is_file();
     }
-    Command::new(tool)
-        .arg("--version")
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .is_ok()
+    for attempt in 0..8 {
+        let mut c = Command::new(tool);
+        c.arg("--version").stdin(Stdio::null());
+        match crate::guard::run_limited(
+            c,
+            std::time::Duration::from_secs(30),
+            4096,
+        ) {
+            crate::guard::RunOutcome::Success { .. } | crate::guard::RunOutcome::NonZeroExit { .. } => {
+                return true; // 在位（退出码无关——与旧 .status().is_ok() 的 spawn 成功口径一致）
+            }
+            crate::guard::RunOutcome::Busy { .. } => {
+                if attempt == 7 {
+                    return false; // 并发门持续满载（异常环境）——按缺件处理走 SKIP
+                }
+                std::thread::sleep(std::time::Duration::from_millis(250));
+            }
+            // Spawn（程序不存在）/ Timeout（挂住）/ OutputOverflow：不在位
+            _ => return false,
+        }
+    }
+    false
 }
 
 /// 在给定目录集合里查工具（POSIX 直名；Windows 追加 .exe——与 Command 的
@@ -136,6 +157,43 @@ pub fn skip_if_env_missing(test_id: &str, tools: &[&str]) -> bool {
     eprintln!("reason: ENV_MISSING: {}", missing.join(", "));
     eprintln!("（环境缺件，非业务失败——issue #9：依赖缺失不得伪装成业务 FAIL）");
     eprintln!("补装指引: poppler-utils(pdftotext/pdftoppm/pdfinfo) + tesseract-ocr");
+    eprintln!("====================================================================");
+    true
+}
+
+/// fixture 缺件 SKIP（issue #9 机制在「文件面」的延伸——同一横幅纪律）：
+/// 依赖真实样本（corpus-A / real-corpus / engine-borrowed）的测试在文件
+/// 缺失时打响亮横幅 + 提前 return（计数 passed），**绝不** panic 红脸
+/// （缺件不是业务失败）也**绝不**静默 return（假装通过——Lead 指令：
+/// SKIP 必须打横幅）。
+///
+/// 用法与 [`skip_if_env_missing`] 同款：
+/// ```ignore
+/// #[test]
+/// fn corpus_a_scoring() {
+///     let f = fixtures().join("corpus-A/files/A-招标文件.docx");
+///     if bid_parse::env_preflight::skip_if_fixture_missing("corpus_a_scoring", &[&f]) {
+///         return;
+///     }
+///     // ……真实测试体
+/// }
+/// ```
+pub fn skip_if_fixture_missing(test_id: &str, paths: &[&std::path::Path]) -> bool {
+    let missing: Vec<String> = paths
+        .iter()
+        .filter(|p| !p.exists())
+        .map(|p| p.display().to_string())
+        .collect();
+    if missing.is_empty() {
+        return false;
+    }
+    eprintln!();
+    eprintln!("====================================================================");
+    eprintln!("SKIP: {test_id}");
+    eprintln!("reason: FIXTURE_MISSING: {}", missing.join(", "));
+    eprintln!("（真实样本缺件，非业务失败——issue #9 口径：依赖缺失不得伪装成业务 FAIL）");
+    eprintln!("补件指引: 核对 git checkout 完整性（corpus-A 二进制样本在库）；");
+    eprintln!("          本地生成件走 python scripts/fixture_gen.py");
     eprintln!("====================================================================");
     true
 }

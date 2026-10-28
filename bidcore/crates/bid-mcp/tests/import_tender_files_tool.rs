@@ -604,3 +604,30 @@ fn stdio_end_to_end_real_docx_import() {
     assert_eq!(r["per_file"][0]["tables"], 1, "gen-log.txt 借鉴锚点：tables=1");
     assert!(r["totals"]["chunks"].as_u64().unwrap() > 0, "真实解析统计非零");
 }
+
+// ---------------------------------------------------------------- B3-5：pdf 引擎路由
+
+/// pdf 导入：引擎通道（pdfium 文本层）优先，缺 pdfium/扫描件回退旧 pdftotext
+/// 路径——两条路都必须产出可抽取的文本层块（B1 设备清单件）。
+#[test]
+fn pdf_import_routes_engine_with_legacy_fallback() {
+    let mut svc = BidService::new();
+    let r = ok_result(call(&mut svc, "create_bid_project", json!({
+        "name": "B3-5 pdf 路由测试", "bid_deadline": "2026-12-31", "mode": "明标",
+        "external_key": "b35-pdf-route",
+    })));
+    let pid = r["project_id"].as_str().unwrap().to_string();
+    let b1 = fixtures().join("corpus-A/files/B1-设备清单.pdf");
+    let r = ok_result(call(&mut svc, "import_tender_files", json!({
+        "project_id": pid,
+        "files": [{ "upload_ref": b1.display().to_string(), "filename": "B1-设备清单.pdf", "kind": "图纸" }],
+    })));
+    // 无论引擎通道还是回退：文本层件必须成功导入且块流非空（40 行设备表）
+    let pf = &r["per_file"][0];
+    assert_eq!(pf["parse_status"], "ok", "B1 文本层件导入成功（引擎或回退任一路径）：{r}");
+    assert!(pf["chunks"].as_u64().unwrap() >= 30, "B1 设备清单块流非空（40 行量级）");
+    assert!(svc.parsed().len() == 1, "成功件入解析累积");
+    // 抽取链路（无论哪条解析路径，条款抽取面一致——B1 型号/中文日期行）
+    let reqs = bid_parse::extract::extract_requirements(svc.parsed());
+    assert!(!reqs.is_empty(), "B1 抽取面非空（型号/日期行条款）");
+}

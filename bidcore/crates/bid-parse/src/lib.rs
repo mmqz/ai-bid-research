@@ -31,7 +31,7 @@ pub enum BlockKind {
     XlsxRow,  // Excel 行
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Block {
     pub idx: usize, // 文件内序号（chunk_id 稳定性的组成）
     pub kind: BlockKind,
@@ -40,7 +40,7 @@ pub struct Block {
     pub cells: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParsedFile {
     pub name: String,
     pub sha256: String,
@@ -59,7 +59,7 @@ pub struct ParsedFile {
 
 /// SC-02 部件对账账本行（cpa-multi-plugins issue #38 吸收：docx 进 N 个部件，
 /// 出站必须有清单；任何部件 0 提取必留显式事件）。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ComponentLedger {
     pub component: String, // 正文/页眉/页脚/文本框/批注/脚注尾注/修订插入/修订删除
     pub present: usize,    // 在位部件数（或出现次数）

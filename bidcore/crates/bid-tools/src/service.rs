@@ -13,9 +13,9 @@
 //!   一个损坏件不得阻断整批导入；不可读 upload_ref 无文件身份（无 sha 可言），
 //!   不落库（空 sha 会污染幂等键空间），逐件失败登记。
 
-use bid_domain::{DomainStore, ParseStatus};
+use bid_domain::{DomainStore, ParseStatus, Requirement, ToolError};
 use bid_parse::{parse_file, sha256_file, ParsedFile};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// 单文件导入规格（MCP 壳已完成契约校验后传入）。
 #[derive(Debug, Clone)]
@@ -268,15 +268,53 @@ pub fn import_files(
 ///
 /// 默认 stdio 传输用进程级单例（`bid_mcp::state`）；测试与嵌入方经
 /// `bid_mcp::dispatch_with` 注入独立实例（并行隔离，不共享全局）。
+///
+/// T-8 持久化（V3-1）：`open(dir)` 打开（或创建）磁盘服务态——重启续跑；
+/// `new()` 仍为纯内存态（35 个既有测试零行为变化）。写后自动 checkpoint
+/// （`persist` 在场时）：域状态落盘失败 → 业务结果携带 E_UNPROCESSABLE
+/// 响亮报错（内存已变更但磁盘未跟上——调用方不得当作成功）；
+/// E_INTERNAL 词典落地时升格错误码（mcp-contract §0 已有，domain 词典暂缺）。
 pub struct BidService {
     store: DomainStore,
     parsed: Vec<ParsedFile>,
+    persist: Option<crate::store_io::StoreFile>,
 }
 
 impl BidService {
     #[must_use]
     pub fn new() -> Self {
-        Self { store: DomainStore::new(), parsed: vec![] }
+        Self { store: DomainStore::new(), parsed: vec![], persist: None }
+    }
+
+    /// 打开（或首启创建）持久化服务态：目录有 `db.json` 则恢复（重启续跑——
+    /// T-8 验收「建项→导入→抽条款→重启→状态完整恢复」的入口），否则空态起步。
+    pub fn open(dir: impl AsRef<Path>) -> Result<Self, crate::store_io::StoreIoError> {
+        let sf = crate::store_io::StoreFile::new(dir);
+        let (snap, parsed) = match sf.load()? {
+            Some((s, p)) => (Some(s), p),
+            None => (None, vec![]),
+        };
+        let store = match snap {
+            Some(s) => DomainStore::restore(s).map_err(|e| {
+                crate::store_io::StoreIoError::Corrupt(format!("域语义不完整: {} {:?}", e.code(), e))
+            })?,
+            None => DomainStore::new(),
+        };
+        Ok(Self { store, parsed, persist: Some(sf) })
+    }
+
+    /// 显式落盘（幂等纯 IO——外部对账/退出前钩子用；写路径已自动 checkpoint）。
+    pub fn checkpoint(&self) -> Result<(), crate::store_io::StoreIoError> {
+        match &self.persist {
+            Some(sf) => sf.save(&self.store.to_snapshot(), &self.parsed),
+            None => Ok(()), // 纯内存态（默认）——no-op
+        }
+    }
+
+    fn auto_checkpoint(&self) -> Result<(), ToolError> {
+        self.checkpoint().map_err(|e| ToolError::EUnprocessable {
+            reason: format!("checkpoint 落盘失败（内存已变更、磁盘未跟上——不得当作成功）: {e}"),
+        })
     }
 
     pub fn store(&self) -> &DomainStore {
@@ -292,10 +330,27 @@ impl BidService {
         &self.parsed
     }
 
+    /// `create_bid_project` 业务执行（T-8：持久化在场时写后自动落盘）。
+    pub fn create_project(&mut self, name: &str, code: &str, mode: &str,
+                          external_key: &str) -> Result<(String, serde_json::Value), ToolError> {
+        let r = self.store.create_project(name, code, mode, external_key)?;
+        self.auto_checkpoint()?;
+        Ok(r)
+    }
+
+    /// `extract_requirements` 落库半边（T-8：持久化在场时写后自动落盘）。
+    pub fn set_requirements(&mut self, reqs: Vec<Requirement>) -> Result<(usize, usize), ToolError> {
+        let r = self.store.set_requirements(reqs)?;
+        self.auto_checkpoint()?;
+        Ok(r)
+    }
+
     /// `import_tender_files` 业务执行（壳已完成参数校验 / 状态机裁决 /
-    /// 乐观并发检查——本层只跑管线）。
-    pub fn import(&mut self, specs: &[ImportSpec]) -> ImportReport {
-        import_files(&mut self.store, &mut self.parsed, specs)
+    /// 乐观并发检查——本层只跑管线；T-8：持久化在场时写后自动落盘）。
+    pub fn import(&mut self, specs: &[ImportSpec]) -> Result<ImportReport, ToolError> {
+        let report = import_files(&mut self.store, &mut self.parsed, specs);
+        self.auto_checkpoint()?;
+        Ok(report)
     }
 }
 

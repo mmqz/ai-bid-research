@@ -736,6 +736,29 @@ def t_b5_gt_eval():
           out[-200:] if code != 0 else "")
 
 
+def t_bidcore_cargo():
+    """T19 · bidcore 产品仓 cargo 测试门禁（V3-1 新增——此前 run_tests 只覆盖 m1/
+    研究线，产品 workspace 的 175 测试不在 Python 门禁里）。cargo 缺件 → SKIP
+    （issue #9 口径：环境缺失 ≠ 业务失败）；测试失败 → FAIL（产品面回归）。"""
+    print("[T19] bidcore 产品仓 cargo test --workspace")
+    import shutil as _sh
+    import subprocess as _sp
+    cargo = _sh.which("cargo")
+    if cargo is None:
+        skip("T19 bidcore cargo 测试", "ENV_MISSING: cargo（Rust 工具链不在场）")
+        return
+    _p = _sp.run([cargo, "test", "--workspace"], capture_output=True, text=True,
+                 cwd=REPO / "bidcore", timeout=900)
+    out = _p.stdout + _p.stderr
+    # 汇总行口径：各 crate 的 "test result: ok. N passed" 汇总 + 零 failed
+    import re as _re
+    passed = sum(int(m) for m in _re.findall(r"test result: \w+\. (\d+) passed", out))
+    failed = sum(int(m) for m in _re.findall(r"(\d+) failed", out))
+    check("T19a bidcore workspace 测试全绿（V3-1：175+ 测试——domain/parse/engine/mcp/tools）",
+          _p.returncode == 0 and failed == 0,
+          f"passed={passed} failed={failed} rc={_p.returncode} " + out[-300:] if _p.returncode != 0 else f"passed={passed}")
+
+
 def t_engine_diff():
     """T17 · T1 双跑差分工具（issue #2 评论 2026-10-27 03:28 派发）＋ T3 后验收验：
     ① 合成注入自测五分类全命中；② 修复前证据（f8c860a）；③ 修复后证据（f7ddd39——
@@ -789,7 +812,7 @@ def t_engine_diff():
 
 def main() -> int:
     print("=" * 62)
-    print("ai-bid-research 每轮测试（T0 环境预检 + V0 夹具 + 一致性 + 判分器 + V1/V2/V3 + m1 并行线 + M1.7 真实链 T14/T15 + M1.7-TEL T16 + T17 差分工具）")
+    print("ai-bid-research 每轮测试（T0 环境预检 + V0 夹具 + 一致性 + 判分器 + V1/V2/V3 + m1 并行线 + M1.7 真实链 T14/T15 + M1.7-TEL T16 + T17 差分工具 + T18 B5 评测 + T19 产品仓门禁）")
     print("=" * 62)
     t_env_preflight()
     t_xref()
@@ -806,6 +829,7 @@ def main() -> int:
     t_telecom()
     t_engine_diff()
     t_b5_gt_eval()
+    t_bidcore_cargo()
     print("-" * 62)
     # issue #9 判定标准：N passed / M skipped / K failed（依赖缺失 ≠ 业务失败）
     print(f"结果：{len(_passed)} 通过 / {len(_skipped)} 跳过 / {len(_failed)} 失败")

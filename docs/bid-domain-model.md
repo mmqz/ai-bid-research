@@ -37,6 +37,8 @@ id=TF-xxxx；project_id；kind（招标文件/附件/图纸/补遗/答疑/评分
 ### Evidence（企业证据）
 id=EV-xxxx；project_id + org_ref（跨项目复用企业资料库）；source_type（资质证书/业绩合同/验收报告/人员证书/检测报告/财务/信用/产品参数/历史标书）；file_ref（对象存储）；title；issuer；issue_date；**valid_until（有效期，EXPIRED 即禁止绑定，R-03）**；coverage_tags[]（可证明能力标签：资质等级/行业/产品线/人员规模）；chunks[]（chunk_id → 文件+位置映射，证据链可回溯）；status（OK / EXPIRING / EXPIRED / MISSING / CONFLICT）。
 
+> **V3-1 实装注（2026-10-28）**：记录级已落地 `bid-domain/src/evidence.rs`——状态机取 Active/Expiring/Expired/Superseded 四态（MISSING/CONFLICT 属矩阵行视角，T-2 落地）；valid_until 为 ISO 字符串（字典序即时间序）；锚点/指纹经 `locator.rs` 引擎七变体镜像；sidecar 分离存储待 G-8 工具面（V3-6）接引擎。
+
 ### ComplianceItem（响应矩阵行）
 id=CMP-xxxx；requirement_id ⇄ evidence_ids[]；gap（NONE / PARTIAL / FULL / UNMET）；draft_section_id；owner_note。**资格条件与否决项行必须显式 policy，未填禁止进入起草阶段**（R-03/R-04 闸门；原引审计问题 Q5，编号映射见 risk-register 追溯矩阵）。
 
@@ -51,6 +53,8 @@ id=CMP-xxxx；requirement_id ⇄ evidence_ids[]；gap（NONE / PARTIAL / FULL / 
 | content_ref | 文档内核块句柄 **DOC-xxxx**（只存引用，不复制内容——与文档内核解耦） |
 | word_target / page_budget | 字数/页数预算（暗标页数约束输入） |
 | last_model / updated_at | 换模型恢复的依据（TC-08） |
+
+> **V3-1 实装注（2026-10-28）**：实体 + 树校验（九不变量）+ 从 REQ 推导（配额最大余数法）+ 状态机（7 态 + ACCEPTED 显式 reopen）已落地 `bid-domain/src/outline.rs`；toc_ref/inputs_version/content_ref/last_model 属 M3 起草面（S-1/S-2 批次）。
 
 ### ValidationFinding（审校发现）
 id=VF-xxxx；kind（DETERMINISTIC / MODEL）；rule_code（如 PRICE_EXCEEDS_BUDGET / CERT_EXPIRED / PAGE_LIMIT / DARK_BID_WORD / MISSING_SIGNATURE / UNANCHORED_CLAIM）；severity（BLOCKER / MAJOR / MINOR）；section_id / requirement_id；message + 证据定位；status（OPEN / RESOLVED / WAIVED + 理由）。**BLOCKER 未清零禁止 export**（状态机硬闸门）。

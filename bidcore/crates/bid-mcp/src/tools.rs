@@ -171,9 +171,9 @@ fn create_bid_project(svc: &mut BidService, args: Value) -> ToolResult {
         }
         svc.store().guard_tool("create_bid_project").map_err(ToolError::from)?;
     }
-    // 转发（领域：external_key 幂等创建；tender_notice_ref 即招标公告编号 → code 位）
+    // 转发（领域：external_key 幂等创建；tender_notice_ref 即招标公告编号 → code 位；
+    // T-8：经服务层包装——持久化在场时写后自动落盘）
     let (_, mut out) = svc
-        .store_mut()
         .create_project(&name, &notice_ref.unwrap_or_default(), &mode, &external_key)
         .map_err(ToolError::from)?;
     let mut warnings = Vec::new();
@@ -277,8 +277,9 @@ fn import_tender_files(svc: &mut BidService, args: Value) -> ToolResult {
     // ---- 乐观并发（project_version 缺省 = 内部步骤语义，跳过检查）
     svc.store().check_version(project_version).map_err(ToolError::from)?;
 
-    // ---- 转发业务（服务层：sha256 幂等 + 解析 + DomainStore 落库 + 失败登记）
-    let report = svc.import(&specs);
+    // ---- 转发业务（服务层：sha256 幂等 + 解析 + DomainStore 落库 + 失败登记；
+    // T-8：持久化在场时写后自动落盘——落盘失败与业务失败同报，不吞面）
+    let report = svc.import(&specs).map_err(ToolError::from)?;
 
     // ---- 响应组装（契约 §2 out + 包装字段）
     let mut file_ids: Vec<String> = Vec::with_capacity(report.per_file.len());
@@ -494,9 +495,9 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
         }
     }
 
-    // ---- 落库（幂等合并 + 状态转换 FILES_IMPORTED → REQUIREMENTS_EXTRACTED）
+    // ---- 落库（幂等合并 + 状态转换 FILES_IMPORTED → REQUIREMENTS_EXTRACTED；
+    // T-8：经服务层包装——持久化在场时写后自动落盘）
     let (total, added) = svc
-        .store_mut()
         .set_requirements(reqs)
         .map_err(ToolError::from)?;
 

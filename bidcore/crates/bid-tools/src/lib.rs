@@ -4,6 +4,8 @@
 pub mod runner;
 pub mod schema;
 pub mod service;
+pub mod store_io;
 
 pub use runner::{run_scenario, write_run, RunOutput};
 pub use service::{import_files, BidService, ImportReport, ImportSpec};
+pub use store_io::{StoreFile, StoreIoError};

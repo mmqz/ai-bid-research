@@ -24,9 +24,8 @@ fn main() {
 
     let mut svc = BidService::new();
 
-    // ---- ① create_bid_project（状态机入口：DRAFT）
+    // ---- ① create_bid_project（状态机入口：DRAFT；T-8：服务层包装写后自动落盘）
     let (_, created) = svc
-        .store_mut()
         .create_project(
             "A8 端到端验收项目",
             "A8-DEMO",
@@ -46,7 +45,7 @@ fn main() {
         kind: "主文件".into(),
         expected_pages: None,
     }];
-    let report = svc.import(&specs);
+    let report = svc.import(&specs).unwrap_or_else(|e| die("import_tender_files", &e.code()));
     let ok = report
         .per_file
         .iter()
@@ -73,7 +72,6 @@ fn main() {
     // ---- ③ extract_requirements（extract.rs 规则 × 引擎 blocks）
     let reqs = bid_parse::extract::extract_requirements(svc.parsed());
     let (total, added) = svc
-        .store_mut()
         .set_requirements(reqs)
         .unwrap_or_else(|e| die("extract_requirements", &e.code()));
     eprintln!("[A8-3] extract: total={total} added={added}");

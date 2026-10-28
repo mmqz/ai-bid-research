@@ -46,8 +46,9 @@ M1_PENDING = {"G3_policy", "G4_citation", "G6_rules"}  # M2/M3/M4 范围——db
 SCENARIOS = ("TC-01", "TC-02", "TC-07", "TC-11")
 # 期望文件数从规格派生（R2 P2-2：不再双处硬编码）
 #   5 主文件 + 13 证据 + 4 GT + 12 转换 + 2 查询集 + 2 缺陷草稿 + 1 corpus-R README + 5 corpus-R 结构层
+#   + 5 TR2 引擎借鉴夹具（PR #15 引入：word-complex/word-merged/excel-complex + gen-log + PROVENANCE）
 EXPECTED_MANIFEST_FILES = (5 + len(S.EVIDENCE_FILES) + 4 + len(S.TRANSITIONS) + 2 + 2 + 1
-                           + len(R.OUTPUT_FILES))
+                           + len(R.OUTPUT_FILES) + 5)
 _RULE_CODES = ["CERT_EXPIRED", "PRICE_EXCEEDS_BUDGET", "DURATION_MISMATCH", "PAGE_LIMIT",
                "MISSING_SIGNATURE", "DARK_BID_WORD", "TODO_RESIDUE", "INJECTION_PATTERN"]
 _ECHO_RE = None  # 延迟编译（防 import 顺序）

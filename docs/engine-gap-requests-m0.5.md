@@ -293,11 +293,53 @@ Python 仿真是 B4 删除对象——同 §10）。
 
 ---
 
+## §18 · 嵌套表格提取（w:tbl 嵌于 w:tc）【引擎缺口——B3-3 全量差分实证】
+
+> **状态（2026-10-28 B3-3 全量差分发现）**：`docs/b3-3-acceptance-report.md` §4。
+> 差分 347 块（3/7 真实招标件命中：huaian/shanghai/shanxi），**B4 阻塞项**。
+
+**标书用例**：`real-corpus/telecom/parse-input/A-telecom-huaian-主文件.docx` 第二章
+招标代理服务费费率表。XML 实证（document.xml @ 偏移 390040）：`w:tbl` 嵌于外层
+表格 `w:tc`（depth=2，栈分析唯一嵌套实例）。旧实现整表提取为「表2」33 行
+（`费率/中标金额/货物招标/服务招标/工程招标` 表头 + 8 档费率行）；引擎块流
+整体缺失（'0.45%' 全文 0 命中；旧表数 21 > 引擎表数 20）。shanghai 30>28、
+shanxi 31>30 同族（费率表/违约金分级表）。
+**引擎现状**：mdcore @ `2d01444`（B3-2 钉住 rev）`crates/office-io/src/docx.rs`
+表格遍历不递归进 `w:tc` 内嵌 `w:tbl`——外层表读出、内层表静默丢弃。
+**期望 API**：嵌套表块流入读回（建议：内层表行带 `TableData` 沿文档序发射，
+或 `TableData` 增 `nested: bool` 标记面由适配层分流）。
+**归属判定**：**引擎实现**（通用 OOXML 结构遍历，AD-07 引擎管通用）。
+**验收测试**：huaian 主文件引擎读回含费率表全部行（'100万元以下 1.5% 1.5% 1.0%'
+等 8 档费率行逐行在块流）；表数 21 与旧实现一致；B3-3 差分 NESTED-TABLE 归零。
+
+## §19 · 域剥离边界（'""' 邻接正文疑似被吞）【引擎侧裁决——B3-3 发现待核】
+
+> **状态（2026-10-28 B3-3 全量差分发现）**：`docs/b3-3-acceptance-report.md` §5
+> 残留裁决表 #2-5。4 块，需引擎 owner 判定是缺陷还是既定域语义。
+
+**标书用例**：`A-telecom-shanghai-songjiang-光终端放装-招标文件.docx`：
+①《[]通信工程建设项目施工""施工/服务框架协议》（3 处正文引用）；②「承包人为
+具体项目业主提供技术支持和服务、""不高于[]的价格收取服务费」。XML 实证：
+`&quot;&quot;施工/服务` 为正文 `w:t` 字面文本（非 instrText）。旧实现原样发射；
+引擎输出不含 `""施工/服务` 与 `""不高于[]的价格` 段——疑似域剥离边界吞正文，
+或该区域 run 带引擎剥离的格式语义。
+**引擎现状**：mdcore @ `2d01444` A2 表现型域剥离（338acdc）边界行为待核。
+**期望 API**：字面 `w:t` 文本不因 `""` 邻接被剥离；若为既定语义（域缓存判定），
+期望提供豁免面或判据说明。
+**归属判定**：**引擎侧裁决**（若是缺陷→引擎修；若是既定语义→标书侧按
+EXPECTED_DIFF 归档）。
+**验收测试**：shanghai 件引擎读回含「施工/服务框架协议」全名与「不高于[]的价格」
+条款文本；或引擎侧给出判据文档后差分改判 EXPECTED_DIFF。
+
+---
+
 ## 附 · mdcore issue 转化清单（按 §3.2 规则可直接开单的条目）
 
 | 优先级 | 条目 | mdcore issue 标题草案 | 标书侧可复现样例 | 验收测试 |
 |---|---|---|---|---|
 | **P0** | §2 D6 修订 | `feat(office-io): w:ins 当前文本提取 + delText 登记（for ai-bid-research#2）` | corpus-R D2a（澄清四修订插入条款丢失对照：引擎 6 段 vs bid 7 块）+ **T2 批验收夹具 `D6-revisions/` 5 变体 + `expected-readback.json` 期望读回契约** | ins 文本入读回+标记；delText warning 计数；**期望读回逐变体断言（expected-readback.json）** |
+| **P0** | §18 嵌套表格（B3-3 新增） | `feat(office-io): 嵌套表格 w:tbl@w:tc 递归提取（for ai-bid-research#2）` | huaian 主文件费率表（XML 偏移 390040 depth=2；'0.45%' 引擎全文 0 命中）+ B3-3 差分 NESTED-TABLE 347 块 | 费率表 8 档行逐行入块流；表数 21=旧实现；B3-3 差分归零 |
+| P1 | §19 域剥离边界（B3-3 新增） | `question(office-io): '""' 邻接字面正文被域剥离吞除？（for ai-bid-research#2）` | shanghai 施工/服务框架协议全名 + 不高于[]的价格（4 块） | 引擎读回含全名；或给出判据后差分改判 |
 | **P1** | §1 D4 文本框 | `feat(office-io): txbxContent 文本块提取（for ai-bid-research#2）` | corpus-R D2a（文本框条款 2 块对照） | 文本框文本入块流且宿主段不截断 |
 | P2 | §3 D5 批注/脚注 | `feat(office-io): comments/footnotes 读面（for ai-bid-research#2）` | corpus-R D2a + TR2 word-complex（0 批注对照） | 批注文本+锚段关联；footnotes.xml 读回 |
 | P2 | §11 S4 可选吸收 | `harden(office-io): EOCD 声明计数守恒显式判据 + 全文件镜像扫描（for ai-bid-research#2）` | V6/V7/V8 exotica 族生成器（`guard.rs:323-410` 可供样例） | exotica 族 typed reject |

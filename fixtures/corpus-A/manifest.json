@@ -1,543 +1,311 @@
 {
-  "fixture": "corpus-A (+ queries/corpus-R)",
-  "spec_version": "v0.6",
-  "spec_source": "scripts/fixture_spec.py + research/test-plan.md §1（v0.6：corpus-R +D6-revisions 修订/批注专项层——引擎 mdcore#17/#19 验收夹具，T2 批 issue #2；此前 v0.5：v0.2 审计修正 + v0.4 B2 扫描件修复 + corpus-R D1/D2/D5 结构层）",
-  "deterministic": true,
-  "stats_note": "A.paragraph_blocks 为生成器块计数（非 docx 物理段落数）；B1.rows 为数据行数（物理跨 2 页）",
-  "counts": {
-    "requirements": 25,
-    "categories": {
-      "资格条件": 6,
-      "否决项": 5,
-      "评分项": 4,
-      "技术参数": 5,
-      "商务要求": 3,
-      "格式要求": 2
-    },
-    "evidence_files": 13,
-    "conflicts": 1,
-    "transitions": 12,
-    "exact_queries": 25,
-    "sections": 6,
-    "defects": 8
+ "fixture": "corpus-A (+ queries/corpus-R)",
+ "spec_version": "v0.6",
+ "spec_source": "scripts/fixture_spec.py + research/test-plan.md §1（v0.6：corpus-R +D6-revisions 修订/批注专项层——引擎 mdcore#17/#19 验收夹具，T2 批 issue #2；此前 v0.5：v0.2 审计修正 + v0.4 B2 扫描件修复 + corpus-R D1/D2/D5 结构层）",
+ "deterministic": true,
+ "stats_note": "A.paragraph_blocks 为生成器块计数（非 docx 物理段落数）；B1.rows 为数据行数（物理跨 2 页）",
+ "counts": {
+  "requirements": 25,
+  "categories": {
+   "资格条件": 6,
+   "否决项": 5,
+   "评分项": 4,
+   "技术参数": 5,
+   "商务要求": 3,
+   "格式要求": 2
   },
-  "key_facts": {
-    "open_bid_date": "2026-11-15 09:30",
-    "open_bid_date_after_addendum": "2026-11-27 09:30",
-    "control_price_a": 4800000,
-    "control_price_c": 4650000,
-    "b1_total_cap": 2913000,
-    "b1_total_cap_note": "Σ(单价上限×数量) ≤ 设备预算 350 万（防隐性冲突）",
-    "gt02_flip": "EV-02 valid_until 2026-11-25：eligible@11-15 → not_eligible@11-27"
+  "evidence_files": 13,
+  "conflicts": 1,
+  "transitions": 12,
+  "exact_queries": 25,
+  "sections": 6,
+  "defects": 8
+ },
+ "key_facts": {
+  "open_bid_date": "2026-11-15 09:30",
+  "open_bid_date_after_addendum": "2026-11-27 09:30",
+  "control_price_a": 4800000,
+  "control_price_c": 4650000,
+  "b1_total_cap": 2913000,
+  "b1_total_cap_note": "Σ(单价上限×数量) ≤ 设备预算 350 万（防隐性冲突）",
+  "gt02_flip": "EV-02 valid_until 2026-11-25：eligible@11-15 → not_eligible@11-27"
+ },
+ "stats": {},
+ "files": [
+  {
+   "path": "corpus-A/defect-drafts/defect-map.json",
+   "sha256": "243127b9de3523ab81cd01f3e2a5509c5f35842a5c9fbef95ad40083558f8626",
+   "bytes": 1532
   },
-  "stats": {
-    "A": {
-      "path": "A-招标文件.docx",
-      "paragraph_blocks": 168,
-      "tables": 6,
-      "page_breaks": 30,
-      "estimated_pages": 31
-    },
-    "C": {
-      "path": "C-补遗文件01.docx",
-      "paragraph_blocks": 11,
-      "tables": 0
-    },
-    "B1": {
-      "path": "B1-设备清单.pdf",
-      "rows": 40,
-      "cols": 8
-    },
-    "B2": {
-      "path": "B2-投标函格式页-扫描件.pdf",
-      "text_layer": false,
-      "image_page": true,
-      "key_clause": "本页为投标函标准格式样例；未按本样例格式签署并加盖单位公章的投标文件，作否决投标处理",
-      "drawn_selfcheck": "passed",
-      "key_strings": [
-        "投标函",
-        "投标总报价",
-        "投标人",
-        "盖单位章",
-        "日期"
-      ]
-    },
-    "B3": {
-      "path": "B3-图纸目录.xlsx",
-      "rows": 20,
-      "cols": 6
-    },
-    "evidence": [
-      {
-        "path": "evidence/EV-01-营业执照.pdf",
-        "category": "营业执照",
-        "valid_until": null
-      },
-      {
-        "path": "evidence/EV-02-电子与智能化工程专业承包二级资质证书.pdf",
-        "category": "资质证书",
-        "valid_until": "2026-11-25"
-      },
-      {
-        "path": "evidence/EV-03-类似业绩合同-智慧园区弱电工程.pdf",
-        "category": "业绩合同",
-        "valid_until": null
-      },
-      {
-        "path": "evidence/EV-04-类似业绩合同-数据中心机房工程.pdf",
-        "category": "业绩合同",
-        "valid_until": null
-      },
-      {
-        "path": "evidence/EV-05-类似业绩合同-医院智能化改造.pdf",
-        "category": "业绩合同",
-        "valid_until": null
-      },
-      {
-        "path": "evidence/EV-06-财务审计报告-2025年度.pdf",
-        "category": "财务审计",
-        "valid_until": null
-      },
-      {
-        "path": "evidence/EV-07-无失信记录承诺函.pdf",
-        "category": "信用承诺",
-        "valid_until": null
-      },
-      {
-        "path": "evidence/EV-08-ISO9001质量管理体系认证证书.pdf",
-        "category": "体系认证",
-        "valid_until": "2028-06-30"
-      },
-      {
-        "path": "evidence/EV-09-ISO27001信息安全管理体系认证证书.pdf",
-        "category": "体系认证",
-        "valid_until": "2027-12-31"
-      },
-      {
-        "path": "evidence/EV-10-项目团队人员证书-网络工程师高级.pdf",
-        "category": "人员证书",
-        "valid_until": null
-      },
-      {
-        "path": "evidence/EV-11-售后服务体系说明.pdf",
-        "category": "售后服务",
-        "valid_until": null
-      },
-      {
-        "path": "evidence/EV-12-银行资信证明.pdf",
-        "category": "资信证明",
-        "valid_until": null
-      },
-      {
-        "path": "evidence/EV-13-安全生产许可证.pdf",
-        "category": "安全生产许可",
-        "valid_until": "2025-08-01"
-      }
-    ],
-    "ground_truth": {
-      "requirements": 25,
-      "evidence_links": 9,
-      "sections": 6,
-      "conflicts": 1
-    },
-    "defect_drafts": {
-      "draft": "技术标草稿-缺陷样本.docx",
-      "defects": 8
-    },
-    "transitions": {
-      "files": 12
-    },
-    "queries": {
-      "exact_queries": 25,
-      "eval_entries": 6
-    },
-    "corpus_r": {
-      "version": "v0.2（T2 批：+D6-revisions 修订/批注专项层——引擎 #17/#18/#19 验收夹具）",
-      "files": [
-        "D1a-合并表头跨页表.docx",
-        "D1b-宽表公式.xlsx",
-        "D2a-非正文条款.docx",
-        "D5a-全扫描双栏盖章.pdf",
-        "D5b-图文混排.pdf",
-        "R6a-纯插入澄清.docx",
-        "R6b-纯删除澄清.docx",
-        "R6c-混合修订澄清.docx",
-        "R6d-带批注澄清.docx",
-        "R6e-修订批注组合澄清.docx",
-        "expected-readback.json"
-      ],
-      "layers": {
-        "D1-tables": [
-          {
-            "path": "D1a-合并表头跨页表.docx",
-            "cols": 9,
-            "body_rows": 18,
-            "header": {
-              "rows": 2,
-              "horizontal_merges": 2,
-              "vertical_merges": 2
-            },
-            "body_vertical_merges": [
-              [
-                "类别列",
-                5
-              ]
-            ]
-          },
-          {
-            "path": "D1b-宽表公式.xlsx",
-            "rows": 12,
-            "formulas": [
-              "F3",
-              "F4",
-              "F5",
-              "F6",
-              "F7",
-              "F8",
-              "F9",
-              "F10",
-              "F11",
-              "F12",
-              "F13",
-              "F14",
-              "F15"
-            ],
-            "merged": [
-              "A1:F1"
-            ]
-          }
-        ],
-        "D2-nonbody": [
-          {
-            "path": "D2a-非正文条款.docx",
-            "header_clause": true,
-            "footer_clause": true,
-            "first_page_header_diff": true,
-            "textbox": 1,
-            "comments": 1,
-            "revisions": {
-              "ins": 1,
-              "del": 1
-            }
-          }
-        ],
-        "D5-scanned": [
-          {
-            "path": "D5a-全扫描双栏盖章.pdf",
-            "text_layer": "none",
-            "columns": 2,
-            "stamp_occlusion": true
-          },
-          {
-            "path": "D5b-图文混排.pdf",
-            "text_layer": "partial",
-            "pages": 2,
-            "page1_text": true,
-            "page2_image_only": true
-          }
-        ],
-        "D6-revisions": [
-          {
-            "path": "R6a-纯插入澄清.docx",
-            "kind": "pure-insert",
-            "ins": 2,
-            "del": 0,
-            "comments": 0
-          },
-          {
-            "path": "R6b-纯删除澄清.docx",
-            "kind": "pure-delete",
-            "ins": 0,
-            "del": 2,
-            "comments": 0
-          },
-          {
-            "path": "R6c-混合修订澄清.docx",
-            "kind": "mixed",
-            "ins": 3,
-            "del": 3,
-            "comments": 0,
-            "table_cells": "ins+del"
-          },
-          {
-            "path": "R6d-带批注澄清.docx",
-            "kind": "comments-only",
-            "ins": 0,
-            "del": 0,
-            "comments": 2
-          },
-          {
-            "path": "R6e-修订批注组合澄清.docx",
-            "kind": "combo",
-            "ins": 2,
-            "del": 1,
-            "comments": 2
-          },
-          {
-            "path": "expected-readback.json",
-            "variants": 5
-          }
-        ]
-      },
-      "counts": {
-        "D1": 2,
-        "D2": 1,
-        "D5": 2,
-        "D6": 6,
-        "total": 11
-      }
-    }
+  {
+   "path": "corpus-A/defect-drafts/技术标草稿-缺陷样本.docx",
+   "sha256": "2e8c04b8c47acbc169dc7464540a3fc0586ac3f08a016b50137e5b1b73123b88",
+   "bytes": 37169
   },
-  "files": [
-    {
-      "path": "corpus-A/defect-drafts/defect-map.json",
-      "sha256": "243127b9de3523ab81cd01f3e2a5509c5f35842a5c9fbef95ad40083558f8626",
-      "bytes": 1532
-    },
-    {
-      "path": "corpus-A/defect-drafts/技术标草稿-缺陷样本.docx",
-      "sha256": "2e8c04b8c47acbc169dc7464540a3fc0586ac3f08a016b50137e5b1b73123b88",
-      "bytes": 37169
-    },
-    {
-      "path": "corpus-A/expected-transitions/TC-01.json",
-      "sha256": "78f206af4ca1c8e7055242199aa1724f45ab8b10709bc69cefaa4c78a361c97a",
-      "bytes": 3402
-    },
-    {
-      "path": "corpus-A/expected-transitions/TC-02.json",
-      "sha256": "4c1d8ead63ce9d9073eeb0321c146152ba1ab7fd59a62a2ca11f75132eb07983",
-      "bytes": 770
-    },
-    {
-      "path": "corpus-A/expected-transitions/TC-03.json",
-      "sha256": "5fdfb7405ce7d28f05c8098b8c1e77695cac62a26efcfc62b9cb7165b8c87e32",
-      "bytes": 1321
-    },
-    {
-      "path": "corpus-A/expected-transitions/TC-04.json",
-      "sha256": "dba97045dd46391c976e0da5c3409a77eec1b5dff841e3114e4804dfef4d813f",
-      "bytes": 951
-    },
-    {
-      "path": "corpus-A/expected-transitions/TC-05.json",
-      "sha256": "04f9716307cc6edc480ca899cfda81cf893f0ec993ec61213b177e1e5e78cb1a",
-      "bytes": 1118
-    },
-    {
-      "path": "corpus-A/expected-transitions/TC-06.json",
-      "sha256": "19c18925dea7186ec588a8e44517db8700357f68ce05629b7c1ff3cf19f2a2fa",
-      "bytes": 1141
-    },
-    {
-      "path": "corpus-A/expected-transitions/TC-07.json",
-      "sha256": "4b6bcaba6b158021e5a7a3d6df8a8bdbabf2ecab1fe16abb474c1a906c40e024",
-      "bytes": 769
-    },
-    {
-      "path": "corpus-A/expected-transitions/TC-08.json",
-      "sha256": "cd2f046a49d5427d5140389598801d56cef093ac750bb3b2696bcff9f821b743",
-      "bytes": 871
-    },
-    {
-      "path": "corpus-A/expected-transitions/TC-09.json",
-      "sha256": "5c9b9b4cdfc310252c0e2e7f93875c29d652763834caf8a117f734abf160018f",
-      "bytes": 2246
-    },
-    {
-      "path": "corpus-A/expected-transitions/TC-10.json",
-      "sha256": "2c04635fdf00de78eb9dc2b3efdf9b4b35c3481c686e3956b41d151fa35b0c4c",
-      "bytes": 971
-    },
-    {
-      "path": "corpus-A/expected-transitions/TC-11.json",
-      "sha256": "02c479e36d7153c713d9a68acd579f9cfed7061620d5aed55eab980bd0ffdc18",
-      "bytes": 676
-    },
-    {
-      "path": "corpus-A/expected-transitions/TC-12.json",
-      "sha256": "abbaad8d37ac41c3aeda13b53e0294f9d2a8e3b98b350535a17b4fd4f30dc498",
-      "bytes": 1242
-    },
-    {
-      "path": "corpus-A/files/A-招标文件.docx",
-      "sha256": "e1a2c6f1665306b26c1d7c846cce74f9af02b7cade5bd548cb73f7448ed0d996",
-      "bytes": 42426
-    },
-    {
-      "path": "corpus-A/files/B1-设备清单.pdf",
-      "sha256": "f2dbe901f36f49067b5e97f1e79335f96c40a385ee08e99112898f934929e64a",
-      "bytes": 7791
-    },
-    {
-      "path": "corpus-A/files/B2-投标函格式页-扫描件.pdf",
-      "sha256": "2c81a0016799d48c104be769519261bd31bfde8a4274729360985ceca5465713",
-      "bytes": 100445
-    },
-    {
-      "path": "corpus-A/files/B3-图纸目录.xlsx",
-      "sha256": "93ab914883e0f9e9019a6780b82a60d23e72287c795321e4d6c1f2f7b6c7ef26",
-      "bytes": 6168
-    },
-    {
-      "path": "corpus-A/files/C-补遗文件01.docx",
-      "sha256": "c0f0e3da2f3dbb1ac864be3c85c53544cabcab728e1e9854b3b03ec70e04c1f0",
-      "bytes": 37379
-    },
-    {
-      "path": "corpus-A/files/evidence/EV-01-营业执照.pdf",
-      "sha256": "b1b4811b9c1b96e1bff95a49dcba07434cd391d7939e82b7453d18142b80258c",
-      "bytes": 2965
-    },
-    {
-      "path": "corpus-A/files/evidence/EV-02-电子与智能化工程专业承包二级资质证书.pdf",
-      "sha256": "60a2e9ce86ccab9bb8ad89be98bcfd8e802ee8d9ff6e20ce7ea4f2e23964c7b6",
-      "bytes": 2923
-    },
-    {
-      "path": "corpus-A/files/evidence/EV-03-类似业绩合同-智慧园区弱电工程.pdf",
-      "sha256": "cd8accd98cc7ad32a0ae229ffe6212a764a2018e32fc6c2667fed9b164d2cfd0",
-      "bytes": 2824
-    },
-    {
-      "path": "corpus-A/files/evidence/EV-04-类似业绩合同-数据中心机房工程.pdf",
-      "sha256": "143a461e14322b2819c36840aed6e796a7989b2beab21b3fa13487f0607e7fe4",
-      "bytes": 2822
-    },
-    {
-      "path": "corpus-A/files/evidence/EV-05-类似业绩合同-医院智能化改造.pdf",
-      "sha256": "2db636241b32d4f9e88c35fdc9aa9a0642221e25dc625ce8f512e73d90abb3a3",
-      "bytes": 2831
-    },
-    {
-      "path": "corpus-A/files/evidence/EV-06-财务审计报告-2025年度.pdf",
-      "sha256": "bb580da493d752359665f85d3fd585e98e3dfaaca2e30232ccccd63dc20a4431",
-      "bytes": 2787
-    },
-    {
-      "path": "corpus-A/files/evidence/EV-07-无失信记录承诺函.pdf",
-      "sha256": "5b7f8e3556b820e2502700fe16f7eff42b59301de0be093eaf25bc5328e6af57",
-      "bytes": 2789
-    },
-    {
-      "path": "corpus-A/files/evidence/EV-08-ISO9001质量管理体系认证证书.pdf",
-      "sha256": "5798f2822f194175d306ff206f8b2692a37fd47a9db52463b8d6724498ef1460",
-      "bytes": 2871
-    },
-    {
-      "path": "corpus-A/files/evidence/EV-09-ISO27001信息安全管理体系认证证书.pdf",
-      "sha256": "d9dc484b314bde0d9bbda4d4dfcfbb202f9334cd368a1e8214d8d3dabffd6030",
-      "bytes": 2888
-    },
-    {
-      "path": "corpus-A/files/evidence/EV-10-项目团队人员证书-网络工程师高级.pdf",
-      "sha256": "542c6cabc5cdca25f3135fd7a2bb99ebfbc3c937437cfe0065fca3fdcd609c54",
-      "bytes": 2831
-    },
-    {
-      "path": "corpus-A/files/evidence/EV-11-售后服务体系说明.pdf",
-      "sha256": "6c61ed58ff634b930adeffff16cac30a78a46dc581e13234b48b65640fefcba5",
-      "bytes": 2807
-    },
-    {
-      "path": "corpus-A/files/evidence/EV-12-银行资信证明.pdf",
-      "sha256": "12ccdebab5359c989280974e00c3428a4a6460bc5ace311027bbbcb67f39c763",
-      "bytes": 2684
-    },
-    {
-      "path": "corpus-A/files/evidence/EV-13-安全生产许可证.pdf",
-      "sha256": "f377b8445de6a170c7942ba50cd8c943d931d28bc046a67240d194328ad52505",
-      "bytes": 2881
-    },
-    {
-      "path": "corpus-A/ground-truth/conflicts.json",
-      "sha256": "1fa54757e5f0519128166597c9cd15fb02bc4c553e323a34266fa7aec0343795",
-      "bytes": 763
-    },
-    {
-      "path": "corpus-A/ground-truth/evidence-links.jsonl",
-      "sha256": "d3d719db1014648133fb3fc3866ac35df5b0227ff7196e5a94440e533880ad7c",
-      "bytes": 1624
-    },
-    {
-      "path": "corpus-A/ground-truth/requirements.jsonl",
-      "sha256": "8c4a162562bf5c6f4762c16d957a40de1aeaf29277e61fa152d24a61588214ef",
-      "bytes": 10897
-    },
-    {
-      "path": "corpus-A/ground-truth/sections.jsonl",
-      "sha256": "8c82a68f71f570cb7fa9521a0153f64486a29942617edcd51292b1feb18a47ec",
-      "bytes": 575
-    },
-    {
-      "path": "corpus-R/D1-tables/D1a-合并表头跨页表.docx",
-      "sha256": "ebbb7f1266e9e24266451f5b54c540691d62d81acbb325a4c423204ca906c77a",
-      "bytes": 38101
-    },
-    {
-      "path": "corpus-R/D1-tables/D1b-宽表公式.xlsx",
-      "sha256": "2ad521eff1c077b1bcf79a2f955c0f2efaf7eb003c6cbece8c3b5532a6985245",
-      "bytes": 6003
-    },
-    {
-      "path": "corpus-R/D2-nonbody/D2a-非正文条款.docx",
-      "sha256": "e4a8f9acda166b979624ad9d350a730d45027dcf7152afce46a7d568c4a22415",
-      "bytes": 39849
-    },
-    {
-      "path": "corpus-R/D5-scanned/D5a-全扫描双栏盖章.pdf",
-      "sha256": "c8a17e706df35cdc7d1b8c055ce2477873b470749e300ac31590df20ebb6fe43",
-      "bytes": 70226
-    },
-    {
-      "path": "corpus-R/D5-scanned/D5b-图文混排.pdf",
-      "sha256": "26ddf2e331a683798ee63ddb27fecfc7e2222f23a07b820b5cebd683e8462c16",
-      "bytes": 82708
-    },
-    {
-      "path": "corpus-R/D6-revisions/R6a-纯插入澄清.docx",
-      "sha256": "78805f994bc1ca4ec95ba65bd331706938a71e78390bc8d708e88de8a2183f96",
-      "bytes": 37011
-    },
-    {
-      "path": "corpus-R/D6-revisions/R6b-纯删除澄清.docx",
-      "sha256": "2700375c580dc5be2209cb8f05da9e2fad110e60649c6376d655877082c8bca0",
-      "bytes": 37021
-    },
-    {
-      "path": "corpus-R/D6-revisions/R6c-混合修订澄清.docx",
-      "sha256": "e83814f6410741c9f9954ae2cd8af88b31e44dae9ea3a3b7437b2cf07e946f45",
-      "bytes": 37232
-    },
-    {
-      "path": "corpus-R/D6-revisions/R6d-带批注澄清.docx",
-      "sha256": "02f1c26d817760383f1ea019f18cbf01393ab35db3ac1af1be7d55776cd53737",
-      "bytes": 37446
-    },
-    {
-      "path": "corpus-R/D6-revisions/R6e-修订批注组合澄清.docx",
-      "sha256": "ec931d0da4f1f309a57bb21c717c50f2b138cbda8347fccabf537e04aae8c6a8",
-      "bytes": 37548
-    },
-    {
-      "path": "corpus-R/D6-revisions/expected-readback.json",
-      "sha256": "500adfdd3ae80123b2238cb9de7eea3227324ae82cd5ae65ecb37f7a9d937df7",
-      "bytes": 7254
-    },
-    {
-      "path": "corpus-R/README.md",
-      "sha256": "116efb5d5a4305543add352b6153ff44c95ef6e84cad740e1a4ddf378083f84d",
-      "bytes": 3721
-    },
-    {
-      "path": "queries/eval-set.jsonl",
-      "sha256": "1acfe68a41835c58205880eacccf915edadbba630394d986361d02e9fab93479",
-      "bytes": 1238
-    },
-    {
-      "path": "queries/exact-25.jsonl",
-      "sha256": "97e1676b410231d35e3cb659f34b68c169bc9cef558c3e5678fac9a60f13cee9",
-      "bytes": 5535
-    }
-  ]
+  {
+   "path": "corpus-A/expected-transitions/TC-01.json",
+   "sha256": "78f206af4ca1c8e7055242199aa1724f45ab8b10709bc69cefaa4c78a361c97a",
+   "bytes": 3402
+  },
+  {
+   "path": "corpus-A/expected-transitions/TC-02.json",
+   "sha256": "4c1d8ead63ce9d9073eeb0321c146152ba1ab7fd59a62a2ca11f75132eb07983",
+   "bytes": 770
+  },
+  {
+   "path": "corpus-A/expected-transitions/TC-03.json",
+   "sha256": "5fdfb7405ce7d28f05c8098b8c1e77695cac62a26efcfc62b9cb7165b8c87e32",
+   "bytes": 1321
+  },
+  {
+   "path": "corpus-A/expected-transitions/TC-04.json",
+   "sha256": "dba97045dd46391c976e0da5c3409a77eec1b5dff841e3114e4804dfef4d813f",
+   "bytes": 951
+  },
+  {
+   "path": "corpus-A/expected-transitions/TC-05.json",
+   "sha256": "04f9716307cc6edc480ca899cfda81cf893f0ec993ec61213b177e1e5e78cb1a",
+   "bytes": 1118
+  },
+  {
+   "path": "corpus-A/expected-transitions/TC-06.json",
+   "sha256": "19c18925dea7186ec588a8e44517db8700357f68ce05629b7c1ff3cf19f2a2fa",
+   "bytes": 1141
+  },
+  {
+   "path": "corpus-A/expected-transitions/TC-07.json",
+   "sha256": "4b6bcaba6b158021e5a7a3d6df8a8bdbabf2ecab1fe16abb474c1a906c40e024",
+   "bytes": 769
+  },
+  {
+   "path": "corpus-A/expected-transitions/TC-08.json",
+   "sha256": "cd2f046a49d5427d5140389598801d56cef093ac750bb3b2696bcff9f821b743",
+   "bytes": 871
+  },
+  {
+   "path": "corpus-A/expected-transitions/TC-09.json",
+   "sha256": "5c9b9b4cdfc310252c0e2e7f93875c29d652763834caf8a117f734abf160018f",
+   "bytes": 2246
+  },
+  {
+   "path": "corpus-A/expected-transitions/TC-10.json",
+   "sha256": "2c04635fdf00de78eb9dc2b3efdf9b4b35c3481c686e3956b41d151fa35b0c4c",
+   "bytes": 971
+  },
+  {
+   "path": "corpus-A/expected-transitions/TC-11.json",
+   "sha256": "02c479e36d7153c713d9a68acd579f9cfed7061620d5aed55eab980bd0ffdc18",
+   "bytes": 676
+  },
+  {
+   "path": "corpus-A/expected-transitions/TC-12.json",
+   "sha256": "abbaad8d37ac41c3aeda13b53e0294f9d2a8e3b98b350535a17b4fd4f30dc498",
+   "bytes": 1242
+  },
+  {
+   "path": "corpus-A/files/A-招标文件.docx",
+   "sha256": "e1a2c6f1665306b26c1d7c846cce74f9af02b7cade5bd548cb73f7448ed0d996",
+   "bytes": 42426
+  },
+  {
+   "path": "corpus-A/files/B1-设备清单.pdf",
+   "sha256": "f2dbe901f36f49067b5e97f1e79335f96c40a385ee08e99112898f934929e64a",
+   "bytes": 7791
+  },
+  {
+   "path": "corpus-A/files/B2-投标函格式页-扫描件.pdf",
+   "sha256": "2c81a0016799d48c104be769519261bd31bfde8a4274729360985ceca5465713",
+   "bytes": 100445
+  },
+  {
+   "path": "corpus-A/files/B3-图纸目录.xlsx",
+   "sha256": "93ab914883e0f9e9019a6780b82a60d23e72287c795321e4d6c1f2f7b6c7ef26",
+   "bytes": 6168
+  },
+  {
+   "path": "corpus-A/files/C-补遗文件01.docx",
+   "sha256": "c0f0e3da2f3dbb1ac864be3c85c53544cabcab728e1e9854b3b03ec70e04c1f0",
+   "bytes": 37379
+  },
+  {
+   "path": "corpus-A/files/evidence/EV-01-营业执照.pdf",
+   "sha256": "b1b4811b9c1b96e1bff95a49dcba07434cd391d7939e82b7453d18142b80258c",
+   "bytes": 2965
+  },
+  {
+   "path": "corpus-A/files/evidence/EV-02-电子与智能化工程专业承包二级资质证书.pdf",
+   "sha256": "60a2e9ce86ccab9bb8ad89be98bcfd8e802ee8d9ff6e20ce7ea4f2e23964c7b6",
+   "bytes": 2923
+  },
+  {
+   "path": "corpus-A/files/evidence/EV-03-类似业绩合同-智慧园区弱电工程.pdf",
+   "sha256": "cd8accd98cc7ad32a0ae229ffe6212a764a2018e32fc6c2667fed9b164d2cfd0",
+   "bytes": 2824
+  },
+  {
+   "path": "corpus-A/files/evidence/EV-04-类似业绩合同-数据中心机房工程.pdf",
+   "sha256": "143a461e14322b2819c36840aed6e796a7989b2beab21b3fa13487f0607e7fe4",
+   "bytes": 2822
+  },
+  {
+   "path": "corpus-A/files/evidence/EV-05-类似业绩合同-医院智能化改造.pdf",
+   "sha256": "2db636241b32d4f9e88c35fdc9aa9a0642221e25dc625ce8f512e73d90abb3a3",
+   "bytes": 2831
+  },
+  {
+   "path": "corpus-A/files/evidence/EV-06-财务审计报告-2025年度.pdf",
+   "sha256": "bb580da493d752359665f85d3fd585e98e3dfaaca2e30232ccccd63dc20a4431",
+   "bytes": 2787
+  },
+  {
+   "path": "corpus-A/files/evidence/EV-07-无失信记录承诺函.pdf",
+   "sha256": "5b7f8e3556b820e2502700fe16f7eff42b59301de0be093eaf25bc5328e6af57",
+   "bytes": 2789
+  },
+  {
+   "path": "corpus-A/files/evidence/EV-08-ISO9001质量管理体系认证证书.pdf",
+   "sha256": "5798f2822f194175d306ff206f8b2692a37fd47a9db52463b8d6724498ef1460",
+   "bytes": 2871
+  },
+  {
+   "path": "corpus-A/files/evidence/EV-09-ISO27001信息安全管理体系认证证书.pdf",
+   "sha256": "d9dc484b314bde0d9bbda4d4dfcfbb202f9334cd368a1e8214d8d3dabffd6030",
+   "bytes": 2888
+  },
+  {
+   "path": "corpus-A/files/evidence/EV-10-项目团队人员证书-网络工程师高级.pdf",
+   "sha256": "542c6cabc5cdca25f3135fd7a2bb99ebfbc3c937437cfe0065fca3fdcd609c54",
+   "bytes": 2831
+  },
+  {
+   "path": "corpus-A/files/evidence/EV-11-售后服务体系说明.pdf",
+   "sha256": "6c61ed58ff634b930adeffff16cac30a78a46dc581e13234b48b65640fefcba5",
+   "bytes": 2807
+  },
+  {
+   "path": "corpus-A/files/evidence/EV-12-银行资信证明.pdf",
+   "sha256": "12ccdebab5359c989280974e00c3428a4a6460bc5ace311027bbbcb67f39c763",
+   "bytes": 2684
+  },
+  {
+   "path": "corpus-A/files/evidence/EV-13-安全生产许可证.pdf",
+   "sha256": "f377b8445de6a170c7942ba50cd8c943d931d28bc046a67240d194328ad52505",
+   "bytes": 2881
+  },
+  {
+   "path": "corpus-A/ground-truth/conflicts.json",
+   "sha256": "1fa54757e5f0519128166597c9cd15fb02bc4c553e323a34266fa7aec0343795",
+   "bytes": 763
+  },
+  {
+   "path": "corpus-A/ground-truth/evidence-links.jsonl",
+   "sha256": "d3d719db1014648133fb3fc3866ac35df5b0227ff7196e5a94440e533880ad7c",
+   "bytes": 1624
+  },
+  {
+   "path": "corpus-A/ground-truth/requirements.jsonl",
+   "sha256": "8c4a162562bf5c6f4762c16d957a40de1aeaf29277e61fa152d24a61588214ef",
+   "bytes": 10897
+  },
+  {
+   "path": "corpus-A/ground-truth/sections.jsonl",
+   "sha256": "8c82a68f71f570cb7fa9521a0153f64486a29942617edcd51292b1feb18a47ec",
+   "bytes": 575
+  },
+  {
+   "path": "corpus-R/D1-tables/D1a-合并表头跨页表.docx",
+   "sha256": "ebbb7f1266e9e24266451f5b54c540691d62d81acbb325a4c423204ca906c77a",
+   "bytes": 38101
+  },
+  {
+   "path": "corpus-R/D1-tables/D1b-宽表公式.xlsx",
+   "sha256": "2ad521eff1c077b1bcf79a2f955c0f2efaf7eb003c6cbece8c3b5532a6985245",
+   "bytes": 6003
+  },
+  {
+   "path": "corpus-R/D2-nonbody/D2a-非正文条款.docx",
+   "sha256": "e4a8f9acda166b979624ad9d350a730d45027dcf7152afce46a7d568c4a22415",
+   "bytes": 39849
+  },
+  {
+   "path": "corpus-R/D5-scanned/D5a-全扫描双栏盖章.pdf",
+   "sha256": "c8a17e706df35cdc7d1b8c055ce2477873b470749e300ac31590df20ebb6fe43",
+   "bytes": 70226
+  },
+  {
+   "path": "corpus-R/D5-scanned/D5b-图文混排.pdf",
+   "sha256": "26ddf2e331a683798ee63ddb27fecfc7e2222f23a07b820b5cebd683e8462c16",
+   "bytes": 82708
+  },
+  {
+   "path": "corpus-R/D6-revisions/R6a-纯插入澄清.docx",
+   "sha256": "78805f994bc1ca4ec95ba65bd331706938a71e78390bc8d708e88de8a2183f96",
+   "bytes": 37011
+  },
+  {
+   "path": "corpus-R/D6-revisions/R6b-纯删除澄清.docx",
+   "sha256": "2700375c580dc5be2209cb8f05da9e2fad110e60649c6376d655877082c8bca0",
+   "bytes": 37021
+  },
+  {
+   "path": "corpus-R/D6-revisions/R6c-混合修订澄清.docx",
+   "sha256": "e83814f6410741c9f9954ae2cd8af88b31e44dae9ea3a3b7437b2cf07e946f45",
+   "bytes": 37232
+  },
+  {
+   "path": "corpus-R/D6-revisions/R6d-带批注澄清.docx",
+   "sha256": "02f1c26d817760383f1ea019f18cbf01393ab35db3ac1af1be7d55776cd53737",
+   "bytes": 37446
+  },
+  {
+   "path": "corpus-R/D6-revisions/R6e-修订批注组合澄清.docx",
+   "sha256": "ec931d0da4f1f309a57bb21c717c50f2b138cbda8347fccabf537e04aae8c6a8",
+   "bytes": 37548
+  },
+  {
+   "path": "corpus-R/D6-revisions/expected-readback.json",
+   "sha256": "500adfdd3ae80123b2238cb9de7eea3227324ae82cd5ae65ecb37f7a9d937df7",
+   "bytes": 7254
+  },
+  {
+   "path": "corpus-R/README.md",
+   "sha256": "116efb5d5a4305543add352b6153ff44c95ef6e84cad740e1a4ddf378083f84d",
+   "bytes": 3721
+  },
+  {
+   "path": "engine-borrowed/TR2/PROVENANCE.md",
+   "sha256": "bad9d37217493daae88c519aba61d02ddac8266ad75a97f110c93aa141e6896d",
+   "bytes": 920
+  },
+  {
+   "path": "engine-borrowed/TR2/excel-complex.xlsx",
+   "sha256": "b2ba65e10d840e65cde1185a683094568eae7e539b74d9b4d4e195a89c9fc71d",
+   "bytes": 10746
+  },
+  {
+   "path": "engine-borrowed/TR2/gen-log.txt",
+   "sha256": "293f2bbf632b4814ce747dff809dea5d54a8a1ab0ddf3bd9330e0e871219a506",
+   "bytes": 128
+  },
+  {
+   "path": "engine-borrowed/TR2/word-complex.docx",
+   "sha256": "7ffcdb3fc8b32260f3ee00ec0c2b63f4307adf089a9763ec43e2fe25a32ce7a7",
+   "bytes": 25767
+  },
+  {
+   "path": "engine-borrowed/TR2/word-merged.docx",
+   "sha256": "faf142b2a900d3e55c1d039a77641264b554502c9b6493759d1b5d8ed18b9c4b",
+   "bytes": 16825
+  },
+  {
+   "path": "queries/eval-set.jsonl",
+   "sha256": "1acfe68a41835c58205880eacccf915edadbba630394d986361d02e9fab93479",
+   "bytes": 1238
+  },
+  {
+   "path": "queries/exact-25.jsonl",
+   "sha256": "97e1676b410231d35e3cb659f34b68c169bc9cef558c3e5678fac9a60f13cee9",
+   "bytes": 5535
+  }
+ ]
 }

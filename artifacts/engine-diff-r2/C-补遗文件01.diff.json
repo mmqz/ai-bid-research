@@ -1,0 +1,123 @@
+{
+  "aligned_pairs": 11,
+  "file": "fixtures/corpus-A/files/C-补遗文件01.docx",
+  "items": [
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段1",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "补遗文件01号",
+      "text_old": "补遗文件01号",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段2",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "项目名称：某市政务服务中心智能化系统工程（货物及服务）；项目编号：ZFCG-2026-GK-0311。",
+      "text_old": "项目名称：某市政务服务中心智能化系统工程（货物及服务）；项目编号：ZFCG-2026-GK-0311。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段3",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "致各投标人：现对招标文件部分内容作如下澄清与修改，本补遗文件为招标文件的组成部分，与招标文件具有同等法律效力；不一致之处以本补遗文件为准。",
+      "text_old": "致各投标人：现对招标文件部分内容作如下澄清与修改，本补遗文件为招标文件的组成部分，与招标文件具有同等法律效力；不一致之处以本补遗文件为准。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段4",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "一、技术参数修改",
+      "text_old": "一、技术参数修改",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段5",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "原招标文件第五章5.3参数表3中\"防火墙\"及\"上网行为管理\"设备型号规格由USG6650E-AC550统一调整为USG6705E-AC650，数量及其余参数不变。投标响应以调整后型号为准。",
+      "text_old": "原招标文件第五章5.3参数表3中\"防火墙\"及\"上网行为管理\"设备型号规格由USG6650E-AC550统一调整为USG6705E-AC650，数量及其余参数不变。投标响应以调整后型号为准。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段6",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "二、开标时间变更",
+      "text_old": "二、开标时间变更",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段7",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "原招标文件规定的开标时间\"2026-11-15 09:30\"变更为\"2026-11-27 09:30\"；投标截止时间（递交截止时间）相应顺延为2026-11-25 09:30。",
+      "text_old": "原招标文件规定的开标时间\"2026-11-15 09:30\"变更为\"2026-11-27 09:30\"；投标截止时间（递交截止时间）相应顺延为2026-11-25 09:30。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段8",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "三、招标控制价调整",
+      "text_old": "三、招标控制价调整",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段9",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "原招标文件第一章、第六章所列招标控制价\"人民币480万元（含税）\"调整为\"人民币465万元（含税）\"，投标报价超过调整后控制价的作否决投标处理。",
+      "text_old": "原招标文件第一章、第六章所列招标控制价\"人民币480万元（含税）\"调整为\"人民币465万元（含税）\"，投标报价超过调整后控制价的作否决投标处理。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段10",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "四、其他",
+      "text_old": "四、其他",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段11",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "招标文件其他内容不变。请投标人收到本补遗后24小时内书面回执确认。",
+      "text_old": "招标文件其他内容不变。请投标人收到本补遗后24小时内书面回执确认。",
+      "verdict": "EQUIVALENT"
+    }
+  ],
+  "new_blocks": 11,
+  "new_status": "ok",
+  "old_blocks": 11,
+  "old_status": "ok",
+  "verdict_counts": {
+    "EQUIVALENT": 11
+  }
+}

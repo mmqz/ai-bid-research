@@ -70,6 +70,7 @@ dependencies = [
 name = "bid-engine"
 version = "0.1.0"
 dependencies = [
+ "bid-domain",
  "bid-parse",
  "calamine 0.36.1",
  "hex",

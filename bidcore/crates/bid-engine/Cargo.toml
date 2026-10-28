@@ -25,6 +25,8 @@ sha2 = "0.10"
 hex = "0.4"
 # calamine 0.36 与引擎 mdc-office-io 同版（Data/Range/Dimensions 类型面——读侧零语义，仅字段搬运）
 calamine = "0.36"
+# scripts/b5_engine_gt_eval.py 动态生成的 example（GT 抽取对比）需要 bid_domain::Requirement
+bid-domain = { path = "../bid-domain" }
 
 [dev-dependencies]
 serde_json = "1"

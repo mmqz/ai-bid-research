@@ -2,6 +2,7 @@
 //! 薄壳纪律：工具只做参数校验、状态机裁决与转发；业务逻辑在 domain/parse/kb。
 
 pub mod assembly;
+pub mod check;
 pub mod runner;
 pub mod schema;
 pub mod service;

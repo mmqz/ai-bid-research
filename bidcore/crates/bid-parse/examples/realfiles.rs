@@ -6,11 +6,30 @@
 //! 输入目录约定：文件名前缀承载业务类别（extract 层接口，内容为真实原始文件）：
 //!   A- 主招标文件 / C- 补遗·变更 / B- 附件（仅解析，不抽条款）
 //! 纪律：本例程只读解析与抽取，不改任何文件；报告含逐文件 sha256。
+//!
+//! B4 路由（issue #11 任务 3）：docx/xlsx 走 bid-engine 引擎门面
+//! （`parse_docx_via_engine` / `parse_xlsx_via_engine`——自研 docx/xlsx 解析
+//! 已删，引擎是 OOXML 读面单一真源）；pdf 保持 `parse_file`（文本层/
+//! OCR 补遗链是标书侧保留面）。与 service.rs 同款扩展名路由。
 
 use bid_parse::{extract::extract_requirements, parse_file};
 use serde_json::json;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+/// B4：docx/xlsx → 引擎；pdf → 旧路径（parse_file）。与 service.rs 同款路由。
+fn parse_routed(path: &Path, name: &str) -> Result<bid_parse::ParsedFile, String> {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    match ext.as_str() {
+        "docx" => bid_engine::parse_docx_via_engine(path).map_err(|e| e.to_string()),
+        "xlsx" => bid_engine::parse_xlsx_via_engine(path).map_err(|e| e.to_string()),
+        _ => parse_file(path, name),
+    }
+}
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -55,7 +74,7 @@ fn main() {
         if !matches!(ext.as_str(), "docx" | "xlsx" | "pdf") {
             continue; // 跳过其余扩展名（不伪装解析）
         }
-        match parse_file(p, &name) {
+        match parse_routed(p, &name) {
             Ok(pf) => {
                 reports.push(json!({
                     "name": pf.name,

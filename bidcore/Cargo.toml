@@ -21,12 +21,11 @@ serde_json = "1"
 sha2 = "0.10"
 hex = "0.4"
 regex = "1"
-quick-xml = "0.36"
-zip = "4"
-calamine = "0.28"
-memchr = "2"
 unicode-normalization = "0.1"
 libc = "0.2"
+# B4（issue #11 任务 3）：zip / quick-xml / calamine / memchr 工作区条目已删——
+# docx/xlsx 解析收敛引擎（bid-engine → mdc-office-io），workspace 成员不再
+# 直接依赖 OOXML 解析栈（引擎侧依赖不入本清单）。
 
 [profile.release]
 debug = false

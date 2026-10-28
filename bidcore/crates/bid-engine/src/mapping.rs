@@ -26,7 +26,7 @@ pub struct FileMeta {
 /// 映射规则单一真源：`docs/engine-bid-mapping.md` §1。要点：
 /// - `EngineBlock::Paragraph/TextBox`（source=Body）→ `BlockKind::Para`；
 ///   **空段丢弃**（EMPTY-PARA 对齐旧口径）；章节上下文沿旧解析器同款文本模式
-///   （`bid_parse::docx::{as_chapter, as_subsection}`——B4 删旧实现时迁入本 crate），
+///   （本模块 `as_chapter`/`as_subsection`——B4 自 bid-parse/src/docx.rs 迁入），
 ///   locator = `章` 或 `章 > 节`（` > ` 分隔——extract.rs `split_locator` 口径）；
 /// - `EngineBlock::Table`（source=Body）→ 每行一块 `BlockKind::TableRow`
 ///   （cells 直连；text=非空列单空格连接；全空行跳过但行号照旧消耗——旧实现对齐）；
@@ -137,11 +137,12 @@ pub fn docx_to_parsed_file(
                     rev_ins_present += 1;
                 }
                 fields_dropped_total += p.fields_dropped;
-                // 章节上下文（旧解析器同款文本模式——extract.rs 类别映射依赖 locator 携带）
-                if let Some(c) = bid_parse::docx::as_chapter(&t) {
+                // 章节上下文（旧解析器同款文本模式——extract.rs 类别映射依赖 locator 携带；
+                // B4：三助手已自 bid-parse/src/docx.rs 迁入本 crate，本地同口径）
+                if let Some(c) = as_chapter(&t) {
                     chapter = c;
                     subsection.clear();
-                } else if let Some(s) = bid_parse::docx::as_subsection(&t) {
+                } else if let Some(s) = as_subsection(&t) {
                     subsection = s;
                 }
                 emit_para(&mut blocks, &chapter, &subsection, &t);
@@ -463,4 +464,68 @@ fn collapse_spaces(s: &str) -> String {
         }
     }
     out.trim_end().to_string()
+}
+
+// ---------------------------------------------------------------- 章节模式三助手
+// B4 自 `bid-parse/src/docx.rs` 迁入（引擎单一真源化——旧自研解析删除）。
+// 既定设计（docx.rs 243-244 行原文）：locator 语义属于**标书面呈现**，
+// 非引擎能力；提取层 extract.rs 只消费 locator 字符串。三助手是映射层
+// 构建章节上下文的唯一口径（「第X章」/「一、」/「3.2.1」），保持 pub 供
+// 测试与潜在消费方复用；迁移后语义零变化（逐字搬运，验收锚：A 件 100% EQ）。
+
+fn cn_num_ok(s: &str) -> bool {
+    s.chars().all(|c| "一二三四五六七八九十百".contains(c))
+}
+
+/// 「第X章 标题」——章号用中文数字；携带完整标题（类别映射与 GT locator 口径需要全文）。
+pub fn as_chapter(t: &str) -> Option<String> {
+    if t.len() >= 4 && t.starts_with("第") {
+        if let Some(pos) = t.find("章") {
+            let num = &t[3..pos]; // "第" 占 3 字节
+            if !num.is_empty() && cn_num_ok(num) && pos + 3 <= t.len() {
+                return Some(t.trim().to_string());
+            }
+        }
+    }
+    None
+}
+
+/// 「一、标题」——中文序号节标题（长度短，避免把正文当标题）；携带完整标题。
+pub fn as_subsection(t: &str) -> Option<String> {
+    if t.chars().count() <= 30 {
+        if let Some(idx) = t.find('、') {
+            let head = &t[..idx];
+            if !head.is_empty() && cn_num_ok(head) {
+                return Some(t.trim().to_string());
+            }
+        }
+    }
+    None
+}
+
+/// 「3.2.1 正文…」——层级条款号开头（数字开头且含点）。
+pub fn is_numbered_clause(t: &str) -> bool {
+    let head: String = t.chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();
+    head.contains('.') && head.len() >= 3
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 章节模式三助手（B4 自 bid-parse/src/docx.rs `chapter_subsection_patterns`
+    /// 随迁——逐字同断言）。破坏推演：模式误判（如把「3.1.1 正文」当章）→
+    /// locator 上下文污染 → 下游类别映射错位 → 红。
+    #[test]
+    fn chapter_subsection_patterns() {
+        assert!(as_chapter("第三章 投标人须知").is_some());
+        assert!(as_chapter("第十二章 合同").is_some());
+        assert!(as_chapter("3.1.1 正文不是章").is_none());
+        assert!(as_subsection("七、开标、评标与否决条款").is_some());
+        assert!(as_subsection("二、投标人资格要求").is_some());
+        assert!(as_subsection("评标办法（综合评分法）").is_none());
+        assert!(is_numbered_clause("3.2.1 投标人须具有独立承担民事责任能力的法人营业执照"));
+        assert!(is_numbered_clause("4.1 价格分（30 分）"));
+        assert!(!is_numbered_clause("投标文件格式"));
+    }
 }

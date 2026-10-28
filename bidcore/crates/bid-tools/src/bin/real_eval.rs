@@ -5,6 +5,11 @@
 //! corpus-A 全绿只证明合成契约成立，本评测回答「真实文件的解析/抽取面
 //! 表现如何」——漏项/误报/引用支持率以人工 ground truth 草案为准。
 //!
+//! 解析路由（B4，与 service.rs 同款）：docx/xlsx → bid-engine 引擎门面；
+//! pdf → 引擎优先（pdfium 文本层）+ 旧路径回退（pdftotext/OCR 补遗链）；
+//! 其它扩展名 → `parse_file` 显式拒绝（zip 容器样本的「预期显式拒绝」
+//! 行为保持）。
+//!
 //! 诚实登记：
 //! - ground truth 为 AI 初标草案（待人工验收——验收前指标为「草案对齐结果」，
 //!   不得外推为产品验收指标）；
@@ -16,6 +21,24 @@ use bid_domain::Requirement;
 use bid_parse::{extract::extract_requirements, parse_file, ParsedFile};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
+
+/// B4：service.rs 同款扩展名路由（docx/xlsx 引擎；pdf 引擎+回退；其它报错）。
+fn parse_routed(path: &Path, name: &str) -> Result<ParsedFile, String> {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    match ext.as_str() {
+        "docx" => bid_engine::parse_docx_via_engine(path).map_err(|e| e.to_string()),
+        "xlsx" => bid_engine::parse_xlsx_via_engine(path).map_err(|e| e.to_string()),
+        // pdf 引擎通道（pdfium 文本层）——扫描件（MappingGap）或无 pdfium
+        // （EngineFailed）回退旧 pdftotext/OCR 路径（映射表 §3）
+        "pdf" => bid_engine::parse_pdf_via_engine(path)
+            .or_else(|_| parse_file(path, name)),
+        _ => parse_file(path, name),
+    }
+}
 
 struct Sample {
     path: PathBuf,
@@ -75,7 +98,7 @@ fn main() {
     for s in &samples {
         println!("== {}（{}）", s.alias, s.kind_desc);
         let started = Instant::now();
-        match parse_file(&s.path, s.alias) {
+        match parse_routed(&s.path, s.alias) {
             Ok(pf) => {
                 let elapsed = started.elapsed().as_secs_f64();
                 let n_blocks = pf.blocks.len();

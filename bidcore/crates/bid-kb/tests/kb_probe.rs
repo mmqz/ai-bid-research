@@ -1,10 +1,28 @@
 //! 25 条精确查询 × 真实夹具：检索排序规则的全量验证（判分器介入前的独立探针）。
 //! 断言口径 = queries/exact-25.jsonl 的 expect（hit_text 包含 + hit_file 相符）。
+//!
+//! B4 路由（issue #11 任务 3）：docx/xlsx 样本走 bid-engine 引擎门面（自研
+//! 解析已删；引擎 name 取文件名，与本项目标签一致——标签==文件名故检索面
+//! hit_file 断言不变）；pdf（含证据库）保持 `parse_file`（旧路径保留面）。
 
 use bid_kb::{ExactQuery, Kb};
 use bid_parse::{extract::extract_requirements, parse_file};
 use serde_json::Value;
 use std::path::PathBuf;
+
+/// B4：docx/xlsx → 引擎；pdf → 旧路径（parse_file）。与 service.rs 同款路由。
+fn parse_routed(path: &std::path::Path, name: &str) -> Result<bid_parse::ParsedFile, String> {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    match ext.as_str() {
+        "docx" => bid_engine::parse_docx_via_engine(path).map_err(|e| e.to_string()),
+        "xlsx" => bid_engine::parse_xlsx_via_engine(path).map_err(|e| e.to_string()),
+        _ => parse_file(path, name),
+    }
+}
 
 fn fixtures() -> PathBuf {
     std::env::var("BID_FIXTURES")
@@ -39,7 +57,7 @@ fn probe_exact_25_queries() {
     }
     let mut parsed = vec![];
     for (label, rel) in &names {
-        let p = parse_file(&files_dir.join(rel), label).expect("解析失败");
+        let p = parse_routed(&files_dir.join(rel), label).expect("解析失败");
         parsed.push(p);
     }
     let kb = Kb::ingest(&parsed, |p| p.name.clone());

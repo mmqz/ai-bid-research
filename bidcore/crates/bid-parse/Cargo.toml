@@ -10,11 +10,14 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
 regex = { workspace = true }
-zip = { workspace = true }
-quick-xml = { workspace = true }
-calamine = { workspace = true }
-memchr = { workspace = true }
 unicode-normalization = { workspace = true }
 libc = { workspace = true }
 
+# B4（issue #11 任务 3）：zip / quick-xml / calamine / memchr 已删——docx/xlsx
+# 解析收敛到引擎（mdc-office-io），本 crate 不再持有 OOXML 解析栈。
+# 验收锚：cargo tree -p bid-parse 无 zip / quick-xml / calamine。
+
+# 循环依赖规避（B4 规格）：dev-dep 环合法（Cargo 允许 dev-dependencies 成环；
+# bid-engine 正式依赖 bid-parse 不受影响）——测试消费方经扩展名路由直调引擎门面。
 [dev-dependencies]
+bid-engine = { path = "../bid-engine" }

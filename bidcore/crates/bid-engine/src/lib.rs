@@ -28,8 +28,9 @@ pub mod reader;
 pub mod types;
 
 pub use mapping::{docx_to_parsed_file, pdf_to_parsed_file, xlsx_to_parsed_file, FileMeta};
-pub use reader::EngineReader;
+pub use reader::{EngineReader, MdcoreReader};
 pub use types::{
-    EngineBlock, EngineBook, EngineDoc, EngineError, EngineImage, EngineParagraph, EnginePdf,
-    EngineSheet, EngineTable, EngineWarning,
+    EngineBlock, EngineBlockSource, EngineBook, EngineDoc, EngineError, EngineHeaderFooter,
+    EngineHeaderFooterVariant, EngineImage, EngineParagraph, EnginePdf, EngineSheet,
+    EngineTable, EngineWarning,
 };

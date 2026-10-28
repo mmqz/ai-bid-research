@@ -15,8 +15,12 @@
                D4-TEXTBOX（old components 文本框 present>0）、D5（批注面，同法）
   OLD_BUG      旧实现缺陷（旧多出/新多出）——规则：D6-DEL-LEAK（契约 deleted_runs 段）、
                HOST-TRUNC（宿主段截断方向）
-  EXPECTED_DIFF 已知预期差异——规则：A2（编号叠加 regex）
-  UNCLASSIFIED 兜底——报告显式列出，B3 验收要求清零（人工裁决）
+  EXPECTED_DIFF 已知预期差异——规则：A2（编号叠加 regex）；
+               HF-NEWCAP（PR #15 review：新侧页眉/页脚 source 标注块——引擎新能力，
+               旧实现未读页眉页脚，非缺陷）
+  UNCLASSIFIED 兜底——报告显式列出，B3 验收要求清零（人工裁决）。
+               含 HF-MIXED-BODY（PR #15 review：正文流（source=body）出现页眉/页脚
+               文本——引擎或适配层把页面装置混进内容流，bug 面要报，验收前清零）
 
 D6 系文件自动加载同目录 expected-readback.json 契约（插入/删除段规则锚）。
 
@@ -221,6 +225,9 @@ def diff_file(old: dict, new: dict) -> dict:
     comps = _components_map(old)
     contract = _load_contract(old)
     new_texts = [norm(b.get("text", "")) for b in new_blocks]
+    # PR #15 review：页眉/页脚文本集（source 标注块——HF 规则锚）
+    hf_texts = {norm(b.get("text", "")) for b in new_blocks
+                if b.get("source") in ("header", "footer")}
     pairs, rest = align(old_blocks, new_blocks)
     items = []
     for ob, nb in pairs:
@@ -239,6 +246,27 @@ def diff_file(old: dict, new: dict) -> dict:
                 "kind_old": None, "kind_new": nb.get("kind"),
                 "text_old": "", "text_new": "",
                 "verdict": "EXPECTED_DIFF", "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+            })
+            continue
+        # —— PR #15 review：页眉/页脚 source 标注块 → 新能力，非缺陷
+        src = nb.get("source", "body")
+        if src in ("header", "footer"):
+            items.append({
+                "old_locator": "", "new_locator": nb.get("locator", ""),
+                "kind_old": None, "kind_new": nb.get("kind"),
+                "text_old": "", "text_new": n_t,
+                "verdict": "EXPECTED_DIFF",
+                "rule": f"HF-NEWCAP（{src} 块：引擎读页眉/页脚，旧实现未读——新能力，非缺陷）",
+            })
+            continue
+        # —— PR #15 review：正文流混入页眉/页脚文本 → bug 面，要报（验收清零）
+        if n_t in hf_texts:
+            items.append({
+                "old_locator": "", "new_locator": nb.get("locator", ""),
+                "kind_old": None, "kind_new": nb.get("kind"),
+                "text_old": "", "text_new": n_t,
+                "verdict": "UNCLASSIFIED",
+                "rule": "HF-MIXED-BODY（正文流混入页眉/页脚文本——非预期，bug 面要报）",
             })
             continue
         items.append({
@@ -318,6 +346,31 @@ def selftest() -> list[str]:
     if r["verdict_counts"].get("UNCLASSIFIED") != 2:
         failures.append(f"UNCLASSIFIED: {r['verdict_counts']}（期望旧孤+新孤各一）")
 
+    # 6) EXPECTED_DIFF / HF-NEWCAP（PR #15 review：引擎读页眉，旧未读——新能力）
+    old = {**base_old, "file": "HF-自测.docx", "blocks": [blk(0, "para", "正文条款一")]}
+    new = {"file": "HF-自测.docx", "status": "ok",
+           "blocks": [blk(0, "para", "正文条款一"),
+                       {**blk(1, "para", "HEADER-TENDER-2026", "页眉[default]"),
+                        "source": "header"}]}
+    r = diff_file(old, new)
+    if r["verdict_counts"].get("EXPECTED_DIFF") != 1:
+        failures.append(f"EXPECTED_DIFF(HF-NEWCAP): {r['verdict_counts']}")
+    if not any("HF-NEWCAP" in it["rule"] for it in r["items"]):
+        failures.append("EXPECTED_DIFF(HF-NEWCAP): rule 未命中")
+
+    # 7) UNCLASSIFIED / HF-MIXED-BODY（PR #15 review：正文流混入页眉文本——要报）
+    old = {**base_old, "file": "HF-混入.docx", "blocks": []}
+    new = {"file": "HF-混入.docx", "status": "ok",
+           "blocks": [blk(0, "para", "HEADER-TENDER-2026"),
+                       {**blk(1, "para", "HEADER-TENDER-2026", "页眉[default]"),
+                        "source": "header"}]}
+    r = diff_file(old, new)
+    hf_mixed = [it for it in r["items"] if "HF-MIXED-BODY" in it["rule"]]
+    if len(hf_mixed) != 1:
+        failures.append(f"UNCLASSIFIED(HF-MIXED-BODY): {r['verdict_counts']}（期望恰 1 例混入）")
+    if not any("HF-NEWCAP" in it["rule"] for it in r["items"]):
+        failures.append("HF-MIXED-BODY 例中页眉块自身应归 HF-NEWCAP")
+
     return failures
 
 
@@ -332,7 +385,7 @@ def main() -> int:
                 print(f"  ✗ {f}")
             return 1
         print("engine_diff 自测通过：EQUIVALENT/ENGINE_MISSING(D6-INS)/OLD_BUG(D6-DEL-LEAK)/"
-              "EXPECTED_DIFF(A2)/UNCLASSIFIED 五例全命中")
+              "EXPECTED_DIFF(A2+HF-NEWCAP)/UNCLASSIFIED(含 HF-MIXED-BODY) 七例全命中")
         return 0
 
     if "--pair-dir" in args:

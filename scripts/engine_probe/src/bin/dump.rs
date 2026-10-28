@@ -9,7 +9,10 @@
 //!
 //! 用法：`engine-probe-dump <repo_root> <out_dir> <file1> [file2 ...]`
 //! 输出：`<out_dir>/<basename>.engine.json`
-//!   {file, status, blocks: [{idx, kind, locator, text, cells}]}
+//!   {file, status, blocks: [{idx, kind, locator, text, cells, source}]}
+//!   source = body | header | footer（PR #15 Lead review——块来源标注面：
+//!   页眉/页脚块入流供差分归类 EXPECTED_DIFF/HF-NEWCAP，正文流混入检测
+//!   HF-MIXED-BODY；body 块流与正文语义面不受影响）
 //!   拒绝件：{file, status: "rejected", error_text}
 
 use std::collections::BTreeMap;
@@ -32,6 +35,7 @@ fn dump_docx(bytes: &[u8]) -> Result<serde_json::Value, String> {
                     "locator": format!("段{p_no}"),
                     "text": p.text(),
                     "cells": [],
+                    "source": "body",
                 }));
             }
             mdc_office_io::docx::Block::Table(t) => {
@@ -51,6 +55,7 @@ fn dump_docx(bytes: &[u8]) -> Result<serde_json::Value, String> {
                         "locator": format!("表{t_no} 行{}", ri + 1),
                         "text": text,
                         "cells": cells,
+                        "source": "body",
                     }));
                 }
             }
@@ -65,6 +70,7 @@ fn dump_docx(bytes: &[u8]) -> Result<serde_json::Value, String> {
                                 "locator": "文本框",
                                 "text": p.text(),
                                 "cells": [],
+                                "source": "body",
                             }));
                         }
                         mdc_office_io::docx::Block::Table(t2) => {
@@ -83,6 +89,7 @@ fn dump_docx(bytes: &[u8]) -> Result<serde_json::Value, String> {
                                     "locator": format!("文本框表 行{}", ri + 1),
                                     "text": text,
                                     "cells": cells,
+                                    "source": "body",
                                 }));
                             }
                         }
@@ -92,6 +99,71 @@ fn dump_docx(bytes: &[u8]) -> Result<serde_json::Value, String> {
             }
         }
     }
+    // PR #15 Lead review：页眉/页脚块入流（source 标注——差分 HF-NEWCAP 归类面；
+    // 正文块流不受影响，body/页面装置语义二分靠 source 字段区分）。
+    let variant_str = |v: &mdc_office_io::docx::HeaderFooterVariant| match v {
+        mdc_office_io::docx::HeaderFooterVariant::Default => "default",
+        mdc_office_io::docx::HeaderFooterVariant::First => "first",
+        mdc_office_io::docx::HeaderFooterVariant::Even => "even",
+    };
+    let mut hf_block_no = 0usize;
+    let mut push_hf = |slots: &[mdc_office_io::docx::HeaderFooterData], tag: &str,
+                       blocks: &mut Vec<serde_json::Value>| {
+        for hf in slots {
+            for b in &hf.blocks {
+                match b {
+                    mdc_office_io::docx::Block::Paragraph(p) => {
+                        hf_block_no += 1;
+                        blocks.push(serde_json::json!({
+                            "idx": blocks.len(),
+                            "kind": "para",
+                            "locator": format!("{tag}[{}]", variant_str(&hf.variant)),
+                            "text": p.text(),
+                            "cells": [],
+                            "source": tag,
+                        }));
+                    }
+                    mdc_office_io::docx::Block::Table(t) => {
+                        for row in &t.rows {
+                            hf_block_no += 1;
+                            let text = row
+                                .iter()
+                                .filter(|c| !c.trim().is_empty())
+                                .cloned()
+                                .collect::<Vec<_>>()
+                                .join(" ");
+                            blocks.push(serde_json::json!({
+                                "idx": blocks.len(),
+                                "kind": "table_row",
+                                "locator": format!("{tag}[{}] 表行{}", variant_str(&hf.variant), row.len()),
+                                "text": text,
+                                "cells": row.clone(),
+                                "source": tag,
+                            }));
+                        }
+                    }
+                    mdc_office_io::docx::Block::TextBox(tb) => {
+                        for b2 in &tb.blocks {
+                            if let mdc_office_io::docx::Block::Paragraph(p) = b2 {
+                                hf_block_no += 1;
+                                blocks.push(serde_json::json!({
+                                    "idx": blocks.len(),
+                                    "kind": "para",
+                                    "locator": format!("{tag}[{}] 文本框", variant_str(&hf.variant)),
+                                    "text": p.text(),
+                                    "cells": [],
+                                    "source": tag,
+                                }));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    };
+    push_hf(&d.headers, "header", &mut blocks);
+    push_hf(&d.footers, "footer", &mut blocks);
+
     let mut components: Vec<Obj> = Vec::new();
     let mut ledger = |component: &str, present: usize, extracted: usize, note: &str| {
         if present > 0 {
@@ -106,14 +178,14 @@ fn dump_docx(bytes: &[u8]) -> Result<serde_json::Value, String> {
     ledger(
         "页眉",
         d.headers.len(),
-        0,
-        "引擎读面在位（HeaderFooterData）；harness dump 不入块流——与旧实现口径一致",
+        d.headers.iter().map(|h| h.blocks.len()).sum::<usize>(),
+        "引擎读面在位（HeaderFooterData）；块入流带 source=header（差分 HF-NEWCAP 面）",
     );
     ledger(
         "页脚",
         d.footers.len(),
-        0,
-        "同上",
+        d.footers.iter().map(|f| f.blocks.len()).sum::<usize>(),
+        "同上（source=footer）",
     );
     ledger(
         "图片",
@@ -155,6 +227,7 @@ fn dump_xlsx(bytes: &[u8]) -> Result<serde_json::Value, String> {
                 "locator": format!("{} 行{}", s.name, ri + 1),
                 "text": text,
                 "cells": cells,
+                "source": "body",
             }));
         }
     }

@@ -426,6 +426,7 @@ checksum = "4facc753ae494aeb6e3c22f839b158aebd4f9270f55cd3c79906c45476c47ab4"
 [[package]]
 name = "mdc-office-io"
 version = "0.1.0"
+source = "git+https://github.com/mmqz/mdcore?rev=2d0144456162389cccdfadfbed22b9e7c30d697d#2d0144456162389cccdfadfbed22b9e7c30d697d"
 dependencies = [
  "calamine",
  "docx-rs",
@@ -437,6 +438,7 @@ dependencies = [
 [[package]]
 name = "mdc-pdf"
 version = "0.1.0"
+source = "git+https://github.com/mmqz/mdcore?rev=2d0144456162389cccdfadfbed22b9e7c30d697d#2d0144456162389cccdfadfbed22b9e7c30d697d"
 dependencies = [
  "pdfium-render",
  "serde",

@@ -30,7 +30,10 @@ pub struct FileMeta {
 /// - `revision_inserted/revision_deleted`：#17 修复前引擎返回空 →
 ///   账本登记「引擎缺口 D6」；**禁止映射层自研提取**（约束 3）。
 #[allow(clippy::needless_pass_by_value)]
-pub fn docx_to_parsed_file(_doc: EngineDoc, _meta: &FileMeta) -> Result<bid_parse::ParsedFile, EngineError> {
+pub fn docx_to_parsed_file(
+    _doc: EngineDoc,
+    _meta: &FileMeta,
+) -> Result<bid_parse::ParsedFile, EngineError> {
     // B3 实现（issue #2 §B3）——T1 只定义签名。
     Err(EngineError::MappingGap(
         "docx_to_parsed_file: B3 未实装（T1 只定义）".to_string(),
@@ -42,7 +45,10 @@ pub fn docx_to_parsed_file(_doc: EngineDoc, _meta: &FileMeta) -> Result<bid_pars
 /// 映射要点：逐 sheet 逐行 → `BlockKind::XlsxRow`（locator=`sheet名 行N`）；
 /// 值/公式双通道（公式格 text=值，公式入账本 note——与旧实现 D1b 口径对齐）。
 #[allow(clippy::needless_pass_by_value)]
-pub fn xlsx_to_parsed_file(_book: EngineBook, _meta: &FileMeta) -> Result<bid_parse::ParsedFile, EngineError> {
+pub fn xlsx_to_parsed_file(
+    _book: EngineBook,
+    _meta: &FileMeta,
+) -> Result<bid_parse::ParsedFile, EngineError> {
     Err(EngineError::MappingGap(
         "xlsx_to_parsed_file: B3 未实装（T1 只定义）".to_string(),
     ))
@@ -55,7 +61,10 @@ pub fn xlsx_to_parsed_file(_book: EngineBook, _meta: &FileMeta) -> Result<bid_pa
 /// 归一规则入映射表）；`any_text_layer=false` → `has_text_layer=false` +
 /// OCR 分支路由（扫描件补遗通道不在引擎面，映射层只判型不跑 OCR）。
 #[allow(clippy::needless_pass_by_value)]
-pub fn pdf_to_parsed_file(_pdf: EnginePdf, _meta: &FileMeta) -> Result<bid_parse::ParsedFile, EngineError> {
+pub fn pdf_to_parsed_file(
+    _pdf: EnginePdf,
+    _meta: &FileMeta,
+) -> Result<bid_parse::ParsedFile, EngineError> {
     Err(EngineError::MappingGap(
         "pdf_to_parsed_file: B3 未实装（T1 只定义）".to_string(),
     ))

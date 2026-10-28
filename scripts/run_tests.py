@@ -722,6 +722,20 @@ def t_telecom():
           len(gt) == 18 and ok4, f"n={len(gt)}")
 
 
+def t_b5_gt_eval():
+    """T18 · B5 引擎路径抽取质量（GT-25 锚点口径）：corpus-A 主文件双路径对比。
+    引擎路径（bid_engine::parse_docx_via_engine）内容锚召回不得低于旧路径——
+    issue #2 §B5「解析结果可复现证据」扩展面（B5 交换零回归判定）。"""
+    print("[T18] B5 引擎路径 GT-25 抽取质量评测（双路径对比）")
+    import subprocess as _sp
+    _p = _sp.run([sys.executable, "scripts/b5_engine_gt_eval.py"],
+                 capture_output=True, text=True, cwd=REPO, timeout=400)
+    code, out = _p.returncode, _p.stdout + _p.stderr
+    check("T18a 引擎路径召回不低于旧路径（GT-25 内容锚口径）",
+          code == 0 and "通过（不低于旧路径）" in out,
+          out[-200:] if code != 0 else "")
+
+
 def t_engine_diff():
     """T17 · T1 双跑差分工具（issue #2 评论 2026-10-27 03:28 派发）＋ T3 后验收验：
     ① 合成注入自测五分类全命中；② 修复前证据（f8c860a）；③ 修复后证据（f7ddd39——
@@ -791,6 +805,7 @@ def main() -> int:
     t_gt_enrich()
     t_telecom()
     t_engine_diff()
+    t_b5_gt_eval()
     print("-" * 62)
     # issue #9 判定标准：N passed / M skipped / K failed（依赖缺失 ≠ 业务失败）
     print(f"结果：{len(_passed)} 通过 / {len(_skipped)} 跳过 / {len(_failed)} 失败")

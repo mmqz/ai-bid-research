@@ -519,9 +519,9 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
         ));
     }
     for p in svc.parsed() {
-        if p.parse_summary.contains("engine-docx") {
+        if p.parse_summary.starts_with("engine-") {
             warnings.push(format!(
-                "ENGINE_DOCX: {} 经引擎路径解析（已知缺口：嵌套表 mdcore#39 / 域边界 mdcore#40——docs/b3-3-acceptance-report.md §6）",
+                "ENGINE_PATH: {} 经引擎路径解析（已知缺口：嵌套表 mdcore#39 / 域边界 mdcore#40——docs/b3-3-acceptance-report.md §6）",
                 p.name
             ));
             break;

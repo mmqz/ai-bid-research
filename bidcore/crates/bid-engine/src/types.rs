@@ -144,7 +144,9 @@ pub struct EngineSheet {
     pub name: String,
     /// 值矩阵（行序；空格为空串）。
     pub values: Vec<Vec<String>>,
-    /// 公式文本矩阵（与 values 同包围盒——`None` 位置以空串表示）。
+    /// 公式文本矩阵（**已对齐 values 行列**——底层引擎的 worksheet_formula
+    /// 范围只覆盖公式格（包围盒 ≠ values），reader 以 formula_at 绝对坐标
+    /// 联接点对齐后填充；空串 = 该格无公式）。
     pub formulas: Vec<Vec<String>>,
     /// 合并区（r1c1-r2c2 序对，1 基）。
     pub merges: Vec<(usize, usize, usize, usize)>,

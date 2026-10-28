@@ -39,11 +39,30 @@ pub use types::{
 /// 升级走独立 PR（`chore(dep): bump mdcore`）并重跑基线差分（issue #2 §3.1）。
 pub const MDCORE_REV: &str = "2d0144456162389cccdfadfbed22b9e7c30d697d";
 
-/// 门面：读文件 → 引擎解析 → 映射为 `ParsedFile`（B5 import 接线入口）。
+/// 门面：读文件 → 引擎解析 → 映射为 `ParsedFile`（B5 import 接线入口，docx 通道）。
 ///
 /// sha256 标书侧算（引擎不做文件级指纹——映射表 §1 末行）；错误分类：
 /// 引擎拒绝（三门）→ `EngineError::EngineRejected`（A3 敌意面差分依赖）。
 pub fn parse_docx_via_engine(path: &std::path::Path) -> Result<bid_parse::ParsedFile, EngineError> {
+    parse_office_via_engine(path, |r, bytes, meta| {
+        docx_to_parsed_file(r.read_docx(bytes)?, meta)
+    })
+}
+
+/// 门面（B3-4）：xlsx 通道——引擎三门 + calamine 五面提取 + 映射。
+///
+/// 覆盖 `.xlsx` 容器；`.xls`/`.ods` 旧二进制格式不在引擎能力面
+/// （留旧路径 calamine auto——B4 删旧时同步收敛扩展名面）。
+pub fn parse_xlsx_via_engine(path: &std::path::Path) -> Result<bid_parse::ParsedFile, EngineError> {
+    parse_office_via_engine(path, |r, bytes, meta| {
+        xlsx_to_parsed_file(r.read_xlsx(bytes)?, meta)
+    })
+}
+
+fn parse_office_via_engine(
+    path: &std::path::Path,
+    f: impl FnOnce(&MdcoreReader, &[u8], &FileMeta) -> Result<bid_parse::ParsedFile, EngineError>,
+) -> Result<bid_parse::ParsedFile, EngineError> {
     let bytes = std::fs::read(path).map_err(|e| {
         EngineError::EngineFailed(format!("读取 {} 失败: {e}", path.display()))
     })?;
@@ -54,7 +73,6 @@ pub fn parse_docx_via_engine(path: &std::path::Path) -> Result<bid_parse::Parsed
         hex::encode(h.finalize())
     };
     let reader = MdcoreReader::new();
-    let doc = reader.read_docx(&bytes)?;
     let meta = FileMeta {
         name: path
             .file_name()
@@ -63,5 +81,5 @@ pub fn parse_docx_via_engine(path: &std::path::Path) -> Result<bid_parse::Parsed
         sha256: sha,
         bytes: bytes.len(),
     };
-    docx_to_parsed_file(doc, &meta)
+    f(&reader, &bytes, &meta)
 }

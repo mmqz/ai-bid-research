@@ -69,6 +69,9 @@ pub fn docx_to_parsed_file(
         });
     };
 
+    /// 段落发射器类型（章节上下文 → locator 组装——emit_para 闭包的传递形态）。
+    type EmitPara<'a> = &'a dyn Fn(&mut Vec<Block>, &str, &str, &str);
+
     /// 文本框内层块拍平（映射表 §1：TextBox 与正文同构，块序紧随宿主段）。
     fn flatten_textbox(
         tb_blocks: &[EngineBlock],
@@ -76,7 +79,7 @@ pub fn docx_to_parsed_file(
         chapter: &str,
         subsection: &str,
         table_idx: &mut usize,
-        emit_para: &dyn Fn(&mut Vec<Block>, &str, &str, &str),
+        emit_para: EmitPara<'_>,
     ) {
         for inner in tb_blocks {
             match inner {
@@ -293,18 +296,92 @@ pub fn docx_to_parsed_file(
     })
 }
 
-/// xlsx：EngineBook → ParsedFile。
+/// xlsx：EngineBook → ParsedFile（B3-4 实装——映射表 §2）。
 ///
-/// 映射要点：逐 sheet 逐行 → `BlockKind::XlsxRow`（locator=`sheet名 行N`）；
-/// 值/公式双通道（公式格 text=值，公式入账本 note——与旧实现 D1b 口径对齐）。
+/// 口径与旧实现（`bid-parse/src/xlsx.rs`）逐项对齐（块流等价验收锚）：
+/// - 逐 sheet 逐行 → `BlockKind::XlsxRow`；**全空行跳过**；
+/// - locator = `{sheet名}!行{N}`（N = 矩阵行位 1 基——旧实现口径）；
+/// - text = 非空列单空格连接；cells 直连（值面——公式格 text=缓存值）；
+/// - 公式双通道（D1b 口径）：公式文本矩阵非空计数入 components「公式」账本行
+///   （present=非空公式格数 / extracted=0 / note=公式文本不占 text 通道）；
+/// - pages = tables = sheet 数（xlsx 无页概念——工作表数作「页」）；
+/// - merges 透传消费面（D1a/X3——账本 note 登记）。
 #[allow(clippy::needless_pass_by_value)]
 pub fn xlsx_to_parsed_file(
-    _book: EngineBook,
-    _meta: &FileMeta,
-) -> Result<bid_parse::ParsedFile, EngineError> {
-    Err(EngineError::MappingGap(
-        "xlsx_to_parsed_file: B3 未实装（T1 只定义）".to_string(),
-    ))
+    book: EngineBook,
+    meta: &FileMeta,
+) -> Result<ParsedFile, EngineError> {
+    let mut blocks: Vec<Block> = Vec::new();
+    let mut filled_rows = 0usize;
+    let mut total_cells = 0usize;
+    let mut formula_cells = 0usize;
+    let mut merge_count = 0usize;
+
+    for sheet in &book.sheets {
+        for (ri, row) in sheet.values.iter().enumerate() {
+            if row.iter().all(|c| c.is_empty()) {
+                continue;
+            }
+            filled_rows += 1;
+            total_cells += row.iter().filter(|c| !c.is_empty()).count();
+            let text = row
+                .iter()
+                .filter(|c| !c.is_empty())
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(" ");
+            blocks.push(Block {
+                idx: blocks.len(),
+                kind: BlockKind::XlsxRow,
+                locator: format!("{}!行{}", sheet.name, ri + 1),
+                text,
+                cells: row.clone(),
+            });
+        }
+        formula_cells += sheet
+            .formulas
+            .iter()
+            .flatten()
+            .filter(|f| !f.is_empty())
+            .count();
+        merge_count += sheet.merges.len();
+    }
+
+    let mut components: Vec<ComponentLedger> = Vec::new();
+    if formula_cells > 0 {
+        components.push(ComponentLedger {
+            component: "公式".into(),
+            present: formula_cells,
+            extracted: 0,
+            note: "公式文本独立通道（值面 text=缓存值——D1b 双通道口径）".into(),
+        });
+    }
+    if merge_count > 0 {
+        components.push(ComponentLedger {
+            component: "合并区".into(),
+            present: merge_count,
+            extracted: 0,
+            note: "merges 透传（D1a/X3 消费面——扁平读回口径）".into(),
+        });
+    }
+
+    let parse_summary = format!(
+        "engine-xlsx @ {}｜{} 工作表，{filled_rows} 有效行，{total_cells} 非空单元格",
+        crate::MDCORE_REV,
+        book.sheets.len()
+    );
+
+    Ok(ParsedFile {
+        name: meta.name.clone(),
+        sha256: meta.sha256.clone(),
+        pages: book.sheets.len().max(1),
+        tables: book.sheets.len(),
+        has_text_layer: true,
+        ocr_blocks: 0,
+        blocks,
+        parse_summary,
+        components,
+    })
 }
 
 /// pdf：EnginePdf → ParsedFile。

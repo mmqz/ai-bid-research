@@ -149,16 +149,19 @@ pub fn import_files(
             });
             continue;
         }
-        // B5（issue #2 §B5）：docx 走 bid-engine 引擎路径（B3-3 差分已验收
-        // EQ+ED 90.8%）；pdf/xlsx 暂留旧路径（B3-4/B3-5 批次待接）。
+        // B5/B3-4（issue #2 §B5）：docx 与 xlsx 走 bid-engine 引擎路径
+        // （docx：B3-3 差分验收 EQ+ED 90.8%；xlsx：三门+五面提取，口径对齐
+        // 旧实现）；pdf 暂留旧路径（B3-5 批次待接——pdfium 通道探测先行）；
+        // .xls/.ods 旧二进制格式不在引擎能力面（留旧路径）。
         // 已知引擎缺口登记不伪装：嵌套表（mdcore#39，费率表族内容缺失）、
         // 域剥离边界（mdcore#40）——详见 docs/b3-3-acceptance-report.md §6。
-        let engine_docx = is_engine_docx(&spec.upload_ref, &spec.filename);
-        let parsed_result = if engine_docx {
-            bid_engine::parse_docx_via_engine(&spec.upload_ref)
-                .map_err(|e| e.to_string())
-        } else {
-            parse_file(&spec.upload_ref, &spec.filename)
+        let ext = file_extension(&spec.upload_ref, &spec.filename);
+        let parsed_result = match ext.as_str() {
+            "docx" => bid_engine::parse_docx_via_engine(&spec.upload_ref)
+                .map_err(|e| e.to_string()),
+            "xlsx" => bid_engine::parse_xlsx_via_engine(&spec.upload_ref)
+                .map_err(|e| e.to_string()),
+            _ => parse_file(&spec.upload_ref, &spec.filename),
         };
         match parsed_result {
             Ok(p) => {
@@ -298,21 +301,15 @@ impl Default for BidService {
     }
 }
 
-/// B5：docx 扩展名判定（引擎路径路由）。
-///
-/// 大小写不敏感；`docx` 走 bid-engine（B3-3 验收口径），`doc` 等其余扩展名
-/// 留旧路径（引擎面仅 docx 容器——`doc` 二进制格式不在引擎能力面）。
-fn is_engine_docx(path: &std::path::Path, filename: &str) -> bool {
-    let name = path
-        .extension()
+/// B3-4：文件扩展名（引擎路径路由——小写归一，upload_ref 优先、filename 兜底）。
+fn file_extension(path: &std::path::Path, filename: &str) -> String {
+    path.extension()
         .and_then(|e| e.to_str())
-        .map(|e| e.to_ascii_lowercase())
-        .unwrap_or_else(|| {
+        .or_else(|| {
             std::path::Path::new(filename)
                 .extension()
                 .and_then(|e| e.to_str())
-                .map(|e| e.to_ascii_lowercase())
-                .unwrap_or_default()
-        });
-    name == "docx"
+        })
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default()
 }

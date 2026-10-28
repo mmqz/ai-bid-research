@@ -36,8 +36,13 @@
 //! V3-4 扩展（issue #11 批次 v3——审核闭环）：
 //! - [`review`]：T-7 ReviewRecord + RevisionTask 审核闭环（三道门门序强制 +
 //!   BLOCKER 强制派生 RT + 复审人 human: 前缀 + 导出前置裁决 `export_allowed`）。
+//!
+//! V3-5 扩展（issue #11 批次 v3——单章调度输入面）：
+//! - [`budget`]：S-7 上下文预算与证据裁剪（溢出四阶梯 + 约束区永不截断 +
+//!   `truncated_evidence` 标记 + 确定性 token 估算——「单章输入 ≤ 8k」的裁决面）。
 
 pub mod assignment;
+pub mod budget;
 pub mod dates;
 pub mod evidence;
 pub mod export_gate;

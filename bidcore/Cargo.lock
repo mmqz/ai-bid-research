@@ -86,6 +86,7 @@ name = "bid-mcp"
 version = "0.1.0"
 dependencies = [
  "bid-domain",
+ "bid-tools",
  "serde",
  "serde_json",
 ]

@@ -13,5 +13,6 @@ path = "src/bin/stdio.rs"
 
 [dependencies]
 bid-domain = { path = "../bid-domain" }
+bid-tools = { path = "../bid-tools" }
 serde = { workspace = true }
 serde_json = { workspace = true }

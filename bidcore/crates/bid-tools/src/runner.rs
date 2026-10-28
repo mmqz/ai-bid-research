@@ -5,9 +5,10 @@
 //! M1 范围场景：TC-01（导入+抽取）/ TC-02（25 查询×5）/ TC-07（幂等重放）/ TC-11（越级防护）。
 
 use crate::schema::*;
+use crate::service::ImportSpec;
 use bid_domain::{DomainStore, ParseStatus, ProjectStatus};
 use bid_kb::{ExactQuery, Kb};
-use bid_parse::{extract::extract_requirements, parse_file};
+use bid_parse::extract::extract_requirements;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
@@ -38,55 +39,39 @@ impl Ctx {
     }
 }
 
-fn label_of(rel: &str) -> String {
-    rel.to_string()
-}
-
 fn import_files(ctx: &mut Ctx, files_dir: &Path, rels: &[(&str, &str)]) -> Result<(), String> {
-    for (rel, kind) in rels {
-        let path = files_dir.join(rel);
-        // 幂等：sha256 已存在 → no-op（DomainStore.upsert_file 承载）
-        let sha = bid_parse::sha256_file(&path).map_err(|e| e.to_string())?;
-        if let Some(f) = ctx.store.files().iter().find(|f| f.sha256 == sha) {
-            ctx.note("import_tender_files", true, None,
-                     format!("deduplicated: {} → {}", f.name, f.id));
-            continue;
-        }
-        let p = match parse_file(&path, &label_of(rel)) {
-            Ok(p) => p,
-            Err(e) => {
-                // R3-S2-4：单件解析失败 → Failed 落库 + 禁引 + 继续（R-01 纪律：
-                // 失败件显式登记，不整批中止——否则一个损坏件阻断全部导入）
-                let sha_for_fail = bid_parse::sha256_file(&path).map(|s| s).unwrap_or_default();
-                let (fid, _) = ctx
-                    .store
-                    .upsert_file(rel, kind, &sha_for_fail, 0, 0, 0, 0, ParseStatus::Failed, &e)
-                    .map_err(|e2| e2.code().to_string())?;
-                ctx.note("import_tender_files", false, Some("E_UNPROCESSABLE".into()),
-                         format!("{fid} {rel} 解析失败，产物禁引：{e}"));
-                continue;
+    // B-1 服务化：导入管线单一真源在 service::import_files（MCP 壳同源复用）——
+    // 本函数只做规格组装与 trace 记账（run 产物面），不再自持解析/落库逻辑。
+    let specs: Vec<ImportSpec> = rels
+        .iter()
+        .map(|(rel, kind)| ImportSpec {
+            upload_ref: files_dir.join(rel),
+            filename: (*rel).to_string(),
+            kind: (*kind).to_string(),
+            expected_pages: None,
+        })
+        .collect();
+    let report = crate::service::import_files(&mut ctx.store, &mut ctx.parsed, &specs);
+    for o in &report.per_file {
+        match (o.file_id.as_deref(), o.parse_status, o.deduplicated) {
+            // 幂等重放：sha256 命中 → no-op（与原实现同口径：dedup 优先于失败面呈现）
+            (Some(fid), _, true) => ctx.note("import_tender_files", true, None,
+                format!("deduplicated: {} → {}", o.filename, fid)),
+            // R3-S2-4：单件解析失败 → Failed 落库 + 禁引 + 继续（R-01：失败件显式
+            // 登记，不整批中止——否则一个损坏件阻断全部导入）
+            (Some(fid), ParseStatus::Failed, _) => ctx.note("import_tender_files", false,
+                Some("E_UNPROCESSABLE".into()),
+                format!("{fid} {} 解析失败，产物禁引：{}", o.filename, o.errors.join("; "))),
+            (Some(fid), _, _) => {
+                let st = format!("{:?}", o.parse_status).to_lowercase();
+                ctx.note("import_tender_files", true, None,
+                    format!("{fid} {} chunks={} status={}", o.filename, o.chunks, st));
             }
-        };
-        let chunks = p.blocks.len();
-        let (ocr_blocks, has_text) = (p.ocr_blocks, p.has_text_layer);
-        let summary = p.parse_summary.clone();
-        let pages = p.pages;
-        let tables = p.tables;
-        let status = if has_text { ParseStatus::Ok } else { ParseStatus::OcrRequired };
-        // 解析失败禁引（R-01）：failed 件不切块入索引
-        if status == ParseStatus::Failed {
-            ctx.note("import_tender_files", false, Some("E_UNPROCESSABLE".into()),
-                     format!("{rel} 解析失败，产物禁引"));
-            continue;
+            // 不可读 upload_ref：无文件身份，不落库——逐件失败登记（服务层语义，
+            // 原实现的整批 Err 上抛在此对齐 R-01：不因单件阻断整批）
+            (None, _, _) => ctx.note("import_tender_files", false, Some("E_UNPROCESSABLE".into()),
+                format!("{} 不可读，产物禁引：{}", o.filename, o.errors.join("; "))),
         }
-        let st = format!("{:?}", status).to_lowercase();
-        let (fid, _) = ctx
-            .store
-            .upsert_file(rel, kind, &sha, pages, tables, chunks, ocr_blocks, status, &summary)
-            .map_err(|e| e.code().to_string())?;
-        ctx.parsed.push(p);
-        ctx.note("import_tender_files", true, None,
-                 format!("{fid} {rel} chunks={chunks} status={st}"));
     }
     Ok(())
 }
@@ -355,9 +340,9 @@ pub fn run_scenario(scenario: &str, fixtures_dir: &Path) -> Result<RunOutput, St
 fn load_queries(fixtures_dir: &Path) -> Result<Vec<Value>, String> {
     let p: PathBuf = fixtures_dir.join("queries/exact-25.jsonl");
     let txt = std::fs::read_to_string(&p).map_err(|e| e.to_string())?;
-    Ok(txt.lines().filter(|l| !l.trim().is_empty())
+    txt.lines().filter(|l| !l.trim().is_empty())
         .map(|l| serde_json::from_str(l).map_err(|e| e.to_string()))
-        .collect::<Result<_, _>>()?)
+        .collect()
 }
 
 /// 写运行产物：runs/<scenario>/{db.json, trace.jsonl}

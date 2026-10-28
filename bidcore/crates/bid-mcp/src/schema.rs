@@ -1,9 +1,10 @@
 //! 传输面数据形状（MCP 附近的 serde 契约）。
 //!
-//! 形状刻意贴 MCP 的 `tools/call` 语义（`{tool, args}` 入，`{ok, result|error}` 出），
-//! 但**不与任何传输实现绑定**——stdio 与未来 HTTP / wasm 共用同一组类型。
+//! 形状刻意贴 MCP 的 `tools/call` 语义（`{tool, args}` 入，`{ok, data|error}` 出——
+//! 契约 §0 通用响应包装），但**不与任何传输实现绑定**——stdio 与未来
+//! HTTP / wasm 共用同一组类型。
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
 use crate::error::ToolError;
@@ -24,12 +25,15 @@ pub struct ToolOutcome {
 }
 
 /// 工具返回体（成功或失败二选一）。
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "ok")]
+///
+/// 线格式（契约 §0 通用响应包装，B-1 起对齐）：
+/// `{"ok":true, "tool":.., "data":..}` / `{"ok":false, "tool":.., "error":{code,..}}`。
+/// 手写 serde：`ok` 必须是**布尔**（serde 内部标签只能出字符串——M0 期的
+/// `#[serde(tag="ok")]` 会发出 `"ok":"true"`，与契约及 dispatch_json 兜底
+/// 路径的布尔口径不一致，B-1 修正）；成功载荷键名对齐契约的 `data`。
+#[derive(Debug, Clone)]
 pub enum ToolReply {
-    #[serde(rename = "true")]
     Ok(ToolOutcome),
-    #[serde(rename = "false")]
     Err { tool: String, error: ToolError },
 }
 
@@ -47,6 +51,45 @@ impl ToolReply {
         Self::Err {
             tool: tool.to_string(),
             error,
+        }
+    }
+}
+
+impl Serialize for ToolReply {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let mut map = serializer.serialize_map(Some(3))?;
+        match self {
+            Self::Ok(out) => {
+                map.serialize_entry("ok", &true)?;
+                map.serialize_entry("tool", &out.tool)?;
+                map.serialize_entry("data", &out.result)?;
+            }
+            Self::Err { tool, error } => {
+                map.serialize_entry("ok", &false)?;
+                map.serialize_entry("tool", tool)?;
+                map.serialize_entry("error", error)?;
+            }
+        }
+        map.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for ToolReply {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct Raw {
+            ok: bool,
+            tool: String,
+            data: Option<Value>,
+            error: Option<ToolError>,
+        }
+        let raw = Raw::deserialize(deserializer)?;
+        match (raw.ok, raw.data, raw.error) {
+            (true, Some(result), _) => Ok(Self::Ok(ToolOutcome { tool: raw.tool, result })),
+            (true, None, _) => Err(serde::de::Error::custom("ok=true 但缺 data")),
+            (false, _, Some(error)) => Ok(Self::Err { tool: raw.tool, error }),
+            (false, _, None) => Err(serde::de::Error::custom("ok=false 但缺 error")),
         }
     }
 }
@@ -83,5 +126,5 @@ fn describe(name: &str) -> &'static str {
 }
 
 fn is_implemented(name: &str) -> bool {
-    matches!(name, "get_bid_project_state")
+    matches!(name, "get_bid_project_state" | "create_bid_project" | "import_tender_files")
 }

@@ -1,0 +1,6 @@
+﻿
+word-complex bytes=25767 paras=13 tables=1 comments=1 revisions=1 fields=1
+vmerge ok
+hmerge ok
+word-merged bytes=16825
+DONE

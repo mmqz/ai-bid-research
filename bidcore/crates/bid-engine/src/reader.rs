@@ -253,10 +253,47 @@ impl EngineReader for MdcoreReader {
         })
     }
 
-    fn extract_pdf_text(&self, _bytes: &[u8]) -> Result<crate::types::EnginePdf, EngineError> {
-        // B3-5 批次实装（pdfium 可用性探测先行）。
-        Err(EngineError::MappingGap(
-            "extract_pdf_text: B3-5 未实装（pdfium 通道探测先行）".to_string(),
-        ))
+    fn extract_pdf_text(&self, bytes: &[u8]) -> Result<crate::types::EnginePdf, EngineError> {
+        // B3-5 实装：PdfiumEngine 直连（engine-probe P1 已验口径——pdfium 与
+        // pdftotext -layout 非空白字符比 1.000，P1 定谳）。库定位序：
+        // env MDC_PDFIUM_LIB（显式路径）→ 编译期候选（pdfium-render 自带）。
+        // 无 pdfium 二进制的环境：Err（EngineFailed）——调用方（import 路由）
+        // 回退旧 pdftotext 路径，测试面走 SKIP（issue #9 口径，不伪装失败）。
+        let opened = match std::env::var("MDC_PDFIUM_LIB") {
+            Ok(lib) => mdc_pdf::engine_pdfium::PdfiumEngine::open_with_library(
+                std::path::Path::new(&lib),
+                bytes.to_vec(),
+            )
+            .or_else(|_| mdc_pdf::engine_pdfium::PdfiumEngine::open(bytes.to_vec())),
+            Err(_) => mdc_pdf::engine_pdfium::PdfiumEngine::open(bytes.to_vec()),
+        };
+        let eng = opened.map_err(|e| {
+            EngineError::EngineFailed(format!("pdfium 引擎打开失败: {e:?}"))
+        })?;
+        use mdc_pdf::engine::DocumentEngine;
+        let n = DocumentEngine::page_count(&eng);
+        let span = mdc_pdf::page::PageSpan::new(
+            mdc_pdf::page::PageIndex(0),
+            mdc_pdf::page::PageIndex(n.saturating_sub(1)),
+        )
+        .map_err(|e| EngineError::EngineFailed(format!("页跨构造失败: {e:?}")))?;
+        let pages = DocumentEngine::extract_text(&eng, span)
+            .map_err(|e| EngineError::EngineFailed(format!("{e:?}")))?;
+        let page_texts: Vec<String> = {
+            let mut v = vec![String::new(); n as usize];
+            for (idx, text) in pages {
+                if (idx.0 as usize) < v.len() {
+                    v[idx.0 as usize] = text;
+                }
+            }
+            v
+        };
+        let any_text_layer = page_texts
+            .iter()
+            .any(|t| t.chars().filter(|c| !c.is_whitespace()).count() >= 16);
+        Ok(crate::types::EnginePdf {
+            pages: page_texts,
+            any_text_layer,
+        })
     }
 }

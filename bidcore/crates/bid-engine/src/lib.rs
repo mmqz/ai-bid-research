@@ -49,6 +49,18 @@ pub fn parse_docx_via_engine(path: &std::path::Path) -> Result<bid_parse::Parsed
     })
 }
 
+/// 门面（B3-5）：pdf 文本层通道——pdfium 引擎提取 + 映射。
+///
+/// **仅文本层件**：扫描件（any_text_layer=false）返回 `MappingGap`——OCR 补遗链
+/// 是标书侧保留面（映射表 §3 处置列），调用方（import 路由）回退旧路径。
+/// 无 pdfium 二进制的环境返回 `EngineFailed`——调用方同样回退旧路径
+/// （pdftotext 通道），测试面走 SKIP（issue #9 口径）。
+pub fn parse_pdf_via_engine(path: &std::path::Path) -> Result<bid_parse::ParsedFile, EngineError> {
+    parse_office_via_engine(path, |r, bytes, meta| {
+        pdf_to_parsed_file(r.extract_pdf_text(bytes)?, meta)
+    })
+}
+
 /// 门面（B3-4）：xlsx 通道——引擎三门 + calamine 五面提取 + 映射。
 ///
 /// 覆盖 `.xlsx` 容器；`.xls`/`.ods` 旧二进制格式不在引擎能力面

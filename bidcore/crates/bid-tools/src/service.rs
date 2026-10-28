@@ -161,6 +161,10 @@ pub fn import_files(
                 .map_err(|e| e.to_string()),
             "xlsx" => bid_engine::parse_xlsx_via_engine(&spec.upload_ref)
                 .map_err(|e| e.to_string()),
+            // B3-5：pdf 引擎通道（pdfium 文本层）——扫描件（MappingGap）或
+            // 无 pdfium（EngineFailed）回退旧 pdftotext/OCR 路径（映射表 §3）
+            "pdf" => bid_engine::parse_pdf_via_engine(&spec.upload_ref)
+                .or_else(|_| parse_file(&spec.upload_ref, &spec.filename)),
             _ => parse_file(&spec.upload_ref, &spec.filename),
         };
         match parsed_result {

@@ -384,18 +384,83 @@ pub fn xlsx_to_parsed_file(
     })
 }
 
-/// pdf：EnginePdf → ParsedFile。
+/// pdf：EnginePdf → ParsedFile（B3-5 实装——映射表 §3）。
 ///
-/// 映射要点：页文本 → 行块（`BlockKind::PdfLine`——**行切分规则**在 B3 对齐
-/// `pdftotext -layout` 口径：P1 定谳非空白字符比 1.000，仅列对齐空白差异，
-/// 归一规则入映射表）；`any_text_layer=false` → `has_text_layer=false` +
-/// OCR 分支路由（扫描件补遗通道不在引擎面，映射层只判型不跑 OCR）。
+/// 口径与旧实现（`bid-parse/src/pdf.rs` 文本层分支）对齐：
+/// - 行切分：页文本 `lines()` 逐行 trim，空行跳过（行号只计非空行）；
+/// - locator = `第{页号}页 行{行号}`（页号 1 基）；
+/// - text = collapse_spaces（保留双空格列对齐——tables 计数锚）；
+/// - has_text_layer：任一页非空白字符 ≥16（旧实现同阈值——空白/仅页码层判无）；
+/// - pages = 引擎实际页数（pdfium 页计数——优于旧 pdftotext 非空分页启发式）；
+/// - tables = 含双空格行计数（-layout 列对齐多列表征，粗粒度——D1 面）；
+/// - **扫描件（any_text_layer=false）不在本映射**：OCR 补遗链（pdftoppm +
+///   tesseract）是标书侧保留面（映射表 §3 处置列）——调用方回退旧路径。
 #[allow(clippy::needless_pass_by_value)]
 pub fn pdf_to_parsed_file(
-    _pdf: EnginePdf,
-    _meta: &FileMeta,
-) -> Result<bid_parse::ParsedFile, EngineError> {
-    Err(EngineError::MappingGap(
-        "pdf_to_parsed_file: B3 未实装（T1 只定义）".to_string(),
-    ))
+    pdf: EnginePdf,
+    meta: &FileMeta,
+) -> Result<ParsedFile, EngineError> {
+    if !pdf.any_text_layer {
+        return Err(EngineError::MappingGap(
+            "pdf 无文本层（扫描件）——OCR 补遗链在标书侧旧路径（映射表 §3 处置列）".to_string(),
+        ));
+    }
+    let mut blocks: Vec<Block> = Vec::new();
+    for (pi, page) in pdf.pages.iter().enumerate() {
+        let mut line_no = 0usize;
+        for line in page.lines() {
+            let l = line.trim();
+            if l.is_empty() {
+                continue;
+            }
+            line_no += 1;
+            blocks.push(Block {
+                idx: blocks.len(),
+                kind: BlockKind::PdfLine,
+                locator: format!("第{}页 行{}", pi + 1, line_no),
+                text: collapse_spaces(l),
+                cells: vec![],
+            });
+        }
+    }
+    let tables = blocks
+        .iter()
+        .filter(|b| b.kind == BlockKind::PdfLine && b.text.contains("  "))
+        .count();
+    let pages = pdf.pages.len().max(1);
+    let parse_summary = format!(
+        "engine-pdf @ {}｜文本层: {pages} 页 {} 行块（pdfium）",
+        crate::MDCORE_REV,
+        blocks.len()
+    );
+    Ok(ParsedFile {
+        name: meta.name.clone(),
+        sha256: meta.sha256.clone(),
+        pages,
+        tables,
+        has_text_layer: true,
+        ocr_blocks: 0,
+        blocks,
+        parse_summary,
+        components: vec![],
+    })
+}
+
+/// 空白折叠（**保留双空格**——pdftotext -layout 列对齐表征是 tables 计数锚；
+/// 与旧实现 `bid-parse/src/pdf.rs::collapse_spaces` 同款）。
+fn collapse_spaces(s: &str) -> String {
+    let mut out = String::new();
+    let mut prev_space = false;
+    for c in s.chars() {
+        if c.is_whitespace() {
+            if !prev_space && !out.is_empty() {
+                out.push(' ');
+                prev_space = true;
+            }
+        } else {
+            out.push(c);
+            prev_space = false;
+        }
+    }
+    out.trim_end().to_string()
 }

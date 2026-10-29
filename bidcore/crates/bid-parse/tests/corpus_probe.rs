@@ -1,9 +1,24 @@
 //! corpus-A 解析探针：真实夹具上的全链路冒烟（DOCX/PDF/XLSX/OCR + 条款抽取）。
 //! 运行：cargo test -p bid-parse --test corpus_probe -- --nocapture
 //! 夹具路径：环境变量 BID_FIXTURES 或默认仓库相对路径 ../../fixtures。
+//!
+//! B4 路由（issue #11 任务 3）：docx/xlsx 走 bid-engine 引擎门面
+//! （`parse_docx_via_engine` / `parse_xlsx_via_engine`——自研解析已删）；
+//! pdf 保持 `parse_file`（文本层/OCR 补遗链是标书侧保留面）。断言数值不变
+//! （引擎路径与旧路径该件 100% EQ——B3-3 r3 全量差分验收）。
 
 use bid_parse::{extract::extract_requirements, parse_file};
 use std::path::PathBuf;
+
+/// B4：docx/xlsx → 引擎；pdf → 旧路径（parse_file）。与 service.rs 同款路由。
+fn parse_routed(path: &std::path::Path, name: &str) -> Result<bid_parse::ParsedFile, String> {
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+    match ext.as_str() {
+        "docx" => bid_engine::parse_docx_via_engine(path).map_err(|e| e.to_string()),
+        "xlsx" => bid_engine::parse_xlsx_via_engine(path).map_err(|e| e.to_string()),
+        _ => parse_file(path, name),
+    }
+}
 
 fn fixtures() -> PathBuf {
     std::env::var("BID_FIXTURES")
@@ -36,7 +51,7 @@ fn probe_corpus_a_full_chain() {
     ];
     let mut parsed = vec![];
     for n in names {
-        let p = parse_file(&files_dir.join(n), n).expect("解析失败");
+        let p = parse_routed(&files_dir.join(n), n).expect("解析失败");
         println!(
             "== {} : pages={} tables={} text_layer={} ocr={} blocks={} | {}",
             n, p.pages, p.tables, p.has_text_layer, p.ocr_blocks, p.blocks.len(), p.parse_summary

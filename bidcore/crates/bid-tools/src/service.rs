@@ -149,12 +149,14 @@ pub fn import_files(
             });
             continue;
         }
-        // B5/B3-4（issue #2 §B5）：docx 与 xlsx 走 bid-engine 引擎路径
-        // （docx：B3-3 差分验收 EQ+ED 90.8%；xlsx：三门+五面提取，口径对齐
-        // 旧实现）；pdf 暂留旧路径（B3-5 批次待接——pdfium 通道探测先行）；
-        // .xls/.ods 旧二进制格式不在引擎能力面（留旧路径）。
-        // 已知引擎缺口登记不伪装：嵌套表（mdcore#39，费率表族内容缺失）、
-        // 域剥离边界（mdcore#40）——详见 docs/b3-3-acceptance-report.md §6。
+        // B4 收敛（issue #11 任务 3）：docx 与 xlsx 走 bid-engine 引擎路径
+        // （自研 docx/xlsx 解析已删——引擎是 OOXML 读面单一真源；B3-3 r3 差分
+        // 验收 EQ+ED 91.57%，A 件等抽样 100% EQ）；pdf 引擎优先（pdfium 文本层）
+        // + 旧路径回退（pdftotext/OCR 补遗链——`parse_file` B4 后仅剩 pdf 面，
+        // 见 bid-parse/src/lib.rs 模块头）；.xls/.ods 等其它扩展名 → `parse_file`
+        // 显式拒绝（「不支持的文件类型」——zip 容器载具不误解析）。
+        // 已知引擎缺口登记不伪装：域剥离边界（mdcore#40）——详见
+        // docs/b3-3-r3-acceptance-report.md（嵌套表 mdcore#39 已修复）。
         let ext = file_extension(&spec.upload_ref, &spec.filename);
         let parsed_result = match ext.as_str() {
             "docx" => bid_engine::parse_docx_via_engine(&spec.upload_ref)

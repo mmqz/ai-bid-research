@@ -1,10 +1,17 @@
 //! bid-parse —— 确定性解析层（AdapterA 的读面）。
 //!
+//! B4 收敛（issue #11 任务 3）：docx/xlsx 自研解析已删——引擎（bid-engine
+//! → mdc-office-io）是 OOXML 读面的单一真源，本 crate 不再持有 zip/quick-xml/
+//! calamine 解析栈；消费方经扩展名路由直调 `bid_engine::parse_docx_via_engine`
+//! / `parse_xlsx_via_engine`（`bid-parse` dev-dep 提供，service.rs 同款）。
+//! 保留面：
+//! - PDF 文本层：poppler `pdftotext -layout`（外部引擎适配器，版本由部署清单钉住）+
+//!   PDF 扫描层：`pdftoppm` 渲染 → tesseract chi_sim（OCR 分档）——`parse_file`
+//!   的 pdf 臂与回退路径（pdfium 引擎优先，映射表 §3）；
+//! - guard.rs：pdf 字节门 / 子进程治理（T-04）/ 流式哈希；
+//! - extract.rs：条款抽取业务规则（消费 locator 字符串，与解析器解耦）。
+//!
 //! 引擎适配器约定（组件版本矩阵的钉住点，test-plan §5.2）：
-//! - DOCX：zip + quick-xml 直接走 OOXML（正文/表格，段落级与单元格级）；
-//! - XLSX：calamine；
-//! - PDF 文本层：poppler `pdftotext -layout`（外部引擎适配器，版本由部署清单钉住）；
-//! - PDF 扫描层：poppler `pdftoppm` 渲染 → tesseract chi_sim（OCR 分档，外部引擎适配器）；
 //! - 解析失败/无文本层绝不静默：无文本层 → `has_text_layer=false` + OCR 通道；
 //!   OCR 失败 → 保留空 ocr_blocks 并在 parse_summary 说明（诚实状态）。
 //!
@@ -14,13 +21,11 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-pub mod docx;
 pub mod env_preflight;
 pub mod extract;
 pub mod guard;
 pub mod pdf;
 pub mod veto_lexicon;
-pub mod xlsx;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -88,22 +93,14 @@ pub fn sha256_file(path: &Path) -> std::io::Result<String> {
 }
 
 /// 统一分发：按扩展名选择解析器。kind（业务类别）仅作语义提示。
+///
+/// B4 后仅剩 **pdf 面**（文本层/扫描 OCR 补遗链——映射表 §3 的标书侧保留面）；
+/// docx/xlsx 由消费方扩展名路由直调 bid-engine 门面（service.rs 同款），
+/// 直入本函数会得到「不支持的文件类型」显式拒绝——不留静默降级。
 pub fn parse_file(path: &Path, name: &str) -> Result<ParsedFile, String> {
     let sha256 = sha256_file(path).map_err(|e| format!("读取失败 {name}: {e}"))?;
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
     match ext.as_str() {
-        "docx" => {
-            let mut pf = docx::parse(path).map_err(|e| format!("docx 解析失败 {name}: {e}"))?;
-            pf.name = name.to_string();
-            pf.sha256 = sha256;
-            Ok(pf)
-        }
-        "xlsx" => {
-            let mut pf = xlsx::parse(path).map_err(|e| format!("xlsx 解析失败 {name}: {e}"))?;
-            pf.name = name.to_string();
-            pf.sha256 = sha256;
-            Ok(pf)
-        }
         "pdf" => {
             let mut pf = pdf::parse(path).map_err(|e| format!("pdf 解析失败 {name}: {e}"))?;
             pf.name = name.to_string();

@@ -1,0 +1,544 @@
+{
+  "blocks": 8984,
+  "bytes": 2291179,
+  "category_hit": {
+    "by_category": {
+      "其他": 13,
+      "否决项": 7,
+      "评分项": 5,
+      "资格条件": 1
+    },
+    "hit_samples": [
+      {
+        "category": "资格条件",
+        "clause_no": "3.3",
+        "excerpt": "3.3 本次招标实行资格后审，资格审查的具体要求见招标文件。资格后审不合格的投标人投标",
+        "id": "REQ-0011",
+        "words": [
+          "不合格"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "文件将按废标处理。",
+        "id": "REQ-0012",
+        "words": [
+          "废标"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "标现场监督人员验明身份。项目经理未到场的，一律作废标处理。",
+        "id": "REQ-0060",
+        "words": [
+          "废标",
+          "作废"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "⑾已确认属于有关法规规定为无效投标的其他情形。",
+        "id": "REQ-0068",
+        "words": [
+          "无效"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "标，在中标公示期的，取消其中标候选人资格，且将该投标单位不良行为",
+        "id": "REQ-0075",
+        "words": [
+          "取消"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "⑵ 经评标委员会评审后否决所有投标的；",
+        "id": "REQ-0119",
+        "words": [
+          "否决"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "⑶ 评标委员会否决不合格投标或者界定为废标后因有效投标不足 3 个使得投标明显缺乏",
+        "id": "REQ-0120",
+        "words": [
+          "否决",
+          "不合格",
+          "废标"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "已确认属于有关法规规定为无效投标的其他情形。",
+        "id": "REQ-0134",
+        "words": [
+          "无效"
+        ]
+      },
+      {
+        "category": "评分项",
+        "clause_no": null,
+        "excerpt": "不参与评标基准价的计算，但不以此否决其投标。",
+        "id": "REQ-0140",
+        "words": [
+          "否决"
+        ]
+      },
+      {
+        "category": "评分项",
+        "clause_no": null,
+        "excerpt": "初步评审被否决的投标文件，其报价不参与评标基准价的计算。",
+        "id": "REQ-0154",
+        "words": [
+          "否决"
+        ]
+      },
+      {
+        "category": "评分项",
+        "clause_no": "5.1.5",
+        "excerpt": "5.1.5 否决投标情形",
+        "id": "REQ-0162",
+        "words": [
+          "否决"
+        ]
+      },
+      {
+        "category": "评分项",
+        "clause_no": "5.1.9",
+        "excerpt": "5.1.9 否决全部投标",
+        "id": "REQ-0167",
+        "words": [
+          "否决"
+        ]
+      },
+      {
+        "category": "评分项",
+        "clause_no": "8.1",
+        "excerpt": "8.1 排名第一的中标候选人放弃中标、因不可抗力不能履行合同、不按照招标文件要求提",
+        "id": "REQ-0195",
+        "words": [
+          "放弃"
+        ]
+      },
+      {
+        "category": "其他",
+        "clause_no": "1.1.1.7",
+        "excerpt": "1.1.1.7 图纸：指列入合同的招标图纸、投标图纸和发包人按合同约定向承包人提供的施",
+        "id": "REQ-0232",
+        "words": [
+          "列入"
+        ]
+      },
+      {
+        "category": "其他",
+        "clause_no": "5.2.4",
+        "excerpt": "5.2.4 发包人要求向承包人提前交货的，承包人不得拒绝，但发包人应承担承包人由此增",
+        "id": "REQ-0389",
+        "words": [
+          "拒绝"
+        ]
+      }
+    ],
+    "lexicon_hit_reqs": 26,
+    "strong_phrase_not_veto": 0,
+    "strong_phrase_reqs": 7,
+    "strong_phrase_suspects": []
+  },
+  "chars": 205887,
+  "components_ledger": [],
+  "elapsed_extract_ms": 8,
+  "elapsed_parse_ms": 533,
+  "elapsed_total_ms": 541,
+  "engine_error": null,
+  "est_100page_ms": 190.49,
+  "file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
+  "has_text_layer": true,
+  "legacy_probe": {
+    "blocks": 8107,
+    "chars": 206566,
+    "elapsed_ms": 2116,
+    "note": "诊断探针：与生产路由（engine_pdf）同源文件对照；不参与吞吐主指标",
+    "reqs": 1396,
+    "route": "legacy_pdftotext",
+    "veto_truth_blocks": 108
+  },
+  "locator_check": {
+    "checked": 21,
+    "fail_no_block": 0,
+    "fail_text_mismatch": 0,
+    "pass": 21,
+    "samples": [
+      {
+        "anchor_excerpt": "2.1 项目概况",
+        "block_text": "2.1 项目概况",
+        "category": "其他",
+        "locator": "第9页 行12",
+        "req_id": "REQ-0001",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "10.11",
+        "block_text": "10.11",
+        "category": "其他",
+        "locator": "第18页 行60",
+        "req_id": "REQ-0073",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "5.2.6.3 投标总报价偏",
+        "block_text": "5.2.6.3 投标总报价偏",
+        "category": "评分项",
+        "locator": "第36页 行40",
+        "req_id": "REQ-0145",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "本招标工程评标基准价的（以合同文件为准，下同），并有证明文件（中标通知书、合同文件或验收文件，",
+        "block_text": "本招标工程评标基准价的（以合同文件为准，下同），并有证明文件（中标通知书、合同文件或验收文件，",
+        "category": "评分项",
+        "locator": "第59页 行23",
+        "req_id": "REQ-0217",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "1.10.1 在施工场地发掘的所有文物、古迹以及具有地质研究或考古价值的其他遗迹、化石、",
+        "block_text": "1.10.1 在施工场地发掘的所有文物、古迹以及具有地质研究或考古价值的其他遗迹、化石、",
+        "category": "其他",
+        "locator": "第67页 行3",
+        "req_id": "REQ-0289",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "4.6 承包人人员的管理",
+        "block_text": "4.6 承包人人员的管理",
+        "category": "其他",
+        "locator": "第72页 行5",
+        "req_id": "REQ-0361",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "9.1.7 发包人负责在拆除工程和爆破工程施工 14 天前向有关部门或机构报送相关备案资",
+        "block_text": "9.1.7 发包人负责在拆除工程和爆破工程施工 14 天前向有关部门或机构报送相关备案资",
+        "category": "其他",
+        "locator": "第77页 行9",
+        "req_id": "REQ-0433",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "13.1.3 因发包人原因造成工程质量达不到合同约定验收标准的，发包人应承担由于承包人",
+        "block_text": "13.1.3 因发包人原因造成工程质量达不到合同约定验收标准的，发包人应承担由于承包人",
+        "category": "其他",
+        "locator": "第83页 行7",
+        "req_id": "REQ-0505",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "17.1.4 单价子目的计量",
+        "block_text": "17.1.4 单价子目的计量",
+        "category": "其他",
+        "locator": "第89页 行34",
+        "req_id": "REQ-0577",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "20.2 人员工伤事故的保险",
+        "block_text": "20.2 人员工伤事故的保险",
+        "category": "其他",
+        "locator": "第96页 行26",
+        "req_id": "REQ-0649",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "1.1.4 日期",
+        "block_text": "1.1.4 日期",
+        "category": "其他",
+        "locator": "第104页 行14",
+        "req_id": "REQ-0721",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "17.2.1 预付款",
+        "block_text": "17.2.1 预付款",
+        "category": "其他",
+        "locator": "第112页 行23",
+        "req_id": "REQ-0793",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "1.2.3 500101002004 土工膜土方人工开挖 m",
+        "block_text": "1.2.3 500101002004 土工膜土方人工开挖 m",
+        "category": "其他",
+        "locator": "第126页 行64",
+        "req_id": "REQ-0865",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "2809.07",
+        "block_text": "2809.07",
+        "category": "其他",
+        "locator": "第129页 行6",
+        "req_id": "REQ-0937",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "1.5.2 发包人提供的工程设备",
+        "block_text": "1.5.2 发包人提供的工程设备",
+        "category": "其他",
+        "locator": "第168页 行17",
+        "req_id": "REQ-1009",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "2.16.7 施工照明设施",
+        "block_text": "2.16.7 施工照明设施",
+        "category": "其他",
+        "locator": "第179页 行7",
+        "req_id": "REQ-1081",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "5.4.2 导流建筑物封堵",
+        "block_text": "5.4.2 导流建筑物封堵",
+        "category": "其他",
+        "locator": "第193页 行27",
+        "req_id": "REQ-1153",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "10.1 一般规定",
+        "block_text": "10.1 一般规定",
+        "category": "其他",
+        "locator": "第207页 行4",
+        "req_id": "REQ-1225",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "13.2.4 堆石料",
+        "block_text": "13.2.4 堆石料",
+        "category": "其他",
+        "locator": "第218页 行7",
+        "req_id": "REQ-1297",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "14.11 计量和支付",
+        "block_text": "14.11 计量和支付",
+        "category": "其他",
+        "locator": "第231页 行31",
+        "req_id": "REQ-1369",
+        "verdict": "pass"
+      }
+    ]
+  },
+  "ms_per_page": 1.9,
+  "ocr_blocks": 0,
+  "pages": 284,
+  "parse_summary": "engine-pdf @ 2d0144456162389cccdfadfbed22b9e7c30d697d｜文本层: 284 页 8984 行块（pdfium）",
+  "requirements": {
+    "by_category": {
+      "其他": 1320,
+      "否决项": 10,
+      "评分项": 82,
+      "资格条件": 35
+    },
+    "per_1000_chars": 7.0281,
+    "total": 1447,
+    "with_clause_no": 1363
+  },
+  "route": "engine_pdf(531ms)",
+  "schema": "bid-health-check/1",
+  "sha256": "b2e91214675d74230fd34e3e1d25f03681ed25ff78e781f1223801ea9a77faba",
+  "status": "ok",
+  "tables": 0,
+  "veto": {
+    "covered_blocks": 27,
+    "missed_samples": [
+      {
+        "block_idx": 194,
+        "kind": "PdfLine",
+        "locator": "第10页 行10",
+        "text": "拒收。",
+        "words": [
+          "拒收"
+        ]
+      },
+      {
+        "block_idx": 362,
+        "kind": "PdfLine",
+        "locator": "第13页 行45",
+        "text": "户转出且已交存的有效凭证；未提交有效凭证的，招标人拒收投标文件。",
+        "words": [
+          "拒收"
+        ]
+      },
+      {
+        "block_idx": 412,
+        "kind": "PdfLine",
+        "locator": "第14页 行37",
+        "text": "招标人不予受理。",
+        "words": [
+          "不予受理"
+        ]
+      },
+      {
+        "block_idx": 465,
+        "kind": "PdfLine",
+        "locator": "第15页 行25",
+        "text": "相关特性的，需另行提供相关的业主证明文件，否则该业绩无效。",
+        "words": [
+          "无效"
+        ]
+      },
+      {
+        "block_idx": 485,
+        "kind": "PdfLine",
+        "locator": "第15页 行45",
+        "text": "缺少任何一种证件原件及复印件其投标文件将被拒绝。",
+        "words": [
+          "拒绝"
+        ]
+      },
+      {
+        "block_idx": 704,
+        "kind": "PdfLine",
+        "locator": "第19页 行17",
+        "text": "三、投标单位存在提供虚假业绩或证明文件的，否决相关投标单位投",
+        "words": [
+          "否决"
+        ]
+      },
+      {
+        "block_idx": 708,
+        "kind": "PdfLine",
+        "locator": "第19页 行21",
+        "text": "属实被取消中标资格的，不能作为其业绩。投标单位如隐瞒相关事实且仍",
+        "words": [
+          "取消"
+        ]
+      },
+      {
+        "block_idx": 800,
+        "kind": "PdfLine",
+        "locator": "第22页 行6",
+        "text": "其委托代理人未参加开标会的，招标人可将其投标文件按无效标处理。",
+        "words": [
+          "无效"
+        ]
+      },
+      {
+        "block_idx": 829,
+        "kind": "PdfLine",
+        "locator": "第22页 行35",
+        "text": "中标通知书发出后，招标人改变中标结果的，或者中标人放弃中标项目的，应当依法承担",
+        "words": [
+          "放弃"
+        ]
+      },
+      {
+        "block_idx": 833,
+        "kind": "PdfLine",
+        "locator": "第23页 行4",
+        "text": "排名第一的中标候选人放弃中标、因不可抗力不能履行合同、不按照招标文件要求提交履",
+        "words": [
+          "放弃"
+        ]
+      },
+      {
+        "block_idx": 850,
+        "kind": "PdfLine",
+        "locator": "第23页 行21",
+        "text": "竞争，评标委员会决定否决全部投标的；",
+        "words": [
+          "否决"
+        ]
+      },
+      {
+        "block_idx": 1307,
+        "kind": "PdfLine",
+        "locator": "第39页 行21",
+        "text": "⑷ 评标委员会须计算修正后总价与投标报价的差值率，差值率超过±15%的应当否决其",
+        "words": [
+          "否决"
+        ]
+      },
+      {
+        "block_idx": 1314,
+        "kind": "PdfLine",
+        "locator": "第39页 行28",
+        "text": "后的投标人价格重新核算。投标人不确认修正价格的，应当否决其投标。",
+        "words": [
+          "否决"
+        ]
+      },
+      {
+        "block_idx": 1317,
+        "kind": "PdfLine",
+        "locator": "第39页 行31",
+        "text": "应当否决其投标，并在初步评审表“备注”栏中对具体情况作出说明。",
+        "words": [
+          "否决"
+        ]
+      },
+      {
+        "block_idx": 1342,
+        "kind": "PdfLine",
+        "locator": "第40页 行15",
+        "text": "评标委员会否决投标后，因有效投标人不足三个使得投标明显缺乏竞争的，评标委员会可",
+        "words": [
+          "否决"
+        ]
+      }
+    ],
+    "per_word_covered_blocks": {
+      "不合格": 9,
+      "作废": 1,
+      "列入": 2,
+      "取消": 1,
+      "否决": 7,
+      "废标": 3,
+      "拒绝": 4,
+      "放弃": 1,
+      "无效": 3
+    },
+    "per_word_extracted_reqs": {
+      "不合格": 9,
+      "作废": 1,
+      "列入": 2,
+      "取消": 1,
+      "否决": 6,
+      "废标": 3,
+      "拒绝": 4,
+      "放弃": 1,
+      "无效": 3
+    },
+    "per_word_truth": {
+      "不予受理": 1,
+      "不合格": 21,
+      "作废": 4,
+      "列入": 15,
+      "取消": 5,
+      "否决": 17,
+      "失效": 5,
+      "废标": 3,
+      "拒收": 2,
+      "拒绝": 11,
+      "撤回": 2,
+      "放弃": 3,
+      "无效": 6,
+      "没收": 1,
+      "违约金": 17
+    },
+    "recall": 0.25,
+    "truth_blocks": 108
+  },
+  "wall_ms_incl_unwind": 2678
+}

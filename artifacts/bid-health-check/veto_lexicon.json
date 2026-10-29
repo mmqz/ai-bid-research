@@ -1,0 +1,36 @@
+{
+  "task": "E-RUN 竞品体检——否决项反查词表（近似召回真值面构造用）",
+  "provenance": {
+    "repo": "LingYan-Bid-Agent（本地克隆 /home/z/my-project/competitors/LingYan-Bid-Agent）",
+    "head_commit": "de909f12572b4c469864b12255e26cc185ada7ec",
+    "license": "MIT（仓库根 LICENSE：Copyright (c) 2026 LingYan (灵燕智能)）",
+    "origin_path": "sidecar/app/skills/tender-analysis/references/disqualification.md",
+    "origin_section": "「反查词表下限固定为（20 个词…）」段——LingYan 废标条款全扫节的标题反查词表（grep 字面匹配、逐词各查一次）",
+    "usage_note": "原词表语义为「全文档 grep 反查的召回下限」；本体检将其复用为解析块流 vs 抽出条款的命中对照面（词表命中 ≠ 人工标注否决项——见 REPORT.md 方法学局限）"
+  },
+  "words": [
+    "无效",
+    "否决",
+    "拒收",
+    "不予受理",
+    "不合格",
+    "取消",
+    "废标",
+    "作废",
+    "放弃",
+    "撤回",
+    "拒绝",
+    "不予接受",
+    "不被接收",
+    "失效",
+    "罚金",
+    "违约金",
+    "没收",
+    "无权参加",
+    "列入",
+    "实质性响应"
+  ],
+  "word_count": 20,
+  "wide_match_words": ["取消", "列入"],
+  "wide_match_note": "LingYan 原文对「取消」「列入」标注宽匹配（覆盖「取消其投标资格」「列入不良投标人名单」等词序/后缀变体）；本体检按字面 contains 处理全部 20 词，宽匹配语义在类别命中维度人工抽检核"
+}

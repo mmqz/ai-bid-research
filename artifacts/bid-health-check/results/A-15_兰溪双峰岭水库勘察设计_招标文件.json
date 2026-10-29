@@ -1,0 +1,544 @@
+{
+  "blocks": 1244,
+  "bytes": 1077624,
+  "category_hit": {
+    "by_category": {
+      "其他": 7,
+      "否决项": 13
+    },
+    "hit_samples": [
+      {
+        "category": "其他",
+        "clause_no": "5.2",
+        "excerpt": "5.2 逾期送达的或者未送达指定地点的投标文件，招标人不予受理。",
+        "id": "REQ-0013",
+        "words": [
+          "不予受理"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "记后，将没收其投标保证金，不再退还给投标人。",
+        "id": "REQ-0014",
+        "words": [
+          "没收"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "控制价之差额的3倍金额。否则视为放弃中标，没收其投标保证金。没收的投标保",
+        "id": "REQ-0015",
+        "words": [
+          "放弃",
+          "没收"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "主管部门情况证明，并附相应的证书复印件（证书复印件必须在有效期内），否则其投标视为无效。",
+        "id": "REQ-0057",
+        "words": [
+          "无效"
+        ]
+      },
+      {
+        "category": "其他",
+        "clause_no": "3.1.2",
+        "excerpt": "3.1.2商务资信标中主要专业和人员数量要与技术标中专业和人员数量对应，否则其投标无效。",
+        "id": "REQ-0058",
+        "words": [
+          "无效"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "评审后按废标处理。",
+        "id": "REQ-0059",
+        "words": [
+          "废标"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": "3.4.2",
+        "excerpt": "3.4.2 投标人不按要求提交投标保证金的，其投标文件作废标处理。",
+        "id": "REQ-0073",
+        "words": [
+          "废标",
+          "作废"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "或“副本”的字样，未按此要求提供投标文件的作废标处理。当副本和正本不一致时，以正本为准。",
+        "id": "REQ-0084",
+        "words": [
+          "废标",
+          "作废"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": "3.7.5",
+        "excerpt": "3.7.5 标书正本与副本应分别装订成册（正副本如有差异，以正本为准），不得使用活页夹，否则按废标处理。",
+        "id": "REQ-0085",
+        "words": [
+          "废标"
+        ]
+      },
+      {
+        "category": "否决项",
+        "clause_no": null,
+        "excerpt": "期，整个技术标中不得有提示性文字、能判明设计人的标志、标识等现象，否则经评标委员会评审后按废标处理。",
+        "id": "REQ-0089",
+        "words": [
+          "废标"
+        ]
+      },
+      {
+        "category": "其他",
+        "clause_no": "4.2.5",
+        "excerpt": "4.2.5 逾期送达的或者未送达指定地点的投标文件，招标人不予受理。",
+        "id": "REQ-0098",
+        "words": [
+          "不予受理"
+        ]
+      },
+      {
+        "category": "其他",
+        "clause_no": "4.3",
+        "excerpt": "4.3 投标文件的修改与撤回",
+        "id": "REQ-0099",
+        "words": [
+          "撤回"
+        ]
+      },
+      {
+        "category": "其他",
+        "clause_no": "4.3.1",
+        "excerpt": "4.3.1 在投标人须知前附表规定的投标截止时间前，投标人可以修改或撤回已递交的投标文件，但应以",
+        "id": "REQ-0100",
+        "words": [
+          "撤回"
+        ]
+      },
+      {
+        "category": "其他",
+        "clause_no": "4.3.2",
+        "excerpt": "4.3.2 投标人修改或撤回已递交投标文件的书面通知应按照本章第 3.8.3 项的要求签字或盖章。招 标",
+        "id": "REQ-0101",
+        "words": [
+          "撤回"
+        ]
+      },
+      {
+        "category": "其他",
+        "clause_no": "7.3.2",
+        "excerpt": "7.3.2 中标人不能按本章第 7.3.1 项要求提交履约担保的，视为放弃中标，其投标保证金不予退并列",
+        "id": "REQ-0116",
+        "words": [
+          "放弃"
+        ]
+      }
+    ],
+    "lexicon_hit_reqs": 20,
+    "strong_phrase_not_veto": 0,
+    "strong_phrase_reqs": 13,
+    "strong_phrase_suspects": []
+  },
+  "chars": 30294,
+  "components_ledger": [],
+  "elapsed_extract_ms": 3,
+  "elapsed_parse_ms": 100,
+  "elapsed_total_ms": 104,
+  "engine_error": null,
+  "est_100page_ms": 208.0,
+  "file": "A-15_兰溪双峰岭水库勘察设计_招标文件.pdf",
+  "has_text_layer": true,
+  "legacy_probe": {
+    "blocks": 1199,
+    "chars": 30376,
+    "elapsed_ms": 604,
+    "note": "诊断探针：与生产路由（engine_pdf）同源文件对照；不参与吞吐主指标",
+    "reqs": 175,
+    "route": "legacy_pdftotext",
+    "veto_truth_blocks": 53
+  },
+  "locator_check": {
+    "checked": 22,
+    "fail_no_block": 0,
+    "fail_text_mismatch": 0,
+    "pass": 22,
+    "samples": [
+      {
+        "anchor_excerpt": "2.1 兰溪市双峰岭水库除险加固（扩容）工程建安投资 8000 万元，其他投资 2500 万元；",
+        "block_text": "2.1 兰溪市双峰岭水库除险加固（扩容）工程建安投资 8000 万元，其他投资 2500 万元；",
+        "category": "其他",
+        "locator": "第3页 行11",
+        "req_id": "REQ-0001",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "4.2 招标文件每套售价 500 元，（开标前向招标代理支付）。",
+        "block_text": "4.2 招标文件每套售价 500 元，（开标前向招标代理支付）。",
+        "category": "其他",
+        "locator": "第3页 行26",
+        "req_id": "REQ-0009",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "1.1.1 根据《中华人民共和国招标投标法》等有关法律、法规和规章的规定，本招标项目己具备招标",
+        "block_text": "1.1.1 根据《中华人民共和国招标投标法》等有关法律、法规和规章的规定，本招标项目己具备招标",
+        "category": "其他",
+        "locator": "第11页 行5",
+        "req_id": "REQ-0017",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "1.2.3 本招标项目的资金落实情况：见投标人须知前附表。",
+        "block_text": "1.2.3 本招标项目的资金落实情况：见投标人须知前附表。",
+        "category": "其他",
+        "locator": "第11页 行14",
+        "req_id": "REQ-0025",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "1.4.3 省外企业及水工、水文、工程地质、金结相关专业的人员应在浙江省建设厅“四库一平台”上备",
+        "block_text": "1.4.3 省外企业及水工、水文、工程地质、金结相关专业的人员应在浙江省建设厅“四库一平台”上备",
+        "category": "其他",
+        "locator": "第11页 行24",
+        "req_id": "REQ-0033",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "1.9.1 投标人须知前附表规定组织踏勘现场的，招标人按投标人须知前附表规定的时间、地点组织 投",
+        "block_text": "1.9.1 投标人须知前附表规定组织踏勘现场的，招标人按投标人须知前附表规定的时间、地点组织 投",
+        "category": "其他",
+        "locator": "第12页 行21",
+        "req_id": "REQ-0041",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "2.2.3 投标人在开标前应该及时关注招标人在网上发出的澄清。",
+        "block_text": "2.2.3 投标人在开标前应该及时关注招标人在网上发出的澄清。",
+        "category": "其他",
+        "locator": "第13页 行17",
+        "req_id": "REQ-0049",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "主管部门情况证明，并附相应的证书复印件（证书复印件必须在有效期内），否则其投标视为无效。",
+        "block_text": "主管部门情况证明，并附相应的证书复印件（证书复印件必须在有效期内），否则其投标视为无效。",
+        "category": "否决项",
+        "locator": "第14页 行13",
+        "req_id": "REQ-0057",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "3.2.5设计费不包括初步设计和施工图设计文件等的审查费用。投标人凭合法发票收费，税金自理。",
+        "block_text": "3.2.5设计费不包括初步设计和施工图设计文件等的审查费用。投标人凭合法发票收费，税金自理。",
+        "category": "其他",
+        "locator": "第15页 行4",
+        "req_id": "REQ-0065",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "3.4.2 投标人不按要求提交投标保证金的，其投标文件作废标处理。",
+        "block_text": "3.4.2 投标人不按要求提交投标保证金的，其投标文件作废标处理。",
+        "category": "否决项",
+        "locator": "第15页 行15",
+        "req_id": "REQ-0073",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "3.7.2 投标文件应当对招标文件有关工期、投标有效期、质量要求、招标范围等实质性内容作出响应。",
+        "block_text": "3.7.2 投标文件应当对招标文件有关工期、投标有效期、质量要求、招标范围等实质性内容作出响应。",
+        "category": "其他",
+        "locator": "第15页 行31",
+        "req_id": "REQ-0081",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "期，整个技术标中不得有提示性文字、能判明设计人的标志、标识等现象，否则经评标委员会评审后按废标处理。",
+        "block_text": "期，整个技术标中不得有提示性文字、能判明设计人的标志、标识等现象，否则经评标委员会评审后按废标处理。",
+        "category": "否决项",
+        "locator": "第16页 行19",
+        "req_id": "REQ-0089",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "4.2.4 招标人收到投标文件后，向投标人出具签收凭证。",
+        "block_text": "4.2.4 招标人收到投标文件后，向投标人出具签收凭证。",
+        "category": "其他",
+        "locator": "第16页 行31",
+        "req_id": "REQ-0097",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "6.1 评标委员会",
+        "block_text": "6.1 评标委员会",
+        "category": "其他",
+        "locator": "第17页 行26",
+        "req_id": "REQ-0105",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "7.2 中标通知",
+        "block_text": "7.2 中标通知",
+        "category": "其他",
+        "locator": "第18页 行15",
+        "req_id": "REQ-0113",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "8.1 重新招标",
+        "block_text": "8.1 重新招标",
+        "category": "其他",
+        "locator": "第18页 行30",
+        "req_id": "REQ-0121",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "9.5 投诉",
+        "block_text": "9.5 投诉",
+        "category": "其他",
+        "locator": "第19页 行24",
+        "req_id": "REQ-0129",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "（18）存在法律、法规、规章规定的其它无效投标情况的。",
+        "block_text": "（18）存在法律、法规、规章规定的其它无效投标情况的。",
+        "category": "否决项",
+        "locator": "第21页 行24",
+        "req_id": "REQ-0137",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "2.3施工图设计阶段：施工图设计成果的提供必需满足工程施工进度要求，并按供图计划保证施工图纸的供应。",
+        "block_text": "2.3施工图设计阶段：施工图设计成果的提供必需满足工程施工进度要求，并按供图计划保证施工图纸的供应。",
+        "category": "其他",
+        "locator": "第27页 行16",
+        "req_id": "REQ-0145",
+        "verdict": "pass"
+      },
+      {
+        "anchor_excerpt": "5.2.1设计人应按国家技术规范、标准、以及发包人提出的设计要求，进行工程设计，按合同规定的进度要求",
+        "block_text": "5.2.1设计人应按国家技术规范、标准、以及发包人提出的设计要求，进行工程设计，按合同规定的进度要求",
+        "category": "其他",
+        "locator": "第28页 行12",
+        "req_id": "REQ-0153",
+        "verdict": "pass"
+      }
+    ]
+  },
+  "ms_per_page": 2.08,
+  "ocr_blocks": 0,
+  "pages": 50,
+  "parse_summary": "engine-pdf @ 2d0144456162389cccdfadfbed22b9e7c30d697d｜文本层: 50 页 1244 行块（pdfium）",
+  "requirements": {
+    "by_category": {
+      "其他": 143,
+      "否决项": 17,
+      "评分项": 5,
+      "资格条件": 10
+    },
+    "per_1000_chars": 5.7767,
+    "total": 175,
+    "with_clause_no": 150
+  },
+  "route": "engine_pdf(100ms)",
+  "schema": "bid-health-check/1",
+  "sha256": "d9f4904df8f8200d216a18e82c90cf3b7d022a127ede9145d789631cf2197d14",
+  "status": "ok",
+  "tables": 0,
+  "veto": {
+    "covered_blocks": 20,
+    "missed_samples": [
+      {
+        "block_idx": 164,
+        "kind": "PdfLine",
+        "locator": "第7页 行17",
+        "text": "时间内足额到账的，其投标文件将不予受理。",
+        "words": [
+          "不予受理"
+        ]
+      },
+      {
+        "block_idx": 211,
+        "kind": "PdfLine",
+        "locator": "第8页 行25",
+        "text": "24 投标文件的拒收情形",
+        "words": [
+          "拒收"
+        ]
+      },
+      {
+        "block_idx": 224,
+        "kind": "PdfLine",
+        "locator": "第8页 行38",
+        "text": "按规定参加开标会议的，其投标文件将按无效标处理，不予开启。",
+        "words": [
+          "无效"
+        ]
+      },
+      {
+        "block_idx": 253,
+        "kind": "PdfLine",
+        "locator": "第9页 行29",
+        "text": "证金不能弥补由于其放弃中标权而给招标人造成报价的差额损失的，由放弃中标",
+        "words": [
+          "放弃"
+        ]
+      },
+      {
+        "block_idx": 254,
+        "kind": "PdfLine",
+        "locator": "第9页 行30",
+        "text": "权的中标候选人承担。有关行政监督部门应将其放弃中标权的情况记入其信用档",
+        "words": [
+          "放弃"
+        ]
+      },
+      {
+        "block_idx": 260,
+        "kind": "PdfLine",
+        "locator": "第10页 行3",
+        "text": "35 自行放弃提疑",
+        "words": [
+          "放弃"
+        ]
+      },
+      {
+        "block_idx": 264,
+        "kind": "PdfLine",
+        "locator": "第10页 行7",
+        "text": "标文件规定的时间匿名在网上提出，逾期提出的， 招标人及代理机构不予受理",
+        "words": [
+          "不予受理"
+        ]
+      },
+      {
+        "block_idx": 266,
+        "kind": "PdfLine",
+        "locator": "第10页 行9",
+        "text": "2、潜在投标人在提疑截止时间后下载文件的，视为自行放弃提疑权力。",
+        "words": [
+          "放弃"
+        ]
+      },
+      {
+        "block_idx": 269,
+        "kind": "PdfLine",
+        "locator": "第10页 行12",
+        "text": "资料，招标人保留没收该保证金的权力。",
+        "words": [
+          "没收"
+        ]
+      },
+      {
+        "block_idx": 311,
+        "kind": "PdfLine",
+        "locator": "第12页 行6",
+        "text": "（8）被暂停或取消投标资格的；",
+        "words": [
+          "取消"
+        ]
+      },
+      {
+        "block_idx": 415,
+        "kind": "PdfLine",
+        "locator": "第15页 行11",
+        "text": "拒绝延长的，其投标失效，但投标人有权收回其投标保证金。",
+        "words": [
+          "拒绝",
+          "失效"
+        ]
+      },
+      {
+        "block_idx": 453,
+        "kind": "PdfLine",
+        "locator": "第16页 行17",
+        "text": "不按以上要求编制的技术标为无效标。",
+        "words": [
+          "无效"
+        ]
+      },
+      {
+        "block_idx": 462,
+        "kind": "PdfLine",
+        "locator": "第16页 行26",
+        "text": "4.1.3 未按本章第 4.1.1 项或第 4.1.2 项要求密封和加写标记的投标文件，招标人不予受理。",
+        "words": [
+          "不予受理"
+        ]
+      },
+      {
+        "block_idx": 537,
+        "kind": "PdfLine",
+        "locator": "第19页 行5",
+        "text": "⑶中标候选人被取消中标资格的。",
+        "words": [
+          "取消"
+        ]
+      },
+      {
+        "block_idx": 539,
+        "kind": "PdfLine",
+        "locator": "第19页 行7",
+        "text": "重新招标后投标人仍少于 3 个或者所有投标被否决的，属于必须审批或核准的工程建设项目，经原 审",
+        "words": [
+          "否决"
+        ]
+      }
+    ],
+    "per_word_covered_blocks": {
+      "不予受理": 2,
+      "作废": 2,
+      "取消": 1,
+      "否决": 1,
+      "废标": 6,
+      "撤回": 3,
+      "放弃": 2,
+      "无效": 4,
+      "没收": 3
+    },
+    "per_word_extracted_reqs": {
+      "不予受理": 2,
+      "作废": 2,
+      "取消": 1,
+      "否决": 1,
+      "废标": 6,
+      "撤回": 3,
+      "放弃": 2,
+      "无效": 4,
+      "没收": 3
+    },
+    "per_word_truth": {
+      "不予受理": 5,
+      "不合格": 1,
+      "作废": 2,
+      "列入": 1,
+      "取消": 3,
+      "否决": 5,
+      "失效": 2,
+      "实质性响应": 2,
+      "废标": 6,
+      "拒收": 1,
+      "拒绝": 1,
+      "撤回": 5,
+      "放弃": 10,
+      "无效": 8,
+      "没收": 8,
+      "违约金": 1
+    },
+    "recall": 0.3774,
+    "truth_blocks": 53
+  },
+  "wall_ms_incl_unwind": 714
+}

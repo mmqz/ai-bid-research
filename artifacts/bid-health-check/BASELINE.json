@@ -1,0 +1,750 @@
+{
+  "category_hit_aggregate": {
+    "lexicon_hit_reqs_unique": 381,
+    "strong_phrase_not_veto_unique": 30,
+    "strong_phrase_reqs_unique": 101
+  },
+  "corpus": {
+    "dedup_note": "A-19 与 A-01 为同一官方附件（power_grid test_samples/ 与 rag_seed/ 双路径重复入库）——聚合指标按 sha256 去重（首见），逐文件结果保留两份",
+    "files": 16,
+    "pages_total_ok_files": 1294,
+    "unique_by_sha256": 15
+  },
+  "env": {
+    "mdcore_rev": "2d0144456162389cccdfadfbed22b9e7c30d697d",
+    "note_libreoffice": ".doc→docx 转换在语料制备阶段离线完成（见 provenance.json conversion 字段），harness 不调用 LO",
+    "pdfinfo": "ok: pdfinfo version 25.03.0",
+    "pdfium": "ok: 引擎探测通过（MDC_PDFIUM_LIB=/home/z/.pdfium/lib/libpdfium.so）",
+    "pdftoppm": "ok: pdftoppm version 25.03.0",
+    "pdftotext": "ok: pdftotext version 25.03.0",
+    "tessdata_chi_sim": "ok: /home/z/.tessdata/chi_sim.traineddata（pdf.rs 生效路径）",
+    "tesseract": "ok: tesseract 5.5.0"
+  },
+  "errors": [],
+  "extraction_aggregate": {
+    "by_category_unique": {
+      "其他": 7140,
+      "否决项": 107,
+      "评分项": 1187,
+      "资格条件": 254
+    },
+    "reqs_per_1000_chars": 7.0697,
+    "total_chars_unique": 1228914,
+    "total_reqs_unique": 8688
+  },
+  "files": [
+    {
+      "blocks": 8984,
+      "file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
+      "ms": 541,
+      "pages": 284,
+      "reqs": 1447,
+      "result_ref": "results/A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.json",
+      "route": "engine_pdf(531ms)",
+      "status": "ok",
+      "veto_recall": 0.25
+    },
+    {
+      "blocks": 100,
+      "file": "A-02_福建修订通知_扫描件.pdf",
+      "ms": 19726,
+      "pages": 8,
+      "reqs": 1,
+      "result_ref": "results/A-02_福建修订通知_扫描件.json",
+      "route": "engine_pdf_err→legacy_pdftotext(3ms+19718ms)",
+      "status": "ok",
+      "veto_recall": null
+    },
+    {
+      "blocks": 3591,
+      "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+      "ms": 254,
+      "pages": 142,
+      "reqs": 902,
+      "result_ref": "results/A-04_某水利工程施工标段_施工招标文件.json",
+      "route": "engine_pdf(248ms)",
+      "status": "ok",
+      "veto_recall": 0.4
+    },
+    {
+      "blocks": 2565,
+      "file": "A-05_伊犁州奎屯东郊水库质量检测_招标文件.pdf",
+      "ms": 249,
+      "pages": 76,
+      "reqs": 346,
+      "result_ref": "results/A-05_伊犁州奎屯东郊水库质量检测_招标文件.json",
+      "route": "engine_pdf(243ms)",
+      "status": "ok",
+      "veto_recall": 0.4828
+    },
+    {
+      "blocks": 1244,
+      "file": "A-15_兰溪双峰岭水库勘察设计_招标文件.pdf",
+      "ms": 104,
+      "pages": 50,
+      "reqs": 175,
+      "result_ref": "results/A-15_兰溪双峰岭水库勘察设计_招标文件.json",
+      "route": "engine_pdf(100ms)",
+      "status": "ok",
+      "veto_recall": 0.3774
+    },
+    {
+      "blocks": 1462,
+      "file": "A-16_郏县老虎洞水库监理_招标文件.pdf",
+      "ms": 98,
+      "pages": 56,
+      "reqs": 232,
+      "result_ref": "results/A-16_郏县老虎洞水库监理_招标文件.json",
+      "route": "engine_pdf(94ms)",
+      "status": "ok",
+      "veto_recall": 0.2258
+    },
+    {
+      "blocks": 8329,
+      "file": "A-17_喀什噶尔河灌区信息化I标_招标文件.pdf",
+      "ms": 445,
+      "pages": 276,
+      "reqs": 1241,
+      "result_ref": "results/A-17_喀什噶尔河灌区信息化I标_招标文件.json",
+      "route": "engine_pdf(436ms)",
+      "status": "ok",
+      "veto_recall": 0.3579
+    },
+    {
+      "blocks": 3402,
+      "file": "A-18_塔里木河希尼尔水库监理I标二次_招标文件.pdf",
+      "ms": 181,
+      "pages": 118,
+      "reqs": 542,
+      "result_ref": "results/A-18_塔里木河希尼尔水库监理I标二次_招标文件.json",
+      "route": "engine_pdf(176ms)",
+      "status": "ok",
+      "veto_recall": 0.3971
+    },
+    {
+      "blocks": 8984,
+      "file": "A-19_塔里木河希尼尔水库坝基防渗施工标_招标文件_ragseed.pdf",
+      "ms": 530,
+      "pages": 284,
+      "reqs": 1447,
+      "result_ref": "results/A-19_塔里木河希尼尔水库坝基防渗施工标_招标文件_ragseed.json",
+      "route": "engine_pdf(520ms)",
+      "status": "ok",
+      "veto_recall": 0.25
+    },
+    {
+      "blocks": 2741,
+      "file": "A-BJ2025-附件1-施工.docx",
+      "ms": 207,
+      "pages": 0,
+      "reqs": 780,
+      "result_ref": "results/A-BJ2025-附件1-施工.json",
+      "route": "engine_docx",
+      "status": "ok",
+      "veto_recall": 0.4639
+    },
+    {
+      "blocks": 1888,
+      "file": "A-BJ2025-附件2-监理.docx",
+      "ms": 132,
+      "pages": 0,
+      "reqs": 408,
+      "result_ref": "results/A-BJ2025-附件2-监理.json",
+      "route": "engine_docx",
+      "status": "ok",
+      "veto_recall": 0.4407
+    },
+    {
+      "blocks": 1955,
+      "file": "A-BJ2025-附件3-勘察.docx",
+      "ms": 122,
+      "pages": 0,
+      "reqs": 519,
+      "result_ref": "results/A-BJ2025-附件3-勘察.json",
+      "route": "engine_docx",
+      "status": "ok",
+      "veto_recall": 0.4194
+    },
+    {
+      "blocks": 1892,
+      "file": "A-BJ2025-附件4-设计.docx",
+      "ms": 112,
+      "pages": 0,
+      "reqs": 469,
+      "result_ref": "results/A-BJ2025-附件4-设计.json",
+      "route": "engine_docx",
+      "status": "ok",
+      "veto_recall": 0.4219
+    },
+    {
+      "blocks": 2048,
+      "file": "A-BJ2025-附件5-全过程咨询.docx",
+      "ms": 129,
+      "pages": 0,
+      "reqs": 305,
+      "result_ref": "results/A-BJ2025-附件5-全过程咨询.json",
+      "route": "engine_docx",
+      "status": "ok",
+      "veto_recall": 0.3231
+    },
+    {
+      "blocks": 2814,
+      "file": "A-BJ2025-附件6-总承包.docx",
+      "ms": 166,
+      "pages": 0,
+      "reqs": 816,
+      "result_ref": "results/A-BJ2025-附件6-总承包.json",
+      "route": "engine_docx",
+      "status": "ok",
+      "veto_recall": 0.4149
+    },
+    {
+      "blocks": 1900,
+      "file": "A-BJ2025-附件7-货物.docx",
+      "ms": 125,
+      "pages": 0,
+      "reqs": 505,
+      "result_ref": "results/A-BJ2025-附件7-货物.json",
+      "route": "engine_docx",
+      "status": "ok",
+      "veto_recall": 0.4024
+    }
+  ],
+  "git": {
+    "branch": "",
+    "head": ""
+  },
+  "lexicon": {
+    "provenance": {
+      "head_commit": "de909f12572b4c469864b12255e26cc185ada7ec",
+      "license": "MIT（仓库根 LICENSE：Copyright (c) 2026 LingYan (灵燕智能)）",
+      "origin_path": "sidecar/app/skills/tender-analysis/references/disqualification.md",
+      "origin_section": "「反查词表下限固定为（20 个词…）」段——LingYan 废标条款全扫节的标题反查词表（grep 字面匹配、逐词各查一次）",
+      "repo": "LingYan-Bid-Agent（本地克隆 /home/z/my-project/competitors/LingYan-Bid-Agent）",
+      "usage_note": "原词表语义为「全文档 grep 反查的召回下限」；本体检将其复用为解析块流 vs 抽出条款的命中对照面（词表命中 ≠ 人工标注否决项——见 REPORT.md 方法学局限）"
+    },
+    "words": 20
+  },
+  "locator_aggregate": {
+    "checked": 317,
+    "fail_no_block": 0,
+    "fail_text_mismatch": 0,
+    "pass": 317
+  },
+  "panics": [],
+  "route_counts": {
+    "engine_docx": 7,
+    "engine_pdf": 8,
+    "engine_pdf_err→legacy_pdftotext": 1
+  },
+  "route_delta_engine_vs_legacy": [
+    {
+      "block_delta": 877,
+      "engine_blocks": 8984,
+      "engine_chars": 205887,
+      "engine_reqs": 1447,
+      "engine_veto_truth": 108,
+      "file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
+      "legacy_blocks": 8107,
+      "legacy_chars": 206566,
+      "legacy_reqs": 1396,
+      "legacy_veto_truth": 108
+    },
+    {
+      "block_delta": 66,
+      "engine_blocks": 3591,
+      "engine_chars": 97304,
+      "engine_reqs": 902,
+      "engine_veto_truth": 70,
+      "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+      "legacy_blocks": 3525,
+      "legacy_chars": 97358,
+      "legacy_reqs": 898,
+      "legacy_veto_truth": 70
+    },
+    {
+      "block_delta": 293,
+      "engine_blocks": 2565,
+      "engine_chars": 39199,
+      "engine_reqs": 346,
+      "engine_veto_truth": 58,
+      "file": "A-05_伊犁州奎屯东郊水库质量检测_招标文件.pdf",
+      "legacy_blocks": 2272,
+      "legacy_chars": 39631,
+      "legacy_reqs": 333,
+      "legacy_veto_truth": 58
+    },
+    {
+      "block_delta": 45,
+      "engine_blocks": 1244,
+      "engine_chars": 30294,
+      "engine_reqs": 175,
+      "engine_veto_truth": 53,
+      "file": "A-15_兰溪双峰岭水库勘察设计_招标文件.pdf",
+      "legacy_blocks": 1199,
+      "legacy_chars": 30376,
+      "legacy_reqs": 175,
+      "legacy_veto_truth": 53
+    },
+    {
+      "block_delta": 52,
+      "engine_blocks": 1462,
+      "engine_chars": 33331,
+      "engine_reqs": 232,
+      "engine_veto_truth": 31,
+      "file": "A-16_郏县老虎洞水库监理_招标文件.pdf",
+      "legacy_blocks": 1410,
+      "legacy_chars": 33385,
+      "legacy_reqs": 226,
+      "legacy_veto_truth": 31
+    },
+    {
+      "block_delta": 503,
+      "engine_blocks": 8329,
+      "engine_chars": 199070,
+      "engine_reqs": 1241,
+      "engine_veto_truth": 95,
+      "file": "A-17_喀什噶尔河灌区信息化I标_招标文件.pdf",
+      "legacy_blocks": 7826,
+      "legacy_chars": 199697,
+      "legacy_reqs": 1240,
+      "legacy_veto_truth": 95
+    },
+    {
+      "block_delta": 111,
+      "engine_blocks": 3402,
+      "engine_chars": 87755,
+      "engine_reqs": 542,
+      "engine_veto_truth": 68,
+      "file": "A-18_塔里木河希尼尔水库监理I标二次_招标文件.pdf",
+      "legacy_blocks": 3291,
+      "legacy_chars": 88050,
+      "legacy_reqs": 542,
+      "legacy_veto_truth": 68
+    },
+    {
+      "block_delta": 877,
+      "engine_blocks": 8984,
+      "engine_chars": 205887,
+      "engine_reqs": 1447,
+      "engine_veto_truth": 108,
+      "file": "A-19_塔里木河希尼尔水库坝基防渗施工标_招标文件_ragseed.pdf",
+      "legacy_blocks": 8107,
+      "legacy_chars": 206566,
+      "legacy_reqs": 1396,
+      "legacy_veto_truth": 108
+    }
+  ],
+  "schema": "bid-health-check/1",
+  "status_counts": {
+    "ok": 16
+  },
+  "task": "E-RUN 竞品体检（issue #11 E 组）——power_grid 真实语料跑 main 基线标书链路",
+  "throughput": {
+    "docx_face": {
+      "chars": 533816,
+      "files": 7,
+      "ms_per_1000_chars": 1.86,
+      "per_file": [
+        {
+          "chars": 97856,
+          "file": "A-BJ2025-附件1-施工.docx",
+          "ms": 207,
+          "ms_per_1000_chars": 2.12
+        },
+        {
+          "chars": 63032,
+          "file": "A-BJ2025-附件2-监理.docx",
+          "ms": 132,
+          "ms_per_1000_chars": 2.09
+        },
+        {
+          "chars": 67567,
+          "file": "A-BJ2025-附件3-勘察.docx",
+          "ms": 122,
+          "ms_per_1000_chars": 1.81
+        },
+        {
+          "chars": 64362,
+          "file": "A-BJ2025-附件4-设计.docx",
+          "ms": 112,
+          "ms_per_1000_chars": 1.74
+        },
+        {
+          "chars": 74907,
+          "file": "A-BJ2025-附件5-全过程咨询.docx",
+          "ms": 129,
+          "ms_per_1000_chars": 1.72
+        },
+        {
+          "chars": 97158,
+          "file": "A-BJ2025-附件6-总承包.docx",
+          "ms": 166,
+          "ms_per_1000_chars": 1.71
+        },
+        {
+          "chars": 68934,
+          "file": "A-BJ2025-附件7-货物.docx",
+          "ms": 125,
+          "ms_per_1000_chars": 1.81
+        }
+      ],
+      "total_ms": 993
+    },
+    "note": "pdf 面用页口径（含 OCR 回退件）；docx 面无页概念，用每文件/每千字口径；overall 仅作参考（docx 时间混入分子）",
+    "overall_ms_per_page_mixed": 17.87,
+    "pages_mixed": 1294,
+    "pdf_face": {
+      "est_100page_ms": 1710.05,
+      "files": 9,
+      "ms_per_page": 17.1,
+      "pages": 1294,
+      "per_file": [
+        {
+          "file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
+          "ms": 541,
+          "ms_per_page": 1.9,
+          "pages": 284,
+          "route": "engine_pdf(531ms)"
+        },
+        {
+          "file": "A-02_福建修订通知_扫描件.pdf",
+          "ms": 19726,
+          "ms_per_page": 2465.75,
+          "pages": 8,
+          "route": "engine_pdf_err→legacy_pdftotext(3ms+19718ms)"
+        },
+        {
+          "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+          "ms": 254,
+          "ms_per_page": 1.79,
+          "pages": 142,
+          "route": "engine_pdf(248ms)"
+        },
+        {
+          "file": "A-05_伊犁州奎屯东郊水库质量检测_招标文件.pdf",
+          "ms": 249,
+          "ms_per_page": 3.28,
+          "pages": 76,
+          "route": "engine_pdf(243ms)"
+        },
+        {
+          "file": "A-15_兰溪双峰岭水库勘察设计_招标文件.pdf",
+          "ms": 104,
+          "ms_per_page": 2.08,
+          "pages": 50,
+          "route": "engine_pdf(100ms)"
+        },
+        {
+          "file": "A-16_郏县老虎洞水库监理_招标文件.pdf",
+          "ms": 98,
+          "ms_per_page": 1.75,
+          "pages": 56,
+          "route": "engine_pdf(94ms)"
+        },
+        {
+          "file": "A-17_喀什噶尔河灌区信息化I标_招标文件.pdf",
+          "ms": 445,
+          "ms_per_page": 1.61,
+          "pages": 276,
+          "route": "engine_pdf(436ms)"
+        },
+        {
+          "file": "A-18_塔里木河希尼尔水库监理I标二次_招标文件.pdf",
+          "ms": 181,
+          "ms_per_page": 1.53,
+          "pages": 118,
+          "route": "engine_pdf(176ms)"
+        },
+        {
+          "file": "A-19_塔里木河希尼尔水库坝基防渗施工标_招标文件_ragseed.pdf",
+          "ms": 530,
+          "ms_per_page": 1.87,
+          "pages": 284,
+          "route": "engine_pdf(520ms)"
+        }
+      ],
+      "total_ms": 22128
+    },
+    "per_file": [
+      {
+        "est_100page_ms": 190.49,
+        "file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
+        "ms": 541,
+        "ms_per_page": 1.9,
+        "pages": 284,
+        "route": "engine_pdf(531ms)"
+      },
+      {
+        "est_100page_ms": 246575.0,
+        "file": "A-02_福建修订通知_扫描件.pdf",
+        "ms": 19726,
+        "ms_per_page": 2465.75,
+        "pages": 8,
+        "route": "engine_pdf_err→legacy_pdftotext(3ms+19718ms)"
+      },
+      {
+        "est_100page_ms": 178.87,
+        "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+        "ms": 254,
+        "ms_per_page": 1.79,
+        "pages": 142,
+        "route": "engine_pdf(248ms)"
+      },
+      {
+        "est_100page_ms": 327.63,
+        "file": "A-05_伊犁州奎屯东郊水库质量检测_招标文件.pdf",
+        "ms": 249,
+        "ms_per_page": 3.28,
+        "pages": 76,
+        "route": "engine_pdf(243ms)"
+      },
+      {
+        "est_100page_ms": 208.0,
+        "file": "A-15_兰溪双峰岭水库勘察设计_招标文件.pdf",
+        "ms": 104,
+        "ms_per_page": 2.08,
+        "pages": 50,
+        "route": "engine_pdf(100ms)"
+      },
+      {
+        "est_100page_ms": 175.0,
+        "file": "A-16_郏县老虎洞水库监理_招标文件.pdf",
+        "ms": 98,
+        "ms_per_page": 1.75,
+        "pages": 56,
+        "route": "engine_pdf(94ms)"
+      },
+      {
+        "est_100page_ms": 161.23,
+        "file": "A-17_喀什噶尔河灌区信息化I标_招标文件.pdf",
+        "ms": 445,
+        "ms_per_page": 1.61,
+        "pages": 276,
+        "route": "engine_pdf(436ms)"
+      },
+      {
+        "est_100page_ms": 153.39,
+        "file": "A-18_塔里木河希尼尔水库监理I标二次_招标文件.pdf",
+        "ms": 181,
+        "ms_per_page": 1.53,
+        "pages": 118,
+        "route": "engine_pdf(176ms)"
+      },
+      {
+        "est_100page_ms": 186.62,
+        "file": "A-19_塔里木河希尼尔水库坝基防渗施工标_招标文件_ragseed.pdf",
+        "ms": 530,
+        "ms_per_page": 1.87,
+        "pages": 284,
+        "route": "engine_pdf(520ms)"
+      },
+      {
+        "est_100page_ms": 0.0,
+        "file": "A-BJ2025-附件1-施工.docx",
+        "ms": 207,
+        "ms_per_page": 0.0,
+        "pages": 0,
+        "route": "engine_docx"
+      },
+      {
+        "est_100page_ms": 0.0,
+        "file": "A-BJ2025-附件2-监理.docx",
+        "ms": 132,
+        "ms_per_page": 0.0,
+        "pages": 0,
+        "route": "engine_docx"
+      },
+      {
+        "est_100page_ms": 0.0,
+        "file": "A-BJ2025-附件3-勘察.docx",
+        "ms": 122,
+        "ms_per_page": 0.0,
+        "pages": 0,
+        "route": "engine_docx"
+      },
+      {
+        "est_100page_ms": 0.0,
+        "file": "A-BJ2025-附件4-设计.docx",
+        "ms": 112,
+        "ms_per_page": 0.0,
+        "pages": 0,
+        "route": "engine_docx"
+      },
+      {
+        "est_100page_ms": 0.0,
+        "file": "A-BJ2025-附件5-全过程咨询.docx",
+        "ms": 129,
+        "ms_per_page": 0.0,
+        "pages": 0,
+        "route": "engine_docx"
+      },
+      {
+        "est_100page_ms": 0.0,
+        "file": "A-BJ2025-附件6-总承包.docx",
+        "ms": 166,
+        "ms_per_page": 0.0,
+        "pages": 0,
+        "route": "engine_docx"
+      },
+      {
+        "est_100page_ms": 0.0,
+        "file": "A-BJ2025-附件7-货物.docx",
+        "ms": 125,
+        "ms_per_page": 0.0,
+        "pages": 0,
+        "route": "engine_docx"
+      }
+    ],
+    "total_ms_ok_files": 23121
+  },
+  "veto_aggregate": {
+    "per_word": [
+      {
+        "covered_blocks": 103,
+        "extracted_req_hits": 98,
+        "truth_block_hits": 301,
+        "word": "否决",
+        "word_recall": 0.3422
+      },
+      {
+        "covered_blocks": 23,
+        "extracted_req_hits": 23,
+        "truth_block_hits": 129,
+        "word": "违约金",
+        "word_recall": 0.1783
+      },
+      {
+        "covered_blocks": 49,
+        "extracted_req_hits": 49,
+        "truth_block_hits": 116,
+        "word": "不合格",
+        "word_recall": 0.4224
+      },
+      {
+        "covered_blocks": 44,
+        "extracted_req_hits": 44,
+        "truth_block_hits": 101,
+        "word": "拒绝",
+        "word_recall": 0.4356
+      },
+      {
+        "covered_blocks": 33,
+        "extracted_req_hits": 33,
+        "truth_block_hits": 79,
+        "word": "无效",
+        "word_recall": 0.4177
+      },
+      {
+        "covered_blocks": 45,
+        "extracted_req_hits": 45,
+        "truth_block_hits": 72,
+        "word": "撤回",
+        "word_recall": 0.625
+      },
+      {
+        "covered_blocks": 17,
+        "extracted_req_hits": 17,
+        "truth_block_hits": 59,
+        "word": "列入",
+        "word_recall": 0.2881
+      },
+      {
+        "covered_blocks": 18,
+        "extracted_req_hits": 18,
+        "truth_block_hits": 53,
+        "word": "取消",
+        "word_recall": 0.3396
+      },
+      {
+        "covered_blocks": 7,
+        "extracted_req_hits": 7,
+        "truth_block_hits": 35,
+        "word": "失效",
+        "word_recall": 0.2
+      },
+      {
+        "covered_blocks": 13,
+        "extracted_req_hits": 13,
+        "truth_block_hits": 35,
+        "word": "放弃",
+        "word_recall": 0.3714
+      },
+      {
+        "covered_blocks": 24,
+        "extracted_req_hits": 22,
+        "truth_block_hits": 32,
+        "word": "拒收",
+        "word_recall": 0.75
+      },
+      {
+        "covered_blocks": 27,
+        "extracted_req_hits": 27,
+        "truth_block_hits": 27,
+        "word": "废标",
+        "word_recall": 1.0
+      },
+      {
+        "covered_blocks": 9,
+        "extracted_req_hits": 9,
+        "truth_block_hits": 15,
+        "word": "作废",
+        "word_recall": 0.6
+      },
+      {
+        "covered_blocks": 7,
+        "extracted_req_hits": 7,
+        "truth_block_hits": 12,
+        "word": "不予受理",
+        "word_recall": 0.5833
+      },
+      {
+        "covered_blocks": 4,
+        "extracted_req_hits": 4,
+        "truth_block_hits": 12,
+        "word": "没收",
+        "word_recall": 0.3333
+      },
+      {
+        "covered_blocks": 0,
+        "extracted_req_hits": 0,
+        "truth_block_hits": 3,
+        "word": "实质性响应",
+        "word_recall": 0.0
+      },
+      {
+        "covered_blocks": 0,
+        "extracted_req_hits": 0,
+        "truth_block_hits": 1,
+        "word": "罚金",
+        "word_recall": 0.0
+      },
+      {
+        "covered_blocks": 0,
+        "extracted_req_hits": 0,
+        "truth_block_hits": 0,
+        "word": "不予接受",
+        "word_recall": null
+      },
+      {
+        "covered_blocks": 0,
+        "extracted_req_hits": 0,
+        "truth_block_hits": 0,
+        "word": "不被接收",
+        "word_recall": null
+      },
+      {
+        "covered_blocks": 0,
+        "extracted_req_hits": 0,
+        "truth_block_hits": 0,
+        "word": "无权参加",
+        "word_recall": null
+      }
+    ],
+    "unique_face": {
+      "covered_blocks": 388,
+      "recall": 0.3857,
+      "truth_blocks": 1006
+    }
+  }
+}

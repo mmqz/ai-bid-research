@@ -1,0 +1,65 @@
+{
+  "blocks": 100,
+  "bytes": 2213393,
+  "category_hit": {
+    "by_category": {},
+    "hit_samples": [],
+    "lexicon_hit_reqs": 0,
+    "strong_phrase_not_veto": 0,
+    "strong_phrase_reqs": 0,
+    "strong_phrase_suspects": []
+  },
+  "chars": 2258,
+  "components_ledger": [],
+  "elapsed_extract_ms": 2,
+  "elapsed_parse_ms": 19723,
+  "elapsed_total_ms": 19726,
+  "engine_error": "mapping gap: pdf 无文本层（扫描件）——OCR 补遗链在标书侧旧路径（映射表 §3 处置列）",
+  "est_100page_ms": 246575.0,
+  "file": "A-02_福建修订通知_扫描件.pdf",
+  "has_text_layer": false,
+  "legacy_probe": null,
+  "locator_check": {
+    "checked": 1,
+    "fail_no_block": 0,
+    "fail_text_mismatch": 0,
+    "pass": 1,
+    "samples": [
+      {
+        "anchor_excerpt": "2.2.4 (1)“商务评分标准 (满分 20 分郑，信用分与商务评分挂",
+        "block_text": "2.2.4 (1)“商务评分标准 (满分 20 分郑，信用分与商务评分挂",
+        "category": "其他",
+        "locator": "第5页 OCR 行4",
+        "req_id": "REQ-0001",
+        "verdict": "pass"
+      }
+    ]
+  },
+  "ms_per_page": 2465.75,
+  "ocr_blocks": 100,
+  "pages": 8,
+  "parse_summary": "pdf 扫描层 OCR: 8 页，100 行块（chi_sim）",
+  "requirements": {
+    "by_category": {
+      "其他": 1
+    },
+    "per_1000_chars": 0.4429,
+    "total": 1,
+    "with_clause_no": 1
+  },
+  "route": "engine_pdf_err→legacy_pdftotext(3ms+19718ms)",
+  "schema": "bid-health-check/1",
+  "sha256": "77c95e9778eabb34ae20b9a8a9aa527002cdc69a6cc6a0993563a790aa296f9c",
+  "status": "ok",
+  "tables": 0,
+  "veto": {
+    "covered_blocks": 0,
+    "missed_samples": [],
+    "per_word_covered_blocks": {},
+    "per_word_extracted_reqs": {},
+    "per_word_truth": {},
+    "recall": null,
+    "truth_blocks": 0
+  },
+  "wall_ms_incl_unwind": 19726
+}

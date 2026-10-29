@@ -298,8 +298,13 @@
               return respond(m.id, { saved: [], skipped: (m.paths || []).map((p) => ({ file: p, reason: "演示模式" })) });
             case "snapshots.save":
               return respond(m.id, { ok: true, file: m.path, ts: Date.now(), snapshot: "demo/" + Date.now() + ".md" });
-            case "snapshots.read":
-              return respond(m.id, { content: "# 技术标（历史版本预览）\n\n> 演示模式：这是快照正文占位。真实壳里此处显示该版本的完整 md 内容。\n\n- 第1章 概述\n- 第2章 技术方案", bytes: 128 });
+            case "snapshots.read": {
+              const c1 = "# \u6280\u672F\u6807\uFF08\u7B2C2\u7AE0\u5B8C\u6210\u540E\u7684\u7248\u672C\uFF09\n\n> \u6F14\u793A\u6A21\u5F0F\uFF1A\u5FEB\u7167\u6B63\u6587\u5360\u4F4D\u3002\n\n## \u7B2C1\u7AE0 \u6982\u8FF0\n\n\u672C\u6587\u6863\u4E3A\u6F14\u793A\u5360\u4F4D\uFF0C\u7528\u4E8E\u5C55\u793A\u7248\u672C diff\u3002\n\n## \u7B2C2\u7AE0 \u6280\u672F\u65B9\u6848\n\n- \u5206\u5E03\u5F0F\u67B6\u6784\uFF1A\u4E3B\u5907\u53CC\u6D3B\n- \u5B58\u50A8\uFF1A\u5206\u5E03\u5F0F\u6570\u636E\u5E93\n- \u76D1\u63A7\uFF1A\u5168\u94FE\u8DEF\u8FFD\u8E2A\n\n## \u7B2C3\u7AE0 \u5B9E\u65BD\u8BA1\u5212\n\n\uFF08\u5F85\u7EED\uFF09";
+              const c2 = "# \u6280\u672F\u6807\uFF08\u521D\u7A3F\uFF09\n\n> \u6F14\u793A\u6A21\u5F0F\uFF1A\u5FEB\u7167\u6B63\u6587\u5360\u4F4D\u3002\n\n## \u7B2C1\u7AE0 \u6982\u8FF0\n\n\u672C\u6587\u6863\u4E3A\u6F14\u793A\u5360\u4F4D\u3002\n\n## \u7B2C2\u7AE0 \u6280\u672F\u65B9\u6848\n\n\uFF08\u5F85\u5199\uFF09";
+              const content = String(m.snapshot || "").endsWith("2.md") ? c2 : c1;
+              return respond(m.id, { content, bytes: content.length });
+            }
+            
             case "snapshots.rollback":
               return respond(m.id, { ok: true, file: m.file, snapshot: m.snapshot, bytes: 128, backupTs: Date.now() });
             default:
@@ -1060,8 +1065,102 @@
       renderSidebar();
     });
   }
-  /** 预览某版本（浮层，绝不改文件） */
-  function showSnapshotPreview(entry) {
+  /**
+   * #42 阶段 9：md 层逐行 diff（类 git diff）。
+   * 返回 [{t: '='|'-'|'+', a?, b?, text}]；t 是操作，text 取对应侧的行。
+   * 公共前后缀裁剪后对中段做 LCS（Uint32 DP，超过 16M 格退化为整块替换）。
+   */
+  function diffLines(aText, bText) {
+    const a = String(aText == null ? "" : aText).split("\n");
+    const b = String(bText == null ? "" : bText).split("\n");
+    let p = 0;
+    while (p < a.length && p < b.length && a[p] === b[p]) p++;
+    let s = 0;
+    while (s < a.length - p && s < b.length - p && a[a.length - 1 - s] === b[b.length - 1 - s]) s++;
+    const am = a.slice(p, a.length - s);
+    const bm = b.slice(p, b.length - s);
+    const ops = [];
+    for (let i = 0; i < p; i++) ops.push({ t: "=", text: a[i] });
+    if (am.length * bm.length > 16e6) {
+      // 超大变更块：不做精细对齐，诚实整块替换（防卡 UI）
+      for (const line of am) ops.push({ t: "-", text: line });
+      for (const line of bm) ops.push({ t: "+", text: line });
+    } else if (am.length || bm.length) {
+      const n = am.length, m = bm.length;
+      const w = m + 1;
+      const dp = new Uint32Array((n + 1) * (m + 1));
+      for (let i = n - 1; i >= 0; i--) {
+        for (let j = m - 1; j >= 0; j--) {
+          dp[i * w + j] = am[i] === bm[j]
+            ? dp[(i + 1) * w + (j + 1)] + 1
+            : Math.max(dp[(i + 1) * w + j], dp[i * w + (j + 1)]);
+        }
+      }
+      let i = 0, j = 0;
+      while (i < n && j < m) {
+        if (am[i] === bm[j]) {
+          ops.push({ t: "=", text: am[i] });
+          i++; j++;
+        } else if (dp[(i + 1) * w + j] >= dp[i * w + (j + 1)]) {
+          ops.push({ t: "-", text: am[i] });
+          i++;
+        } else {
+          ops.push({ t: "+", text: bm[j] });
+          j++;
+        }
+      }
+      while (i < n) ops.push({ t: "-", text: am[i++] });
+      while (j < m) ops.push({ t: "+", text: bm[j++] });
+    }
+    for (let k = a.length - s; k < a.length; k++) ops.push({ t: "=", text: a[k] });
+    return ops;
+  }
+
+  /** diff 操作流 → git 风格 HTML（上下文 3 行，中间折叠「⋯ N 行未变」） */
+  function renderDiffHtml(ops) {
+    const CTX = 3;
+    const keep = new Array(ops.length).fill(false);
+    for (let i = 0; i < ops.length; i++) {
+      if (ops[i].t !== "=") {
+        for (let k = Math.max(0, i - CTX); k <= Math.min(ops.length - 1, i + CTX); k++) keep[k] = true;
+      }
+    }
+    let add = 0, del = 0;
+    for (const o of ops) {
+      if (o.t === "+") add++;
+      else if (o.t === "-") del++;
+    }
+    let html = '<div class="diff-summary">' +
+      '<span class="diff-stat add">+' + add + " \u884C</span>" +
+      '<span class="diff-stat del">\u2212' + del + " \u884C</span>" +
+      (add + del === 0 ? '<span class="diff-stat same">\u65E0\u5DEE\u5F02</span>' : "") +
+      "</div>";
+    html += '<div class="diff-body">';
+    let skip = 0;
+    let started = false;
+    for (let i = 0; i < ops.length; i++) {
+      if (!keep[i]) {
+        skip++;
+        continue;
+      }
+      if (skip > 0) {
+        const label = started ? "\u22EF " + skip + " \u884C\u672A\u53D8" : "\u22EF \uFF08\u524D\u9762 " + skip + " \u884C\u672A\u53D8\uFF09";
+        html += '<div class="diff-line gap">' + label + "</div>";
+        skip = 0;
+      }
+      started = true;
+      const o = ops[i];
+      const cls = o.t === "=" ? "ctx" : o.t === "-" ? "del" : "add";
+      const mark = o.t === "=" ? " " : o.t;
+      html += '<div class="diff-line ' + cls + '"><span class="diff-mark">' + mark + '</span><span class="diff-text">' + (esc(o.text) || "\u200B") + "</span></div>";
+    }
+    if (skip > 0) html += '<div class="diff-line gap">\u22EF \uFF08\u540E\u9762 ' + skip + " \u884C\u672A\u53D8\uFF09</div>";
+    html += "</div>";
+    return html;
+  }
+
+  /** 预览某版本（浮层，绝不改文件）；#42 阶段 9：可切换 diff 视图 */
+  function showSnapshotPreview(entry, siblings) {
     closeSnapshotPreview();
     ipc("snapshots.read", { file: entry.file, snapshot: entry.snapshot }, 15e3).then((r) => {
       const ov = document.createElement("div");
@@ -1070,12 +1169,16 @@
       const badge = entry.kind === "ai" ? "AI 存版本" : entry.kind === "manual" ? "手动存版" : "自动快照";
       const msg = entry.message ? " · " + esc(entry.message) : "";
       const canRoll = true;
+      const sibs = Array.isArray(siblings) ? siblings : [];
+      const prev = sibs.filter((x) => x.ts < entry.ts && x.snapshot).sort((x, y) => y.ts - x.ts)[0] || null;
       ov.innerHTML =
         '<div class="snap-box">' +
-        '<div class="snap-head"><span class="snap-title">版本预览 · ' + esc(baseName(entry.file)) + '</span>' +
-        '<span class="snap-meta">' + esc(badge + " · " + when) + msg + '</span>' +
-        '<button class="snap-close" title="关闭 (Esc)">×</button></div>' +
-        '<pre class="snap-body">' + esc((r && r.content) || "(空)") + "</pre>" +
+        '<div class="snap-head"><span class="snap-title">\u7248\u672C\u9884\u89C8 \xB7 ' + esc(baseName(entry.file)) + '</span>' +
+        '<span class="snap-meta">' + esc(badge + " \xB7 " + when) + msg + '</span>' +
+        '<button class="snap-diff" data-diff="cur" title="\u5FEB\u7167 vs \u5F53\u524D\u6587\u4EF6\uFF08\u56DE\u6EDA\u4F1A\u6539\u52A8\u4EC0\u4E48\uFF09">\u4E0E\u5F53\u524D\u5BF9\u6BD4</button>' +
+        '<button class="snap-diff" data-diff="prev" title="\u4E0A\u4E00\u4EFD\u5FEB\u7167 vs \u672C\u4EFD\uFF08\u8FD9\u4E00\u7248\u6539\u4E86\u4EC0\u4E48\uFF09"' + (prev ? "" : " disabled") + ">\u4E0E\u4E0A\u4E00\u7248\u5BF9\u6BD4</button>" +
+        '<button class="snap-close" title="\u5173\u95ED (Esc)">\u00D7</button></div>' +
+        '<div class="snap-bodywrap"><pre class="snap-body">' + esc((r && r.content) || "(\u7A7A)") + "</pre></div>" +
         '<div class="snap-foot">' +
         (canRoll ? '<button class="btn snap-rollback" data-ts="' + entry.ts + '">回滚到此版本</button>' : "") +
         '<span class="snap-hint">回滚会先把当前内容自动备份成新快照（可再回滚回来）</span>' +
@@ -1084,6 +1187,47 @@
         if (e.target === ov) closeSnapshotPreview();
       });
       ov.querySelector(".snap-close").addEventListener("click", closeSnapshotPreview);
+      // #42 阶段 9：diff 视图切换（再点同按钮 = 返回正文预览）
+      const bodyWrap = ov.querySelector(".snap-bodywrap");
+      const curBtn = ov.querySelector('[data-diff=cur]');
+      const prevBtn = ov.querySelector('[data-diff=prev]');
+      const setDiffMode = (mode) => {
+        const active = ov.dataset.diffMode === mode;
+        ov.dataset.diffMode = active ? "" : mode;
+        curBtn.classList.toggle("on", !active && mode === "cur");
+        prevBtn.classList.toggle("on", !active && mode === "prev");
+        if (active) {
+          bodyWrap.innerHTML = '<pre class="snap-body">' + esc((r && r.content) || "(\u7A7A)") + "</pre>";
+          return;
+        }
+        bodyWrap.innerHTML = '<div class="view-state"><div class="view-spinner"></div><div>\u6B63\u5728\u5BF9\u6BD4\u2026</div></div>';
+        const other = mode === "cur"
+          ? ipc("fs.read", { path: entry.file }, 15e3).then((x) => (x && x.text) || "")
+          : prev
+            ? ipc("snapshots.read", { file: prev.file, snapshot: prev.snapshot }, 15e3).then((x) => (x && x.content) || "")
+            : Promise.resolve("");
+        other.then((otherText) => {
+          const ops = mode === "cur"
+            ? diffLines((r && r.content) || "", otherText)
+            : diffLines(prev ? (window.__snapPrevCache && window.__snapPrevCache) || "" : "", (r && r.content) || "");
+          bodyWrap.innerHTML = '<div class="snap-body snap-body-diff">' + renderDiffHtml(ops) + "</div>";
+        }).catch((e2) => {
+          bodyWrap.innerHTML = '<div class="snap-body">\u5BF9\u6BD4\u5931\u8D25\uFF1A' + esc(e2.message || String(e2)) + "</div>";
+        });
+      };
+      curBtn.addEventListener("click", () => setDiffMode("cur"));
+      if (prevBtn) prevBtn.addEventListener("click", () => {
+        if (prevBtn.disabled) return;
+        // 与上一版对比需要上一版的正文：先取回来再进 diff（缓存避免重复拉）
+        if (!window.__snapPrevCache) {
+          ipc("snapshots.read", { file: prev.file, snapshot: prev.snapshot }, 15e3).then((x) => {
+            window.__snapPrevCache = (x && x.content) || "";
+            setDiffMode("prev");
+          }).catch(() => setDiffMode("prev"));
+        } else {
+          setDiffMode("prev");
+        }
+      });
       const rb = ov.querySelector(".snap-rollback");
       if (rb) {
         rb.addEventListener("click", () => {
@@ -1125,6 +1269,7 @@
   function closeSnapshotPreview() {
     const ov = document.getElementById("snap-preview");
     if (ov) ov.remove();
+    window.__snapPrevCache = null; // 上一版正文缓存随浮层失效
   }
   function renderHistoryView(host) {
     if (!state.recent.length) {
@@ -1204,7 +1349,7 @@
         if (e.target.closest("[data-act=save-version]")) return;
         const ts = Number(el.dataset.snap);
         const entry = state.snapshots.entries.find((x) => x.ts === ts);
-        if (entry) showSnapshotPreview(entry);
+        if (entry) showSnapshotPreview(entry, state.snapshots.entries);
       });
     });
     host.querySelectorAll("[data-act=save-version]").forEach((btn) => {

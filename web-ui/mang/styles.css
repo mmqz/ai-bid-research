@@ -2263,3 +2263,119 @@ html[data-chrome="native"][data-maximized="1"] #app {
 #snap-preview .snap-rollback:hover:not(:disabled) {
   background: rgba(180, 35, 24, .08);
 }
+
+/* ============ #42 阶段 9：md 层 diff 视图（类 git diff） ============ */
+.snap-diff {
+  flex: 0 0 auto;
+  border: 1px solid var(--border, #d0d7de);
+  background: transparent;
+  color: var(--text-muted, #6a737d);
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.snap-diff:hover:not(:disabled) {
+  background: var(--bg-hover, rgba(110, 118, 129, .15));
+  color: var(--text, #1f2328);
+}
+
+.snap-diff.on {
+  background: rgba(29, 78, 216, .12);
+  border-color: rgba(29, 78, 216, .45);
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.snap-diff:disabled {
+  opacity: .4;
+  cursor: default;
+}
+
+.snap-bodywrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.snap-bodywrap .view-state {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-muted, #6a737d);
+  font-size: 13px;
+}
+
+.snap-body.snap-body-diff {
+  display: block;
+  padding: 0;
+  font: 12px/1.7 ui-monospace, Consolas, "Courier New", monospace;
+  white-space: pre;
+  overflow: auto;
+}
+
+.diff-summary {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: 10px;
+  padding: 7px 14px;
+  background: var(--bg-side, #f6f8fa);
+  border-bottom: 1px solid var(--border, #d0d7de);
+  font-size: 12px;
+}
+
+.diff-stat.add { color: #1a7f37; font-weight: 600; }
+.diff-stat.del { color: #b42318; font-weight: 600; }
+.diff-stat.same { color: var(--text-muted, #6a737d); }
+
+.diff-line {
+  display: flex;
+  align-items: flex-start;
+  min-height: 20px;
+  padding: 0 6px 0 0;
+}
+
+.diff-mark {
+  flex: 0 0 34px;
+  text-align: center;
+  color: var(--text-muted, #6a737d);
+  user-select: none;
+}
+
+.diff-text {
+  flex: 1 1 auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding-right: 10px;
+}
+
+.diff-line.ctx { color: var(--text, #1f2328); }
+
+.diff-line.del {
+  background: rgba(180, 35, 24, .09);
+}
+
+.diff-line.del .diff-mark { color: #b42318; font-weight: 700; }
+
+.diff-line.add {
+  background: rgba(26, 127, 55, .1);
+}
+
+.diff-line.add .diff-mark { color: #1a7f37; font-weight: 700; }
+
+.diff-line.gap {
+  justify-content: center;
+  color: var(--text-muted, #6a737d);
+  background: var(--bg-side, #f6f8fa);
+  font-size: 11px;
+  padding: 2px 0;
+  user-select: none;
+}

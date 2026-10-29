@@ -23,8 +23,30 @@ await esbuild.build({
   },
 });
 
-// 静态资产拷贝（index.html——入口页）
+// 静态资产拷贝（index.html——入口页；dev-bootstrap.json——Stage 2 契约测试夹具）
 cpSync('index.html', 'dist/index.html');
+cpSync('dev-bootstrap.json', 'dist/dev-bootstrap.json');
+
+// test-bootstrap.html：index.html + 宿主注入模拟（同步装载 dev-bootstrap.json
+// 成 __mangBootstrap.data 后再走 module app.js）。构建期从 index.html 生成——
+// 骨架永不双份漂移。dev-bootstrap.json 的 tree 段与 mang-app workspace.rs
+// 的 bootstrap_schema_contract_with_web_ui 测试同 JSON（两端契约联动锚）。
+import { readFileSync, writeFileSync } from 'fs';
+const inject = `<script>
+  var __x = new XMLHttpRequest();
+  __x.open('GET', 'dev-bootstrap.json', false);
+  __x.send(null);
+  if (__x.status === 200) {
+    window.__mangBootstrap = { data: JSON.parse(__x.responseText), onMessage: null };
+  }
+</script>
+`;
+const idx = readFileSync('index.html', 'utf8');
+writeFileSync(
+  'dist/test-bootstrap.html',
+  idx.replace('<script type="module" src="app.js"></script>',
+    inject + '<script type="module" src="app.js"></script>'),
+);
 
 // wasm pkg 产物整体拷贝（在场时）
 if (existsSync('pkg/mdcore_wasm_bg.wasm')) {

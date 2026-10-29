@@ -1,0 +1,28 @@
+{
+  "workspace": {
+    "root": "/workspace/电力投标项目A",
+    "tree": [
+      {
+        "kind": "dir",
+        "name": "项目A",
+        "path": "项目A",
+        "children": [
+          { "kind": "file", "name": "招标文件.docx", "path": "项目A/招标文件.docx", "type": "doc" },
+          { "kind": "file", "name": "报价.xlsx", "path": "项目A/报价.xlsx", "type": "sheet" }
+        ]
+      },
+      { "kind": "file", "name": "评分细则.pdf", "path": "评分细则.pdf", "type": "pdf" },
+      { "kind": "file", "name": "数据.bin", "path": "数据.bin", "type": "other" }
+    ],
+    "truncated": false,
+    "dir_count": 1,
+    "file_count": 4
+  },
+  "recent": {
+    "entries": [
+      { "path": "项目A/招标文件.docx", "name": "招标文件.docx", "opened_at": 1792000000 },
+      { "path": "技术标.md", "name": "技术标.md", "opened_at": 1791900000 }
+    ]
+  },
+  "autosnapInterval": 30
+}

@@ -429,6 +429,44 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
+    /// Stage 2 数据契约锚定：Rust serde 输出 = web-ui `layout.ts` 消费面。
+    /// web 侧测试（test-bootstrap.html + dev-bootstrap.json）用同一 JSON——
+    /// 两端任何一漂移此测试即红。
+    #[test]
+    fn bootstrap_schema_contract_with_web_ui() {
+        let tree = vec![
+            TreeNode::Dir {
+                name: "项目A".to_string(),
+                path: "项目A".to_string(),
+                children: vec![
+                    TreeNode::File {
+                        name: "招标文件.docx".to_string(),
+                        path: "项目A/招标文件.docx".to_string(),
+                        ftype: FileType::Doc,
+                    },
+                    TreeNode::File {
+                        name: "报价.xlsx".to_string(),
+                        path: "项目A/报价.xlsx".to_string(),
+                        ftype: FileType::Sheet,
+                    },
+                ],
+            },
+            TreeNode::File {
+                name: "评分细则.pdf".to_string(),
+                path: "评分细则.pdf".to_string(),
+                ftype: FileType::Pdf,
+            },
+            TreeNode::File {
+                name: "数据.bin".to_string(),
+                path: "数据.bin".to_string(),
+                ftype: FileType::Other,
+            },
+        ];
+        let json = serde_json::to_string(&tree).unwrap();
+        let expected = r#"[{"kind":"dir","name":"项目A","path":"项目A","children":[{"kind":"file","name":"招标文件.docx","path":"项目A/招标文件.docx","type":"doc"},{"kind":"file","name":"报价.xlsx","path":"项目A/报价.xlsx","type":"sheet"}]},{"kind":"file","name":"评分细则.pdf","path":"评分细则.pdf","type":"pdf"},{"kind":"file","name":"数据.bin","path":"数据.bin","type":"other"}]"#;
+        assert_eq!(json, expected, "web-ui layout.ts TreeNode 接口的 Rust 侧锚");
+    }
+
     #[test]
     fn resolve_workspace_forms() {
         let d = tmpdir("resolve");

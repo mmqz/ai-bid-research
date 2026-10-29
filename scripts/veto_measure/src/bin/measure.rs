@@ -165,10 +165,15 @@ fn main() {
             }
         }
         // REQ 预计算：拼接文本 + 各 anchor 规范化
+        // #52 FP 归因面：clause_no（分类路径推断：前附表-N/表-N/编号/None）
+        // + locator + veto_lexicon 判定面回放（is_veto/is_list_item/...）
         struct R {
             joined: String,
             anchors: Vec<String>,
             cat: String,
+            clause_no: Option<String>,
+            loc: String,
+            raw_head: String,
         }
         let rs: Vec<R> = reqs
             .iter()
@@ -176,6 +181,9 @@ fn main() {
                 joined: norm(&r.anchors.iter().map(|a| a.excerpt.as_str()).collect::<String>()),
                 anchors: r.anchors.iter().map(|a| norm(&a.excerpt)).collect(),
                 cat: r.category.clone(),
+                clause_no: r.clause_no.clone(),
+                loc: r.anchors.first().map(|a| a.locator.clone()).unwrap_or_default(),
+                raw_head: r.anchors.first().map(|a| a.excerpt.clone()).unwrap_or_default(),
             })
             .collect();
 
@@ -258,9 +266,20 @@ fn main() {
             if tp {
                 veto_tp += 1;
             } else {
+                // #52 归因诊断（veto_lexicon 判定面回放 + 路径推断字段）
+                use bid_parse::veto_lexicon as vl;
                 fp_list.push(json!({
                     "file": name,
                     "joined": r.joined.chars().take(120).collect::<String>(),
+                    "clause_no": r.clause_no,
+                    "loc": r.loc,
+                    "diag": {
+                        "veto_hit": vl::is_veto(&r.joined),
+                        "list_item": vl::is_list_item(r.anchors.first().map(|s| s.as_str()).unwrap_or("")),
+                        "review_std": vl::is_review_standard(&r.joined),
+                        "opens_review": vl::opens_review_context(&r.joined),
+                        "qual": vl::is_qual(&r.joined),
+                    },
                 }));
             }
         }

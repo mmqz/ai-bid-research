@@ -1,0 +1,24 @@
+[package]
+name = "veto-gt"
+version = "0.1.0"
+edition = "2021"
+description = "issue #35 第一步：否决项标注集辅助工具——块流 dump + 宽模式候选池（标注员裁决用，不修改 bidcore 任何源码）"
+publish = false
+
+[dependencies]
+bid-parse = { path = "../../bidcore/crates/bid-parse" }
+bid-engine = { path = "../../bidcore/crates/bid-engine" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = 2
+strip = true
+
+[[bin]]
+name = "veto-gt-dump"
+path = "src/bin/dump.rs"
+
+[[bin]]
+name = "veto-gt-baseline"
+path = "src/bin/baseline.rs"

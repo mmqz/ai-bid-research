@@ -14,6 +14,7 @@ wry = "0.57"
 # 直链 bidcore（方案 A：不经 MCP 层）
 bid-domain = { path = "../bid-domain" }
 bid-tools = { path = "../bid-tools" }
+mang-snap = { path = "../mang-snap" }
 serde_json = "1"
 # 系统文件对话框（同步 API，主线程调用）。关闭默认的 xdg-portal/wayland，
 # Windows 只用 Win32 COM（IFileOpenDialog），不会引入 Linux 依赖。

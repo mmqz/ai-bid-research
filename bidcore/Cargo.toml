@@ -8,6 +8,7 @@ members = [
     "crates/bid-grade",
     "crates/bid-mcp",
     "crates/bid-engine",
+    "crates/mang-snap",
 ]
 
 [workspace.package]

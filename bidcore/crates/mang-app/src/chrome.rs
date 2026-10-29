@@ -22,7 +22,7 @@
 
 #[cfg(windows)]
 mod imp {
-    use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicI32, AtomicIsize, Ordering};
 
     use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
     use windows::Win32::Graphics::Gdi::{ClientToScreen, ScreenToClient};
@@ -30,8 +30,8 @@ mod imp {
     use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
     use windows::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
     use windows::Win32::UI::WindowsAndMessaging::{
-        ChildWindowFromPointEx, GetClassNameW, GetWindowLongW, GetWindowRect,
-        IsWindowVisible, PostMessageW, SendMessageW, SetWindowLongW,
+        ChildWindowFromPointEx, EnumChildWindows, GetClassNameW, GetCursorPos, GetWindowLongW, GetWindowRect,
+        PostMessageW, SendMessageW, SetWindowLongW,
         SetWindowPos, ShowWindow, CWP_SKIPDISABLED, CWP_SKIPINVISIBLE, CWP_SKIPTRANSPARENT,
         GWL_STYLE, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCAPTION, HTCLIENT, HTLEFT, HTRIGHT,
         HTTOP, HTTOPLEFT, HTTOPRIGHT, SC_CLOSE, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE,
@@ -57,9 +57,99 @@ mod imp {
             if ok {
                 // 子类挂上之前窗口已经建好了，这里按当前状态补一次
                 apply_workarea(hwnd);
+                // 给 WebView 那一层挂命中转发（见 hit_forward_proc_）
+                hook_webview_layers(hwnd);
             }
             ok
         }
+    }
+
+    /// 供 main.rs 在窗口显示后调一次：WebView2 的子窗口是异步建好的，
+    /// install 时可能还没出现，这里补挂。幂等。
+    pub fn refresh_webview_hook(hwnd_raw: isize) {
+        let hwnd = HWND(hwnd_raw as _);
+        unsafe {
+            hook_webview_layers(hwnd);
+        }
+    }
+
+    const WEBVIEW_SUBCLASS_ID: usize = 0x4D41_4E49;
+    /// WebView 那一层窗口（WRY_WEBVIEW / Chrome_WidgetWin_* / Render）都挂上同一个子类；
+    /// 记住主窗口句柄，供转发时算答案。
+    static MAIN_HWND: AtomicIsize = AtomicIsize::new(0);
+
+    /// 需要挂子类的窗口列表（缓存，避免每次都用 EnumChildWindows）
+    static HOOKED: std::sync::Mutex<Vec<isize>> = std::sync::Mutex::new(Vec::new());
+
+    fn hook_webview_layers(hwnd: HWND) {
+        MAIN_HWND.store(hwnd.0 as isize, Ordering::SeqCst);
+        // WebView 是异步建好的：每次调用都重新枚举，把新出现的层补挂上（子类幂等）
+        unsafe {
+            let mut found: Vec<HWND> = Vec::new();
+            let _ = EnumChildWindows(
+                Some(hwnd),
+                Some(collect_webview_layers),
+                LPARAM(&mut found as *mut Vec<HWND> as isize),
+            );
+            let mut hooked = HOOKED.lock().unwrap_or_else(|e| e.into_inner());
+            for h in found {
+                let key = h.0 as isize;
+                if hooked.contains(&key) {
+                    continue;
+                }
+                if SetWindowSubclass(h, Some(hit_forward_proc_), WEBVIEW_SUBCLASS_ID, 0).as_bool() {
+                    hooked.push(key);
+                }
+            }
+        }
+    }
+
+    unsafe extern "system" fn collect_webview_layers(child: HWND, data: LPARAM) -> windows::core::BOOL {
+        unsafe {
+            let list = &mut *(data.0 as *mut Vec<HWND>);
+            let mut cls = [0u16; 64];
+            let n = GetClassNameW(child, &mut cls);
+            let name = String::from_utf16_lossy(&cls[..n.max(0) as usize]);
+            // 只收 WebView 那几层：宿主 + Chromium 的容器 + 渲染窗口
+            if name == "WRY_WEBVIEW"
+                || name == "Chrome_WidgetWin_0"
+                || name == "Chrome_WidgetWin_1"
+                || name == "Chrome_RenderWidgetHostHWND"
+            {
+                list.push(child);
+            }
+        }
+        windows::core::BOOL(1)
+    }
+
+    /// WebView 层的命中转发。
+    ///
+    /// 这是「边缘不能缩放 / 标题栏顶部不能拖高」的真正解法：
+    /// 鼠标永远落在 WebView 那几层上（它铺满整个客户区），系统先问它们，
+    /// 它们一律答 HTCLIENT(1)，于是主窗口的 hit_test 根本没机会说话。
+    ///
+    /// 办法：在这几层的窗口过程里，如果主窗口认为「这里是边 / 标题带」，
+    /// 就直接返回主窗口的答案（HTLEFT / HTTOP / HTCAPTION …），
+    /// 系统拿到非 HTCLIENT 就会按非客户区处理 —— 缩放和拖动都会进原生循环。
+    /// 主窗口认为是 HTCLIENT 的，保持子窗口自己原来的答案（不影响页面里的点击）。
+    unsafe extern "system" fn hit_forward_proc_(
+        hwnd: HWND,
+        msg: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+        id: usize,
+        data: usize,
+    ) -> LRESULT {
+        if msg == WM_NCHITTEST {
+            let main = HWND(MAIN_HWND.load(Ordering::SeqCst) as *mut _);
+            if !main.0.is_null() {
+                let ours = unsafe { hit_test(main, lparam) };
+                if ours.0 != HTCLIENT as isize {
+                    return ours;
+                }
+            }
+        }
+        unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
     }
 
     /// 注册「最大化状态变化」回调（双击标题栏时 UI 的按钮图标要跟着换）
@@ -157,13 +247,25 @@ mod imp {
         let sx = (lparam.0 & 0xFFFF) as u16 as i16 as i32;
         let sy = ((lparam.0 >> 16) & 0xFFFF) as u16 as i16 as i32;
         let wr = hit_rect(hwnd);
-        // 先算左右下三条边（顶边里的「上边缘缩放」最后再补，见下）
         let maximized = IS_MAXED.load(Ordering::Relaxed);
+
+        // ① 四条边 / 四个角优先，**包括顶边**。
+        //    Win11 的原生窗口就是这样：标题栏最上面几像素是缩放热区，再往下才是拖动区。
+        //    之前把标题带排在顶边前面，导致标题栏顶部 5px 永远返回 HTCAPTION，
+        //    上边缘完全拖不动（用户报的「标题栏不能调边缘」就是这条）。
         if !maximized {
             let b = border_px(hwnd);
             let left = sx - wr.left < b;
             let right = wr.right - sx <= b;
+            let top = sy - wr.top < b;
             let bottom = wr.bottom - sy <= b;
+            let corner = |a: bool, c: bool| a && c;
+            if top && corner(left, true) {
+                return LRESULT(HTTOPLEFT as isize);
+            }
+            if top && corner(right, true) {
+                return LRESULT(HTTOPRIGHT as isize);
+            }
             if bottom && left {
                 return LRESULT(HTBOTTOMLEFT as isize);
             }
@@ -176,53 +278,34 @@ mod imp {
             if right {
                 return LRESULT(HTRIGHT as isize);
             }
+            if top {
+                return LRESULT(HTTOP as isize);
+            }
             if bottom {
                 return LRESULT(HTBOTTOM as isize);
             }
         }
-        // 标题带优先于「顶边缩放」：Win11 把可缩放边框叠在标题栏上，
-        // 顶边 5px 既要能拖高，也要能当标题栏双击 —— 双击需要 HTCAPTION，
-        // 所以整条标题带（含最上面几像素）都按 HTCAPTION 处理。
-        // 拖高改走左右两侧的上角（HTTOPLEFT / HTTOPRIGHT）和两侧边。
+        // ② 标题带（顶边那 5px 已被上面吃掉，剩下的是纯拖动区）
         if unsafe { in_caption_band(hwnd, sx, sy) } {
             return LRESULT(HTCAPTION as isize);
-        }
-        if !maximized {
-            let b = border_px(hwnd);
-            let left = sx - wr.left < b;
-            let right = wr.right - sx <= b;
-            let top = sy - wr.top < b;
-            if top && left {
-                return LRESULT(HTTOPLEFT as isize);
-            }
-            if top && right {
-                return LRESULT(HTTOPRIGHT as isize);
-            }
-            if top {
-                return LRESULT(HTTOP as isize);
-            }
         }
         LRESULT(HTCLIENT as isize)
     }
 
-    /// 客户区对齐：把「有没有 WS_THICKFRAME」对齐到窗口可见性。
+    /// 客户区对齐 + 保证窗口始终保留缩放能力。
     ///
-    /// 去边框窗口必须在 NC 计算期间带 WS_THICKFRAME，DWM 才会给阴影和边缘；
-    /// 但可见状态下带着它，WebView 就会比客户区小一格、边缘还会被画出 1px 边。
-    /// 所以：**不可见时挂上（让 DWM 把尺寸/边缘算完整），可见时摘掉（整窗 = 客户区）**。
+    /// 历史教训（别再改回去）：这里曾经是 `want_thick = !visible` —— 窗口一显示就
+    /// 摘掉 WS_THICKFRAME，理由是「去边框窗口带着它边缘会被画 1px」。这是错的：
+    ///   · WS_THICKFRAME 就是 WS_SIZEBOX，是系统执行原生缩放的依据；摘掉之后
+    ///     即使 hit_test 返回 HTLEFT/HTRIGHT，系统也没有可拉伸的边框可拖。
+    ///   · WM_NCCALCSIZE 已由 tao（with_undecorated_shadow(false)）做成
+    ///     「整窗 = 客户区」，带着 WS_THICKFRAME 并不会让客户区缩一条。
+    /// 所以现在：**始终保留 WS_THICKFRAME**，这里只做外观同步。
     unsafe fn apply_workarea(hwnd: HWND) {
-        let visible = unsafe { IsWindowVisible(hwnd) }.as_bool();
         let style = unsafe { GetWindowLongW(hwnd, GWL_STYLE) } as u32;
-        let has_thick = style & WS_THICKFRAME.0 != 0;
-        let want_thick = !visible;
-        if has_thick != want_thick {
-            let next = if want_thick {
-                style | WS_THICKFRAME.0
-            } else {
-                style & !WS_THICKFRAME.0
-            };
+        if style & WS_THICKFRAME.0 == 0 {
             unsafe {
-                let _ = SetWindowLongW(hwnd, GWL_STYLE, next as i32);
+                let _ = SetWindowLongW(hwnd, GWL_STYLE, (style | WS_THICKFRAME.0) as i32);
                 let _ = SetWindowPos(
                     hwnd,
                     None,
@@ -235,6 +318,38 @@ mod imp {
             }
         }
         sync_frame(hwnd);
+    }
+    /// 找主窗口下的 WRY_WEBVIEW 子窗口
+    fn webview_child(hwnd: HWND) -> Option<HWND> {
+        use windows::Win32::UI::WindowsAndMessaging::{EnumChildWindows, FindWindowExW};
+        let mut found: Option<HWND> = None;
+        unsafe {
+            // wry 的 WebView 宿主窗口类名固定是 WRY_WEBVIEW
+            let wide: Vec<u16> = "WRY_WEBVIEW\0".encode_utf16().collect();
+            let direct = FindWindowExW(Some(hwnd), None, windows::core::PCWSTR(wide.as_ptr()), None)
+                .unwrap_or_default();
+            if !direct.is_invalid() && !direct.0.is_null() {
+                return Some(direct);
+            }
+            let _ = EnumChildWindows(
+                Some(hwnd),
+                Some(enum_find_wry),
+                LPARAM(&mut found as *mut Option<HWND> as isize),
+            );
+        }
+        found
+    }
+
+    unsafe extern "system" fn enum_find_wry(child: HWND, data: LPARAM) -> windows::core::BOOL {
+        let slot = unsafe { &mut *(data.0 as *mut Option<HWND>) };
+        let mut cls = [0u16; 64];
+        let n = unsafe { GetClassNameW(child, &mut cls) };
+        let name = String::from_utf16_lossy(&cls[..n.max(0) as usize]);
+        if name == "WRY_WEBVIEW" {
+            *slot = Some(child);
+            return windows::core::BOOL(0); // 找到就停
+        }
+        windows::core::BOOL(1)
     }
 
     /// 子窗口里，除了 WebView 自己的宿主链，别再去问。
@@ -378,17 +493,13 @@ mod imp {
             // 建好 / 显隐切换时对齐一次客户区（见 apply_workarea）
             WM_CREATE | WM_SHOWWINDOW => {
                 unsafe { apply_workarea(hwnd) };
-                unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
+                unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) };
+                LRESULT(0)
             }
             WM_WINDOWPOSCHANGED | WM_DPICHANGED | WM_NCACTIVATE => {
                 sync_frame(hwnd);
-                unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
-            }
-            WM_NCCALCSIZE => {
-                if let Some(r) = pre_filter(hwnd, msg, wparam, lparam) {
-                    return r;
-                }
-                unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
+                let r = unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) };
+                r
             }
             WM_NCHITTEST => unsafe { hit_test_passthrough(hwnd, lparam) },
             // 鼠标按下：标题带空白处 → 交还系统拖动（细节见 try_dispatch）
@@ -429,7 +540,6 @@ mod imp {
                     let _ = PostMessageW(Some(hwnd), WM_SYSCOMMAND, WPARAM(SC_CLOSE as usize), LPARAM(0));
                     true
                 }
-                _ => false,
                 // ── 标题栏拖动（JS 侧 mousedown 触发）──────────────────
                 // 为什么走 IPC 而不是只靠 WM_NCHITTEST：鼠标永远落在 WebView
                 // 子窗口上，父窗口的 hit_test 根本没机会回答；UI 侧知道哪里
@@ -437,12 +547,23 @@ mod imp {
                 "drag" => {
                     // ReleaseCapture 必须在发起拖动前调，否则 SendMessage 会被忽略
                     let _ = ReleaseCapture();
-                    // WM_NCLBUTTONDOWN + HTCAPTION = 系统进入「拖动窗口」模态循环
+                    // WM_NCLBUTTONDOWN + HTCAPTION = 系统进入「拖动窗口」模态循环。
+                    // lParam 必须是**屏幕坐标**（系统据此摆放拖动起点）；传 0 等于把
+                    // 起点当成屏幕左上角，拖动会贴着 (0,0) 起跳。取不到光标时退回窗口中心。
+                    let mut pt = POINT { x: 0, y: 0 };
+                    if GetCursorPos(&mut pt).is_err() {
+                        let mut wr = RECT::default();
+                        let _ = GetWindowRect(hwnd, &mut wr);
+                        pt = POINT {
+                            x: (wr.left + wr.right) / 2,
+                            y: (wr.top + wr.bottom) / 2,
+                        };
+                    }
                     let _ = SendMessageW(
                         hwnd,
                         WM_NCLBUTTONDOWN,
                         Some(WPARAM(HTCAPTION as usize)),
-                        Some(LPARAM(0)),
+                        Some(LPARAM(((pt.y as isize) << 16) | ((pt.x as isize) & 0xFFFF))),
                     );
                     true
                 }
@@ -451,6 +572,9 @@ mod imp {
                     toggle_maximize(hwnd, !IS_MAXED.load(Ordering::Relaxed));
                     true
                 }
+                // ⚠ 通配符必须放最后：Rust 从上往下匹配，在这里写 _ => false
+                //   会把下面所有臂都变成死代码（drag / toggleMaximize 曾经就这样失效）。
+                _ => false,
             }
         }
     }
@@ -530,4 +654,38 @@ pub fn is_maximized(_h: isize) -> bool {
 #[cfg(not(windows))]
 pub fn maximized_script(_m: bool) -> String {
     String::new()
+}
+#[cfg(test)]
+mod tests {
+    /// 回归测试：window.action 的每个合法动作都必须能被 window_action 认出来。
+    ///
+    /// 背景：曾经把 `_ => false` 写在 `"drag"` / `"toggleMaximize"` 前面，
+    /// Rust 从上往下匹配，兜底把它俩吃掉了 —— 拖动和双击最大化整条失效，
+    /// 而 IPC 层还回了一个「成功」的响应（applied=false），界面上毫无报错。
+    ///
+    /// 这里不加 cfg(windows)：非 Windows 上 window_action 是恒 false 的桩，
+    /// 所以断言分平台写。
+    #[test]
+    fn window_action_accepts_all_documented_actions() {
+        // 和 main.rs 里 window_cmd 的白名单保持一致（改这里也要改那边）
+        let actions = [
+            "minimize",
+            "maximize",
+            "restore",
+            "toggle",
+            "close",
+            "drag",
+            "toggleMaximize",
+        ];
+        // 未知动作必须被拒绝（这条在 Windows / 非 Windows 上都成立）
+        assert!(!super::window_action(0, "definitely_not_an_action"));
+        #[cfg(windows)]
+        {
+            // 传 0 句柄时这些动作会走到真实的 Win32 调用并返回 true；
+            // 这里只验证「分支可达」，不验证其副作用。
+            for a in actions {
+                assert!(super::window_action(0, a), "动作 {a} 没有匹配到任何分支（检查 match 里 _ => false 的位置）");
+            }
+        }
+    }
 }

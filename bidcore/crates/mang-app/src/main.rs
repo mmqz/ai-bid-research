@@ -653,6 +653,11 @@ fn run_loop(
                 *control_flow = ControlFlow::ExitWithCode(0);
             }
             Event::UserEvent(UserEvent::Wake) => {
+                // WebView 各层是异步出现的：每次唤醒补挂一次命中转发子类（幂等）
+                #[cfg(windows)]
+                if let Some(h) = current_hwnd() {
+                    chrome::refresh_webview_hook(h);
+                }
                 // 主线程跑对话框（阻塞用户的模态，跑完继续）
                 let jobs: Vec<MainJob> = {
                     let mut q = dialog_queue.lock().unwrap_or_else(|e| e.into_inner());

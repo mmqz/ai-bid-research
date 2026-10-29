@@ -1,0 +1,249 @@
+{
+ "schema": "veto-gt-baseline-report/1",
+ "overall": {
+  "gt_true_total": 1212,
+  "reqs_total": 8687,
+  "extraction_recall_L1": 0.3861,
+  "veto_class_recall_L2": 0.0429,
+  "precision_veto_cls": 0.5047,
+  "lexicon_recall_proxy": 0.2145,
+  "lexicon_precision": 0.6118,
+  "reqs_veto_cls": 107,
+  "reqs_lexicon_hit": 425
+ },
+ "pdf_group": {
+  "gt_true": 453,
+  "extraction_recall": 0.2848,
+  "veto_class_recall": 0.1148
+ },
+ "docx_group": {
+  "gt_true": 759,
+  "extraction_recall": 0.4466,
+  "veto_class_recall": 0.0
+ },
+ "by_file": {
+  "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf": {
+   "gt_true": 74,
+   "reqs": 1447,
+   "extraction_recall": 0.2162,
+   "veto_class_recall": 0.0676,
+   "cat_coverage": {
+    "资格条件": 6,
+    "否决项": 5,
+    "其他": 5,
+    "评分项": 1
+   },
+   "missed_n": 58,
+   "req_veto_cls": 10,
+   "req_veto_cls_hit_gt": 5,
+   "req_lexhit": 29,
+   "req_lexhit_hit_gt": 9
+  },
+  "A-04_某水利工程施工标段_施工招标文件.pdf": {
+   "gt_true": 64,
+   "reqs": 902,
+   "extraction_recall": 0.3594,
+   "veto_class_recall": 0.1406,
+   "cat_coverage": {
+    "其他": 8,
+    "资格条件": 6,
+    "否决项": 9,
+    "评分项": 1
+   },
+   "missed_n": 41,
+   "req_veto_cls": 17,
+   "req_veto_cls_hit_gt": 10,
+   "req_lexhit": 32,
+   "req_lexhit_hit_gt": 13
+  },
+  "A-05_伊犁州奎屯东郊水库质量检测_招标文件.pdf": {
+   "gt_true": 83,
+   "reqs": 346,
+   "extraction_recall": 0.3373,
+   "veto_class_recall": 0.1566,
+   "cat_coverage": {
+    "其他": 8,
+    "否决项": 13,
+    "资格条件": 2,
+    "评分项": 5
+   },
+   "missed_n": 55,
+   "req_veto_cls": 22,
+   "req_veto_cls_hit_gt": 13,
+   "req_lexhit": 32,
+   "req_lexhit_hit_gt": 20
+  },
+  "A-15_兰溪双峰岭水库勘察设计_招标文件.pdf": {
+   "gt_true": 49,
+   "reqs": 175,
+   "extraction_recall": 0.3061,
+   "veto_class_recall": 0.1837,
+   "cat_coverage": {
+    "其他": 5,
+    "否决项": 9,
+    "资格条件": 1
+   },
+   "missed_n": 34,
+   "req_veto_cls": 17,
+   "req_veto_cls_hit_gt": 9,
+   "req_lexhit": 22,
+   "req_lexhit_hit_gt": 14
+  },
+  "A-16_郏县老虎洞水库监理_招标文件.pdf": {
+   "gt_true": 38,
+   "reqs": 232,
+   "extraction_recall": 0.2895,
+   "veto_class_recall": 0.0526,
+   "cat_coverage": {
+    "资格条件": 7,
+    "否决项": 2,
+    "其他": 1,
+    "评分项": 1
+   },
+   "missed_n": 27,
+   "req_veto_cls": 7,
+   "req_veto_cls_hit_gt": 2,
+   "req_lexhit": 8,
+   "req_lexhit_hit_gt": 5
+  },
+  "A-17_喀什噶尔河灌区信息化I标_招标文件.pdf": {
+   "gt_true": 79,
+   "reqs": 1241,
+   "extraction_recall": 0.2532,
+   "veto_class_recall": 0.1013,
+   "cat_coverage": {
+    "其他": 8,
+    "否决项": 8,
+    "资格条件": 4,
+    "评分项": 1
+   },
+   "missed_n": 59,
+   "req_veto_cls": 16,
+   "req_veto_cls_hit_gt": 9,
+   "req_lexhit": 37,
+   "req_lexhit_hit_gt": 14
+  },
+  "A-18_塔里木河希尼尔水库监理I标二次_招标文件.pdf": {
+   "gt_true": 66,
+   "reqs": 542,
+   "extraction_recall": 0.2424,
+   "veto_class_recall": 0.0909,
+   "cat_coverage": {
+    "资格条件": 4,
+    "否决项": 6,
+    "其他": 8
+   },
+   "missed_n": 50,
+   "req_veto_cls": 14,
+   "req_veto_cls_hit_gt": 6,
+   "req_lexhit": 26,
+   "req_lexhit_hit_gt": 13
+  },
+  "A-BJ2025-附件1-施工.docx": {
+   "gt_true": 148,
+   "reqs": 780,
+   "extraction_recall": 0.4054,
+   "veto_class_recall": 0.0,
+   "cat_coverage": {
+    "其他": 18,
+    "评分项": 42
+   },
+   "missed_n": 88,
+   "req_veto_cls": 2,
+   "req_veto_cls_hit_gt": 0,
+   "req_lexhit": 48,
+   "req_lexhit_hit_gt": 23
+  },
+  "A-BJ2025-附件2-监理.docx": {
+   "gt_true": 96,
+   "reqs": 408,
+   "extraction_recall": 0.4792,
+   "veto_class_recall": 0.0,
+   "cat_coverage": {
+    "其他": 14,
+    "评分项": 32
+   },
+   "missed_n": 50,
+   "req_veto_cls": 2,
+   "req_veto_cls_hit_gt": 0,
+   "req_lexhit": 28,
+   "req_lexhit_hit_gt": 20
+  },
+  "A-BJ2025-附件3-勘察.docx": {
+   "gt_true": 90,
+   "reqs": 519,
+   "extraction_recall": 0.4667,
+   "veto_class_recall": 0.0,
+   "cat_coverage": {
+    "其他": 12,
+    "评分项": 30
+   },
+   "missed_n": 48,
+   "req_veto_cls": 0,
+   "req_veto_cls_hit_gt": 0,
+   "req_lexhit": 28,
+   "req_lexhit_hit_gt": 20
+  },
+  "A-BJ2025-附件4-设计.docx": {
+   "gt_true": 87,
+   "reqs": 469,
+   "extraction_recall": 0.4828,
+   "veto_class_recall": 0.0,
+   "cat_coverage": {
+    "其他": 12,
+    "评分项": 30
+   },
+   "missed_n": 45,
+   "req_veto_cls": 0,
+   "req_veto_cls_hit_gt": 0,
+   "req_lexhit": 29,
+   "req_lexhit_hit_gt": 20
+  },
+  "A-BJ2025-附件5-全过程咨询.docx": {
+   "gt_true": 92,
+   "reqs": 305,
+   "extraction_recall": 0.5217,
+   "veto_class_recall": 0.0,
+   "cat_coverage": {
+    "其他": 14,
+    "评分项": 34
+   },
+   "missed_n": 44,
+   "req_veto_cls": 0,
+   "req_veto_cls_hit_gt": 0,
+   "req_lexhit": 26,
+   "req_lexhit_hit_gt": 22
+  },
+  "A-BJ2025-附件6-总承包.docx": {
+   "gt_true": 150,
+   "reqs": 816,
+   "extraction_recall": 0.3533,
+   "veto_class_recall": 0.0,
+   "cat_coverage": {
+    "其他": 14,
+    "评分项": 39
+   },
+   "missed_n": 97,
+   "req_veto_cls": 0,
+   "req_veto_cls_hit_gt": 0,
+   "req_lexhit": 45,
+   "req_lexhit_hit_gt": 45
+  },
+  "A-BJ2025-附件7-货物.docx": {
+   "gt_true": 96,
+   "reqs": 505,
+   "extraction_recall": 0.5,
+   "veto_class_recall": 0.0,
+   "cat_coverage": {
+    "其他": 14,
+    "评分项": 34
+   },
+   "missed_n": 48,
+   "req_veto_cls": 0,
+   "req_veto_cls_hit_gt": 0,
+   "req_lexhit": 35,
+   "req_lexhit_hit_gt": 22
+  }
+ },
+ "missed_total": 744
+}

@@ -1,0 +1,44 @@
+[
+ {
+  "file": "doc/A-BJ2025-附件1-施工.docx",
+  "sha256_orig": "04cd79b44b387d76f4254e3228e8372d708e26f6b775c9db31eb87d7f391941e",
+  "sha256_reconverted": "8bbbf3211ba9408d7b28e076702cfd6ae02b347ada692719ccb25785f00adc54",
+  "note": "LO 重转换非字节确定（元数据），内容等价性以 blocks/chars/reqs 三元组对比校验"
+ },
+ {
+  "file": "doc/A-BJ2025-附件2-监理.docx",
+  "sha256_orig": "ad8fa9d095f6ccdafee3918950f024ac3ced54e372d3b885747a4cb356649c23",
+  "sha256_reconverted": "55b25b0b1145f4861c7c7ddbc16fc95b6a9c3a5fa5304d2a2cdd5d98a7f4815c",
+  "note": "LO 重转换非字节确定（元数据），内容等价性以 blocks/chars/reqs 三元组对比校验"
+ },
+ {
+  "file": "doc/A-BJ2025-附件3-勘察.docx",
+  "sha256_orig": "540e034b5068781108b33a292d25fb34e0d0657abf5f7d1bc36adafdfd3e1ce2",
+  "sha256_reconverted": "1913af0ef5b7df748923b471998dc0b1d5c37eebef5ec21092d3a7001b3a4070",
+  "note": "LO 重转换非字节确定（元数据），内容等价性以 blocks/chars/reqs 三元组对比校验"
+ },
+ {
+  "file": "doc/A-BJ2025-附件4-设计.docx",
+  "sha256_orig": "acdac7e874ca80990399b2bbdeabf8a802423d55b535fb9ed6b2fb7f1dd445aa",
+  "sha256_reconverted": "5b89ae3939eac4a8948f58287e8a698d01774a37baed36f26ab293ec2a56efd1",
+  "note": "LO 重转换非字节确定（元数据），内容等价性以 blocks/chars/reqs 三元组对比校验"
+ },
+ {
+  "file": "doc/A-BJ2025-附件5-全过程咨询.docx",
+  "sha256_orig": "e1b33d033e506defc9866d5d1d98e446049b08f05d207e157fe5a871d03b2ab4",
+  "sha256_reconverted": "a2cdec181ea4d4b8c2be9ac5ec2927d9bfd77ea4c930039dfa0c42d14d33eecd",
+  "note": "LO 重转换非字节确定（元数据），内容等价性以 blocks/chars/reqs 三元组对比校验"
+ },
+ {
+  "file": "doc/A-BJ2025-附件6-总承包.docx",
+  "sha256_orig": "29e943396c417d7a0130ac9ad0fad4b5d3b78d7c30b3e0a670f2391320c4ad74",
+  "sha256_reconverted": "2bbbf5344e09a34815fa3b8501deae614f1221610b953877fa60c6d82bcefd6f",
+  "note": "LO 重转换非字节确定（元数据），内容等价性以 blocks/chars/reqs 三元组对比校验"
+ },
+ {
+  "file": "doc/A-BJ2025-附件7-货物.docx",
+  "sha256_orig": "f679cb838d1c2f873b7834d4ed4207f585e74c51cb2d170187a325c12a91edbd",
+  "sha256_reconverted": "9c4549a876c832198bedab6aed4c3407d61215332a02259c046ac9ff165c9465",
+  "note": "LO 重转换非字节确定（元数据），内容等价性以 blocks/chars/reqs 三元组对比校验"
+ }
+]

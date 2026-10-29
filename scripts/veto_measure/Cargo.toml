@@ -1,0 +1,20 @@
+[package]
+name = "veto-measure"
+version = "0.1.0"
+edition = "2021"
+description = "issue #35 第三步前置：可复现测量器——GT true 条款 vs 生产路径 REQ 输出，算 L1 抽取召回 / L2 否决分类召回 / 精确率 / 漏检清单（修复前后同一口径）"
+publish = false
+
+[dependencies]
+bid-parse = { path = "../../bidcore/crates/bid-parse" }
+bid-engine = { path = "../../bidcore/crates/bid-engine" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = 2
+strip = true
+
+[[bin]]
+name = "veto-measure"
+path = "src/bin/measure.rs"

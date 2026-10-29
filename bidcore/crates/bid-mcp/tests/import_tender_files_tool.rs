@@ -14,7 +14,7 @@
 
 use bid_mcp::{dispatch_json, dispatch_with, BidService, ToolCall, ToolReply};
 use bid_domain::ProjectStatus;
-use bid_parse::env_preflight::skip_if_fixture_missing;
+use bid_parse::env_preflight::{skip_if_env_missing, skip_if_fixture_missing};
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -646,6 +646,11 @@ fn pdf_import_routes_engine_with_legacy_fallback() {
     })));
     let pid = r["project_id"].as_str().unwrap().to_string();
     let b1 = fixtures().join("corpus-A/files/B1-设备清单.pdf");
+    // PDF 导入依赖外部工具链（pdftotext/pdftoppm）——无工具环境按 SKIP 机制跳过；
+    // 缺件不是业务失败（issue #9 纪律）。
+    if skip_if_env_missing("pdf_import_routes_engine_with_legacy_fallback", &["pdftotext"]) {
+        return;
+    }
     if skip_if_fixture_missing("pdf_import_routes_engine_with_legacy_fallback", &[&b1]) {
         return;
     }

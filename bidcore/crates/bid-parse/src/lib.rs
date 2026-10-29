@@ -19,6 +19,7 @@ pub mod env_preflight;
 pub mod extract;
 pub mod guard;
 pub mod pdf;
+pub mod veto_lexicon;
 pub mod xlsx;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

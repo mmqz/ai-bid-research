@@ -802,6 +802,7 @@ impl Drop for TmpGuard {
 
 // ---------------------------------------------------------------- 测试（负向为主——T-03/T-04 纪律）
 #[cfg(test)]
+#[cfg(unix)]
 mod tests {
     use super::*;
     use std::io::Write;
@@ -1264,6 +1265,7 @@ mod tests {
 
     // ================= T-04 子进程治理 =================
     // 并行测试共享全局并发席（LIVE_SUBPROCS）——本组测试互斥串行，避免席位数竞态
+    #[cfg(unix)]
     static SUBPROC_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     fn sh(script: &str) -> Command {
@@ -1273,6 +1275,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn subprocess_timeout_kills_and_classifies() {
         let _g = SUBPROC_TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         // sh → sleep 进程组；1.2s 超时必须杀组并分类 Timeout（不是 Success/挂死）
@@ -1285,6 +1288,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn subprocess_output_overflow_kills_fast() {
         let _g = SUBPROC_TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         // yes 无限输出：64KB 上限 → 溢出即时杀（不等 60s 超时——快速失败纪律）
@@ -1296,6 +1300,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn subprocess_nonzero_exit_classified() {
         // P2-6②：全 T-04 测试纳入互斥锁（均触全局并发席，非仅四项）
         let _g = SUBPROC_TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
@@ -1307,6 +1312,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn subprocess_success_roundtrip() {
         let _g = SUBPROC_TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         let out = run_limited(sh("printf 'hello bid'"), Duration::from_secs(10), 4096);
@@ -1317,6 +1323,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn subprocess_spawn_failure_classified() {
         let _g = SUBPROC_TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         let out = run_limited(Command::new("/nonexistent/binary/xyz"), Duration::from_secs(5), 4096);
@@ -1324,6 +1331,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn subprocess_busy_gate_rejects_over_concurrency() {
         let _g = SUBPROC_TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         // 手动占满 4 席（同文件内可访问私有 RAII）→ 第 5 个 run 必须 Busy
@@ -1339,6 +1347,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn subprocess_stderr_flood_drained_not_blocked() {
         let _g = SUBPROC_TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         // R3-P2-4 负向（实测修正版）：256KB stderr。原 take(64KB+1) 读满即停后读线程退出

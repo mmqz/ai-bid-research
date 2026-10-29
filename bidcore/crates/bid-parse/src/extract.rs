@@ -362,27 +362,94 @@ fn category_for(chapter: &str, subsection: &str) -> &'static str {
 /// 主文件（A）与补遗（C）：编号条款段落 + 前附表否决行 + 技术需求参数表。
 /// DOCX 主文件（合成夹具 corpus-A 形态）；PDF 主文件（真实招标文件形态——P2
 /// 评测驱动新增，语义与 DOCX 版一致：章节上下文 → 编号条款抽取）。
+///
+/// P0-B（issue #35）：DOCX 侧补齐 R3-S3-5 优先级链（原仅 PDF 侧实现——
+/// DOCX 组否决分类召回 0.0000，分类信号源整体缺失）：
+/// - 编号段落：veto_lexicon 强否决判定 > 资格面 > 章节上下文映射
+/// - 无编号普通段：命中否决/资格词表 → 抽为 REQ（真实示范文本大量
+///   无编号条款：资格负面清单/审查表导语）
+/// - 语境传播：「下列情形之一的，…否决：」类总括句开启否决语境，
+///   其后列举条目（（N）/N、）继承否决语义，至新编号条款终止
+/// - TableRow：不限前附表——拼接文本命中强否决 → 否决项 REQ
+///   （BJ 示范文本否决条款大量在须知/审查表格内，L1 miss 主体）
 fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize) {
+    use crate::veto_lexicon as vl;
     let mut last_numbered_head: Option<String> = None; // 表格行收养最近的编号段（5.x 参数表上下文）
     let re_clause = Regex::new(r"^(\d+(?:\.\d+)+)\s*").unwrap();
     let re_model = model_regex();
     let re_amount = Regex::new(r"(\d+(?:\.\d+)?)\s*万\s*元").unwrap();
     let re_date = Regex::new(r"\d{4}-\d{2}-\d{2}").unwrap();
     let re_date_cn = Regex::new(r"[〇一二三四五六七八九零]{4}年[〇一二三四五六七八九零]{1,2}月[〇一二三四五六七八九零]{1,3}日").unwrap();
+    // 否决语境（父条款总括句开启；新编号条款/非列举普通段终止）
+    let mut veto_ctx = false;
+    // 表格审查语境（评审标准/资格审查表内行；表切换重置）
+    let mut review_ctx = false;
+    let mut cur_table: Option<String> = None;
 
     for b in &f.blocks {
         match b.kind {
             BlockKind::Para => {
-                if let Some(m) = re_clause.captures(&b.text) {
+                // 表格流结束：审查语境随表终止
+                review_ctx = false;
+                cur_table = None;
+                let t = b.text.trim();
+                if let Some(m) = re_clause.captures(t) {
+                    // 新编号条款：语境终止（本条自身若再开启则重启）
+                    veto_ctx = false;
                     last_numbered_head = Some(m[1].to_string());
                     let (chapter, subsection) = split_locator(&b.locator);
                     let mut params = HashMap::new();
-                    fill_params(&b.text, &re_model, &re_amount, &re_date, &re_date_cn, &mut params);
-                    push_req(reqs, seq, category_for(chapter, subsection), Some(m[1].to_string()),
+                    fill_params(t, &re_model, &re_amount, &re_date, &re_date_cn, &mut params);
+                    // R3-S3-5 优先级链（DOCX 版，对齐 extract_main_pdf）：
+                    // 强否决短语 > 资格面 > 章节上下文——编号否决条款
+                    // （如"3.4.2 …将被否决"）不得落"其他"（漏否决=废标风险）
+                    // P0-B 修订：评标办法章优先评分项。
+                    // 评分细则行常含"否决/资格"字样（"低于成本价的投标将被否决"），
+                    // 若让否决词抢先，评分矩阵真值锚定就崩了（实测 4 -> 1）。
+                    // 章节上下文是分值的权威定位处，优先于句式启发。
+                    let ctx_cat = category_for(chapter, subsection);
+                    let cat = if ctx_cat == "评分项" {
+                        "评分项"
+                    } else if vl::is_veto(t) {
+                        "否决项"
+                    } else if vl::is_qual(t) {
+                        "资格条件"
+                    } else {
+                        ctx_cat
+                    };
+                    push_req(reqs, seq, cat, Some(m[1].to_string()),
                              vec![anchor(f, b)], params, &f.name);
+                    if vl::opens_veto_context(t) {
+                        veto_ctx = true;
+                    }
+                } else if vl::is_placeholder(t) {
+                    // 待填占位（□复选/下划线留白）不抽
+                } else if vl::is_veto(t) {
+                    // 无编号普通段：强否决信号 → 否决项 REQ（真实示范文本
+                    // 大量无编号条款：资格负面清单/审查表导语——L1 修复面）
+                    push_req(reqs, seq, "否决项", None, vec![anchor(f, b)], HashMap::new(), &f.name);
+                    if vl::opens_veto_context(t) {
+                        veto_ctx = true;
+                    }
+                } else if vl::is_qual(t) {
+                    push_req(reqs, seq, "资格条件", None, vec![anchor(f, b)], HashMap::new(), &f.name);
+                    veto_ctx = false;
+                } else if veto_ctx && vl::is_list_item(t) {
+                    // 语境传播：否决总括句后的列举条目（（N）/N、/①）继承否决语义。
+                    // 仅列举标志继承——非列举普通段一律终止（防语境流污染
+                    // 到后续无关条款，修正规则/澄清通知类模板误报面）
+                    push_req(reqs, seq, "否决项", None, vec![anchor(f, b)], HashMap::new(), &f.name);
+                } else {
+                    veto_ctx = false;
                 }
             }
             BlockKind::TableRow => {
+                // 表切换检测（locator 表号变化）
+                let tbl_key = table_key_of(&b.locator);
+                if cur_table.as_deref() != Some(tbl_key.as_str()) {
+                    cur_table = Some(tbl_key);
+                    review_ctx = false;
+                }
                 let joined = b.cells.join("");
                 if b.locator.contains("前附表") && (joined.contains("否决") || b.text.contains("否决")) {
                     // 前附表否决行：条款号 = 前附表-{序号}（序号列为准；缺序号回退 XML 行号）
@@ -392,6 +459,21 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                         .unwrap_or_else(|| row_no_of(&b.locator));
                     push_req(reqs, seq, "否决项", Some(format!("前附表-{item}")),
                              vec![anchor(f, b)], HashMap::new(), &f.name);
+                } else if (vl::is_veto(&joined) || (veto_ctx && vl::is_list_item(&joined)))
+                    && !vl::is_placeholder(&joined) {
+                    // P0-B：表格行否决面扩展（不限前附表）——BJ 示范文本
+                    // 否决条款大量在须知表格/审查表内。条款号 = 行号定位
+                    push_req(reqs, seq, "否决项", Some(format!("表-{}", row_no_of(&b.locator))),
+                             vec![anchor(f, b)], HashMap::new(), &f.name);
+                } else if review_ctx && !joined.trim().is_empty() && joined.chars().count() >= 4
+                    && !vl::is_placeholder(&joined) && vl::is_review_standard(&joined) {
+                    // 审查表条目：评审标准/资格审查表内的行（无否决词的
+                    // 隐含否决面——「不符合评审标准的否决其投标」）
+                    push_req(reqs, seq, "否决项", Some(format!("表-{}", row_no_of(&b.locator))),
+                             vec![anchor(f, b)], HashMap::new(), &f.name);
+                } else if vl::opens_review_context(&joined) || vl::opens_review_context(&b.text) {
+                    // 表格审查语境开启（评审标准表头/资格审查行）
+                    review_ctx = true;
                 } else if (b.locator.contains("技术需求") || b.locator.contains("第五章"))
                     && re_model.is_match(&b.text)
                 {
@@ -525,4 +607,13 @@ fn split_locator(locator: &str) -> (&str, &str) {
 
 fn row_no_of(locator: &str) -> usize {
     locator.rsplit("行").next().and_then(|s| s.trim().parse().ok()).unwrap_or(0)
+}
+
+/// 表格键（locator 的 表N 序号——表切换检测用，P0-B 审查语境隔离）。
+fn table_key_of(locator: &str) -> String {
+    // 「第二章 投标人须知 表1 行41」→「第二章 投标人须知 表1」
+    match locator.find(" 行") {
+        Some(i) => locator[..i].to_string(),
+        None => locator.to_string(),
+    }
 }

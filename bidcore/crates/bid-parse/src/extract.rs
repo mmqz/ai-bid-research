@@ -202,12 +202,19 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                     // R3-S3-5 优先级链（DOCX 版，对齐 extract_main_pdf）：
                     // 强否决短语 > 资格面 > 章节上下文——编号否决条款
                     // （如"3.4.2 …将被否决"）不得落"其他"（漏否决=废标风险）
-                    let cat = if vl::is_veto(t) {
+                    // P0-B 修订：评标办法章优先评分项。
+                    // 评分细则行常含"否决/资格"字样（"低于成本价的投标将被否决"），
+                    // 若让否决词抢先，评分矩阵真值锚定就崩了（实测 4 -> 1）。
+                    // 章节上下文是分值的权威定位处，优先于句式启发。
+                    let ctx_cat = category_for(chapter, subsection);
+                    let cat = if ctx_cat == "评分项" {
+                        "评分项"
+                    } else if vl::is_veto(t) {
                         "否决项"
                     } else if vl::is_qual(t) {
                         "资格条件"
                     } else {
-                        category_for(chapter, subsection)
+                        ctx_cat
                     };
                     push_req(reqs, seq, cat, Some(m[1].to_string()),
                              vec![anchor(f, b)], params, &f.name);

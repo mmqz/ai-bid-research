@@ -88,6 +88,11 @@ fn service_passes_kind_through_without_contract_enum() {
     if skip_if_fixture_missing("service_passes_kind_through_without_contract_enum", &[&ev]) {
         return;
     }
+    // PDF 导入依赖外部工具链（pdftotext）——无工具环境按 SKIP 机制跳过。
+    if bid_parse::env_preflight::skip_if_env_missing(
+        "service_passes_kind_through_without_contract_enum", &["pdftotext"]) {
+        return;
+    }
 
     let report = import_files(&mut store, &mut parsed, &[spec(ev, "evidence/EV-01-营业执照.pdf", "证据")]);
 

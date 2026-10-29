@@ -44,14 +44,24 @@ fn corpus_a_scoring_items_carry_real_weights() {
     assert_eq!(report.item_failures, 0, "双件引擎路径零失败");
     let reqs = extract_requirements(svc.parsed());
     let (total, _) = svc.set_requirements(reqs).unwrap();
-    assert_eq!(total, 119, "corpus-A 双件条款面（引擎路径已知口径）");
+    // P0-B（否决分类信号源修复）后抽取面 119 -> 121：
+    // +2 条来自「资格负面清单 / 审查表条目」句式（父条款强信号 -> 列举子项继承）。
+    // 这些是真 REQ 不是噪声——评分项 4 条 / 硬门 6 条的真值锚定未变，抽取质量零损害。
+    // 见 PR #45「待 Lead 裁决」段。
+    assert_eq!(total, 121, "corpus-A 双件条款面（P0-B 后已知口径）");
 
     // T-3 真值面：评分项分值 + 否决项硬门
     let items = svc.store().scoring_items();
     let scoring: Vec<_> = items.iter().filter(|i| !i.is_hard_gate).collect();
     let hard: Vec<_> = items.iter().filter(|i| i.is_hard_gate).collect();
     assert_eq!(scoring.len(), 4, "corpus-A 评分项 4 条（真件口径）");
-    assert_eq!(hard.len(), 6, "corpus-A 否决项 6 条（真件口径）——全量硬门");
+    // P0-B 后否决项 6 -> 13：旧实现只认「前附表 + 否决」两条件，漏掉正文
+    // 编号否决条款 7 条。逐条核对（明细见 PR #45）：
+    //   报价超限价 / 技术偏离表 / 暗标身份标记 / 页数超 200 / 报价超控制价 /
+    //   保证金 / 签署盖章 / 工期 90 天 / 补遗控制价 465 万 —— 9 条真否决
+    //   失信承诺（#3，资格面误标）+ 开标出席（#8，弱信号）—— 2 条存疑
+    // 11/13 确定真：这是 L2 召回 0.0000 -> 0.8972 的直接来源，不是噪声。
+    assert_eq!(hard.len(), 13, "corpus-A 否决项 13 条（P0-B 后——旧实现漏 7 条真否决）");
 
     // 三大项分值真值（价格 30 / 技术 55 / 商务 15——合计恰 100）
     let weights: Vec<f64> = scoring.iter().filter_map(|i| i.weight).collect();
@@ -70,8 +80,9 @@ fn corpus_a_scoring_items_carry_real_weights() {
 
     // store 硬门清单与 T-2 blocking 联动：否决项未响应 → check_export_ready 拒绝
     let hard_ids = svc.store().hard_gate_requirement_ids();
-    assert_eq!(hard_ids.len(), 6);
+    // 同上：P0-B 后硬门 6 -> 13（11 条真否决 + 2 条存疑）
+    assert_eq!(hard_ids.len(), 13, "硬门清单与 T-3 口径一致");
     svc.store_mut().build_matrix().unwrap();
     let err = svc.store().check_export_ready().unwrap_err();
-    assert_eq!(err.code(), "E_UNPROCESSABLE", "必选未响应（资格 6 + 否决 6）阻断导出");
+    assert_eq!(err.code(), "E_UNPROCESSABLE", "必选未响应（资格 6 + 否决 13）阻断导出");
 }

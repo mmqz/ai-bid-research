@@ -430,6 +430,27 @@ mod imp {
                     true
                 }
                 _ => false,
+                // ── 标题栏拖动（JS 侧 mousedown 触发）──────────────────
+                // 为什么走 IPC 而不是只靠 WM_NCHITTEST：鼠标永远落在 WebView
+                // 子窗口上，父窗口的 hit_test 根本没机会回答；UI 侧知道哪里
+                // 是「标题栏空白处」（菜单栏的 gap/spacer），由它发起最可靠。
+                "drag" => {
+                    // ReleaseCapture 必须在发起拖动前调，否则 SendMessage 会被忽略
+                    let _ = ReleaseCapture();
+                    // WM_NCLBUTTONDOWN + HTCAPTION = 系统进入「拖动窗口」模态循环
+                    let _ = SendMessageW(
+                        hwnd,
+                        WM_NCLBUTTONDOWN,
+                        Some(WPARAM(HTCAPTION as usize)),
+                        Some(LPARAM(0)),
+                    );
+                    true
+                }
+                // 双击标题栏 -> 最大化/还原（系统双击在 WebView 上也被吃掉，走 IPC）
+                "toggleMaximize" => {
+                    toggle_maximize(hwnd, !IS_MAXED.load(Ordering::Relaxed));
+                    true
+                }
             }
         }
     }

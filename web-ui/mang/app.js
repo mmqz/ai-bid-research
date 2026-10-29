@@ -1189,9 +1189,61 @@
     if (refreshBtn) refreshBtn.addEventListener("click", () => ui.refreshTree());
     const wsRow = $("#sidebar-workspace");
     if (wsRow) wsRow.addEventListener("click", () => ui.openFolderDialog());
-  // 标题栏拖动 / 双击最大化全部交给壳的 WM_NCHITTEST / WM_NCLBUTTONDBLCLK。
-  // 这里曾有一套 window.caption 上报：每次 mousedown 都发 IPC 改壳的命中状态，
-  // 在「按下 -> 系统进拖动循环」之间把状态改掉，导致窗口完全拖不动。已删除。
+  // ── 标题栏拖动 / 双击最大化 ───────────────────────────────────────
+  // 为什么必须走 JS 发起：鼠标永远落在 WebView 子窗口上（它铺满整个客户区），
+  // 父窗口的 WM_NCHITTEST 拿不到这次点击，所以壳里 hit_test 的 HTCAPTION
+  // 对该区域形同虚设。UI 侧知道哪里是「标题栏空白处」（菜单栏的 gap/spacer、
+  // 品牌区、按钮之间的空隙），由它调 window.action=\"drag\" 让壳执行
+  // ReleaseCapture + SendMessage(WM_NCLBUTTONDOWN, HTCAPTION) 进系统拖动循环。
+  //
+  // 注：早先那版是「每次 mousedown 都上报 window.caption 改壳的命中状态」，
+  // 在按下与拖动循环之间把状态改掉，反而让窗口彻底拖不动——已废弃。
+  // 现在的做法不改任何状态，只在确认是标题栏空白处时直接请求拖动。
+  const isTitlebarBlank = (target) => {
+    if (!target || !target.closest) return false;
+    // 落在可交互元素上（菜单按钮 / 窗口按钮 / 品牌链接等）不算空白
+    if (target.closest("button, a, input, select, textarea, [role=\"menuitem\"], [contenteditable]")) {
+      return false;
+    }
+    // 必须在两个标题栏容器内
+    const bar = target.closest("#menubar, #titlebar");
+    if (!bar) return false;
+    // 不许跨到菜单下拉里
+    if (target.closest(".menu-pop, .dropdown, [data-popover]")) return false;
+    return true;
+  };
+
+  const startCaptionDrag = () => {
+    ipc("window.action", { action: "drag" }, 5e3).catch(() => {});
+  };
+
+  const onTitlebarMouseDown = (e) => {
+    if (e.button !== 0) return;                     // 只处理左键
+    if (!isTitlebarBlank(e.target)) return;
+    // 双击交给下面的 dblclick（避免第一下就被拖动循环吃掉）
+    if (e.detail > 1) return;
+    e.preventDefault();
+    startCaptionDrag();
+  };
+
+  const onTitlebarDblClick = (e) => {
+    if (!isTitlebarBlank(e.target)) return;
+    e.preventDefault();
+    ipc("window.action", { action: "toggleMaximize" }, 5e3).then((r) => {
+      if (r && typeof r.maximized === "boolean") ui.setMaximized(r.maximized);
+    }).catch(() => {});
+  };
+
+  const menubarEl = document.getElementById("menubar");
+  if (menubarEl) {
+    menubarEl.addEventListener("mousedown", onTitlebarMouseDown);
+    menubarEl.addEventListener("dblclick", onTitlebarDblClick);
+  }
+  const titlebarEl = document.getElementById("titlebar");
+  if (titlebarEl && titlebarEl !== menubarEl) {
+    titlebarEl.addEventListener("mousedown", onTitlebarMouseDown);
+    titlebarEl.addEventListener("dblclick", onTitlebarDblClick);
+  }
     $("#status-right").addEventListener("click", (e) => {
       const b = e.target.closest("[data-status-act]");
       if (!b) return;

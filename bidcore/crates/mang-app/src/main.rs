@@ -577,7 +577,11 @@ fn window_cmd(req: &ipc::Request) -> Value {
             // 每次点击固定卡 1.5 秒才生效。窗口动作不需要 tao 的状态机，
             // 自己算矩形用 SetWindowPos 就够了（见 chrome::window_action）。
             let action = args.get("action").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            if !matches!(action.as_str(), "minimize" | "maximize" | "restore" | "toggle" | "close") {
+            if !matches!(
+                action.as_str(),
+                "minimize" | "maximize" | "restore" | "toggle" | "close"
+                    | "drag" | "toggleMaximize"
+            ) {
                 return ipc::err_frame(&req.id, &ipc::IpcError::bad_args("未知的窗口动作"));
             }
             let applied = chrome::window_action(hwnd, &action);

@@ -1,0 +1,33 @@
+[package]
+name = "mang-app"
+version.workspace = true
+edition.workspace = true
+description = """mang 桌面壳（bid #42 完整规格）——tao + wry 宿主 + 工作区/版本历史纯逻辑层。
+
+GUI 胶水在 `gui` feature 后面（默认关闭）：Linux 开发沙箱无 GTK/webkit2gtk
+dev 面（无 root 装不了），而 mang-app 的交付目标是 Windows（WebView2）。
+纯逻辑模块（workspace/versions/ipc 协议编解码）在任何环境可测——
+`cargo test -p mang-app` 零 GUI 依赖；实机构建 `--features gui`。"""
+
+# 纯逻辑依赖（默认面——测试/CI 全环境可编译）
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# GUI 胶水（版本循 mdcore mdshell-native 实战组合：wry 0.46.3 的
+# with_url 无 Result / evaluate_script 无返回值 / IPC handler 对
+# file:// URI panic 三坑已知，导航拦截通道方案已验证）
+tao = { version = "0.30", optional = true }
+wry = { version = "0.46", optional = true }
+
+[features]
+gui = ["dep:tao", "dep:wry"]
+
+[[bin]]
+name = "mang-app"
+path = "src/main.rs"
+required-features = ["gui"]
+
+[lib]
+name = "mang_app"
+path = "src/lib.rs"

@@ -1,0 +1,16 @@
+{
+  "name": "mang-web-ui",
+  "private": true,
+  "version": "0.1.0",
+  "description": "mang 标书工作台 UI（bid #42）——VSCode 风格布局壳；渲染器/编辑器核从 mdcore/web 渐进移植（每阶段可跑）。",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit",
+    "serve": "python3 -m http.server 8124 --directory dist"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0"
+  }
+}

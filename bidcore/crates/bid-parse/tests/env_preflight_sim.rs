@@ -13,17 +13,28 @@
 
 use bid_parse::env_preflight::{missing_tools, skip_if_env_missing, PDF_CHAIN_TOOLS};
 
+/// PR #17 同型修复延伸（main 既有 bug，非本批引入）：libtest 文件内并行——
+/// `full_env_runs_test_body_normally` 两次读环境（`missing_tools` 与
+/// `skip_if_env_missing` 内部各读一次 `BID_PREFLIGHT_PATH`），并行伙伴的
+/// set/remove 窗口落在两次读之间 → 首读命中覆盖判 N 缺、次读真实环境判 0 缺
+/// → 「skip 判定与清单严格一致」断言炸。修复：变更方（with_restricted_path
+/// 持锁横跨 set→remove 全窗口）与读取方（full_env 用例持锁横跨两次读）
+/// 用同一互斥锁串行化——读写任一方持锁期间另一方不可进入。
+static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// 独立测试二进制内的哨兵：预检通过后才允许触达业务面。
 /// 用 `static` 计数器而非 panic-on-drop：提前 return 的路径不抛异常，
 /// 唯一能证明「业务面未被执行」的方式是业务面自身从未置位。
 static BUSINESS_REACHED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 fn with_restricted_path<T>(f: impl FnOnce() -> T) -> T {
+    // 写方持锁：横跨 set→remove 全窗口（见 ENV_LOCK 注释）。
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
     // 模拟「无 poppler / 无 tesseract 的机器」：查找路径指向空目录。
     let empty = std::env::temp_dir().join("bid-preflight-sim-empty");
     std::fs::create_dir_all(&empty).unwrap();
     // SAFETY(env mut): 独立测试进程（每集成测试文件一个二进制），
-    // 进程内无并发读者；测试结束进程即退出，无跨测试污染面。
+    // 进程内并发面已由 ENV_LOCK 串行化；测试结束进程即退出，无跨测试污染面。
     unsafe { std::env::set_var("BID_PREFLIGHT_PATH", &empty) };
     let out = f();
     unsafe { std::env::remove_var("BID_PREFLIGHT_PATH") };
@@ -55,6 +66,8 @@ fn missing_env_skips_test_body_without_touching_business_logic() {
 
 #[test]
 fn full_env_runs_test_body_normally() {
+    // 读方持锁：两次读环境原子化（防并行 set/remove 窗口落中间，见 ENV_LOCK 注释）。
+    let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
     // 对偶面：真实 PATH（无 BID_PREFLIGHT_PATH 覆盖）下，若工具齐备则预检返回 false。
     // 本断言容忍「当前机器恰缺件」——此时返回 true 且清单恰含缺失项（一致性不变量），
     // 保证测试在两类机器上都有效而不放松契约。

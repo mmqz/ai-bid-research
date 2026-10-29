@@ -115,8 +115,10 @@ fn describe(name: &str) -> &'static str {
         "create_bid_project" => "建项目（external_key 幂等）",
         "import_tender_files" => "导入招标文件 + 完整性对账",
         "extract_requirements" => "六类条款抽取 + 覆盖率对账",
-        "get_compliance_matrix" => "只读：响应矩阵与资格三态",
-        "search_evidence" => "双通道证据检索",
+        "get_compliance_matrix" => "只读：响应矩阵与资格三态（S-4 游标分页）",
+        "list_evidence" => "只读：证据台账列表（kind/status 过滤 + 游标分页）",
+        "list_tasks" => "只读：任务分工列表（owner/status 过滤 + 游标分页）",
+        "search_evidence" => "双通道证据检索（M2-b 落地时必须走 cursor.rs 游标模块）",
         "draft_response_section" => "单章起草（引用回查后写内核）",
         "validate_bid_document" => "双层校验（确定性规则 + 模型复核）",
         "export_bid_document" => "导出（含暗标模式）",
@@ -126,5 +128,14 @@ fn describe(name: &str) -> &'static str {
 }
 
 fn is_implemented(name: &str) -> bool {
-    matches!(name, "get_bid_project_state" | "create_bid_project" | "import_tender_files")
+    matches!(
+        name,
+        "get_bid_project_state"
+            | "create_bid_project"
+            | "import_tender_files"
+            | "extract_requirements"
+            | "get_compliance_matrix"
+            | "list_evidence"
+            | "list_tasks"
+    )
 }

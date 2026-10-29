@@ -9,7 +9,13 @@
 //! 落地，服务态由 bid-tools 的 `BidService` 承载（进程内单例见 `state`；
 //! 测试/嵌入方用 [`dispatch_with`] 注入独立实例）。传输层只负责把原始字节
 //! 变成 [`ToolCall`]，语义裁决全在本层。
+//!
+//! V3-5（issue #11 批次 v3 / S-4 游标分页）：新增 [`cursor`] 模块（opaque
+//! 游标核心）与两个只读列表工具 `list_evidence` / `list_tasks`；
+//! `get_compliance_matrix` 升级为游标分页信封（详见 docs/bid-mcp-contract.md
+//! §0「大结果分页」与 §4/§4-A/§4-B）。
 
+pub mod cursor;
 pub mod error;
 pub mod schema;
 pub mod tools;
@@ -23,12 +29,17 @@ pub use transport::Transport;
 
 use serde_json::Value;
 
-/// 9 个工具名（单一真源；schema 声明与分发都从这里取）。
-pub const TOOL_NAMES: [&str; 9] = [
+/// 11 个工具名（单一真源；schema 声明与分发都从这里取）。
+///
+/// V3-5（S-4 游标分页）新增 `list_evidence` / `list_tasks` 两个只读列表工具
+/// （原 8 工具契约 + `get_bid_project_state` + 2 = 11）。
+pub const TOOL_NAMES: [&str; 11] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
     "get_compliance_matrix",
+    "list_evidence",
+    "list_tasks",
     "search_evidence",
     "draft_response_section",
     "validate_bid_document",

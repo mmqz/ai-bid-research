@@ -123,6 +123,7 @@ dependencies = [
 name = "bid-mcp"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "bid-domain",
  "bid-parse",
  "bid-tools",

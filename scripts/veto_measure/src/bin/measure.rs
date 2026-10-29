@@ -100,6 +100,7 @@ fn main() {
 
     let mut by_file = serde_json::Map::new();
     let mut missed: Vec<serde_json::Value> = vec![];
+    let mut fp_list: Vec<serde_json::Value> = vec![];
     // 全局累计
     let mut tot_gt = 0usize;
     let mut tot_cov = 0usize;
@@ -256,6 +257,11 @@ fn main() {
             });
             if tp {
                 veto_tp += 1;
+            } else {
+                fp_list.push(json!({
+                    "file": name,
+                    "joined": r.joined.chars().take(120).collect::<String>(),
+                }));
             }
         }
 
@@ -323,6 +329,8 @@ fn main() {
         "by_file": by_file,
         "missed_total": missed.len(),
         "missed": missed,
+        "fp_total": fp_list.len(),
+        "fp": fp_list,
     });
     std::fs::write(&out_path, serde_json::to_vec(&report).expect("serialize")).expect("write out");
     eprintln!(

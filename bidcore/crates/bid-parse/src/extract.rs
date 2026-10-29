@@ -53,6 +53,17 @@ pub fn extract_requirements(files: &[ParsedFile]) -> Vec<Requirement> {
 /// - 资格面行（资质等级/资格后审/资质证书/营业执照…）→ 资格条件
 /// - 评分细则行（评分办法章内 "N、报价：65 分"）→ 评分项
 /// - 续行窗 1 行：跨行条款还原（同 extract_b2_ocr 纪律）
+///
+/// P0-A（issue #35）：PDF 行级碎片修复——基线 PDF 组 L1 0.4680/L2 0.1148：
+/// - **段落重组**：行尾无终结标点 → 与下一行同段（pdftotext 按物理行切块，
+///   一条否决条款被切成两三行后词表跨行失配——「…招标人」/「拒收投标文件。」）
+/// - **否决词表扩展**（missed 样例驱动）：拒收/不予受理/不予接收/不接受/
+///   否决条件/取消中标资格/按无效标处理 等（原 8 词面漏「A01-GT-016 招标人
+///   拒收投标文件」「A01-GT-021 不予受理」类）
+/// - **例外从句剥离**：除…外 不参与强词匹配（精确率守护，句法同 DOCX 侧）
+/// - **语境传播**：总括句（下列情形之一的…）→ 列举条目（（N）/N、/⑻ 圈号）
+///   继承否决语义；新编号条款终止
+/// - 段落级 REQ 的 anchors = 构成段落的全行块（excerpt 保真不改写）
 fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize) {
     let re_clause = Regex::new(r"^(\d+(?:\.\d+)+)\s*").unwrap();
     // 真实文件驱动修正（P2）：真实水利招标文件用阿拉伯数字章节（"第2章 投标人
@@ -62,24 +73,172 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
     let re_model = model_regex();
     let re_amount = Regex::new(r"(\d+(?:\.\d+)?)\s*万\s*元").unwrap();
     let re_date = Regex::new(r"\d{4}-\d{2}-\d{2}").unwrap();
-    // 强否决短语（判定动词面——正文提及"否决"的弱引用不算）
-    let re_veto = Regex::new(
-        r"将被否决|否决投标处理|否决所有投标|视为无效|无效投标|取消其中标|没收其投标保证金|废标",
-    )
+    // 强否决短语（判定动词面——正文提及"否决"的弱引用不算）。
+    // P0-A 扩展（#35 missed 样例驱动）：拒收/不予受理/不予接收/不接受/
+    // 否决条件/取消中标资格/按无效标处理/视为串通 等
+    let re_veto = Regex::new(concat!(
+        "将被否决|否决投标处理|否决所有投标|否决条件|否决其投标|否决该投标|",
+        "视为无效|无效投标|按无效标处理|作无效标处理|认定为无效|",
+        "取消其中标|取消中标资格|取消投标资格|取消其投标资格|没收其投标保证金|废标|",
+        "拒收|不予受理|不予接收|不予接受|不予开标|有权拒收|有权否决|",
+        "不接受[^，。；]{0,12}(投标|报价|备选|联合体)|不接受联合体|",
+        "弄虚作假|串通投标|相互串通|骗取中标|行贿|",
+        "不良行为|失信|黑名单|行政处罚|刑事处罚|严重违约|重大工程质量问题|",
+        "允许他人以本单位名义|将被拒绝|不允许偏离|实质性要求和条件|",
+        "利害关系[^，。；]{0,20}不得参加投标|不接受[^，。；]{0,20}(文件|格式)",
+    ))
     .unwrap();
+    // 例外从句（排除面——「除不可抗力外」不算否决信号，句法同 DOCX 侧 P0-B）
+    let re_exception = Regex::new(r"除[^，。；]{0,24}外(，|以外)?").unwrap();
     // 资格面（要求/证书/审查语境——弱提及不算）
-    let re_qual = Regex::new(
-        r"资质等级|资格审查|资格后审|资格预审|资质证书|营业执照|安全生产许可证|类似工程",
-    )
+    let re_qual = Regex::new(concat!(
+        "资质等级|资格审查|资格后审|资格预审|资质证书|营业执照|安全生产许可证|类似工程|",
+        "级资质|资格条件|注册建造师|注册造价工程师",
+    ))
     .unwrap();
     // 评分细则行：数字开头 + 短语 + "N 分"（评分办法章内）
     let re_score_line = Regex::new(r"^\d+[、.．]\s*\S{2,30}[：:，,]?\s*\S{0,16}\d+(?:\.\d+)?\s*分").unwrap();
     // 评分算法行：评标基准价/下浮率（强算法词免章门——基准价算法常在须知章）
     let re_score_algo = Regex::new(r"评标基准价|下浮率\s*K|基准价.{0,12}确定").unwrap();
+    // 否决语境开启句（总括句——其后列举条目继承）
+    let re_ctx_open = Regex::new(
+        r"下列情形之一|下列行为之一|下列情况之一|下列情形|下列行为|其投标将被否决|否决其投标|视为允许他人|视为串通",
+    )
+    .unwrap();
+    // 审查表语境开启（评审标准/资格审查标准行——其后圈号条目为隐含否决面）
+    let re_review_open = Regex::new(
+        r"评审标准|评审因素|初步审查标准|资格审查标准|审查标准|符合性审查",
+    )
+    .unwrap();
+    // 符合性句式（审查语境内行级过滤——参数行排除）
+    let re_conformance = Regex::new(
+        r"应与|符合|相一致|是否完好|唯一|不存在|应为|须为|须具备|具备有效|数量符合",
+    )
+    .unwrap();
+    // 分值形态特征（评分结构行「①施工组织设计20分②…」——多处「N分」，
+    // 圈号开头不匹配 re_score_line 的数字头，需独立排除——评分项语义非否决）
+    let re_score_shape = Regex::new(r"\d+(?:\.\d+)?分").unwrap();
+    // 表头词聚集（格式模板表头行：姓名/年龄/学历/职称/证号 ≥3 同现）
+    let header_words = ["姓名", "年龄", "学历", "职称", "证号", "职务", "专业", "毕业学校"];
+    let is_header_row = |t: &str| -> bool { header_words.iter().filter(|w| t.contains(**w)).count() >= 3 };
+    // 澄清程序形态（澄清+说明同现且无强否决处置词——询标/补正程序非否决）
+    let is_clarification = |t: &str| -> bool {
+        t.contains("澄清") && t.contains("说明")
+            && !["否决", "拒收", "无效", "废标", "取消"].iter().any(|k| t.contains(k))
+    };
+    // 模板聚集排除（分值/万元/表头——格式模板与评分结构面）
+    let is_template_shape = |t: &str| -> bool {
+        re_score_shape.find_iter(t).count() >= 2
+            || (t.matches("万元").count() >= 3)
+            || is_header_row(t)
+            || is_clarification(t)
+    };
+    // 流程步骤句式（语境继承排除面——评标程序/开标议程/分工职责的列举
+    // 非否决语义：「负责/宣布/介绍/组建/复核/汇总/推荐…」）
+    let re_procedure = Regex::new(concat!(
+        "评审阶段|负责|宣布|介绍|组建|议程|复核、|汇总|推荐中标候选|提交评标报告|澄清、说明|",
+        "以大写金额为准|以单价金额为准|以开标报价为准|来往函件|合同约定|履约|",
+        "汇报|审议|赋分|评分标准|详评表|见评标办法前附表|是对投标文件|是对招标|",
+        "为准|修正总价|修正投标报价|修正总报价|",
+        "我承诺|我方承诺|承诺书|组织询标|询问核实|评标预备会",
+    ))
+    .unwrap();
+    // 列举条目（（N）/N、/⑴⑵⑶ 圈号——语境传播对象；「3.5.2」条款号排除）
+    let re_list_cn = Regex::new(r"^[（(][0-9一二三四五六七八九十]{1,3}[）)]|^[⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽⑾⑿]|^[⒈⒉⒊⒋⒌⒍⒎⒏⒐]|^[0-9]{1,2}[、]").unwrap();
     let mut chapter = String::new();
     let mut subsection = String::new();
+    // 否决语境（总括句开启；新编号条款/非列举普通行终止）
+    let mut veto_ctx = false;
+    // 审查表语境（评审标准/资格审查标准行开启；章节头终止）
+    let mut review_ctx = false;
+
+    // 强词判定（例外从句剥离后匹配；履约语境排除——「承包人不得…拒收」
+    // 类合同期条款非投标否决：主体为承包人/发包人且无投标词时不判）
+    let veto_hit = |text: &str| -> bool {
+        let stripped = re_exception.replace_all(text, "");
+        if !re_veto.is_match(&stripped) {
+            return false;
+        }
+        let perf_ctx = stripped.contains("承包人") || stripped.contains("发包人") || stripped.contains("监理人现场服务") || stripped.contains("监理人对所有来往文件");
+        let bid_ctx = stripped.contains("投标");
+        !(perf_ctx && !bid_ctx)
+    };
 
     let blocks = &f.blocks;
+    // ---- 段落重组（P0-A 核心）：行尾无终结标点 → 与下一行同段
+    // 预计算每行的「段落文本」（本行 + 后续续行拼接）与「段落块范围」。
+    // 断段条件（优先级从上到下）：
+    //   目录行 / 章节头 / 中文序号头 → 独立段（不与后行拼）
+    //   行尾有终结标点（。；！？：）→ 自身成段
+    //   下一行是新条款标志（编号/章节头/中文序号）→ 当前行成段
+    //   其余 → 拼接（行尾截断检测——pdftotext 物理换行切断句子）
+    let ends_sentence = |s: &str| -> bool {
+        s.chars().last().map(|c| "。；！？：；".contains(c)).unwrap_or(false)
+    };
+    let is_clause_start = |s: &str| -> bool {
+        re_clause.is_match(s) || re_chapter.is_match(s) || re_subsection.is_match(s)
+    };
+    let is_skip_line = |s: &str| -> bool {
+        s.is_empty() || s.matches('.').count() >= 6 || s.contains("……")
+    };
+
+    let n = blocks.len();
+    // para_end[i]：行 i 所在段落的末行（含自身）；para_start[i]：首行。
+    // 段落成员行（para_start[i] < i）由首行统一处理（防段落尾行双抽）。
+    let mut para_end = vec![0usize; n];
+    let mut para_start = vec![0usize; n];
+    let mut i = 0usize;
+    while i < n {
+        if !matches!(blocks[i].kind, BlockKind::PdfLine | BlockKind::OcrLine) || is_skip_line(blocks[i].text.trim()) {
+            para_end[i] = i;
+            para_start[i] = i;
+            i += 1;
+            continue;
+        }
+        let mut j = i;
+        // 向后扩展：当前行未终结 && 下一行可拼接（非跳过行/非条款头）
+        loop {
+            let cur = blocks[j].text.trim();
+            if ends_sentence(cur) {
+                break;
+            }
+            let Some(next) = blocks.get(j + 1) else { break };
+            if !matches!(next.kind, BlockKind::PdfLine | BlockKind::OcrLine)
+                || is_skip_line(next.text.trim())
+                || is_clause_start(next.text.trim())
+            {
+                break;
+            }
+            j += 1;
+        }
+        for k in i..=j {
+            para_end[k] = j;
+            para_start[k] = i;
+        }
+        i = j + 1;
+    }
+    // 段落拼接文本（行序）
+    let para_text = |start: usize, end: usize| -> String {
+        let mut s = String::new();
+        for k in start..=end {
+            if matches!(blocks[k].kind, BlockKind::PdfLine | BlockKind::OcrLine) {
+                s.push_str(blocks[k].text.trim());
+            }
+        }
+        s
+    };
+    // 段落 anchors（每行一个，excerpt 保真）
+    let para_anchors = |start: usize, end: usize| -> Vec<Anchor> {
+        (start..=end).filter_map(|k| {
+            if matches!(blocks[k].kind, BlockKind::PdfLine | BlockKind::OcrLine) {
+                Some(anchor(f, &blocks[k]))
+            } else {
+                None
+            }
+        }).collect()
+    };
+
+    let mut seen_para = std::collections::HashSet::new();
     for (i, b) in blocks.iter().enumerate() {
         if !matches!(b.kind, BlockKind::PdfLine | BlockKind::OcrLine) {
             continue;
@@ -92,50 +251,92 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
         if re_chapter.is_match(t) {
             chapter = t.to_string();
             subsection.clear();
+            veto_ctx = false;
+            review_ctx = false;
             continue;
         }
         if re_subsection.is_match(t) && t.chars().count() <= 40 {
             subsection = t.to_string();
             continue;
         }
-        let mut anchor_text = t.to_string();
-        // 续行窗：行短且下一行同为 PDF/OCR 行 → 拼接（跨行条款还原）
-        if let Some(next) = blocks.get(i + 1) {
-            if matches!(next.kind, BlockKind::PdfLine | BlockKind::OcrLine)
-                && t.chars().count() < 30
-                && next.text.trim().chars().count() >= 2
-                && !re_chapter.is_match(next.text.trim())
-                && next.text.trim().matches('.').count() < 6
-            {
-                anchor_text.push_str(next.text.trim());
+        // 段落去重：非首行成员行跳过（防段落尾行独立双抽）——
+        // **超短行例外**（<6 字）：pdftotext 碎片行（「予以拒收。」）是
+        // GT 单行条款的锚定面（段落 REQ 的 anchor 因 <6 字不参与 L2
+        // 文本匹配），保留其独立 REQ（碎片级条款面，非语义重复）
+        if para_start[i] < i {
+            let norm_len = t.chars().filter(|c| !c.is_whitespace()).count();
+            if norm_len >= 6 {
+                continue;
             }
         }
+        let pend = para_end[i];
+        if pend > i {
+            if seen_para.contains(&i) {
+                continue;
+            }
+            seen_para.insert(i);
+        }
+        let para = para_text(i, pend);
+        // 编号行：条款号取首行；判定文本用整段（跨行词还原）
         if let Some(m) = re_clause.captures(t) {
+            veto_ctx = false;
             let mut params = HashMap::new();
-            fill_params(t, &re_model, &re_amount, &re_date, &re_date, &mut params);
+            fill_params(&para, &re_model, &re_amount, &re_date, &re_date, &mut params);
             // 编号行归类优先级（R3-S3-5）：强否决短语 > 资格面 > 章节上下文——
             // 编号否决条款（如"3.4.2 …将被否决"）不得落"其他"（漏否决=废标风险）
-            let cat = if re_veto.is_match(&anchor_text) {
+            let cat = if veto_hit(&para) && !is_template_shape(&para) {
                 "否决项"
-            } else if re_qual.is_match(&anchor_text) {
+            } else if re_qual.is_match(&para) {
                 "资格条件"
             } else {
                 category_for(&chapter, &subsection)
             };
             push_req(reqs, seq, cat, Some(m[1].to_string()),
-                     vec![anchor(f, b)], params, &f.name);
-        } else if re_veto.is_match(&anchor_text) {
-            // 强否决短语行（无编号面——前附表/正文流条款）
-            push_req(reqs, seq, "否决项", None, vec![anchor(f, b)], HashMap::new(), &f.name);
-        } else if re_qual.is_match(&anchor_text) && !anchor_text.starts_with("见") {
+                     para_anchors(i, pend), params, &f.name);
+            if re_ctx_open.is_match(&para) {
+                veto_ctx = true;
+            }
+        } else if veto_hit(&para) && !is_template_shape(&para) {
+            // 强否决段落（无编号面——前附表/正文流条款；段落重组后跨行
+            // 条款「…招标人」+「拒收投标文件。」还原为整段判定；
+            // 分值结构行排除——「N分」≥2 处的评分语义不判否决）
+            veto_ctx = false;
+            push_req(reqs, seq, "否决项", None, para_anchors(i, pend), HashMap::new(), &f.name);
+            if re_ctx_open.is_match(&para) {
+                veto_ctx = true;
+            }
+        } else if re_qual.is_match(&para) && !para.starts_with("见") {
             // 资格面行："见投标人须知前附表"类引用行排除
-            push_req(reqs, seq, "资格条件", None, vec![anchor(f, b)], HashMap::new(), &f.name);
+            push_req(reqs, seq, "资格条件", None, para_anchors(i, pend), HashMap::new(), &f.name);
+            veto_ctx = false;
+        } else if (veto_ctx || review_ctx) && re_list_cn.is_match(t)
+            && !re_procedure.is_match(&para)
+            && !re_score_line.is_match(t)
+            && !is_template_shape(&para)
+        {
+            // 语境传播：总括句/审查表头后的列举条目（（N）/N、/⑻ 圈号）
+            // 继承否决语义（审查表条目 = 隐含否决面）；
+            // 流程步骤句式排除（评标程序/开标议程/分工职责列举非否决）
+            push_req(reqs, seq, "否决项", None, para_anchors(i, pend), HashMap::new(), &f.name);
+        } else if review_ctx && re_conformance.is_match(t) && t.chars().count() >= 6
+            && !re_procedure.is_match(&para)
+            && !is_template_shape(&para)
+        {
+            // 审查语境内符合性行（「投标人名称应与…一致」——非圈号形态）
+            push_req(reqs, seq, "否决项", None, para_anchors(i, pend), HashMap::new(), &f.name);
+        } else if re_review_open.is_match(&para) {
+            // 审查表语境开启（评审标准/资格审查标准行）
+            review_ctx = true;
         } else if (chapter.contains("评标办法") && re_score_line.is_match(t))
-            || re_score_algo.is_match(&anchor_text)
+            || re_score_algo.is_match(&para)
         {
             // 评分细则行（中文序号/数字序号分值行）+ 评分算法行（评标基准价/下浮率——
             // P2：基准价算法与下浮率 K 常在须知章 10.x 而非评标办法章，强算法词免章门）
-            push_req(reqs, seq, "评分项", None, vec![anchor(f, b)], HashMap::new(), &f.name);
+            push_req(reqs, seq, "评分项", None, para_anchors(i, pend), HashMap::new(), &f.name);
+            veto_ctx = false;
+        } else {
+            // 非列举普通行终止语境（防语境流污染）
+            veto_ctx = false;
         }
     }
 }

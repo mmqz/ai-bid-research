@@ -287,8 +287,21 @@
               return fail(m.id, "unsupported", "\u6F14\u793A\u6A21\u5F0F\u65E0\u6CD5\u5F39\u51FA\u7CFB\u7EDF\u6587\u4EF6\u5BF9\u8BDD\u6846");
             case "explorer.reveal":
               return respond(m.id, { ok: true });
-            case "history.list":
-              return respond(m.id, { items: [] });
+            case "history.list": {
+              const now2 = Date.now();
+              return respond(m.id, { items: [
+                { ts: now2 - 36e5, kind: "ai", message: "第2章 技术方案完成", file: "技术标.md", snapshot: "demo/1.md" },
+                { ts: now2 - 108e5, kind: "auto", message: "", file: "技术标.md", snapshot: "demo/2.md" }
+              ] });
+            }
+            case "snapshots.check":
+              return respond(m.id, { saved: [], skipped: (m.paths || []).map((p) => ({ file: p, reason: "演示模式" })) });
+            case "snapshots.save":
+              return respond(m.id, { ok: true, file: m.path, ts: Date.now(), snapshot: "demo/" + Date.now() + ".md" });
+            case "snapshots.read":
+              return respond(m.id, { content: "# 技术标（历史版本预览）\n\n> 演示模式：这是快照正文占位。真实壳里此处显示该版本的完整 md 内容。\n\n- 第1章 概述\n- 第2章 技术方案", bytes: 128 });
+            case "snapshots.rollback":
+              return respond(m.id, { ok: true, file: m.file, snapshot: m.snapshot, bytes: 128, backupTs: Date.now() });
             default:
               return fail(m.id, "unknown_cmd", "\u6F14\u793A\u6A21\u5F0F\u672A\u5B9E\u73B0\u8BE5\u547D\u4EE4\uFF1A" + m.cmd);
           }
@@ -321,7 +334,9 @@
     /** 是否运行在桌面壳里（自绘标题栏/窗口按钮只在这种模式下启用） */
     nativeChrome: false,
     // git 数据（「改动」面板）：{ status, available, branch, items, log, error }
-    git: { status: "idle", available: false, branch: "", items: [], log: [], error: "" }
+    git: { status: "idle", available: false, branch: "", items: [], log: [], error: "" },
+    // 版本快照（issue #42 阶段 7）：{ status, file, entries, error }
+    snapshots: { status: "idle", file: "", entries: [], error: "" }
   };
   var SIDEBARS = [
     { id: "files", icon: "files", title: "\u8D44\u6E90\u7BA1\u7406\u5668", key: "Ctrl+Shift+E" },
@@ -987,6 +1002,130 @@
     const btn = host.querySelector('[data-act="refresh"]');
     if (btn) btn.addEventListener("click", () => ui.refreshTree());
   }
+
+  // ============ #42 阶段 7：版本快照（自动 30s 检查 + 改动面板 + 预览/回滚） ============
+  /** 只有文本文件入快照（issue #42 §八：源头是 md，二进制不做） */
+  function snapshotablePath(p) {
+    return /\.(md|markdown|txt)$/i.test(p || "");
+  }
+  /** 绝对路径 → 工作区 rel（history.list 的 file 字段是 rel、正斜杠） */
+  function relOfPath(p) {
+    const ws = state.workspace || "";
+    if (ws) {
+      const np = String(p).replace(/\\/g, "/");
+      const nw = ws.replace(/\\/g, "/").replace(/\/+$/, "") + "/";
+      if (np.toLowerCase().startsWith(nw.toLowerCase())) return np.slice(nw.length);
+    }
+    return String(p).replace(/\\/g, "/");
+  }
+  /** 30s 一档：打开的文本文件内容有变 → 壳侧存快照（无变化自动跳过） */
+  function snapshotTick() {
+    if (!state.bridge || state.bridge.mode !== "host") return;
+    const seen = /* @__PURE__ */ new Set();
+    const paths = [];
+    for (const t of state.tabs) {
+      if (t.state === "ready" && snapshotablePath(t.path) && !seen.has(t.path)) {
+        seen.add(t.path);
+        paths.push(t.path);
+      }
+    }
+    if (!paths.length) return;
+    ipc("snapshots.check", { paths }, 3e4).then((r) => {
+      const saved = (r && r.saved) || [];
+      if (saved.length) {
+        ui.toast("info", "已存版本快照：" + saved.map((s) => baseName(s.file)).join("、"));
+        if (settings.sidebarActive === "changes") ui.loadSnapshots(state.snapshots.file);
+      }
+    }).catch(() => {
+      /* 快照失败不打扰（下一轮再试） */
+    });
+  }
+  /** 载入某文件的快照列表进改动面板（file 为空 = 清空） */
+  function loadSnapshotsInto(file) {
+    state.snapshots.file = file || "";
+    state.snapshots.status = file ? "loading" : "idle";
+    state.snapshots.entries = [];
+    state.snapshots.error = "";
+    if (!file) {
+      renderSidebar();
+      return Promise.resolve();
+    }
+    return ipc("history.list", { path: file, limit: 100 }, 15e3).then((r) => {
+      state.snapshots.entries = (r && r.items) || [];
+      state.snapshots.status = "ready";
+      renderSidebar();
+    }).catch((e) => {
+      state.snapshots.status = "error";
+      state.snapshots.error = e.message || String(e);
+      renderSidebar();
+    });
+  }
+  /** 预览某版本（浮层，绝不改文件） */
+  function showSnapshotPreview(entry) {
+    closeSnapshotPreview();
+    ipc("snapshots.read", { file: entry.file, snapshot: entry.snapshot }, 15e3).then((r) => {
+      const ov = document.createElement("div");
+      ov.id = "snap-preview";
+      const when = new Date(entry.ts).toLocaleString();
+      const badge = entry.kind === "ai" ? "AI 存版本" : entry.kind === "manual" ? "手动存版" : "自动快照";
+      const msg = entry.message ? " · " + esc(entry.message) : "";
+      const canRoll = true;
+      ov.innerHTML =
+        '<div class="snap-box">' +
+        '<div class="snap-head"><span class="snap-title">版本预览 · ' + esc(baseName(entry.file)) + '</span>' +
+        '<span class="snap-meta">' + esc(badge + " · " + when) + msg + '</span>' +
+        '<button class="snap-close" title="关闭 (Esc)">×</button></div>' +
+        '<pre class="snap-body">' + esc((r && r.content) || "(空)") + "</pre>" +
+        '<div class="snap-foot">' +
+        (canRoll ? '<button class="btn snap-rollback" data-ts="' + entry.ts + '">回滚到此版本</button>' : "") +
+        '<span class="snap-hint">回滚会先把当前内容自动备份成新快照（可再回滚回来）</span>' +
+        "</div></div>";
+      ov.addEventListener("mousedown", (e) => {
+        if (e.target === ov) closeSnapshotPreview();
+      });
+      ov.querySelector(".snap-close").addEventListener("click", closeSnapshotPreview);
+      const rb = ov.querySelector(".snap-rollback");
+      if (rb) {
+        rb.addEventListener("click", () => {
+          if (rb.dataset.confirm !== "1") {
+            rb.dataset.confirm = "1";
+            rb.textContent = "确认回滚？（当前内容会先备份）";
+            return;
+          }
+          rb.disabled = true;
+          rb.textContent = "正在回滚…";
+          ipc("snapshots.rollback", { file: entry.file, snapshot: entry.snapshot }, 3e4).then(() => {
+            closeSnapshotPreview();
+            ui.toast("ok", "已回滚：" + baseName(entry.file));
+            for (const t of state.tabs) {
+              if (t.path && (t.path === entry.file || relOfPath(t.path) === entry.file)) {
+                ui.loadTab(t);
+                break;
+              }
+            }
+            ui.loadSnapshots(entry.file);
+          }).catch((e2) => {
+            rb.disabled = false;
+            rb.textContent = "回滚到此版本";
+            delete rb.dataset.confirm;
+            ui.toast("error", "回滚失败：" + (e2.message || e2));
+          });
+        });
+      }
+      document.body.appendChild(ov);
+      const onKey = (e) => {
+        if (e.key === "Escape") {
+          closeSnapshotPreview();
+          document.removeEventListener("keydown", onKey);
+        }
+      };
+      document.addEventListener("keydown", onKey);
+    }).catch((e) => ui.toast("error", "读不到该快照：" + (e.message || e)));
+  }
+  function closeSnapshotPreview() {
+    const ov = document.getElementById("snap-preview");
+    if (ov) ov.remove();
+  }
   function renderHistoryView(host) {
     if (!state.recent.length) {
       host.innerHTML = '<div class="panel-empty">\u8FD8\u6CA1\u6709\u6253\u5F00\u8FC7\u6587\u4EF6<br>\u6253\u5F00\u7684\u6587\u4EF6\u4F1A\u51FA\u73B0\u5728\u8FD9\u91CC</div>';
@@ -1003,17 +1142,46 @@
   }
   function renderChangesView(host) {
     const g = state.git;
+    let html = "";
+    // ── 版本快照段（#42 阶段 7）：独立于 git，当前文件是文本才显示 ──
+    const tab = activeTab();
+    const snapFile = state.snapshots.file || (tab && snapshotablePath(tab.path) ? relOfPath(tab.path) : "");
+    if (snapFile) {
+      const entries = state.snapshots.file === snapFile ? state.snapshots.entries : [];
+      html += '<div class="panel-section">\u7248\u672C\u5FEB\u7167 \xB7 ' + esc(baseName(snapFile)) +
+        (state.snapshots.file !== snapFile ? " \xB7 \u52A0\u8F7D\u4E2D" : entries.length ? " \xB7 " + entries.length + " \u4EFD" : "") + "</div>";
+      if (state.snapshots.file !== snapFile) {
+        setTimeout(() => ui.loadSnapshots(snapFile), 0);
+      } else if (state.snapshots.status === "loading") {
+        html += '<div class="panel-empty" style="padding:10px 14px">\u6B63\u5728\u8BFB\u53D6\u5FEB\u7167\u5217\u8868\u2026</div>';
+      } else if (state.snapshots.status === "error") {
+        html += '<div class="panel-empty" style="padding:10px 14px">' + esc(state.snapshots.error || "\u8BFB\u53D6\u5931\u8D25") + "</div>";
+      } else if (!entries.length) {
+        html += '<div class="panel-empty" style="padding:10px 14px">\u8FD8\u6CA1\u6709\u5FEB\u7167\uFF08\u6253\u5F00\u540E\u6BCF 30 \u79D2\u81EA\u52A8\u68C0\u67E5\u4E00\u6B21\uFF09</div>';
+      } else {
+        html += entries.map((e) => {
+          const badge = e.kind === "ai" ? '<span class="snap-badge" data-kind="ai">AI</span>' : e.kind === "manual" ? '<span class="snap-badge" data-kind="manual">\u624B\u52A8</span>' : '<span class="snap-badge" data-kind="auto">\u81EA\u52A8</span>';
+          return '<div class="list-item snap-item" data-snap="' + esc(String(e.ts)) + '" title="' + esc((e.message || "") + " " + new Date(e.ts).toLocaleString()) + '">' +
+            badge +
+            '<span class="list-main"><span class="list-title">' + esc(e.message || new Date(e.ts).toLocaleTimeString()) + '</span><span class="list-sub">' + esc(timeAgo(e.ts)) + "</span></span>" +
+            '<button class="snap-save-now" data-act="save-version" title="\u7ACB\u5373\u5B58\u4E00\u4EFD\u5FEB\u7167">\u{1F4BE}</button>' +
+            "</div>";
+        }).join("");
+      }
+    }
     if (g.status === "loading") {
-      host.innerHTML = '<div class="panel-empty">\u6B63\u5728\u8BFB\u53D6 git \u72B6\u6001\u2026</div>';
+      host.innerHTML = html + '<div class="panel-empty">\u6B63\u5728\u8BFB\u53D6 git \u72B6\u6001\u2026</div>';
+      bindSnapItems(host);
       return;
     }
     if (!g.available) {
-      host.innerHTML = '<div class="panel-empty">' + esc(g.error || "\u672A\u63A5\u5165 git") + '<br><button class="btn" data-act="git-retry">\u91CD\u8BD5</button></div>';
+      host.innerHTML = html + '<div class="panel-empty">' + esc(g.error || "\u672A\u63A5\u5165 git") + '<br><button class="btn" data-act="git-retry">\u91CD\u8BD5</button></div>';
       bindPanelActions(host);
+      bindSnapItems(host);
       return;
     }
     const commits = g.log.slice(0, 12);
-    let html = '<div class="panel-section">\u5DE5\u4F5C\u533A\u6539\u52A8 \xB7 ' + g.items.length + " \u9879</div>";
+    html += '<div class="panel-section">\u5DE5\u4F5C\u533A\u6539\u52A8 \xB7 ' + g.items.length + " \u9879</div>";
     if (!g.items.length) {
       html += '<div class="panel-empty" style="padding:10px 14px">\u6CA1\u6709\u672A\u63D0\u4EA4\u7684\u6539\u52A8</div>';
     } else {
@@ -1027,6 +1195,33 @@
     }
     host.innerHTML = html;
     bindPanelActions(host);
+    bindSnapItems(host);
+  }
+  /** 快照条目事件：点条目 → 预览；💾 → 立即存一版 */
+  function bindSnapItems(host) {
+    host.querySelectorAll(".snap-item").forEach((el) => {
+      el.addEventListener("click", (e) => {
+        if (e.target.closest("[data-act=save-version]")) return;
+        const ts = Number(el.dataset.snap);
+        const entry = state.snapshots.entries.find((x) => x.ts === ts);
+        if (entry) showSnapshotPreview(entry);
+      });
+    });
+    host.querySelectorAll("[data-act=save-version]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const file = state.snapshots.file;
+        if (!file) return;
+        btn.disabled = true;
+        ipc("snapshots.save", { path: file }, 2e4).then(() => {
+          ui.toast("ok", "已存版本快照");
+          ui.loadSnapshots(file);
+        }).catch((err) => {
+          btn.disabled = false;
+          ui.toast("error", "存快照失败：" + (err.message || err));
+        });
+      });
+    });
   }
   function bindPanelActions(host) {
     if (host.dataset.bound === "1") return;
@@ -1853,7 +2048,12 @@
         { label: "\u751F\u6210 docx", enabled: () => isMd, act: notYet("\u751F\u6210 docx") },
         { label: "\u751F\u6210 PDF", enabled: () => isMd, act: notYet("\u751F\u6210 PDF") },
         { sep: true },
-        { label: "\u4FDD\u5B58\u7248\u672C\u5FEB\u7167", act: notYet("\u4FDD\u5B58\u7248\u672C\u5FEB\u7167") },
+        { label: "\u4FDD\u5B58\u7248\u672C\u5FEB\u7167", enabled: () => snapshotablePath(absPath), act: () => {
+          ipc("snapshots.save", { path: absPath }, 2e4).then(() => {
+            ui.toast("ok", "\u5DF2\u5B58\u7248\u672C\u5FEB\u7167\uFF1A" + baseName(absPath));
+            if (settings.sidebarActive === "changes") ui.loadSnapshots(relOfPath(absPath));
+          }).catch((err) => ui.toast("error", "\u5B58\u5FEB\u7167\u5931\u8D25\uFF1A" + (err.message || err)));
+        } },
         { label: "\u67E5\u770B\u5386\u53F2", act: () => ui.showHistoryFor(absPath) },
         { sep: true },
         { label: "\u590D\u5236\u8DEF\u5F84", act: () => copyText(absPath) },
@@ -1862,15 +2062,22 @@
         { label: "\u5237\u65B0", key: "F5", act: () => ui.refreshTree() }
       ], x, y);
     },
-    /** 文件树「查看历史」：切到历史面板并（有数据时）列出该文件的版本 */
+    /** 文件树「查看历史」：切到「改动」面板并列出该文件的版本快照（#42 阶段 7） */
     showHistoryFor(absPath) {
+      if (!snapshotablePath(absPath)) {
+        ui.toast("info", "\u53EA\u6709\u6587\u672C\u6587\u4EF6\uFF08.md/.txt\uFF09\u6709\u7248\u672C\u5FEB\u7167");
+        return;
+      }
       settings.sidebarVisible = true;
-      settings.sidebarActive = "history";
+      settings.sidebarActive = "changes";
       saveSettings();
       applyLayoutSettings();
       syncActivitySelection();
-      renderSidebar();
-      ui.toast("info", "\u7248\u672C\u5386\u53F2\uFF1A" + baseName(absPath) + "\uFF08\u7B49 save_version \u63A5\u5165\u540E\u5217\u51FA\u5FEB\u7167\uFF09");
+      ui.loadSnapshots(relOfPath(absPath));
+    },
+    /** 载入某文件的快照列表（改动面板数据源）；file 为空 = 重置 */
+    loadSnapshots(file) {
+      return loadSnapshotsInto(file);
     },
     revealPath(p0) {
       ipc("explorer.reveal", { path: p0 }, 8e3).catch((err) => ui.toast("error", "\u65E0\u6CD5\u5728\u8D44\u6E90\u7BA1\u7406\u5668\u4E2D\u663E\u793A\uFF1A" + err.message));
@@ -2336,5 +2543,8 @@
   setTimeout(function() {
     if (state.bridge && state.bridge.mode === "host") ui.loadGit();
   }, 800);
+  // #42 阶段 7：版本快照——每 30s 检查打开的文本文件（内容有变才存），开场 6s 先来一版
+  setTimeout(snapshotTick, 6e3);
+  setInterval(snapshotTick, 3e4);
   window.__mang = { state, ui, settings, ipc };
 })();

@@ -361,6 +361,15 @@ impl Ctx {
 
             "preview.write" => crate::fsapi::preview_write(a),
 
+            // 版本快照（issue #42 阶段 7）：自动/手动存版本 + 预览 + 回滚
+            "snapshots.check" => crate::snapshots::check(&self.workspace, a),
+
+            "snapshots.save" => crate::snapshots::save(&self.workspace, a),
+
+            "snapshots.read" => crate::snapshots::read(&self.workspace, a),
+
+            "snapshots.rollback" => crate::snapshots::rollback(&self.workspace, a),
+
             // 绝对路径（拖拽/对话框/最近打开）→ 归一成 {path, rel, kind, size, mtimeMs, insideWorkspace}
             "file.fromPath" => crate::fsapi::from_path(&self.workspace, a),
 

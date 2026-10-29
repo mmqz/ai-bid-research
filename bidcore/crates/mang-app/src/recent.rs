@@ -172,7 +172,8 @@ pub fn history_list(ws: &Workspace, args: Args<'_>) -> Result<Value, IpcError> {
             .and_then(|t| t.as_u64().or_else(|| t.as_f64().map(|f| f as u64)))
             .unwrap_or(0);
         let kind = match o.get("kind").and_then(|k| k.as_str()) {
-            Some("manual") | Some("ai") => "manual",
+            Some("ai") => "ai",
+            Some("manual") => "manual",
             _ => "auto",
         };
         let message = o

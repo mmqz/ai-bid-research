@@ -27,6 +27,7 @@ mod paths;
 mod recent;
 mod selftest;
 mod shell;
+mod snapshots;
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};

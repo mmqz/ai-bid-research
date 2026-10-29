@@ -380,6 +380,9 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
     let re_amount = Regex::new(r"(\d+(?:\.\d+)?)\s*万\s*元").unwrap();
     let re_date = Regex::new(r"\d{4}-\d{2}-\d{2}").unwrap();
     let re_date_cn = Regex::new(r"[〇一二三四五六七八九零]{4}年[〇一二三四五六七八九零]{1,2}月[〇一二三四五六七八九零]{1,3}日").unwrap();
+    // 分值形态（评分细则行「N分」——容忍空格；评标办法章内分值锚定的
+    // 判定面，P0-B 修订 2）
+    let re_score_shape = Regex::new(r"\d+(?:\.\d+)?\s*分").unwrap();
     // 否决语境（父条款总括句开启；新编号条款/非列举普通段终止）
     let mut veto_ctx = false;
     // 表格审查语境（评审标准/资格审查表内行；表切换重置）
@@ -403,15 +406,22 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                     // R3-S3-5 优先级链（DOCX 版，对齐 extract_main_pdf）：
                     // 强否决短语 > 资格面 > 章节上下文——编号否决条款
                     // （如"3.4.2 …将被否决"）不得落"其他"（漏否决=废标风险）
-                    // P0-B 修订：评标办法章优先评分项。
-                    // 评分细则行常含"否决/资格"字样（"低于成本价的投标将被否决"），
-                    // 若让否决词抢先，评分矩阵真值锚定就崩了（实测 4 -> 1）。
-                    // 章节上下文是分值的权威定位处，优先于句式启发。
+                    // P0-B 修订 2（分值形态锁定）：评标办法章内**含分值形态**
+                    // （"N分"）的行才锁定评分项。修订 1 的整章 blanket 优先
+                    // 误伤评审否决条款（3.1.2 下列情形之一的将被否决 /
+                    // 3.2.x 低于成本价应当否决——实测 37 条、DOCX L2 -4.9pp）。
+                    // 实测面（探针）：corpus-A 4 条评分项全部含 N分形态；
+                    // BJ 语料 37 条被误伤否决条款全部无分值形态；
+                    // 形态+否决并存 0 条——两全无歧义面。
+                    // 注：评分章内无形态、无否决词的行保持章节上下文
+                    // （总监理工程师等术语行不被资格词抢走——最小扰动）。
                     let ctx_cat = category_for(chapter, subsection);
-                    let cat = if ctx_cat == "评分项" {
+                    let cat = if ctx_cat == "评分项" && re_score_shape.is_match(t) {
                         "评分项"
                     } else if vl::is_veto(t) {
                         "否决项"
+                    } else if ctx_cat == "评分项" {
+                        "评分项"
                     } else if vl::is_qual(t) {
                         "资格条件"
                     } else {

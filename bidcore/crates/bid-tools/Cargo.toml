@@ -21,6 +21,6 @@ docx-rs = "0.4"
 
 [dev-dependencies]
 # 测试面（S-6 验收）：解包导出产物校验 zip 完整性 + XML 良构（「Word 打开
-# 不弹修复」的本地代理口径）——与 bid-parse 同源 workspace 版本，不新增条目。
-zip = { workspace = true }
-quick-xml = { workspace = true }
+# B4 后 workspace 已删 zip/quick-xml 条目——测试面独立钉版本，仅 dev-dependency。
+zip = "4"
+quick-xml = "0.36"

@@ -1,6 +1,9 @@
 # B3-3 双跑差分全量验收报告（issue #2 §B3 验收 2/3）
 
-> 状态：**已完成**。工具 `scripts/engine_diff.py`（v4），产出 `artifacts/engine-diff-r2/`。
+> 状态：**已完成**（历史基线 @ mdcore 2d014445）。**r3 重跑（mdcore bump 3204342d，
+> #39 嵌套表修复后 NESTED-TABLE 归零、EQ+ED 91.57%）见
+> `docs/b3-3-r3-acceptance-report.md`——本报告的 §5 裁决表仍被 r3 沿用**。
+> 工具 `scripts/engine_diff.py`（v4），产出 `artifacts/engine-diff-r2/`。
 > 旧侧 = `baseline/parse/`（B1.5 冻结 golden，bid_parse 现行）；新侧 = `engine-probe-dump`
 > （mdc-office-io @ rev `2d01444`，与 bid-engine 同 rev——双跑差分两侧必须同引擎版本）。
 

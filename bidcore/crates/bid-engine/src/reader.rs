@@ -116,7 +116,15 @@ fn convert_block(b: &docx::Block) -> EngineBlock {
             source: map_source(p.source),
         }),
         docx::Block::Table(t) => EngineBlock::Table(EngineTable {
-            rows: t.rows.clone(),
+            // P2-2（引擎 cdd0a8d，rev 3204342d）语义适配：引擎 `rows` 已升为
+            // **栅格展开形**（gridSpan 覆盖列/vMerge 续格置空、内容只居原点格
+            // ——Word 显示语义），`merges` 携带矩形清单。bid_parse 的 Block
+            // cells 约定是「**每 w:tc 一格**」（旧解析器口径：gridSpan 跨列 =
+            // 一格；vMerge 续行 = 独立空格）——映射层按 merges 把栅格压回
+            // w:tc 形（字段搬运面的口径对齐，非引擎能力补齐）：每合并矩形的
+            // 行切片收敛为一格（原点行带内容、续行空串）。text 不受影响
+            // （emit_rows 的 text 本就滤空格连接）。
+            rows: compress_grid_to_tc(&t.rows, &t.merges),
             source: map_source(t.source),
         }),
         docx::Block::TextBox(tb) => EngineBlock::TextBox(EngineTextBox {
@@ -133,6 +141,40 @@ fn map_source(s: docx::BlockSource) -> EngineBlockSource {
         docx::BlockSource::Header => EngineBlockSource::Header,
         docx::BlockSource::Footer => EngineBlockSource::Footer,
     }
+}
+
+/// 栅格展开形 → w:tc 约定格（P2-2 适配，见 convert_block 注释）。
+///
+/// 每个合并矩形（start_row..=end_row × start_col..=end_col，0 基含端点）的
+/// **行切片**收敛为一格：原点行（r == start_row）取该行切片的首格（引擎
+/// 保证内容只居原点格）、续行（r > start_row）同理取首格（引擎置空串）。
+/// 未被任何矩形覆盖的格直通。逐行从左到右扫描，命中矩形即跳到矩形右界
+/// 之外（`.max(c + 1)` 防退化矩形死循环）；矩形互不重叠（引擎口径：
+/// 叠加合并收敛为单矩形）。
+fn compress_grid_to_tc(rows: &[Vec<String>], merges: &[docx::MergeRange]) -> Vec<Vec<String>> {
+    let covers = |m: &docx::MergeRange, r: usize, c: usize| {
+        r >= m.start_row && r <= m.end_row && c >= m.start_col && c <= m.end_col
+    };
+    rows.iter()
+        .enumerate()
+        .map(|(r, row)| {
+            let mut out: Vec<String> = Vec::with_capacity(row.len());
+            let mut c = 0usize;
+            while c < row.len() {
+                match merges.iter().find(|m| covers(m, r, c)) {
+                    Some(m) => {
+                        out.push(row[c].clone()); // 行切片收敛格（原点内容/续行空串）
+                        c = (m.end_col + 1).max(c + 1);
+                    }
+                    None => {
+                        out.push(row[c].clone());
+                        c += 1;
+                    }
+                }
+            }
+            out
+        })
+        .collect()
 }
 
 /// 页眉/页脚挂接镜像（变体 + source 标记块序——文本行序便捷面在
@@ -155,6 +197,11 @@ fn convert_warning(w: &io::CompatibilityWarning) -> EngineWarning {
         io::WarningKind::ControlChars => "ControlChars",
         io::WarningKind::BrokenReference => "BrokenReference",
         io::WarningKind::RevisionDelete => "RevisionDelete",
+        // 引擎 #39 新增（rev 3204342d）：面外元素跳过（嵌套表深度超限——
+        // 敌意/退化嵌套整块跳过不崩溃，诚实降级登记）。只读方透传——
+        // 语义与 code 字符串一一对应，消费面（mapping 的 RevisionDelete 计数）
+        // 按字符串过滤不受影响。
+        io::WarningKind::SkippedElement => "SkippedElement",
     };
     EngineWarning {
         code: code.to_string(),

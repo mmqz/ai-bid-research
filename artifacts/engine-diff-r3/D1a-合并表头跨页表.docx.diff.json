@@ -1,0 +1,243 @@
+{
+  "aligned_pairs": 23,
+  "file": "fixtures/corpus-R/D1-tables/D1a-合并表头跨页表.docx",
+  "items": [
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段1",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "附件一：设备与技术服务量价表（示例——合并表头结构测试件）",
+      "text_old": "附件一：设备与技术服务量价表（示例——合并表头结构测试件）",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段2",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "说明：本表为两行嵌套表头（横向合并+纵向跨行合并）结构示例；表体18行，渲染后自然跨页；单价上限合计不超过示例预算。",
+      "text_old": "说明：本表为两行嵌套表头（横向合并+纵向跨行合并）结构示例；表体18行，渲染后自然跨页；单价上限合计不超过示例预算。",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行1",
+      "old_locator": " 表1 行1",
+      "rule": "",
+      "text_new": "序号设备信息商务信息类别备注",
+      "text_old": "序号设备信息商务信息类别备注",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行2",
+      "old_locator": " 表1 行2",
+      "rule": "",
+      "text_new": "名称型号规格单位数量单价上限（元）质保期",
+      "text_old": "名称型号规格单位数量单价上限（元）质保期",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行3",
+      "old_locator": " 表1 行3",
+      "rule": "",
+      "text_new": "1核心交换机示例型号CE-9500-48C（示例）台2 185,000 3年网络设备含模块",
+      "text_old": "1核心交换机示例型号CE-9500-48C（示例）台2 185,000 3年网络设备含模块",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行4",
+      "old_locator": " 表1 行4",
+      "rule": "",
+      "text_new": "2接入交换机示例型号CE-6800-48T（示例）台12 23,500 3年",
+      "text_old": "2接入交换机示例型号CE-6800-48T（示例）台12 23,500 3年",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行5",
+      "old_locator": " 表1 行5",
+      "rule": "",
+      "text_new": "3无线控制器示例型号WLC-3504（示例）台2 78,000 3年",
+      "text_old": "3无线控制器示例型号WLC-3504（示例）台2 78,000 3年",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行6",
+      "old_locator": " 表1 行6",
+      "rule": "",
+      "text_new": "4下一代防火墙示例型号FG-3100D（示例）台2 156,000 3年安全设备含特征库",
+      "text_old": "4下一代防火墙示例型号FG-3100D（示例）台2 156,000 3年安全设备含特征库",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行7",
+      "old_locator": " 表1 行7",
+      "rule": "",
+      "text_new": "5上网行为管理示例型号AC-6000（示例）台1 45,000 3年",
+      "text_old": "5上网行为管理示例型号AC-6000（示例）台1 45,000 3年",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行8",
+      "old_locator": " 表1 行8",
+      "rule": "",
+      "text_new": "6应用服务器示例型号SR-660（示例）台4 92,000 3年计算存储",
+      "text_old": "6应用服务器示例型号SR-660（示例）台4 92,000 3年计算存储",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行9",
+      "old_locator": " 表1 行9",
+      "rule": "",
+      "text_new": "7数据库服务器示例型号SR-860（示例）台2 148,000 3年",
+      "text_old": "7数据库服务器示例型号SR-860（示例）台2 148,000 3年",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行10",
+      "old_locator": " 表1 行10",
+      "rule": "",
+      "text_new": "8分布式存储示例型号ST-5000（示例）套1 320,000 3年",
+      "text_old": "8分布式存储示例型号ST-5000（示例）套1 320,000 3年",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行11",
+      "old_locator": " 表1 行11",
+      "rule": "",
+      "text_new": "9精密空调示例型号CRV-40（示例）台2 68,000 2年机房配套",
+      "text_old": "9精密空调示例型号CRV-40（示例）台2 68,000 2年机房配套",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行12",
+      "old_locator": " 表1 行12",
+      "rule": "",
+      "text_new": "10 UPS电源示例型号UH-60kVA（示例）套1 210,000 2年",
+      "text_old": "10 UPS电源示例型号UH-60kVA（示例）套1 210,000 2年",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行13",
+      "old_locator": " 表1 行13",
+      "rule": "",
+      "text_new": "11机柜及配件示例型号NR-42U（示例）个14 4,800 2年",
+      "text_old": "11机柜及配件示例型号NR-42U（示例）个14 4,800 2年",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行14",
+      "old_locator": " 表1 行14",
+      "rule": "",
+      "text_new": "12视频监控示例型号IPC-8X（示例）台48 3,200 2年智能化专项",
+      "text_old": "12视频监控示例型号IPC-8X（示例）台48 3,200 2年智能化专项",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行15",
+      "old_locator": " 表1 行15",
+      "rule": "",
+      "text_new": "13门禁系统示例型号AC-2100（示例）套16 5,600 2年",
+      "text_old": "13门禁系统示例型号AC-2100（示例）套16 5,600 2年",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行16",
+      "old_locator": " 表1 行16",
+      "rule": "",
+      "text_new": "14综合布线六类非屏蔽（示例）项1 185,000 2年",
+      "text_old": "14综合布线六类非屏蔽（示例）项1 185,000 2年",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行17",
+      "old_locator": " 表1 行17",
+      "rule": "",
+      "text_new": "15排队叫号示例型号QM-300（示例）套8 12,000 2年",
+      "text_old": "15排队叫号示例型号QM-300（示例）套8 12,000 2年",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行18",
+      "old_locator": " 表1 行18",
+      "rule": "",
+      "text_new": "16驻场运维3年7×24（示例）项1 260,000—运维服务含备件",
+      "text_old": "16驻场运维3年7×24（示例）项1 260,000—运维服务含备件",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行19",
+      "old_locator": " 表1 行19",
+      "rule": "",
+      "text_new": "17培训服务分批集中培训（示例）项1 36,000—",
+      "text_old": "17培训服务分批集中培训（示例）项1 36,000—",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行20",
+      "old_locator": " 表1 行20",
+      "rule": "",
+      "text_new": "18迁移实施数据迁移与割接（示例）项1 55,000—",
+      "text_old": "18迁移实施数据迁移与割接（示例）项1 55,000—",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段3",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "注：本表结构为合成示例，不构成任何真实采购需求。",
+      "text_old": "注：本表结构为合成示例，不构成任何真实采购需求。",
+      "verdict": "EQUIVALENT"
+    }
+  ],
+  "new_blocks": 23,
+  "new_status": "ok",
+  "old_blocks": 23,
+  "old_status": "ok",
+  "verdict_counts": {
+    "EQUIVALENT": 23
+  }
+}

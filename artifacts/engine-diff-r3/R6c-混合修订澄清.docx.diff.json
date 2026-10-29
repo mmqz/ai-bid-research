@@ -1,0 +1,74 @@
+{
+  "aligned_pairs": 5,
+  "file": "fixtures/corpus-R/D6-revisions/R6c-混合修订澄清.docx",
+  "items": [
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段1",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "示例项目澄清文件（第3次·混合修订）",
+      "text_old": "示例项目澄清文件（第3次·混合修订）",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行1",
+      "old_locator": " 表1 行1",
+      "rule": "",
+      "text_new": "偏差表类别商务偏差表（修订后表头）",
+      "text_old": "偏差表类别商务偏差表（修订后表头）",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "table_row",
+      "kind_old": "table_row",
+      "new_locator": "表1 行2",
+      "old_locator": " 表1 行2",
+      "rule": "",
+      "text_new": "以澄清后口径为准",
+      "text_old": "以澄清后口径为准",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段2",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "更正后开标时间：2026-11-27 09:30",
+      "text_old": "更正后开标时间：2026-11-27 09:30",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": "para",
+      "new_locator": "段3",
+      "old_locator": "",
+      "rule": "",
+      "text_new": "评标基准价计算公式中的下浮率K取值：1.5%（原空白，现补充明确）",
+      "text_old": "评标基准价计算公式中的下浮率K取值：1.5%（原空白，现补充明确）",
+      "verdict": "EQUIVALENT"
+    },
+    {
+      "kind_new": "para",
+      "kind_old": null,
+      "new_locator": "段4",
+      "old_locator": "",
+      "rule": "EMPTY-PARA（引擎空段；适配层丢空段对齐旧口径）",
+      "text_new": "",
+      "text_old": "",
+      "verdict": "EXPECTED_DIFF"
+    }
+  ],
+  "new_blocks": 6,
+  "new_status": "ok",
+  "old_blocks": 5,
+  "old_status": "ok",
+  "verdict_counts": {
+    "EQUIVALENT": 5,
+    "EXPECTED_DIFF": 1
+  }
+}

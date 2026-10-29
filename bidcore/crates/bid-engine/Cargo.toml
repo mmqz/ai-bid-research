@@ -16,14 +16,19 @@ description = "issue #2 · B3：引擎适配层唯一接触面——mdc-office-i
 bid-parse = { path = "../bid-parse" }
 
 # ── mdcore 引擎接入（B3 主线 · issue #11 验收：cargo tree -p bid-engine 必须见 mdc-office-io）──
-# rev = mdcore main @ 2d0144456162389cccdfadfbed22b9e7c30d697d（含全部 B3 前置修复：
-#   #17 修订 ins/delText（f7ddd39）/ #18 文本框（f7ddd39）/ #19 批注脚注尾注（f7ddd39）/
-#   A1 标题层级四链解析（a85decd）/ A2 表现型域剥离（338acdc）/ P2-1 BlockSource 加性扩面（f19cd6a））
+# rev = mdcore main @ 3204342d9a5ee33400aba2b17dad29696e2f0bb8（issue #11 指令 bump——一次到位）：
+#   继承 2d014445 全部 B3 前置修复（#17/#18/#19 修订批注文本框 + A1 标题四链 + A2 域剥离 +
+#   P2-1 BlockSource 扩面），新增：
+#   #39 DOCX 嵌套表格递归提取（0dff36a——内层表沿文档序独立成块 + TableData::nested 标记，
+#     B3-3 报告 347 条 NESTED-TABLE 缺口的引擎侧修复，差分重跑验证）
+#   #42 xlsx 双通路 Grid 联动（5f55ca8）/ #43 契约 v1.6（943a05b）/ #45 PDF ink 颜色（d3d2edb）
+# 语义变化注意：嵌套表不再静默丢弃——内层表独立成块（nested=true），块流会比旧 rev
+#   多出若干块（差分归 EXPECTED_DIFF 或直接归零——旧实现本就含这些内容）。
 # 私有仓凭据：本机 ~/.gitconfig insteadOf 注入（PAT 不入仓、不入 CI 日志——issue #2 §3.1）。
-mdc-office-io = { git = "https://github.com/mmqz/mdcore", rev = "2d0144456162389cccdfadfbed22b9e7c30d697d", package = "mdc-office-io" }
+mdc-office-io = { git = "https://github.com/mmqz/mdcore", rev = "3204342d9a5ee33400aba2b17dad29696e2f0bb8", package = "mdc-office-io" }
 # B3-5：pdf 文本通道（engine-pdfium 特性——pdfium 动态库 env MDC_PDFIUM_LIB 或编译期候选；
 # 无 pdfium 环境走 SKIP 语义，测试不伪装失败——issue #9 口径）
-mdc-pdf = { git = "https://github.com/mmqz/mdcore", rev = "2d0144456162389cccdfadfbed22b9e7c30d697d", package = "mdc-pdf", features = ["engine-pdfium"] }
+mdc-pdf = { git = "https://github.com/mmqz/mdcore", rev = "3204342d9a5ee33400aba2b17dad29696e2f0bb8", package = "mdc-pdf", features = ["engine-pdfium"] }
 sha2 = "0.10"
 hex = "0.4"
 # calamine 0.36 与引擎 mdc-office-io 同版（Data/Range/Dimensions 类型面——读侧零语义，仅字段搬运）

@@ -37,7 +37,7 @@ pub use types::{
 
 /// 引擎钉住 rev（与 Cargo.toml git 依赖一致——parse_summary 溯源口径）。
 /// 升级走独立 PR（`chore(dep): bump mdcore`）并重跑基线差分（issue #2 §3.1）。
-pub const MDCORE_REV: &str = "2d0144456162389cccdfadfbed22b9e7c30d697d";
+pub const MDCORE_REV: &str = "3204342d9a5ee33400aba2b17dad29696e2f0bb8";
 
 /// 门面：读文件 → 引擎解析 → 映射为 `ParsedFile`（B5 import 接线入口，docx 通道）。
 ///

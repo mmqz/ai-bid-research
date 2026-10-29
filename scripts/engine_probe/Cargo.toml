@@ -13,12 +13,12 @@ edition = "2021"
 [dependencies.mdc-office-io]
 package = "mdc-office-io"
 git = "https://github.com/mmqz/mdcore"
-rev = "2d0144456162389cccdfadfbed22b9e7c30d697d"
+rev = "3204342d9a5ee33400aba2b17dad29696e2f0bb8"
 
 [dependencies.mdc-pdf]
 package = "mdc-pdf"
 git = "https://github.com/mmqz/mdcore"
-rev = "2d0144456162389cccdfadfbed22b9e7c30d697d"
+rev = "3204342d9a5ee33400aba2b17dad29696e2f0bb8"
 features = ["engine-pdfium"]
 
 [dependencies.zip]

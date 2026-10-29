@@ -65,13 +65,76 @@ mod imp {
     }
 
     /// 供 main.rs 在窗口显示后调一次：WebView2 的子窗口是异步建好的，
-    /// install 时可能还没出现，这里补挂。幂等。
+    /// install 时可能还没出现，这里补挂并重新内缩。幂等。
     pub fn refresh_webview_hook(hwnd_raw: isize) {
         let hwnd = HWND(hwnd_raw as _);
         unsafe {
             hook_webview_layers(hwnd);
+            inset_webview(hwnd);
         }
     }
+
+    /// 把 WebView 从窗口四边内缩，给「边缘缩放」留出可命中区。
+    ///
+    /// 为什么必须这么做 —— 这是最初版本本来就有的效果：
+    ///   当时 tao 的 decoration_shadow 默认开启，它的 WM_NCCALCSIZE 会把客户区
+    ///   按阴影内缩（1243x682 的窗口 → 1228x673 的客户区），WebView 按客户区铺，
+    ///   于是四周天然比窗口小一圈，**下左右三边因此能缩放**（用户最初反馈
+    ///   「左右下能缩、只有上边不能」正是这个原因）。
+    ///   我们后来为了修标题带，把 shadow 关了 → 客户区变成整窗 → WebView 铺满 →
+    ///   那一圈缝隙消失，三边缩放跟着没了。
+    ///
+    /// 所以现在显式把这圈缝隙加回来：WebView 内缩 border_px()，缩放判定仍由
+    /// 主窗口的 hit_test 负责（它会答 HTLEFT / HTTOP / …）。
+    /// 顶部只内缩 1px：标题带那 32px 归 UI 用，但最上面 5px 由 hit_test 判成
+    /// HTTOP，这样上边缘也能拖高。
+    static INSET_BUSY: AtomicBool = AtomicBool::new(false);
+
+    unsafe fn inset_webview(hwnd: HWND) {
+        use windows::Win32::UI::WindowsAndMessaging::{GetClientRect, SetWindowPos};
+        if INSET_BUSY.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        struct Guard;
+        impl Drop for Guard {
+            fn drop(&mut self) {
+                INSET_BUSY.store(false, Ordering::SeqCst);
+            }
+        }
+        let _guard = Guard;
+        unsafe {
+            let wv = match webview_child(hwnd) {
+                Some(w) => w,
+                None => return,
+            };
+            let mut client = RECT::default();
+            if GetClientRect(hwnd, &mut client).is_err() {
+                return;
+            }
+            let b = border_px(hwnd).max(1);
+            let top = (scale(hwnd).round() as i32).max(1);
+            let cw = client.right - client.left;
+            let ch = client.bottom - client.top;
+            let w = (cw - b * 2).max(1);
+            let h = (ch - b - top).max(1);
+            if w <= 2 || h <= 2 {
+                return;
+            }
+            // 已经对了就别动（避免每次尺寸变化都抖一下）
+            let mut cur = RECT::default();
+            if GetWindowRect(wv, &mut cur).is_ok() {
+                if cur.right - cur.left == w && cur.bottom - cur.top == h {
+                    let mut p = POINT { x: 0, y: 0 };
+                    let _ = ClientToScreen(hwnd, &mut p);
+                    if cur.left == p.x + b && cur.top == p.y + top {
+                        return;
+                    }
+                }
+            }
+            let _ = SetWindowPos(wv, None, b, top, w, h, SWP_NOZORDER | SWP_NOACTIVATE);
+        }
+    }
+
 
     const WEBVIEW_SUBCLASS_ID: usize = 0x4D41_4E49;
     /// WebView 那一层窗口（WRY_WEBVIEW / Chrome_WidgetWin_* / Render）都挂上同一个子类；
@@ -122,34 +185,49 @@ mod imp {
         windows::core::BOOL(1)
     }
 
-    /// WebView 层的命中转发。
+    /// WebView 层的命中处理。
     ///
-    /// 这是「边缘不能缩放 / 标题栏顶部不能拖高」的真正解法：
-    /// 鼠标永远落在 WebView 那几层上（它铺满整个客户区），系统先问它们，
-    /// 它们一律答 HTCLIENT(1)，于是主窗口的 hit_test 根本没机会说话。
+    /// 实测结论（别再重复试）：**这条路走不通**。
+    ///   · 在 WRY_WEBVIEW / Chrome_WidgetWin_0 上返回 HTTRANSPARENT(-1)，
+    ///     期望系统沿父链往上问 → 实机验证「边缘光标不变成双向箭头」，
+    ///     说明系统根本没问到我们控制的这两层。
+    ///   · 原因：真正答命中测试的是最内层的 Chrome_RenderWidgetHostHWND，
+    ///     它属于 msedgewebview2 **子进程**，本进程既不能子类化、也裁不到它。
+    ///     系统问它 → 它答 HTCLIENT → 命中结束，父链上的窗口没有机会说话。
     ///
-    /// 办法：在这几层的窗口过程里，如果主窗口认为「这里是边 / 标题带」，
-    /// 就直接返回主窗口的答案（HTLEFT / HTTOP / HTCAPTION …），
-    /// 系统拿到非 HTCLIENT 就会按非客户区处理 —— 缩放和拖动都会进原生循环。
-    /// 主窗口认为是 HTCLIENT 的，保持子窗口自己原来的答案（不影响页面里的点击）。
+    /// 所以这里只保留「兜底转发」：万一系统当真把非客户区按下发到了我们能接到的层，
+    /// 就把它转给主窗口，让主窗口去跑原生缩放 / 拖动循环。
+    /// 真正的修复必须落在 wry / WebView2 那一侧（见 docs/mang/HANDOFF-titlebar-bug.md）。
     unsafe extern "system" fn hit_forward_proc_(
         hwnd: HWND,
         msg: u32,
         wparam: WPARAM,
         lparam: LPARAM,
-        id: usize,
-        data: usize,
+        _id: usize,
+        _data: usize,
     ) -> LRESULT {
-        if msg == WM_NCHITTEST {
-            let main = HWND(MAIN_HWND.load(Ordering::SeqCst) as *mut _);
-            if !main.0.is_null() {
+        let main = HWND(MAIN_HWND.load(Ordering::SeqCst) as *mut _);
+        if main.0.is_null() {
+            return unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) };
+        }
+        match msg {
+            // 本层认为这是边 / 标题带时，直接回答（有些场景系统确实会问到这里）
+            WM_NCHITTEST => {
                 let ours = unsafe { hit_test(main, lparam) };
                 if ours.0 != HTCLIENT as isize {
                     return ours;
                 }
+                unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
             }
+            // 兜底：子窗口收到非客户区按下 → 转给主窗口
+            WM_NCLBUTTONDOWN | WM_NCLBUTTONDBLCLK => {
+                unsafe {
+                    let _ = SendMessageW(main, msg, Some(wparam), Some(lparam));
+                }
+                LRESULT(0)
+            }
+            _ => unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) },
         }
-        unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
     }
 
     /// 注册「最大化状态变化」回调（双击标题栏时 UI 的按钮图标要跟着换）
@@ -207,11 +285,17 @@ mod imp {
         r
     }
 
-    /// 无边框窗口的外观参数：可拖拽边框厚度 + 小圆角。
+    /// 窗口外观：**只设圆角，绝不设 DWMWA_VISIBLE_FRAME_BORDER_THICKNESS**。
+    ///
+    /// 踩过的坑：以前这里每次缩放都设一遍 VISIBLE_FRAME_BORDER_THICKNESS（约 5px），
+    /// 而 Win11 会把这圈边框**画在客户区边缘上**。我们的客户区又被 WM_NCCALCSIZE
+    /// 钉成整窗、WebView 也按整窗铺 —— 于是窗口一缩小，这圈边框就压住页面外缘，
+    /// 看起来就是「还原后页面被切掉一条」。最大化时窗口贴屏幕边，多出来的一圈在
+    /// 屏幕外所以看不出来，一旦还原就暴露。归零即可，不要在任何尺寸变化里重设。
     fn sync_frame(hwnd: HWND) {
         const DWMWA_WINDOW_CORNER_PREFERENCE: u32 = 33;
         const DWMWA_VISIBLE_FRAME_BORDER_THICKNESS: u32 = 37;
-        let border: i32 = border_px(hwnd).max(1);
+        let border: i32 = 0;
         let corner: i32 = 3; // DWMWCP_ROUNDSMALL
         unsafe {
             let _ = DwmSetWindowAttribute(
@@ -499,6 +583,11 @@ mod imp {
             WM_WINDOWPOSCHANGED | WM_DPICHANGED | WM_NCACTIVATE => {
                 sync_frame(hwnd);
                 let r = unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) };
+                // 尺寸变了就把 WebView 的四边缝隙重新留出来（wry 会按新客户区重新铺满）。
+                // 用防重入保护，避免自己 SetWindowPos 触发的 WINDOWPOSCHANGED 无限递归。
+                if msg != WM_NCACTIVATE {
+                    unsafe { inset_webview(hwnd) };
+                }
                 r
             }
             WM_NCHITTEST => unsafe { hit_test_passthrough(hwnd, lparam) },
@@ -584,15 +673,17 @@ mod imp {
     /// 只做一件事：把窗口 SetWindowPos 到目标矩形。不调 ShowWindow(SW_MAXIMIZE)，
     /// 因为去边框窗口上系统最大化会和我们的尺寸互相覆盖，表现为闪两下。
     fn toggle_maximize(hwnd: HWND, maximize: bool) {
-        use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
         static SAVED: AtomicI32 = AtomicI32::new(0);
         static SX: AtomicI32 = AtomicI32::new(0);
         static SY: AtomicI32 = AtomicI32::new(0);
         static SW: AtomicI32 = AtomicI32::new(0);
         static SH: AtomicI32 = AtomicI32::new(0);
         unsafe {
-            let scr_w = GetSystemMetrics(SM_CXSCREEN).max(640);
-            let scr_h = GetSystemMetrics(SM_CYSCREEN).max(480);
+            // 工作区（去掉任务栏），不是整块屏幕：用 SM_CXSCREEN 铺满会把窗口
+            // 压到任务栏底下，还原时那一圈差值就露在窗口里。
+            let work = work_area(hwnd);
+            let scr_w = work.right - work.left;
+            let scr_h = work.bottom - work.top;
             if maximize {
                 let mut r = RECT::default();
                 if GetWindowRect(hwnd, &mut r).is_ok() {
@@ -606,7 +697,15 @@ mod imp {
                         SAVED.store(1, Ordering::Relaxed);
                     }
                 }
-                let _ = SetWindowPos(hwnd, None, 0, 0, scr_w, scr_h, SWP_NOZORDER | SWP_NOACTIVATE);
+                let _ = SetWindowPos(
+                    hwnd,
+                    None,
+                    work.left,
+                    work.top,
+                    scr_w,
+                    scr_h,
+                    SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+                );
                 IS_MAXED.store(true, Ordering::Relaxed);
             } else {
                 let saved = SAVED.load(Ordering::Relaxed) == 1;
@@ -618,14 +717,104 @@ mod imp {
                 let (x, y) = if saved {
                     (SX.load(Ordering::Relaxed), SY.load(Ordering::Relaxed))
                 } else {
-                    (40, 40)
+                    (work.left + 40, work.top + 40)
                 };
-                let _ = SetWindowPos(hwnd, None, x, y, w, h, SWP_NOZORDER | SWP_NOACTIVATE);
+                let _ = SetWindowPos(
+                    hwnd,
+                    None,
+                    x,
+                    y,
+                    w,
+                    h,
+                    SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+                );
                 IS_MAXED.store(false, Ordering::Relaxed);
             }
             sync_frame(hwnd);
+            // 关键：SetWindowPos 直接改几何，WebView2 的 Bounds 可能还停在旧尺寸
+            // （缩小时多出来的页面被裁 → 看起来是缺口；反之父窗口露出底色 → 黑块）。
+            // 这里等一轮消息循环后再显式对齐一次。
+            resync_webview_bounds(hwnd);
         }
         emit_state();
+    }
+
+    /// 当前显示器的工作区（多显示器 / 任务栏 / DPI 都正确）
+    fn work_area(hwnd: HWND) -> RECT {
+        use windows::Win32::Graphics::Gdi::{MonitorFromWindow, MONITOR_DEFAULTTONEAREST};
+        use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
+        #[repr(C)]
+        #[derive(Default, Clone, Copy)]
+        struct MONITORINFO {
+            cb_size: u32,
+            rc_monitor: RECT,
+            rc_work: RECT,
+            dw_flags: u32,
+        }
+        #[link(name = "user32")]
+        extern "system" {
+            fn GetMonitorInfoW(hmonitor: *mut core::ffi::c_void, lpmi: *mut MONITORINFO) -> i32;
+        }
+        unsafe {
+            let mon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            if !mon.is_invalid() && !mon.0.is_null() {
+                let mut mi = MONITORINFO {
+                    cb_size: std::mem::size_of::<MONITORINFO>() as u32,
+                    ..Default::default()
+                };
+                if GetMonitorInfoW(mon.0, &mut mi) != 0 {
+                    return mi.rc_work;
+                }
+            }
+            // 兜底：主屏
+            RECT {
+                left: 0,
+                top: 0,
+                right: GetSystemMetrics(SM_CXSCREEN).max(640),
+                bottom: GetSystemMetrics(SM_CYSCREEN).max(480),
+            }
+        }
+    }
+
+    /// 显式把 WebView 的 Bounds 对齐到当前客户区。
+    ///
+    /// wry 是靠自己窗口的 WM_SIZE 去 SetBounds 的；我们用 SetWindowPos 改主窗口尺寸时，
+    /// 消息顺序不保证 WebView2 已经收到并重排。所以这里主动问一遍：
+    /// 先给 WebView 宿主发一次 WM_SIZE，再 SetWindowPos 到客户区大小。
+    fn resync_webview_bounds(hwnd: HWND) {
+        use windows::Win32::UI::WindowsAndMessaging::{GetClientRect, SendMessageW, WM_SIZE};
+        unsafe {
+            let mut targets: Vec<HWND> = Vec::new();
+            let _ = EnumChildWindows(
+                Some(hwnd),
+                Some(collect_webview_layers),
+                LPARAM(&mut targets as *mut Vec<HWND> as isize),
+            );
+            let mut client = RECT::default();
+            if GetClientRect(hwnd, &mut client).is_err() {
+                return;
+            }
+            let cw = client.right - client.left;
+            let ch = client.bottom - client.top;
+            if cw <= 0 || ch <= 0 {
+                return;
+            }
+            for h in targets {
+                // WM_SIZE: 让 wry 自己重算 SetBounds
+                let lp = LPARAM(((ch as isize) << 16) | ((cw as isize) & 0xFFFF));
+                let _ = SendMessageW(h, WM_SIZE, Some(WPARAM(0)), Some(lp));
+                // 再把宿主窗口本身钉到客户区大小（位置不动）
+                let _ = SetWindowPos(
+                    h,
+                    None,
+                    0,
+                    0,
+                    cw,
+                    ch,
+                    SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE,
+                );
+            }
+        }
     }
 
     pub fn is_maximized(_hwnd_raw: isize) -> bool {
@@ -689,3 +878,6 @@ mod tests {
         }
     }
 }
+
+
+

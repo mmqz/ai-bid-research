@@ -189,7 +189,28 @@ svg {
   border-bottom: 1px solid var(--border);
   position: relative;
   z-index: 60;
+  /*
+   * 标题栏空白处要能拖动：整条设成 drag，再把真正的交互元素改回 no-drag。
+   * 以前这里整条 no-drag、middle 的 .menubar-spacer 又没设 drag，
+   * 空白处只能靠 JS 的 mousedown 发 IPC 去拖动 —— 第一下就进了系统拖动循环，
+   * 第二次点击进不了 dblclick，所以双击最大化经常没反应。
+   * 注：Electron 才有 app-region 语义；WebView2 里它不生效，
+   * 真正生效的是下面 app.js 里的 isTitlebarBlank + IPC 拖动，
+   * 这里保留正确的声明，方便以后换壳或加原生支持。
+   */
+  -webkit-app-region: drag;
+}
+.menubar .menubar-menus,
+.menubar .window-controls,
+.menubar button,
+.menubar a,
+.menubar input,
+.menubar [role="menuitem"] {
   -webkit-app-region: no-drag;
+}
+/* 中间的空白 spacer 保持可拖动 */
+.menubar .menubar-spacer {
+  -webkit-app-region: drag;
 }
 
 .menubar-menus {

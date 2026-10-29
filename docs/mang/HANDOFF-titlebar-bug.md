@@ -197,3 +197,73 @@ CDP 实测 `window.action toggle` 最大化 / 还原往返正常，UI 的 `data-
 
 `E:\Code\ai\md` 下的 `wm2.ps1`（鼠标注入）、`htp.ps1` / `matrix.ps1` / `scanb.ps1`
 （命中测试探测）、`dwm.ps1`（窗口矩形对比）是这次排查的临时工具，不在仓库里，可随时删除。
+
+---
+
+# 最终结论（2026-10-30，实机验证通过）
+
+四边缩放、拖动、双击最大化全部正常。下面是最终有效的机制，**改动前请先读这一节**。
+
+## 为什么最初版本「左右下能缩、只有上边不能」
+
+关键是 **主窗口和 WebView 的尺寸必须不一样**：
+
+```
+最初：  MAIN 1243x682  /  WRY_WEBVIEW 1229x674   → 四周天然留出 7~9px 缝隙，三边可缩
+```
+
+那一圈缝隙不是谁刻意留的，是 tao 的 `decoration_shadow`（默认 true）在
+`WM_NCCALCSIZE` 里把客户区按阴影内缩出来的副产物 —— WebView 按客户区铺，
+自然就比窗口小一圈。
+
+**后来为了修标题带关掉 shadow，客户区变成整窗、WebView 铺满，这圈缝隙消失，
+三边缩放跟着没了。** 这是中间一大段返工的根因。
+
+所以现在显式把这圈缝隙加回来（`inset_webview`）：
+
+```
+WebView 内缩：左右下 = border_px()（5px×DPI），顶部 = 1px
+main 1229x674  /  WRY_WEBVIEW 1219x668
+```
+
+顶部之所以只留 1px：标题带那 32px 归 UI 用，不能再被切；而最上面 5px
+由 `hit_test` 判成 `HTTOP`，所以上边缘照样能拖高。
+内缩必须只在尺寸变化后做（`WM_WINDOWPOSCHANGED`），并且**带防重入保护**，
+否则自己触发的 poschanged 会递归，实测窗口会一路缩到最小宽度。
+
+## 最终命中优先级（hit_test）
+
+```
+四角  →  四边（含顶边）  →  标题带 HTCAPTION  →  HTCLIENT
+```
+
+顶边**必须**排在标题带前面，否则标题栏最上面 5px 永远返回 HTCAPTION，上边缘拖不动。
+
+实测（窗口 1229x674）：
+
+```
+top+0..+4  -> 12 (HTTOP)      顶边缩放
+top+5..+31 -> 2  (HTCAPTION)  标题带拖动 / 双击
+top+40     -> 1  (HTCLIENT)   正文
+left+1 / right-2 / bottom-2 -> 10 / 11 / 15
+```
+
+## 已证实走不通的方向（不要再试）
+
+1. **`SetWindowRgn` 裁剪 WebView**：裁不到子进程里的 `Chrome_RenderWidgetHostHWND`，
+   而且平台会重置。
+2. **`HTTRANSPARENT(-1)` 让命中穿透到主窗口**：系统根本不会问到我们可控的层
+   （`WRY_WEBVIEW` / `Chrome_WidgetWin_0`），实机表现为「边缘没有双向箭头」。
+3. **子类化 `Chrome_WidgetWin_1` / `Chrome_RenderWidgetHostHWND`**：属 msedgewebview2
+   子进程，跨进程做不到。
+4. 只把 `HTLEFT`/`HTTOP` 返回给子窗口而不保证消息到达主窗口 —— 系统会把
+   `WM_NCLBUTTONDOWN` 发给「回答命中的那个 HWND」。
+
+## 其他已修
+
+- `match` 兜底 `_ => false` 必须在最后（曾吃掉 `drag` / `toggleMaximize`），已加防回归测试
+- `drag` 的 `WM_NCLBUTTONDOWN` 要传真实屏幕坐标，不是 `LPARAM(0)`
+- `DWMWA_VISIBLE_FRAME_BORDER_THICKNESS` 设为 0；最大化用工作区而非整屏；两个方向都带 `SWP_FRAMECHANGED`
+- 还原后 `resync_webview_bounds()` 补一次 WebView Bounds（消除裁切/黑块）
+- `with_undecorated_shadow(false)`（修标题带被 WebView 盖住的根因，**但必须配合 inset_webview**）
+- 菜单「退出」走 `window.action=close`；`wheel` 白名单补 `.menu-popup`；按钮宽度不重复乘 DPI

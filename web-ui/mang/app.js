@@ -401,6 +401,10 @@
     }
     if (ev.ev === "window" && ev.maximized !== void 0) {
       ui.setMaximized(!!ev.maximized);
+      // 桌面壳的窗口缩放不会触发 window resize（见 reportWindowButtonsWidth 注释），
+      // 但最大化/还原后布局确实变了 —— 这里主动补一次重排，
+      // 否则按最大化尺寸排好的视图缩回去仍用旧尺寸，外圈会被裁掉。
+      relayoutAfterWindowChange();
       return;
     }
     if (ev.ev === "theme") {
@@ -566,15 +570,39 @@
       btn.setAttribute("aria-expanded", "true");
       openMenu(menusById[btn.dataset.menu], { x: rect.left, y: rect.bottom + 2 }, "menubar");
     });
+  /**
+   * 桌面壳里窗口尺寸变了（最大化 / 还原）之后补一次布局。
+   * 壳用 SetWindowPos 改几何，WebView 的 resize 事件不保证触发；
+   * 这里先在下一帧、再晚 120ms / 400ms 各做一次，覆盖 WebView 排版慢一拍的情况。
+   */
+  function relayoutAfterWindowChange() {
+    const run = () => {
+      try {
+        // 派发一次 resize，让各视图按新容器尺寸重新测量
+        window.dispatchEvent(new Event("resize"));
+      } catch (_) {
+      }
+    };
+    requestAnimationFrame(run);
+    setTimeout(run, 120);
+    setTimeout(run, 400);
   }
-  /** 已上报过的按钮占位宽度（DIP），用来避免重复上报 */
+  }
+  /**
+   * 已上报过的按钮占位宽度（**DIP / CSS 像素**），用来避免重复上报。
+   *
+   * ⚠ 单位约定：getBoundingClientRect() 返回的已经是 CSS 像素，而壳侧的
+   * BUTTONS_W 也按「逻辑像素」存、命中测试时才乘一次 DPI。所以这里**绝不能**
+   * 自己再乘 devicePixelRatio，否则 125%/150% 缩放下标题栏右侧会多出一大段
+   * 既不是按钮、也不响应拖动的死区。
+   */
   let reportedButtonsW = 0;
   function measureWindowButtons() {
     const host = $("#window-controls");
     if (!host || host.hidden) return 0;
     const r = host.getBoundingClientRect();
-    // 多留一点右侧余量：壳侧要用它覆盖按钮区 + 圆角
-    return Math.round(r.width + 24);
+    // 只留一点右侧余量（圆角），单位仍是 CSS 像素
+    return Math.round(r.width + 8);
   }
   function reportWindowButtonsWidth(force) {
     if (!state.nativeChrome) return;
@@ -1272,9 +1300,26 @@
     });
     window.addEventListener("wheel", (e) => {
       if (e.defaultPrevented) return;
-      const sel = ".sidebar-body, .view-scroll, .text-scroll, .md-view, .empty, .tabs, .modal-body,.mang-pdf-scroll, .mxvp, .mang-docx, .mang-docx-page, .mang-xlsx";
+      // 白名单：能滚的元素。漏掉任何一个，滚轮就会被 preventDefault 吞掉。
+      // 曾经漏了 .menu-popup —— 菜单项一多滚轮就失效（滚的是背景，菜单不动）。
+      const sel = [
+        ".sidebar-body", ".view-scroll", ".text-scroll", ".md-view", ".empty", ".tabs",
+        ".modal-body", ".mang-pdf-scroll", ".mxvp", ".mang-docx", ".mang-docx-page",
+        ".mang-xlsx", ".menu-popup", ".menu-pop", ".dropdown", ".cmd-palette-list",
+        ".xlsx-grid-wrap", ".canvas-wrap"
+      ].join(", ");
       const inScrollable = e.target.closest && e.target.closest(sel);
-      if (!inScrollable) e.preventDefault();
+      // 也放行「自身可滚动」的元素，避免以后新增滚动容器又漏配
+      const selfScrollable = (() => {
+        let n = e.target;
+        while (n && n.nodeType === 1) {
+          const st = getComputedStyle(n);
+          if (/(auto|scroll)/.test(st.overflowY) && n.scrollHeight > n.clientHeight) return true;
+          n = n.parentElement;
+        }
+        return false;
+      })();
+      if (!inScrollable && !selfScrollable) e.preventDefault();
     }, { passive: false });
   }
   function bindSidebarResize() {
@@ -1673,7 +1718,14 @@
       ui.toast("info", "\u67E5\u627E\uFF1A\u5373\u5C06\u5728\u5F53\u524D\u89C6\u56FE\u91CC\u63D0\u4F9B\uFF08\u4E0B\u4E00\u9636\u6BB5\uFF09");
     },
     quit() {
+      // 桌面壳里 window.close() 关不掉宿主窗口（页面不是它自己开的），
+      // 必须走壳的 window.action=close；浏览器预览则明确提示，不要静默失败。
+      if (state.nativeChrome) {
+        ui.winAction("close");
+        return;
+      }
       window.close();
+      ui.toast("info", "\u6D4F\u89C8\u5668\u9884\u89C8\u6A21\u5F0F\u4E0B\u8BF7\u76F4\u63A5\u5173\u95ED\u6807\u7B7E\u9875");
     },
     clearRecent() {
       state.recent = [];

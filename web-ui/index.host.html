@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>mang — 标书工作台</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #f3f3f3; }
+  body { font-family: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif; }
+  #app-frame { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: #fff; }
+  #boot { position: fixed; inset: 0; display: grid; place-items: center; background: #f3f3f3; color: #555; z-index: 10; }
+  #boot[hidden] { display: none; }
+  @media (prefers-color-scheme: dark) {
+    html, body { background: #1f1f1f; }
+    #boot { background: #1f1f1f; color: #bbb; }
+    #app-frame { background: #1f1f1f; }
+  }
+  .boot-box { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .boot-mark { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(135deg, #1f6feb, #6bb3ff); }
+  .boot-title { font-size: 15px; font-weight: 600; letter-spacing: .3px; }
+  .boot-msg { font-size: 12px; opacity: .75; max-width: 420px; text-align: center; }
+  .boot-spin { width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(127,127,127,.35); border-top-color: #1f6feb; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+  <iframe id="app-frame" src="mang/index.html" title="mang 工作台"></iframe>
+  <div id="boot">
+    <div class="boot-box">
+      <div class="boot-mark"></div>
+      <div class="boot-title">mang — 标书工作台</div>
+      <div class="boot-spin"></div>
+      <div class="boot-msg" id="boot-msg">正在加载界面…</div>
+    </div>
+  </div>
+  <script src="mang/host.js"></script>
+</body>
+</html>

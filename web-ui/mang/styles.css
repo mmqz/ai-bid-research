@@ -2020,3 +2020,94 @@ html[data-chrome="native"][data-maximized="1"] #app {
   outline: 1px solid var(--accent);
   outline-offset: -1px;
 }
+
+/* ============ #54 大纲面板 + 页码跳转 ============ */
+
+.outline-empty {
+  padding: 18px 14px;
+  color: var(--fg-dim);
+  font-size: 12px;
+  line-height: 1.8;
+  text-align: center;
+  user-select: none;
+}
+
+.outline-tree {
+  padding: 4px 0 24px;
+}
+
+.outline-item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 24px;
+  padding-right: 8px;
+  margin-left: calc(8px + var(--ol-indent, 0) * 14px);
+  font-size: 12px;
+  color: var(--fg);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.outline-item:hover {
+  background: var(--hover);
+}
+
+.outline-item.active {
+  background: var(--active-sel, rgba(121, 148, 205, 0.18));
+  color: var(--fg);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.outline-twisty {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+
+.outline-twisty svg {
+  width: 12px;
+  height: 12px;
+  transition: transform 0.12s ease;
+}
+
+.outline-twisty[data-collapsed="1"] svg {
+  transform: rotate(0deg);
+}
+
+.outline-twisty:not([data-collapsed="1"]) svg {
+  transform: rotate(90deg);
+}
+
+.outline-item[data-leaf="1"] .outline-twisty {
+  visibility: hidden;
+}
+
+.outline-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-item.status-pager {
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-item.status-pager:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* #54：docx 经 .view-scroll 滚动后的外围底色（对齐 pdf 直子级选择器） */
+.pane > .view-scroll {
+  background-color: var(--doc-void, var(--bg-editor));
+}

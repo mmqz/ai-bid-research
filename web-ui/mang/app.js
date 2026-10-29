@@ -22,7 +22,8 @@
     text: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"><path d="M3.4 1.8h5.4l3.8 3.7v8.7H3.4z"/><path d="M8.7 1.9v3.7h3.8"/><path d="M5.4 8.4h5.2M5.4 10.4h5.2M5.4 12.2h3"/></svg>',
     warning: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.2 14.4 13H1.6z"/><path d="M8 6.2v3.1M8 11.4v.6"/></svg>',
     info: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.3v4M8 5.1v.6"/></svg>',
-    check: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3.2 8.4 3 3 6.6-6.8"/></svg>'
+    check: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3.2 8.4 3 3 6.6-6.8"/></svg>',
+    outline: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h2.2M4 12h2.2M4 18.5h2.2"/><path d="M10 5.5h10M10 12h7.5M10 18.5h9"/></svg>'
   };
   var KIND_ICON = { docx: "docx", xlsx: "xlsx", pdf: "pdf", md: "md", text: "text", dir: "folder" };
   function fmtBytes(n) {
@@ -324,6 +325,7 @@
   };
   var SIDEBARS = [
     { id: "files", icon: "files", title: "\u8D44\u6E90\u7BA1\u7406\u5668", key: "Ctrl+Shift+E" },
+    { id: "outline", icon: "outline", title: "\u5927\u7EB2", key: "Ctrl+Shift+U" },
     { id: "history", icon: "history", title: "\u5386\u53F2", key: "Ctrl+Shift+H" },
     { id: "changes", icon: "changes", title: "\u6539\u52A8", key: "Ctrl+Shift+G" },
     { id: "star", icon: "star", title: "\u6536\u85CF", key: "Ctrl+Shift+S" },
@@ -531,6 +533,7 @@
           { label: "\u5207\u6362\u72B6\u6001\u680F", act: () => ui.toggleStatusBar() },
           { sep: true },
           { label: "\u8D44\u6E90\u7BA1\u7406\u5668", key: "Ctrl+Shift+E", act: () => ui.showSidebar("files") },
+          { label: "\u5927\u7EB2", key: "Ctrl+Shift+U", act: () => ui.showSidebar("outline") },
           { label: "\u5386\u53F2", key: "Ctrl+Shift+H", act: () => ui.showSidebar("history") },
           { label: "\u6539\u52A8", key: "Ctrl+Shift+G", act: () => ui.showSidebar("changes") },
           { label: "\u6536\u85CF", key: "Ctrl+Shift+S", act: () => ui.showSidebar("star") },
@@ -713,12 +716,169 @@
     body.dataset.view = view;
     syncActivitySelection();
     if (view === "files") renderFilesView(body);
+    else if (view === "outline") renderOutlineView(body);
     else if (view === "history") renderHistoryView(body);
     else if (view === "changes") {
       if (state.git.status === "idle") setTimeout(() => ui.loadGit(), 0);
       renderChangesView(body);
     } else if (view === "star") renderStarView(body);
     else renderSettingsView(body);
+  }
+  // ============ #54 大纲面板：收集 / 树渲染 / 跳转 / 滚动高亮 / 折叠 ============
+  /** 从已渲染的 tab 面板收集标题（docx: pStyle→h1-h6；md: mdToHtml→h1-h6）。 */
+  function collectOutline(tab) {
+    if (!tab) return [];
+    const pane = document.getElementById("pane-" + tab.id);
+    if (!pane) return [];
+    const heads = pane.querySelectorAll("h1,h2,h3,h4,h5,h6");
+    const out = [];
+    for (let i = 0; i < heads.length; i++) {
+      const h = heads[i];
+      const text = (h.textContent || "").trim();
+      if (!text) continue;
+      out.push({ level: Number(h.tagName[1]), text: text.slice(0, 120), el: h, id: "ol-" + tab.id + "-" + i });
+    }
+    return out;
+  }
+  /** tab 大纲的失效检测：元素脱离 DOM（重渲染/关闭）时重新收集。 */
+  function outlineOf(tab) {
+    if (!tab) return [];
+    if (!tab.outline || tab.outline.some(function (o) { return o.el && !o.el.isConnected; })) {
+      tab.outline = collectOutline(tab);
+    }
+    return tab.outline || [];
+  }
+  /** 大纲面板渲染（VSCode 风格树：层级缩进 / 折叠箭头 / active 高亮）。 */
+  function renderOutlineView(body) {
+    const tab = activeTab();
+    body.innerHTML = "";
+    if (!tab || tab.state !== "ready") {
+      body.innerHTML = '<div class="outline-empty">' + (tab ? "\u6B63\u5728\u52A0\u8F7D " + esc(tab.name) + "\u2026" : "\u6253\u5F00\u6587\u4EF6\u540E\u663E\u793A\u5927\u7EB2") + "</div>";
+      return;
+    }
+    if (tab.kind !== "docx" && tab.kind !== "md") {
+      body.innerHTML = '<div class="outline-empty">' + esc(tab.name) + "<br>" + (tab.kind === "pdf" ? "PDF \u65E0\u7ED3\u6784\u5316\u5927\u7EB2\uFF0C\u8BF7\u770B\u9875\u9762\u7F29\u7565\u56FE" : "\u8BE5\u6587\u4EF6\u7C7B\u578B\u65E0\u5927\u7EB2") + "</div>";
+      return;
+    }
+    const items = outlineOf(tab);
+    if (!items.length) {
+      body.innerHTML = '<div class="outline-empty">\u672A\u627E\u5230\u6807\u9898\uFF08\u6587\u6863\u672A\u4F7F\u7528 Heading \u6837\u5F0F\uFF09</div>';
+      return;
+    }
+    const tree = document.createElement("div");
+    tree.className = "outline-tree";
+    tree.innerHTML = items.map(function (o, i) {
+      const hasKids = i + 1 < items.length && items[i + 1].level > o.level;
+      return '<div class="outline-item" data-i="' + i + '" data-level="' + o.level + '" style="--ol-indent:' + (o.level - 1) + '"' + (hasKids ? "" : " data-leaf='1'") + ">" +
+        '<button class="outline-twisty" data-twisty="' + i + '" aria-label="\u6298\u53E0">' + (hasKids ? '<svg viewBox="0 0 16 16"><path d="m6 4 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' : "") + "</button>" +
+        '<span class="outline-text">' + esc(o.text) + "</span></div>";
+    }).join("");
+    body.appendChild(tree);
+    // 折叠状态：tab.meta.olCollapsed = { [idx]: true }
+    if (!tab.meta.olCollapsed) tab.meta.olCollapsed = {};
+    const applyCollapsed = function () {
+      const rows = tree.querySelectorAll(".outline-item");
+      let hidden = false;
+      rows.forEach(function (row) {
+        const i = Number(row.dataset.i);
+        if (hidden) {
+          if (Number(row.dataset.level) > hidden) { row.hidden = true; return; }
+          hidden = false;
+        }
+        row.hidden = false;
+        if (tab.meta.olCollapsed[i]) hidden = Number(row.dataset.level);
+        const tw = row.querySelector(".outline-twisty");
+        if (tw) tw.dataset.collapsed = tab.meta.olCollapsed[i] ? "1" : "";
+      });
+    };
+    applyCollapsed();
+    tree.addEventListener("click", function (e) {
+      const tw = e.target.closest("[data-twisty]");
+      if (tw) {
+        const i = Number(tw.dataset.twisty);
+        tab.meta.olCollapsed[i] = !tab.meta.olCollapsed[i];
+        applyCollapsed();
+        return;
+      }
+      const item = e.target.closest(".outline-item");
+      if (!item) return;
+      const o = items[Number(item.dataset.i)];
+      if (o && o.el && o.el.isConnected) {
+        o.el.scrollIntoView({ behavior: "smooth", block: "start" });
+        markOutlineActive(tree, Number(item.dataset.i));
+      }
+    });
+    // 滚动高亮：对当前面板的滚动容器挂一次性监听（节流 120ms）
+    attachOutlineScroll(tab, tree, items);
+    syncOutlineOnScroll(tab, tree, items);
+  }
+  /** 大纲滚动高亮：挂监听（每 tab 一次——切换面板时用新的 tree 引用）。 */
+  function attachOutlineScroll(tab, tree, items) {
+    if (tab.meta._olScrollBound === tree) return;
+    tab.meta._olScrollBound = tree;
+    const pane = document.getElementById("pane-" + tab.id);
+    if (!pane) return;
+    const sc = pane.querySelector(".view-scroll") || pane.querySelector(".mang-pdf-scroll") || pane;
+    let timer = 0;
+    const onScroll = function () {
+      clearTimeout(timer);
+      timer = setTimeout(function () { syncOutlineOnScroll(tab, tree, items); }, 120);
+    };
+    sc.addEventListener("scroll", onScroll, { passive: true });
+  }
+  /** 视口顶部最近的标题 → 大纲高亮。 */
+  function syncOutlineOnScroll(tab, tree, items) {
+    if (!tree.isConnected) return;
+    const pane = document.getElementById("pane-" + tab.id);
+    if (!pane) return;
+    const sc = pane.querySelector(".view-scroll") || pane.querySelector(".mang-pdf-scroll") || pane;
+    // 标题文档流位置 = 视口相对位置 + 滚动偏移（offsetTop 相对
+    // .mang-docx-page（position:relative）——页内偏移跨页重叠，不可用）
+    const base = sc.getBoundingClientRect().top;
+    const top = (sc.scrollTop || 0) + 60;
+    let cur = -1;
+    for (let i = 0; i < items.length; i++) {
+      const el = items[i].el;
+      if (!el || !el.isConnected) continue;
+      const pos = el.getBoundingClientRect().top - base + (sc.scrollTop || 0);
+      if (pos <= top) cur = i; else break;
+    }
+    // 滚动位置在第一个标题之前（文档顶部/封面区）→ 高亮第一项
+    if (cur === -1 && items.length && items[0].el && items[0].el.isConnected) cur = 0;
+    markOutlineActive(tree, cur);
+  }
+  function markOutlineActive(tree, idx) {
+    tree.querySelectorAll(".outline-item.active").forEach(function (r) { r.classList.remove("active"); });
+    if (idx >= 0) {
+      const row = tree.querySelector('.outline-item[data-i="' + idx + '"]');
+      if (row) {
+        row.classList.add("active");
+        if (row.hidden) return;
+        const r = row.getBoundingClientRect();
+        const t = tree.getBoundingClientRect();
+        if (r.top < t.top || r.bottom > t.bottom) row.scrollIntoView({ block: "nearest" });
+      }
+    }
+  }
+  /** #54 大纲面板激活时刷新（docx 异步 mount / tab 就绪 / 切换 tab 后调用）。 */
+  function refreshOutlineIfVisible() {
+    if (settings.sidebarActive === "outline" && settings.sidebarVisible) renderSidebar();
+  }
+  /** #54 页码跳转：docx 滚到 .mang-docx-page[data-page=N]；pdf 走 goToPage API。 */
+  function gotoPageOfActiveTab(n) {
+    const tab = activeTab();
+    if (!tab || tab.state !== "ready") return;
+    const target = Math.max(1, Math.floor(Number(n) || 1));
+    if (tab.kind === "pdf") {
+      if (tab.meta.view && typeof tab.meta.view.goToPage === "function") tab.meta.view.goToPage(target);
+      return;
+    }
+    if (tab.kind !== "docx") return;
+    const pane = document.getElementById("pane-" + tab.id);
+    if (!pane) return;
+    const page = pane.querySelector('.mang-docx-page[data-page="' + target + '"]');
+    if (page) page.scrollIntoView({ behavior: "smooth", block: "start" });
+    else ui.toast("info", "\u9875\u7801\u8D85\u51FA\u8303\u56F4\uFF08\u6709\u6548\u9875\u89C1\u72B6\u6001\u680F\uFF09");
   }
   function renderHistoryViewIfVisible() {
     if (settings.sidebarActive === "history") renderSidebar();
@@ -978,7 +1138,13 @@
     const t = activeTab();
     const left = [];
     if (t) {
-      if (state.statusBar.cursor) left.push('<span class="status-item">' + esc(state.statusBar.cursor) + "</span>");
+      if (state.statusBar.cursor) {
+        // #54 页码跳转：docx/pdf 的页码项可点击输入页码
+        const isPager = t && (t.kind === "docx" || t.kind === "pdf") && t.state === "ready";
+        left.push(isPager
+          ? '<button class="status-item status-pager" data-status-act="goto-page" title="\u8F93\u5165\u9875\u7801\u8DF3\u8F6C">' + esc(state.statusBar.cursor) + "</button>"
+          : '<span class="status-item">' + esc(state.statusBar.cursor) + "</span>");
+      }
       left.push('<span class="status-item" data-strong="true" title="' + esc(t.path) + '">' + esc(t.name) + "</span>");
       const st = state.statusBar.saved;
       const dotState = st === "dirty" ? "dirty" : st === "busy" ? "busy" : st === "error" ? "error" : "saved";
@@ -1272,13 +1438,21 @@
     titlebarEl.addEventListener("mousedown", onTitlebarMouseDown);
     titlebarEl.addEventListener("dblclick", onTitlebarDblClick);
   }
-    $("#status-right").addEventListener("click", (e) => {
+    $("#statusbar").addEventListener("click", (e) => {
       const b = e.target.closest("[data-status-act]");
       if (!b) return;
       if (b.dataset.statusAct === "theme") {
         const order = ["system", "light", "dark"];
         const i = order.indexOf(settings.theme);
         ui.setTheme(order[(i + 1) % order.length]);
+      } else if (b.dataset.statusAct === "goto-page") {
+        // #54 页码跳转：输入页码（docx 滚动到对应 .mang-docx-page / pdf goToPage）
+        const cur = String(state.statusBar.cursor || "");
+        const m = /第\s*(\d+)\s*\/\s*(\d+)/.exec(cur);
+        const maxPage = m ? Number(m[2]) : 0;
+        const input = window.prompt(maxPage ? "跳转到页码（1 - " + maxPage + "）：" : "跳转到页码：", m ? m[1] : "1");
+        if (input === null) return;
+        gotoPageOfActiveTab(input);
       }
     });
     bindSidebarResize();
@@ -1412,6 +1586,9 @@
     } else if (ctrl && e.shiftKey && key === "e") {
       e.preventDefault();
       ui.showSidebar("files");
+    } else if (ctrl && e.shiftKey && key === "u") {
+      e.preventDefault();
+      ui.showSidebar("outline");
     } else if (ctrl && e.shiftKey && key === "h") {
       e.preventDefault();
       ui.showSidebar("history");
@@ -1567,6 +1744,7 @@
           savedText: tab.meta.bytes ? fmtBytes(tab.meta.bytes) : "\u5DF2\u4FDD\u5B58",
           message: tab.meta.mtimeMs ? timeAgo(tab.meta.mtimeMs) + "\u66F4\u65B0" : ""
         });
+        refreshOutlineIfVisible(); // #54：视图就绪后刷新大纲（md 同步渲染完成面）
       } catch (err) {
         tab.state = "error";
         tab.error = err.message || String(err);
@@ -2091,8 +2269,26 @@
         const mod = await loadRenderer("docx_view");
         if (typeof mod.renderDocx !== "function") throw new Error("docx_view \u7F3A\u5C11 renderDocx \u5BFC\u51FA");
         host.innerHTML = "";
-        const r = mod.renderDocx(bytes, host, { theme: state.theme });
+        // #54：docx 滚动容器（docx_view 自述「滚动归宿主外层滚动器」——
+        // 修复「docx 滚不动」）。注意分层：scroll 是宿主建的外层滚动器，
+        // hostEl 是渲染根（renderDocx 会给它加 [data-mang-renderer] 并注入
+        // overflow:visible——不能让滚动容器本身当 host，否则 auto 被覆盖）。
+        const scroll = document.createElement("div");
+        scroll.className = "view-scroll";
+        const hostEl = document.createElement("div");
+        scroll.appendChild(hostEl);
+        host.appendChild(scroll);
+        // 页码状态：构建完成报首页，滚动实时报当前页（对齐 PDF 口径）；
+        // mount 完成时同步刷新大纲（docx DOM 异步构建——此时标题才可收集）
+        const r = mod.renderDocx(bytes, hostEl, {
+          theme: state.theme,
+          onStatus: (s) => {
+            ui.setStatus({ cursor: "\u7B2C " + s.page + " / " + s.pages + " \u9875" });
+            if (s.page === 1) refreshOutlineIfVisible();
+          }
+        });
         tab.dispose = () => r && r.dispose && r.dispose();
+        tab.meta.view = null; // docx 页跳转走 DOM 查询（.mang-docx-page[data-page]）
         const w = r && r.stats && r.stats.warnings;
         if (w && w.length) ui.toast("warn", "Word \u6E32\u67D3\u63D0\u793A\uFF1A" + w.slice(0, 3).join("\uFF1B"));
         return;
@@ -2117,6 +2313,7 @@
           onStatus: (s) => ui.setStatus({ cursor: "\u7B2C " + s.page + " / " + s.pages + " \u9875 \xB7 " + Math.round((s.zoom || 1) * 100) + "%" })
         });
         tab.dispose = () => r && r.dispose && r.dispose();
+        tab.meta.view = r; // #54 页码跳转：goToPage API
         return;
       }
       throw new Error("\u672A\u77E5\u7684\u6587\u4EF6\u7C7B\u578B\uFF1A" + tab.kind);

@@ -1,0 +1,207 @@
+{
+  "counts": {
+    "blocker": 0,
+    "deterministic": 21,
+    "major": 0,
+    "minor": 21,
+    "model": 0
+  },
+  "errors": [],
+  "findings": [
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「其他（第1块）」字数 1130 偏离配额 558（±20% 带外：[446, 670]）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0008",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「其他（第2块）」字数 1030 偏离配额 558（±20% 带外：[446, 670]）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0009",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「其他（第3块）」字数 1099 偏离配额 558（±20% 带外：[446, 670]）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0010",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「其他（第4块）」字数 1024 偏离配额 559（±20% 带外：[447, 671]）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0011",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「其他（第5块）」字数 1071 偏离配额 559（±20% 带外：[447, 671]）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0012",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「否决项（第1块）」字数 1168 偏离配额 559（±20% 带外：[447, 671]）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0015",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「否决项（第2块）」字数 1177 偏离配额 559（±20% 带外：[447, 671]）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0016",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「否决项（第3块）」字数 1013 偏离配额 559（±20% 带外：[447, 671]）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0017",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「否决项（第4块）」字数 1017 偏离配额 559（±20% 带外：[447, 671]）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0018",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「否决项（第5块）」字数 1001 偏离配额 559（±20% 带外：[447, 671]）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0019",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「否决项（第6块）」字数 1113 偏离配额 559（±20% 带外：[447, 671]）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0020",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「否决项（第7块）」字数 1028 偏离配额 559（±20% 带外：[447, 671]）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0021",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「否决项（第8块）」字数 1015 偏离配额 559（±20% 带外：[447, 671]）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0022",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「否决项（第9块）」字数 680 偏离配额 500（±20% 带外：[400, 600]）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0023",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「资格条件（第1块）」字数 1190 偏离配额 559（±20% 带外：[447, 671]）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0025",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「格式要求（第1块）」字数 802 偏离配额 500（±20% 带外：[400, 600]）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0028",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「评分项（第1块）」字数 1166 偏离配额 559（±20% 带外：[447, 671]）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0030",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「技术参数（第1块）」字数 1146 偏离配额 559（±20% 带外：[447, 671]）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0032",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「技术参数（第2块）」字数 1127 偏离配额 559（±20% 带外：[447, 671]）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0033",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「技术参数（第3块）」字数 630 偏离配额 500（±20% 带外：[400, 600]）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0034",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "招标文件未识别到格式条款——导出将按工程基线（宋体/12pt/1.5 倍行距）执行，请人工确认形式评审要求",
+      "requirement_id": null,
+      "rule_code": "W_FORMAT_BASELINE",
+      "section_id": null,
+      "severity": "MINOR"
+    }
+  ],
+  "ok": true,
+  "project_status": "VALIDATING",
+  "request_id": "req-000027",
+  "sections_checked": 22,
+  "warnings": [
+    "章节「其他（第1块）」字数 1130 偏离配额 558（±20% 带外：[446, 670]）",
+    "章节「其他（第2块）」字数 1030 偏离配额 558（±20% 带外：[446, 670]）",
+    "章节「其他（第3块）」字数 1099 偏离配额 558（±20% 带外：[446, 670]）",
+    "章节「其他（第4块）」字数 1024 偏离配额 559（±20% 带外：[447, 671]）",
+    "章节「其他（第5块）」字数 1071 偏离配额 559（±20% 带外：[447, 671]）",
+    "章节「否决项（第1块）」字数 1168 偏离配额 559（±20% 带外：[447, 671]）",
+    "章节「否决项（第2块）」字数 1177 偏离配额 559（±20% 带外：[447, 671]）",
+    "章节「否决项（第3块）」字数 1013 偏离配额 559（±20% 带外：[447, 671]）",
+    "章节「否决项（第4块）」字数 1017 偏离配额 559（±20% 带外：[447, 671]）",
+    "章节「否决项（第5块）」字数 1001 偏离配额 559（±20% 带外：[447, 671]）",
+    "章节「否决项（第6块）」字数 1113 偏离配额 559（±20% 带外：[447, 671]）",
+    "章节「否决项（第7块）」字数 1028 偏离配额 559（±20% 带外：[447, 671]）",
+    "章节「否决项（第8块）」字数 1015 偏离配额 559（±20% 带外：[447, 671]）",
+    "章节「否决项（第9块）」字数 680 偏离配额 500（±20% 带外：[400, 600]）",
+    "章节「资格条件（第1块）」字数 1190 偏离配额 559（±20% 带外：[447, 671]）",
+    "章节「格式要求（第1块）」字数 802 偏离配额 500（±20% 带外：[400, 600]）",
+    "章节「评分项（第1块）」字数 1166 偏离配额 559（±20% 带外：[447, 671]）",
+    "章节「技术参数（第1块）」字数 1146 偏离配额 559（±20% 带外：[447, 671]）",
+    "章节「技术参数（第2块）」字数 1127 偏离配额 559（±20% 带外：[447, 671]）",
+    "章节「技术参数（第3块）」字数 630 偏离配额 500（±20% 带外：[400, 600]）",
+    "招标文件未识别到格式条款——导出将按工程基线（宋体/12pt/1.5 倍行距）执行，请人工确认形式评审要求"
+  ]
+}

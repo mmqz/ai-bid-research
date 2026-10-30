@@ -1,0 +1,15 @@
+{
+  "precondition": "全部资格/否决 REQ 绑定证据 + 三门 Approved + 全部叶 mock 起草完成",
+  "ok": true,
+  "counts": {
+    "blocker": 0,
+    "error": 0
+  },
+  "rule5_format_warning": "从招标文件格式条款提取 1 项格式参数（未识别项保持基线）",
+  "rule5_gap_note": "T3 差距在 warnings 的「未识别项」里不可见——需对照 expected-format-spec 才能发现边距回落基线",
+  "notes": [
+    "规则 8（证据失效）：本夹具未埋有效期陷阱（corpus-A GT-02 已覆盖），恒过",
+    "规则 4（字数 ±20%）：mock 生成器按配额写，恒过",
+    "规则 6（占位符）：mock 内容无占位词，恒过"
+  ]
+}

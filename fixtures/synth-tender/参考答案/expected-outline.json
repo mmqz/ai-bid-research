@@ -1,0 +1,41 @@
+{
+  "spec": {
+    "target_total_chars": 12000,
+    "max_reqs_per_leaf": 6
+  },
+  "level1": [
+    {
+      "category": "否决项",
+      "reqs": 48,
+      "leaves": 8
+    },
+    {
+      "category": "资格条件",
+      "reqs": 8,
+      "leaves": 2
+    },
+    {
+      "category": "格式要求",
+      "reqs": 1,
+      "leaves": 1
+    },
+    {
+      "category": "评分项",
+      "reqs": 5,
+      "leaves": 1
+    },
+    {
+      "category": "技术参数",
+      "reqs": 15,
+      "leaves": 3
+    },
+    {
+      "category": "其他",
+      "reqs": 4,
+      "leaves": 1
+    }
+  ],
+  "total_nodes": 22,
+  "total_leaves": 16,
+  "note": "REQ 数按引擎预测（81 条）推演；理想口径（B/E 入面、双生去重、碎片合并）会改变桶大小——差距报告呈现"
+}

@@ -1,0 +1,43 @@
+{
+  "files": [
+    {
+      "filename": "A-招标文件.docx",
+      "kind": "招标文件",
+      "parse_status": "Ok",
+      "pages": 0,
+      "note": "docx 结构页口径 pages=0（映射表 §1）；抽取面走 A- 前缀 docx 主文件路径"
+    },
+    {
+      "filename": "B-技术规范书.docx",
+      "kind": "招标文件",
+      "parse_status": "Ok",
+      "pages": 0,
+      "note": "引擎解析成功；抽取面无 B- 前缀路径（G1）——REQ 0 条"
+    },
+    {
+      "filename": "C-补遗文件.pdf",
+      "kind": "补遗",
+      "parse_status": "Ok",
+      "pages": 2,
+      "note": "pdfium 引擎路径（无 pdfium 环境回退 pdftotext——两者都产 PdfLine 行块）；抽取面走 C- 前缀 PDF 路径"
+    },
+    {
+      "filename": "D-图纸说明.md",
+      "kind": "图纸",
+      "parse_status": "Failed",
+      "note": "非办公扩展名显式拒绝（「不支持的文件类型 .md」）——fail-closed 既有设计，登记为失败件禁引"
+    },
+    {
+      "filename": "E-原招标公告盖章页-扫描件.pdf",
+      "kind": "附件",
+      "parse_status": "OcrRequired",
+      "note": "无文本层→引擎 MappingGap 回退旧路径→OCR（tesseract chi_sim，TESSDATA_PREFIX=~/.tessdata）；抽取面无 E- 前缀路径（G1）"
+    }
+  ],
+  "totals": {
+    "files": 5,
+    "parse_failed": 1,
+    "ocr": 1
+  },
+  "note": "parse_failed=1 是 D 件的【预期正确行为】（fail-closed）；e2e 全链断言须按此口径写"
+}

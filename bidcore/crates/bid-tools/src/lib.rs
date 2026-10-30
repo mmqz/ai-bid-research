@@ -6,10 +6,12 @@ pub mod check;
 pub mod context;
 pub mod draft;
 pub mod export;
+pub mod format_spec;
 pub mod runner;
 pub mod schema;
 pub mod service;
 pub mod store_io;
+pub mod validate;
 
 pub use runner::{run_scenario, write_run, RunOutput};
 pub use service::{import_files, BidService, ImportReport, ImportSpec};

@@ -138,5 +138,7 @@ fn is_implemented(name: &str) -> bool {
             | "list_evidence"
             | "list_tasks"
             | "draft_response_section"
+            | "export_bid_document"
+            | "validate_bid_document"
     )
 }

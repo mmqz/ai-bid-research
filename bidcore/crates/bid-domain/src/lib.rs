@@ -123,13 +123,16 @@ impl ProjectStatus {
 
     /// 每个状态允许调用的工具（mcp-contract 各工具「状态」行——越级防护的裁决表）。
     ///
-    /// #59 阶段 1 补全起草/校验/导出三工具面：
-    /// - `draft_response_section`：MatrixReady+（矩阵就绪即可起草——现实中
-    ///   「逐章起草」与「逐条绑证据」交叠进行，EvidenceBound 不是起草的
-    ///   硬前置；FILES_IMPORTED 仍拒——无矩阵即无响应对象）；
-    /// - `validate_bid_document`：Drafting+（起草面随时可复验）；
-    /// - `export_bid_document`：仅 ReadyToExport（BLOCKER 清零是导出的硬闸门，
-    ///   check_export_ready 在工具内部裁决）。
+    /// #59 阶段 2 补全（export 面与既有 PR #60 的 draft/validate 面同表——
+    /// 三 PR 合并时本表取并集，冲突面一眼可解）：
+    /// - `draft_response_section`：MatrixReady+（矩阵就绪即可起草；#60 落地）；
+    /// - `validate_bid_document`：Drafting+（起草面随时可复验；#60 登记、
+    ///   阶段 3 接线）；
+    /// - `export_bid_document`：Drafting+ 与 EXPORTED——导出的硬闸门在工具
+    ///   内部的**双前置检查**（矩阵 blocking 行清零 + 审核 BLOCKER findings
+    ///   清零，契约 §8 precheck），不在状态机面预拦：阶段 3 的 validate 工具
+    ///   落地前，项目没有走 Validating→Reviewing→ReadyToExport 的通道，
+    ///   状态机预拦会把 e2e 锁死。EXPORTED 允许重导（幂等/换路径）。
     pub fn allowed_tools(&self) -> &'static [&'static str] {
         use ProjectStatus::*;
         match self {
@@ -141,12 +144,12 @@ impl ProjectStatus {
             MatrixReady | EvidenceBound => &["get_compliance_matrix", "search_evidence",
                 "get_bid_project_state", "draft_response_section"],
             Drafting => &["get_compliance_matrix", "search_evidence",
-                "get_bid_project_state", "draft_response_section", "validate_bid_document"],
-            Validating | Reviewing => &["get_compliance_matrix", "search_evidence",
-                "get_bid_project_state", "validate_bid_document"],
-            ReadyToExport => &["get_compliance_matrix", "search_evidence",
+                "get_bid_project_state", "draft_response_section", "validate_bid_document",
+                "export_bid_document"],
+            Validating | Reviewing | ReadyToExport => &["get_compliance_matrix", "search_evidence",
+                "get_bid_project_state", "validate_bid_document", "export_bid_document"],
+            Exported => &["get_compliance_matrix", "search_evidence",
                 "get_bid_project_state", "export_bid_document"],
-            Exported => &["get_compliance_matrix", "search_evidence", "get_bid_project_state"],
         }
     }
 

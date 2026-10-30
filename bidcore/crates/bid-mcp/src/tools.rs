@@ -43,10 +43,12 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         "list_tasks" => list_tasks(svc, args),
         // ---- #59 阶段 1：单章起草（契约 §6——mock 生成 + 引用回查 + CAS 写入）----
         "draft_response_section" => draft_response_section(svc, args),
+        // ---- #59 阶段 2：导出（契约 §8——双前置门 + format-spec + 暗标）----
+        "export_bid_document" => export_bid_document(svc, args),
+        // ---- #59 阶段 3：双层校验（契约 §7——确定性规则先行 + 模型复核注入）----
+        "validate_bid_document" => validate_bid_document(svc, args),
         // ---- M0 骨架：以下工具待各自里程碑接线 ----
-        "search_evidence" => Err(ToolError::unimplemented(name, "M2-b（双通道检索——落地时必须走 cursor.rs 游标模块）")),
-        "validate_bid_document" => Err(ToolError::unimplemented(name, "M4（规则注册表——#59 阶段 3）")),
-        "export_bid_document" => Err(ToolError::unimplemented(name, "M5（内核导出适配器——#59 阶段 2，依赖 format-spec）")),
+        "search_evidence" => Err(ToolError::unimplemented(name, "M2-b（双通道检索——#59 已降级可选，素材库上来再启）")),
         other => Err(ToolError::ENotFound {
             what: format!("未接入的工具 {other}"),
         }),
@@ -1054,4 +1056,220 @@ fn instructions_hash(s: Option<&str>) -> String {
         let _ = write!(hex, "{b:02x}");
     }
     hex
+}
+
+// ---------------------------------------------------------------- §8 export_bid_document（#59 阶段 2）
+
+/// `export_bid_document` —— 导出（契约 §8 + Lead #59 阶段 2 指令）。
+///
+/// 壳层职责：参数校验 → 项目路由 → 状态机裁决（Drafting+ / EXPORTED——
+/// 导出的硬闸门在服务层**双前置检查**，见 tools 分派注释）→ 乐观并发 →
+/// 幂等前置 → 转发 `BidService::export_document` → 契约 §8 out 组装。
+///
+/// format：`"docx"`（PDF 是阶段 7 的 LibreOffice 通道——本面诚实拒，不产
+/// 半吊子）。暗标：`profile.dark_bid` + `profile.bidder_name`（公司名 →
+/// 「投标人」；bidder 缺失响亮 warning 不静默）。
+fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "export_bid_document";
+    // ---- 参数校验（契约 §8 in）
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let format = req_str(&args, "format", TOOL)?;
+    let output_path = req_str(&args, "output_path", TOOL)?;
+    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    // profile：{ dark_bid?: bool, bidder_name?: string, template? }
+    let profile = args.get("profile").filter(|v| v.is_object() || v.is_null()).cloned();
+    let dark_bid = profile.as_ref()
+        .and_then(|p| p.get("dark_bid")).and_then(Value::as_bool).unwrap_or(false);
+    let bidder_name = profile.as_ref()
+        .and_then(|p| p.get("bidder_name")).and_then(Value::as_str).map(str::to_string);
+    // options：tracked_changes / watermark（阶段 7 面占位——在场即告警未支持）
+    let mut warnings_pre: Vec<String> = Vec::new();
+    if let Some(opts) = args.get("options").filter(|v| v.is_object()) {
+        if opts.get("tracked_changes").and_then(Value::as_bool).unwrap_or(false) {
+            warnings_pre.push("options.tracked_changes 暂不支持（阶段 7 面）——按普通模式导出".into());
+        }
+        if opts.get("watermark").is_some() {
+            warnings_pre.push("options.watermark 暂不支持（阶段 7 PDF 通道面）——按无水印导出".into());
+        }
+    }
+
+    if format != "docx" {
+        return Err(ToolError::EUnprocessable {
+            what: format!("format={format} 暂不支持（#59 阶段 2 仅 docx——PDF 是阶段 7 的 LibreOffice headless 通道，届时放开）"),
+        });
+    }
+    // 输出路径安全面：必须落在工作区内（防 ../ 逃逸——导出产物不该写任意盘位）
+    let out = std::path::PathBuf::from(&output_path);
+    if out.is_absolute() || out.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+        return Err(ToolError::EUnprocessable {
+            what: format!("output_path 须为工作区相对路径（不得绝对路径/含 ..）：{output_path}"),
+        });
+    }
+
+    // ---- 项目路由 + 状态机裁决 + 乐观并发
+    let proj = svc.store().project().map_err(ToolError::from)?;
+    if proj.id != project_id {
+        return Err(ToolError::ENotFound {
+            what: format!("project 不存在：{project_id}（当前服务态项目：{}）", proj.id),
+        });
+    }
+    svc.store().guard_tool(TOOL).map_err(ToolError::from)?;
+    svc.store().check_version(project_version).map_err(ToolError::from)?;
+
+    // ---- 幂等前置：(project_id, content_version, format, dark_bid, output_path)
+    //      相同 → 直返首次结果（产物 sha 已在首次导出对账；重放零 IO）
+    let ikey = format!(
+        "export:{project_id}:{}:{format}:{}:{output_path}",
+        svc.store().content_version(),
+        dark_bid,
+    );
+    if let Some(first) = svc.store().idempotent_hit(&ikey).cloned() {
+        let mut out = first;
+        if let Some(o) = out.as_object_mut() {
+            o.insert("deduplicated".into(), json!(true));
+        }
+        return Ok(out);
+    }
+
+    // ---- 转发业务（服务层：双前置门 + format-spec + 导出 + 推进 EXPORTED）
+    if dark_bid && bidder_name.as_deref().map(str::trim).unwrap_or("").is_empty() {
+        warnings_pre.push(
+            "暗标模式但 profile.bidder_name 缺失——正文未做公司名脱敏（补 bidder_name 后重导）".into(),
+        );
+    }
+    let anonymize = if dark_bid { bidder_name.as_deref() } else { None };
+    let ws = svc.workspace_dir().ok_or_else(|| ToolError::EUnprocessable {
+        what: "导出需要持久化服务态（BidService::open 建立的工作区）——纯内存态无章内容可导".into(),
+    })?;
+    let abs_out = ws.join(&out);
+    if let Some(parent) = abs_out.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| ToolError::EUnprocessable {
+            what: format!("输出目录创建失败（{}）: {e}", parent.display()),
+        })?;
+    }
+    let outcome = svc.export_document(&format, anonymize, &abs_out).map_err(ToolError::from)?;
+
+    // ---- 契约 §8 out 组装
+    let bytes = std::fs::metadata(&abs_out).map(|m| m.len()).unwrap_or(0);
+    let mut warnings = warnings_pre;
+    warnings.extend(outcome.warnings.iter().cloned());
+    let out = json!({
+        "artifact": {
+            "url": abs_out.display().to_string(),
+            "sha256": outcome.report.output_sha256,
+            "size": bytes,
+        },
+        "chapters_written": outcome.report.chapters_written,
+        "total_chars": outcome.report.total_chars,
+        "toc_field_present": outcome.report.toc_field_present,
+        "content_version_snapshot": svc.store().content_version(),
+        "project_status": svc.store().project().map(|p| p.status.as_str()).unwrap_or("UNKNOWN"),
+        "precheck": { "blockers": 0, "waived": [] },  // 双前置门已过（失败路径在 Err 面）
+        "warnings": warnings,
+        "request_id": next_request_id(),
+    });
+    svc.store_mut().record_idempotent(ikey, out.clone());
+    Ok(out)
+}
+
+// ---------------------------------------------------------------- §7 validate_bid_document（#59 阶段 3）
+
+/// `validate_bid_document` —— 双层校验（契约 §7 + Lead #59 阶段 3 指令）。
+///
+/// 壳层职责：参数校验 → 路由 → guard（Drafting+）→ 乐观并发 → 转发 →
+/// 契约 §7 out（findings + counts）。
+///
+/// 输出形状对齐 Lead 指令的 `{ok, errors, warnings}`：
+/// - `ok` = blocker == 0；
+/// - `errors` = BLOCKER + MAJOR 面（废标级 + 重大缺陷——必须处理）；
+/// - `warnings` = MINOR 面（告知性）；
+/// - `findings`（契约原字段）= 全量清单（调用方按 rule_code 分支）。
+fn validate_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "validate_bid_document";
+    // ---- 参数校验（契约 §7 in）
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let scope = opt_str(&args, "scope", TOOL)?.unwrap_or_else(|| "all".into());
+    if scope != "all" && scope != "sections" {
+        return Err(ToolError::EUnprocessable {
+            what: format!("scope={scope} 非法（all | sections）"),
+        });
+    }
+    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    // rules_profile：standard | dark_bid（暗标模式额外扫禁字清单——阶段 7 词
+    // 表面；在场先告警未生效，不静默吞）
+    let profile = opt_str(&args, "rules_profile", TOOL)?.unwrap_or_else(|| "standard".into());
+    let mut pre_warnings: Vec<String> = Vec::new();
+    if profile == "dark_bid" {
+        pre_warnings.push("rules_profile=dark_bid 的暗标禁字清单扫描在阶段 7 词表面——本轮按 standard 规则集执行".into());
+    } else if profile != "standard" {
+        return Err(ToolError::EUnprocessable {
+            what: format!("rules_profile={profile} 非法（standard | dark_bid）"),
+        });
+    }
+    // scope=sections 时的 section_ids
+    let section_ids = opt_str_array(&args, "section_ids", TOOL)?;
+    let scope_sections: Option<Vec<String>> = match scope.as_str() {
+        "sections" => Some(section_ids.ok_or_else(|| ToolError::EUnprocessable {
+            what: "scope=sections 必须给 section_ids 数组".to_string(),
+        })?),
+        _ => None,
+    };
+
+    // ---- 路由 + guard + 乐观并发
+    let proj = svc.store().project().map_err(ToolError::from)?;
+    if proj.id != project_id {
+        return Err(ToolError::ENotFound {
+            what: format!("project 不存在：{project_id}（当前服务态项目：{}）", proj.id),
+        });
+    }
+    svc.store().guard_tool(TOOL).map_err(ToolError::from)?;
+    svc.store().check_version(project_version).map_err(ToolError::from)?;
+
+    // ---- 前置：章节树必须已建（无纲无校验对象）
+    if svc.store().sections().is_empty() {
+        return Err(ToolError::EState {
+            what: format!("{} 态无章节树——先建纲再校验", proj.status.as_str()),
+        });
+    }
+
+    // ---- 转发业务（纯只读诊断 + 推进 VALIDATING）
+    let report = svc.validate_document(scope_sections.as_deref()).map_err(ToolError::from)?;
+
+    // ---- 契约 §7 out（Lead 形状：ok + errors + warnings + findings + counts）
+    let errors: Vec<Value> = report.findings.iter()
+        .filter(|f| f.severity != "MINOR")
+        .map(|f| json!({
+            "rule_code": f.rule_code,
+            "severity": f.severity,
+            "section_id": f.section_id,
+            "requirement_id": f.requirement_id,
+            "message": f.message,
+        }))
+        .collect();
+    let mut warnings = pre_warnings;
+    warnings.extend(report.findings.iter().filter(|f| f.severity == "MINOR").map(|f| f.message.clone()));
+    let out = json!({
+        "ok": report.ok,
+        "errors": errors,
+        "warnings": warnings,
+        "findings": report.findings.iter().map(|f| json!({
+            "rule_code": f.rule_code,
+            "kind": if f.rule_code.starts_with("M_") { "MODEL" } else { "DETERMINISTIC" },
+            "severity": f.severity,
+            "section_id": f.section_id,
+            "requirement_id": f.requirement_id,
+            "message": f.message,
+        })).collect::<Vec<_>>(),
+        "counts": {
+            "blocker": report.counts.blocker,
+            "major": report.counts.major,
+            "minor": report.counts.minor,
+            "deterministic": report.counts.deterministic,
+            "model": report.counts.model,
+        },
+        "sections_checked": report.sections_checked,
+        "project_status": svc.store().project().map(|p| p.status.as_str()).unwrap_or("UNKNOWN"),
+        "request_id": next_request_id(),
+    });
+    Ok(out)
 }

@@ -482,12 +482,14 @@ mod tests {
         // find_root：有 .mang 的祖先优先
         std::fs::create_dir_all(d.join(".mang")).unwrap();
         std::fs::create_dir_all(d.join("sub/deep")).unwrap();
-        // Windows 的 canonicalize() 会带 \\?\ 前缀，find_root 返回裸路径——按语义比较
+        // Windows 上两个坑都会让「同一目录」比较失败：
+        //   1. canonicalize() 返回 \\?\ 前缀，find_root 返回裸路径
+        //   2. CI runner 的用户目录是 8.3 短名（RUNNER~1 vs runneradmin）
+        // 两边都过一遍 canonicalize 才能拿到同一规范形式。
         let got = find_root(&d.join("sub/deep/a.md"));
-        let want = d.canonicalize().unwrap();
         assert_eq!(
-            got.to_string_lossy().trim_start_matches(r"\\?\"),
-            want.to_string_lossy().trim_start_matches(r"\\?\"),
+            got.canonicalize().unwrap(),
+            d.canonicalize().unwrap(),
         );
         // 没有 .mang：用父目录
         let d2 = tmpws("noroot");

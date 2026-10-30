@@ -310,6 +310,8 @@ export type DocxRenderOptions = {
   theme?: 'light' | 'dark';
   /** 1-based page number to highlight/scroll into view (optional). */
   highlightPage?: number;
+  /** #54 页码回调：构建完成报 {page:1, pages}；滚动时实时报当前页。 */
+  onStatus?: (s: { page: number; pages: number }) => void;
 };
 
 /** 渲染统计（warnings 只收集，不自动展示）。 */
@@ -1857,6 +1859,11 @@ export function renderDocx(
   const dispose = (): void => {
     if (disposed) return;
     disposed = true;
+    // #54 页码监听清理（与 DOM 清理同生命周期）
+    if (statusScrollHost) {
+      statusScrollHost.removeEventListener('scroll', reportCurrentPage);
+      statusScrollHost = null;
+    }
     const teardown = (): void => {
       try {
         if (root && root.parentNode) root.parentNode.removeChild(root);
@@ -1888,6 +1895,53 @@ export function renderDocx(
     stats.pages = pages;
     stats.blocks = blocks;
     stats.warnings = s.warnings.slice();
+    // #54 页码回调：构建完成报初始状态（首页 1）。
+    safeOnStatus(1, pages);
+  };
+
+  // ---- #54 页码跟踪（滚动容器监听 → 当前页回调 → dispose 清理） ----
+  let statusScrollHost: HTMLElement | Window | null = null;
+  /** 找最近的可滚动祖先（.view-scroll / overflow:auto|scroll）。 */
+  const findScrollHost = (): HTMLElement | null => {
+    let p: HTMLElement | null = host;
+    while (p) {
+      const st = getComputedStyle(p);
+      if (/(auto|scroll)/.test(st.overflowY)) return p;
+      p = p.parentElement;
+    }
+    return null;
+  };
+  const reportCurrentPage = (): void => {
+    if (disposed || asyncPages <= 0) return;
+    const sc = findScrollHost();
+    if (!sc) return;
+    const top = sc.scrollTop + 80; // 视口顶部往下一点容差（页眉空白不算翻页）
+    const pages = root ? (Array.from(root.querySelectorAll('.mang-docx-page[data-page]')) as HTMLElement[]) : [];
+    let cur = 1;
+    for (const p of pages) {
+      if (p.offsetTop <= top) cur = Number(p.getAttribute('data-page')) || cur;
+      else break;
+    }
+    safeOnStatus(cur, asyncPages);
+  };
+  const safeOnStatus = (page: number, pages: number): void => {
+    if (!opts || typeof opts.onStatus !== 'function' || disposed) return;
+    try {
+      opts.onStatus({ page, pages });
+    } catch {
+      /* 回调异常不中断渲染 */
+    }
+  };
+  const attachStatusListener = (): void => {
+    if (statusScrollHost) return;
+    const sc = findScrollHost();
+    if (sc) {
+      sc.addEventListener('scroll', reportCurrentPage, { passive: true });
+      statusScrollHost = sc;
+    } else {
+      window.addEventListener('scroll', reportCurrentPage, { passive: true });
+      statusScrollHost = window;
+    }
   };
 
   /**
@@ -1956,6 +2010,8 @@ export function renderDocx(
     const built = buildFlow(parts, parts.body, root, parts.media);
     // live 回填：调用方手上那份 stats 立即反映真实结果。
     publish(built.pages, built.blocks);
+    // #54 构建成功后挂页码滚动监听（失败面/降级面不挂）。
+    attachStatusListener();
     applyHighlight(s, root, opts, built.pages);
   };
 

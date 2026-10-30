@@ -46,7 +46,7 @@ A/B/C/D/E 五件里——无外部依赖。
 
 | 文件 | 内容 |
 |---|---|
-| expected-requirements.json | 95 条设计条款：ideal 分类 + engine_expect 跑前预判 |
+| expected-requirements.json | 98 条设计条款：ideal 分类 + engine_expect 跑前预判 |
 | expected-outline.json | 评测用 OutlineSpec 下的章节树预测（6 类目 16 叶） |
 | expected-format-spec.json | 理想格式 vs 引擎可识别面（T3 差距） |
 | expected-validation.json | 全链完成后的校验预测（ok=true, blocker=0, rule5 告警面） |
@@ -71,8 +71,9 @@ cd bidcore && cargo test -p bid-mcp --test synth_tender_eval -- --nocapture
 - **F3** 评标办法章内无分值无否决词的条款（4.7 评标结果排序）被判评分项（章节 blanket）
 - **预测系统性偏差**：编号条款全量抽取（其他类 26 条 = 宁多勿漏设计面）——
   跑前推演 81 vs 实际 115；推演准确 94/95（设计条款面），偏差集中在全量抽取认知
-- **答案侧遗漏（人工核对补登清单，v0.2 待办）**：3.3.1/3.3.2/3.3.6 三条格式
-  条款（份数/装订/语言）应补入 ideal 答案——引擎判格式要求是对的
+- **答案侧补登（v0.2 已完成 2026-10-30）**：3.3.1/3.3.2/3.3.6 三条格式条款
+  （份数构成/正副本标注/中文编制）已补入 ideal 答案（SYN-A-013a/013b/015a）——
+  v0.1 评测实录保持原样不重写；下次评测按 98 条口径
 
 ## 纪律
 

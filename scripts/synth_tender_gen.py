@@ -210,7 +210,10 @@ def gen_answers(out: Path):
     write_json(d / "expected-requirements.json", {
         "fixture": "synth-tender",
         "design_note": "人工核对的标准答案（ideal）+ 跑前人工推演的引擎行为预判（engine_expect）——"
-                       "跑后不回改（防循环论证）；推演错误在评测报告中如实呈现",
+                       "跑后不回改（防循环论证）；推演错误在评测报告中如实呈现。"
+                       "v0.2（2026-10-30）：补登 SYN-A-013a/013b/015a（3.3.1 份数构成 / 3.3.2 正副本标注 / "
+                       "3.3.6 中文编制——Lead #80 评论指令的答案修订）；三条的 engine_expect 按当日引擎"
+                       "实测登记（已判对），非独立跑前推演——条目 note 中如实标注",
         "traps": S.TRAPS,
         "requirements": S.EXPECTED_REQUIREMENTS,
         "counts": {
@@ -220,7 +223,9 @@ def gen_answers(out: Path):
         "engine_prediction": {
             "total": S.EXPECTED_ENGINE_TOTAL,
             "by_category": S.EXPECTED_ENGINE_BY_CATEGORY,
-            "note": "A(74) + C(7) 推演；B/E 因 G1 无抽取路径为 0",
+            "note": "A(74) + C(7) 推演；B/E 因 G1 无抽取路径为 0。"
+                    "v0.2 补登的 3 条（SYN-A-013a/013b/015a）不进此冻结总账——"
+                    "它们是跑后实测登记（见 design_note），预演面保持 v0.1 原样不动",
         },
     })
     write_json(d / "expected-outline.json", S.EXPECTED_OUTLINE)
@@ -310,8 +315,9 @@ cd bidcore && cargo test -p bid-mcp --test synth_tender_eval -- --nocapture
 - **F3** 评标办法章内无分值无否决词的条款（4.7 评标结果排序）被判评分项（章节 blanket）
 - **预测系统性偏差**：编号条款全量抽取（其他类 26 条 = 宁多勿漏设计面）——
   跑前推演 81 vs 实际 115；推演准确 94/95（设计条款面），偏差集中在全量抽取认知
-- **答案侧遗漏（人工核对补登清单，v0.2 待办）**：3.3.1/3.3.2/3.3.6 三条格式
-  条款（份数/装订/语言）应补入 ideal 答案——引擎判格式要求是对的
+- **答案侧补登（v0.2 已完成 2026-10-30）**：3.3.1/3.3.2/3.3.6 三条格式条款
+  （份数构成/正副本标注/中文编制）已补入 ideal 答案（SYN-A-013a/013b/015a）——
+  v0.1 评测实录保持原样不重写；下次评测按 98 条口径
 
 ## 纪律
 
@@ -406,11 +412,18 @@ def self_check(stats: dict):
     if stats["E"]["pages"] != 1:
         errs.append("E 应为 1 页")
 
-    # 预测总账自洽：occurrence 合计 = 引擎预测总数
-    occ = sum(e["expect_engine_occurrences"] for e in S.EXPECTED_REQUIREMENTS
-              if e["engine_expect"]["will_extract"])
-    if occ != S.EXPECTED_ENGINE_TOTAL:
-        errs.append(f"occurrence 合计 {occ} ≠ 预测总数 {S.EXPECTED_ENGINE_TOTAL}（推演账不平）")
+    # 预测总账自洽（v0.2 口径：冻结预演只针对 v0.1 基线集——字母后缀 syn_id
+    # 是 v0.2 补登条目，其 engine_expect 为实测登记不进冻结总账）
+    import re as _re
+    _is_base = lambda e: _re.fullmatch(r"SYN-[A-Z]-\d+", e["syn_id"]) is not None
+    occ_base = sum(e["expect_engine_occurrences"] for e in S.EXPECTED_REQUIREMENTS
+                   if e["engine_expect"]["will_extract"] and _is_base(e))
+    if occ_base != S.EXPECTED_ENGINE_TOTAL:
+        errs.append(f"基线集 occurrence 合计 {occ_base} ≠ 预测总数 {S.EXPECTED_ENGINE_TOTAL}（推演账不平）")
+    v02 = [e for e in S.EXPECTED_REQUIREMENTS if not _is_base(e)]
+    for e in v02:
+        if not e["engine_expect"]["will_extract"]:
+            errs.append(f"v0.2 补登 {e['syn_id']} 未登记引擎行为（补登面要求 will_extract=true）")
     cat_sum = sum(S.EXPECTED_ENGINE_BY_CATEGORY.values())
     if cat_sum != S.EXPECTED_ENGINE_TOTAL:
         errs.append(f"分类预测合计 {cat_sum} ≠ 预测总数 {S.EXPECTED_ENGINE_TOTAL}")

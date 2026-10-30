@@ -27,3 +27,7 @@ dist-pkg/
 
 artifacts/veto-gt/*.bak-*
 
+
+# #80 第二批：e2e 产物只留 latest（时间戳 run 目录可再生成——10_report.md 内含 run-id）
+artifacts/e2e/e2e-*
+artifacts/e2e-real-path/2*

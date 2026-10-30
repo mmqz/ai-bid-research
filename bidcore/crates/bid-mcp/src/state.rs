@@ -13,14 +13,31 @@ use bid_tools::service::BidService;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{LazyLock, Mutex};
 
-static GLOBAL: LazyLock<Mutex<BidService>> = LazyLock::new(|| Mutex::new(BidService::new()));
+static GLOBAL: LazyLock<Mutex<BidService>> = LazyLock::new(|| Mutex::new(open_global_service()));
+
+/// 全局服务态的构造（stdio 默认传输面）。
+///
+/// `BID_WS` 环境变量在场 → 按该目录打开【持久化】工作区（db.json 恢复/
+/// checkpoint 落盘——长进程 stdio 宿主如 Claude Desktop / e2e 驱动需要跨调用
+/// 持久）；未设 → 纯内存态（M0 骨架默认，行为不变）。打开失败要响亮 panic
+/// （配置错误不能降级成静默内存态——那会让宿主误以为在持久区工作）。
+fn open_global_service() -> BidService {
+    match std::env::var("BID_WS") {
+        Ok(dir) if !dir.trim().is_empty() => BidService::open(dir.trim()).unwrap_or_else(|e| {
+            panic!("bid-mcp 全局服务态：BID_WS={dir} 打开失败（工作区损坏或不可写）: {e}")
+        }),
+        _ => BidService::new(),
+    }
+}
 
 /// 在全局服务态上执行（stdio 默认传输面）。
 ///
 /// 锁中毒自恢复：一次 panic 不终止传输面（服务态可能半更新——内存态的风险
 /// 面与进程崩溃等价，由 content_version 乐观并发兜底）。
 pub(crate) fn with_global<T>(f: impl FnOnce(&mut BidService) -> T) -> T {
-    let mut guard = GLOBAL.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut guard = GLOBAL
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     f(&mut guard)
 }
 

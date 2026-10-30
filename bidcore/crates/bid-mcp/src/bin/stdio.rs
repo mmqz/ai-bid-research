@@ -2,6 +2,11 @@
 //!
 //! 用途：给 Claude Desktop / 其它 MCP 客户端做最简接线验证；也是 M0 骨架的
 //! 可执行证据（`cargo run -p bid-mcp --bin bid-mcp-stdio`）。
+//!
+//! 工作区（#80 第二批）：设 `BID_WS=<dir>` 环境变量后，进程级服务态按该目录
+//! 【持久化】打开（db.json 恢复 + 每次写面 checkpoint 落盘；`.mang/llm.json`
+//! 亦从该目录解析——真实 LLM 通路的配置面）。未设时保持 M0 纯内存态不变。
+//! 工作区损坏/不可写 → 启动即 panic（不静默降级内存态——见 state.rs）。
 
 use std::io::{self, BufRead, Write};
 

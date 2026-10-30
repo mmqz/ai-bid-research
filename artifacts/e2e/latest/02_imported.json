@@ -1,0 +1,67 @@
+{
+  "batch_abc_e": {
+    "error": null,
+    "totals": {
+      "chunks": 341,
+      "files": 4,
+      "parse_failed": 0,
+      "partial": 0
+    }
+  },
+  "batch_d": {
+    "error": "E_PARTIAL（预期——fail-closed 拒 .md）",
+    "totals": {
+      "chunks": 0,
+      "files": 1,
+      "parse_failed": 1,
+      "partial": 1
+    }
+  },
+  "pdf_chain": "full",
+  "per_file": [
+    {
+      "chunks": 232,
+      "deduplicated": false,
+      "file_id": "TF-0002",
+      "filename": "A-招标文件.docx",
+      "ocr_tier": "none",
+      "pages": 0,
+      "parse_status": "ok",
+      "sha256": "b5cfe741e924be7fcb2b59180645999f625450a32224a277b904eb803388423f",
+      "tables": 7
+    },
+    {
+      "chunks": 75,
+      "deduplicated": false,
+      "file_id": "TF-0003",
+      "filename": "B-技术规范书.docx",
+      "ocr_tier": "none",
+      "pages": 0,
+      "parse_status": "ok",
+      "sha256": "b9400b7f92aa7e1d13993b0ce4ae6047c7797aa8b7673672f2aaabb86d2e5545",
+      "tables": 5
+    },
+    {
+      "chunks": 21,
+      "deduplicated": false,
+      "file_id": "TF-0004",
+      "filename": "C-补遗文件.pdf",
+      "ocr_tier": "none",
+      "pages": 2,
+      "parse_status": "ok",
+      "sha256": "28815b77d1dbc1846afb53988fa33d95dc62af76e17d7caf9e385bc9237a4d83",
+      "tables": 0
+    },
+    {
+      "chunks": 13,
+      "deduplicated": false,
+      "file_id": "TF-0005",
+      "filename": "E-原招标公告盖章页-扫描件.pdf",
+      "ocr_tier": "ocr",
+      "pages": 1,
+      "parse_status": "ocr_required",
+      "sha256": "796057319ba93433881e34e3b88a004b0d3371f5106012dec83dc76dbcd3b052",
+      "tables": 0
+    }
+  ]
+}

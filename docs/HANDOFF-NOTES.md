@@ -22,13 +22,20 @@
 端到端（#64）：corpus-A 真件 8 步全链 0.83s——招标文件进成品 docx 出
 规模（#65）：50 万字 252 章全链 19s；导出 0.3s；内存峰值 44MB
 PDF（#66）：298 页 2.7s（LibreOffice headless）
+收官测验（#80 第一批/PR #81）：synth-tender 合成夹具 7 坑 + 95→98 条答案
+收官测验（#80 第二批）：真实生成通路（人肉 LLM 中继）+ e2e 十件套产物落盘
 桌面壳：十阶段全完成（#42）+ 大纲面板（#54）+ 公式面（#53）
 ```
 
 **能力边界（诚实面）**：
 
-- AI 生成是 **mock**（确定性模板——e2e 能跑但不出真内容）；真实 LLM
-  通路是 `SectionGenerator` trait 的注入位，接口已定型未接线；
+- AI 生成的 **mock 是默认面**（确定性模板——e2e 能跑但不出真内容）；
+  **真实 LLM 通路已验证跑通**（#80 第二批，2026-10-30）：`RealGenerator`
+  （LlmConfig → HttpTransport/ureq → envelope 容错解析 → 用量台账）经
+  「人肉 LLM 中继」全链实测——开发者本人作为补全作者（无 API key），
+  `scripts/e2e_bid/run_real_llm_path.sh` 两相位（capture 抓 prompt → 人写
+  正文 → serve 回灌全链）。接真 API 只需 `.mang/llm.json` 配 api_base/
+  api_key/model（#80 第二批实测详见 artifacts/e2e-real-path/latest/）；
 - 图片/表格嵌入导出面未做（PDF 管线承载，无夹具验证）；
 - `search_evidence` 未做（Lead 裁决：标书场景是查表不是检索——素材库
   上来再启）。

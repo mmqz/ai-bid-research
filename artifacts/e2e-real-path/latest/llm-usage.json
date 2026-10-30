@@ -1,0 +1,15 @@
+{
+  "calls": 1,
+  "prompt_tokens": 1074,
+  "completion_tokens": 1253,
+  "total_tokens": 2327,
+  "by_model": {
+    "human-agent-author-v1": {
+      "calls": 1,
+      "prompt_tokens": 1074,
+      "completion_tokens": 1253,
+      "total_tokens": 2327
+    }
+  },
+  "last_at": 1793371962
+}

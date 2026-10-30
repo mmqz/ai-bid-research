@@ -1,0 +1,21 @@
+{
+  "derived": {
+    "font": {
+      "body": "宋体",
+      "line_height": 1.5,
+      "size": 12.0
+    },
+    "page": {
+      "margin": {
+        "bottom": 30,
+        "left": 28,
+        "right": 26,
+        "top": 35
+      },
+      "size": "A4"
+    }
+  },
+  "warnings": [
+    "从招标文件格式条款提取 1 项格式参数（未识别项保持基线）"
+  ]
+}

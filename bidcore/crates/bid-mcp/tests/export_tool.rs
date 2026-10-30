@@ -192,13 +192,25 @@ fn export_idempotent_replay() {
 }
 
 #[test]
-fn export_rejects_pdf_honestly() {
+fn export_pdf_channel_or_env_honest() {
+    // 阶段 7 后：pdf 已实现——soffice 在场则真转换，缺失则响亮环境告警
+    // （两条路径都不得是「空成功」或「未实现」）
     let (mut svc, pid, _) = svc_drafted("pdf", false);
     let reply = call(&mut svc, "export_bid_document", json!({
         "project_id": pid, "format": "pdf", "output_path": "out/标书.pdf",
     }));
-    assert_eq!(err_code(&reply), "E_UNPROCESSABLE");
-    assert!(format!("{:?}", reply).contains("阶段 7"), "诚实指路 PDF 通道");
+    match &reply {
+        ToolReply::Ok(out) => {
+            assert!(out.result["artifact"]["url"].as_str().unwrap().ends_with(".pdf"));
+        }
+        ToolReply::Err { error, .. } => {
+            assert_eq!(error.code(), "E_UNPROCESSABLE");
+            assert!(
+                format!("{error}").contains("soffice") || format!("{error}").contains("LibreOffice"),
+                "环境缺失必须指路 LibreOffice: {error}"
+            );
+        }
+    }
 }
 
 #[test]

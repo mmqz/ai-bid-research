@@ -723,6 +723,7 @@ body:has(#sidebar[hidden]) .activity-item[aria-selected="true"]::before {
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+  position: relative; /* #42 阶段 8：标注层（.anno-layer）的定位基准 */
 }
 
 /* ---------------------------------------------------------------------------
@@ -2378,4 +2379,169 @@ html[data-chrome="native"][data-maximized="1"] #app {
   font-size: 11px;
   padding: 2px 0;
   user-select: none;
+}
+
+/* ============ #42 阶段 8：来源标注浮层（覆盖层，绝不修改文件） ============ */
+.anno-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  pointer-events: none; /* 层本身不挡正文；只有角标可点 */
+  z-index: 30;
+}
+
+.anno-mark {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+  cursor: pointer;
+  pointer-events: auto;
+  padding: 0;
+  background: var(--bg-editor, #fff);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+}
+
+.anno-mark.st-pending {
+  color: #9a6700;
+  border-color: #d4a72c;
+  background: #fff8c5;
+}
+
+.anno-mark.st-confirmed {
+  color: #1a7f37;
+  border-color: #2da44e;
+  background: #dafbe1;
+}
+
+.anno-mark.st-rejected {
+  color: #b42318;
+  border-color: #cf222e;
+  background: #ffebe9;
+}
+
+.anno-mark:hover {
+  transform: scale(1.15);
+}
+
+/* 来源详情浮层 */
+#anno-detail {
+  position: fixed;
+  z-index: 910;
+  background: rgba(0, 0, 0, .35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+}
+
+#anno-detail .anno-box {
+  width: min(460px, 92vw);
+  background: var(--bg-editor, #fff);
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 8px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, .3);
+  overflow: hidden;
+}
+
+#anno-detail .anno-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border, #d0d7de);
+  background: var(--bg-side, #f6f8fa);
+}
+
+#anno-detail .anno-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+#anno-detail .anno-close {
+  border: none;
+  background: transparent;
+  font-size: 17px;
+  cursor: pointer;
+  color: var(--text-muted, #6a737d);
+  padding: 1px 7px;
+  border-radius: 4px;
+}
+
+#anno-detail .anno-close:hover {
+  background: var(--bg-hover, rgba(110, 118, 129, .15));
+}
+
+#anno-detail .anno-src {
+  padding: 10px 14px 2px;
+  font-size: 12.5px;
+  color: var(--text-muted, #6a737d);
+}
+
+#anno-detail .anno-quote {
+  margin: 8px 14px 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--border, #d0d7de);
+  background: var(--bg-side, #f6f8fa);
+  font-size: 13px;
+  line-height: 1.6;
+  border-radius: 0 4px 4px 0;
+}
+
+#anno-detail .anno-where {
+  padding: 6px 14px 0;
+  font-size: 12px;
+  color: var(--text-muted, #6a737d);
+}
+
+#anno-detail .anno-note {
+  margin: 8px 14px 0;
+  font-size: 12px;
+  color: #57606a;
+  font-style: italic;
+}
+
+#anno-detail .anno-verify {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  font-size: 12.5px;
+}
+
+#anno-detail .anno-verify > span {
+  color: var(--text-muted, #6a737d);
+  margin-right: 2px;
+}
+
+#anno-detail .anno-status {
+  border: 1px solid var(--border, #d0d7de);
+  background: transparent;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#anno-detail .anno-status:hover {
+  background: var(--bg-hover, rgba(110, 118, 129, .15));
+}
+
+#anno-detail .anno-status[aria-pressed="true"] {
+  border-color: rgba(29, 78, 216, .5);
+  background: rgba(29, 78, 216, .12);
+  font-weight: 600;
+}
+
+#anno-detail .anno-hint {
+  padding: 8px 14px 10px;
+  font-size: 11.5px;
+  color: var(--text-muted, #6a737d);
+  border-top: 1px dashed var(--border, #d0d7de);
 }

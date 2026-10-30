@@ -143,7 +143,7 @@ fn fnv64(bytes: &[u8]) -> u64 {
 }
 
 /// rel 路径 → 快照目录 key：`docs/技术标.md` → `docs__技术标-f1e2d3c4`
-fn key_for(rel: &str) -> String {
+pub fn file_key(rel: &str) -> String {
     let flat = rel.replace(['/', '\\'], "__");
     let stem: String = flat
         .chars()
@@ -247,7 +247,7 @@ pub fn save(root: &Path, abs: &Path, kind: Kind, message: &str) -> Result<SavedE
 /// 锁内实现（rollback 在持锁路径复用）
 fn save_locked(root: &Path, rel: &str, content: Option<&[u8]>, kind: Kind, message: &str) -> Result<SavedEntry, SnapError> {
     let hroot = history_root(root);
-    let key = key_for(rel);
+    let key = file_key(rel);
     let bytes = content.unwrap_or_default();
     let ts = now_ms();
     let name = snapshot_name(rel, ts);
@@ -493,8 +493,8 @@ mod tests {
 
     #[test]
     fn key_and_label() {
-        assert_eq!(key_for("docs/技术标.md"), key_for("docs/技术标.md"));
-        assert_ne!(key_for("a/x.md"), key_for("b/x.md"));
+        assert_eq!(file_key("docs/技术标.md"), file_key("docs/技术标.md"));
+        assert_ne!(file_key("a/x.md"), file_key("b/x.md"));
         assert_eq!(ts_label(0), "19700101-000000");
     }
 }

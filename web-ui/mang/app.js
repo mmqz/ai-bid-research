@@ -307,6 +307,25 @@
             
             case "snapshots.rollback":
               return respond(m.id, { ok: true, file: m.file, snapshot: m.snapshot, bytes: 128, backupTs: Date.now() });
+            case "annotations.load": {
+              const isDemoMd = /\u6280\u672F\u6807\.md$/.test(String(m.path || ""));
+              return respond(m.id, isDemoMd ? {
+                file: m.path, present: true,
+                items: [
+                  { id: "1", block: "b4", quote: "\u672C\u6B21\u6295\u6807\u65B9\u6848\u91C7\u7528\u5206\u5E03\u5F0F\u67B6\u6784",
+                    source: { file: "\u62DB\u6807\u6587\u4EF6.docx", page: 12, section: "3.2", quote: "\u6295\u6807\u4EBA\u987B\u63D0\u4F9B\u5206\u5E03\u5F0F\u67B6\u6784\u65B9\u6848" },
+                    status: "pending", note: "" },
+                  { id: "2", block: "b9", quote: "\u4E09\u3001\u98CE\u9669\u63A7\u5236",
+                    source: { file: "\u62DB\u6807\u6587\u4EF6.docx", page: 18, section: "6.1", quote: "\u6295\u6807\u4EBA\u5E94\u5236\u5B9A\u98CE\u9669\u5E94\u5BF9\u63AA\u65BD\u4E0E\u7F13\u91CA\u673A\u5236" },
+                    status: "confirmed", note: "\u5DF2\u5BF9\u7167\u8BC4\u5206\u529E\u6CD5\u7B2C\u516D\u7AE0" }
+                ]
+              } : { file: m.path, present: false, items: [] });
+            }
+            case "annotations.setStatus": {
+              window.__demoAnno = window.__demoAnno || {};
+              window.__demoAnno[m.id] = m.status;
+              return respond(m.id, { ok: true, file: m.file, id: m.id, status: m.status });
+            }
             default:
               return fail(m.id, "unknown_cmd", "\u6F14\u793A\u6A21\u5F0F\u672A\u5B9E\u73B0\u8BE5\u547D\u4EE4\uFF1A" + m.cmd);
           }
@@ -1023,6 +1042,134 @@
     }
     return String(p).replace(/\\/g, "/");
   }
+
+  // ============ #42 阶段 8：来源标注浮层（覆盖层，绝不修改文件） ============
+  /** 给已渲染的 tab 挂标注层：.view-scroll 内绝对定位（随内容滚动），
+   *  角标锚在目标块右下角；点角标开来源详情浮层（认校验三态可点）。 */
+  function attachAnnotations(tab) {
+    const pane = document.getElementById("pane-" + tab.id);
+    if (!pane) return;
+    detachAnnotations(pane);
+    if (tab.kind !== "md" && tab.kind !== "docx") return;
+    const sc = pane.querySelector(".view-scroll");
+    if (!sc) return;
+    const rel = relOfPath(tab.path || "");
+    ipc("annotations.load", { path: rel }, 15e3).then((r) => {
+      if (!r || !r.present || !Array.isArray(r.items) || !r.items.length) return;
+      if (document.getElementById("pane-" + tab.id) !== pane) return; // tab 已关
+      const layer = document.createElement("div");
+      layer.className = "anno-layer";
+      layer.dataset.for = tab.id;
+      sc.appendChild(layer);
+      const items = r.items;
+      const render = () => {
+        layer.innerHTML = "";
+        layer.style.height = sc.scrollHeight + "px";
+        const scRect = sc.getBoundingClientRect();
+        let placed = 0;
+        items.forEach((it, idx) => {
+          const blk = sc.querySelector('[data-block-id="' + esc(it.block || "") + '"]');
+          if (!blk) return;
+          const bRect = blk.getBoundingClientRect();
+          const mk = document.createElement("button");
+          mk.className = "anno-mark st-" + (it.status || "pending");
+          mk.textContent = String(idx + 1);
+          const quote = (it.quote || "").slice(0, 60);
+          mk.title = quote + "\uFF08\u70B9\u770B\u6765\u6E90\uFF09";
+          // 相对滚动内容定位（层原点 = 内容顶部）
+          mk.style.top = (bRect.bottom - scRect.top + sc.scrollTop - 11) + "px";
+          mk.style.left = Math.min(bRect.right - scRect.left + sc.scrollLeft + 4, sc.clientWidth - 24) + "px";
+          mk.addEventListener("click", (e) => {
+            e.stopPropagation();
+            showAnnotationDetail(tab, items, idx);
+          });
+          layer.appendChild(mk);
+          placed++;
+        });
+        if (placed) {
+          ui.setStatus({ annotations: "\u6807\u6CE8 " + placed + " \u6761" });
+        }
+      };
+      render();
+      // 内容尺寸变化（字体加载/图片展开/窗口缩放）重摆角标
+      const ro = new ResizeObserver(() => render());
+      ro.observe(sc.firstElementChild || sc);
+      layer.__ro = ro;
+    }).catch(() => {
+      /* 标注加载失败不打扰正文（下次切回重试） */
+    });
+  }
+
+  function detachAnnotations(pane) {
+    const old = pane.querySelector(".anno-layer");
+    if (old) {
+      if (old.__ro) old.__ro.disconnect();
+      old.remove();
+      ui.setStatus({ annotations: "" });
+    }
+  }
+
+  /** 来源详情浮层：认校验三态（✅已确认 / ⚠待确认 / ❌不符）+ 来源引用 */
+  function showAnnotationDetail(tab, items, idx) {
+    closeAnnotationDetail();
+    const it = items[idx];
+    if (!it) return;
+    const src = it.source || {};
+    const ov = document.createElement("div");
+    ov.id = "anno-detail";
+    const srcLine = [src.file, src.page ? "P" + src.page : "", src.section ? "\u00A7" + src.section : ""].filter(Boolean).join(" \u00B7 ");
+    const st = it.status || "pending";
+    const btn = (s, label) =>
+      '<button class="anno-status" data-status="' + s + '"' + (st === s ? ' aria-pressed="true"' : "") + ">" + label + "</button>";
+    ov.innerHTML =
+      '<div class="anno-box">' +
+      '<div class="anno-head"><span class="anno-title">\u6765\u6E90 [' + (idx + 1) + ']</span>' +
+      '<button class="anno-close" title="\u5173\u95ED (Esc)">\u00D7</button></div>' +
+      '<div class="anno-src">' + esc(srcLine || "\u672A\u77E5\u6765\u6E90") + "</div>" +
+      (src.quote ? '<div class="anno-quote">\u300C' + esc(src.quote) + "\u300D</div>" : "") +
+      (it.quote ? '<div class="anno-where">\u6B63\u6587\u4F4D\u7F6E\uFF1A' + esc(it.quote.slice(0, 80)) + "</div>" : "") +
+      (it.note ? '<div class="anno-note">' + esc(it.note) + "</div>" : "") +
+      '<div class="anno-verify"><span>\u8BA4\u6821\u9A8C</span>' +
+      btn("confirmed", "\u2705 \u5DF2\u786E\u8BA4") +
+      btn("pending", "\u26A0\uFE0F \u5F85\u786E\u8BA4") +
+      btn("rejected", "\u274C \u4E0D\u7B26") +
+      "</div>" +
+      '<div class="anno-hint">\u6807\u6CE8\u5B58\u5728\u8FB9\u8F66\uFF08.mang/annotations\uFF09\uFF0C\u7EDD\u4E0D\u4FEE\u6539\u6587\u4EF6\u5185\u5BB9</div>' +
+      "</div>";
+    ov.addEventListener("mousedown", (e) => {
+      if (e.target === ov) closeAnnotationDetail();
+    });
+    ov.querySelector(".anno-close").addEventListener("click", closeAnnotationDetail);
+    ov.querySelectorAll(".anno-status").forEach((b) => {
+      b.addEventListener("click", () => {
+        const status = b.dataset.status;
+        ipc("annotations.setStatus", { path: relOfPath(tab.path || ""), id: it.id, status }, 15e3).then(() => {
+          it.status = status;
+          ov.querySelectorAll(".anno-status").forEach((x) => x.removeAttribute("aria-pressed"));
+          b.setAttribute("aria-pressed", "true");
+          const layer = document.getElementById("pane-" + tab.id)?.querySelector(".anno-layer");
+          const marks = layer ? Array.from(layer.children) : [];
+          const mk = marks[idx];
+          if (mk) mk.className = "anno-mark st-" + status;
+          ui.toast("ok", "\u5DF2\u6807\u8BB0\uFF1A" + (status === "confirmed" ? "\u5DF2\u786E\u8BA4" : status === "pending" ? "\u5F85\u786E\u8BA4" : "\u4E0D\u7B26"));
+        }).catch((e2) => ui.toast("error", "\u4FDD\u5B58\u5931\u8D25\uFF1A" + (e2.message || e2)));
+      });
+    });
+    document.body.appendChild(ov);
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        closeAnnotationDetail();
+        document.removeEventListener("keydown", onKey);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+  }
+
+  function closeAnnotationDetail() {
+    const ov = document.getElementById("anno-detail");
+    if (ov) ov.remove();
+  }
+
   /** 30s 一档：打开的文本文件内容有变 → 壳侧存快照（无变化自动跳过） */
   function snapshotTick() {
     if (!state.bridge || state.bridge.mode !== "host") return;
@@ -2085,6 +2232,7 @@
           message: tab.meta.mtimeMs ? timeAgo(tab.meta.mtimeMs) + "\u66F4\u65B0" : ""
         });
         refreshOutlineIfVisible(); // #54：视图就绪后刷新大纲（md 同步渲染完成面）
+        attachAnnotations(tab); // #42 阶段 8：来源标注角标（有边车才有）
       } catch (err) {
         tab.state = "error";
         tab.error = err.message || String(err);
@@ -2472,6 +2620,13 @@
         i++;
       }
       out.push("<p>" + para.map(inline).join("<br>") + "</p>");
+    }
+    // #42 阶段 8：顶层块编号（data-block-id=b1..bN）——docx 渲染器同款钩子，
+    // 证据角标按块定位。out 的每项都是一个完整顶层元素，往首标签注入属性即可。
+    for (let k = 0; k < out.length; k++) {
+      const m = /^<([a-zA-Z][a-zA-Z0-9]*)([^>]*)>/.exec(out[k]);
+      if (!m) continue;
+      out[k] = "<" + m[1] + ' data-block-id="b' + (k + 1) + '"' + m[2] + ">" + out[k].slice(m[0].length);
     }
     return out.join("\n");
   }

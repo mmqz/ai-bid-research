@@ -17,6 +17,7 @@
 //! 协议细节见 docs/mang/IPC-CONTRACT.md。
 
 mod b64;
+mod annotations;
 mod chrome;
 mod dialogs;
 mod dnd;

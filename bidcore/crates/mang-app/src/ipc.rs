@@ -370,6 +370,11 @@ impl Ctx {
 
             "snapshots.rollback" => crate::snapshots::rollback(&self.workspace, a),
 
+            // 来源标注边车（issue #42 阶段 8）：浮层数据 + 认校验三态
+            "annotations.load" => crate::annotations::load(&self.workspace, a),
+
+            "annotations.setStatus" => crate::annotations::set_status(&self.workspace, a),
+
             // 绝对路径（拖拽/对话框/最近打开）→ 归一成 {path, rel, kind, size, mtimeMs, insideWorkspace}
             "file.fromPath" => crate::fsapi::from_path(&self.workspace, a),
 

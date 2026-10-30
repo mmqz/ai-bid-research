@@ -213,11 +213,14 @@ fn e2e_tender_in_docx_out() {
     let first_leaf_title = svc.store().sections().iter()
         .find(|n| n.id == leaf_ids[0]).unwrap().title.clone();
     assert!(doc_xml.contains(&first_leaf_title), "⑧ 章标题「{first_leaf_title}」进正文");
-    // 正文内容进文档（工作区 content 的首段）
+    // 正文内容进文档（工作区 content 的首段——#68 阶段 3：md 标题行剥号
+    // 加粗渲染，断言面 = 剥号后的文本，且字面井号不再输出）
     let rec = asm.record(&leaf_ids[0]).unwrap();
     let first_line = rec.content.lines().find(|l| !l.trim().is_empty()).unwrap_or("");
-    let probe: String = first_line.chars().take(20).collect();
-    assert!(doc_xml.contains(&probe), "⑧ 正文首段「{probe}…」进文档");
+    let stripped = first_line.trim_start_matches('#').trim();
+    let probe: String = stripped.chars().take(20).collect();
+    assert!(doc_xml.contains(&probe), "⑧ 正文首段「{probe}…」进文档（剥号面）");
+    assert!(!doc_xml.contains("# "), "⑧ md 标题井号不再字面输出");
     let mut styles_xml = String::new();
     zip.by_name("word/styles.xml").unwrap().read_to_string(&mut styles_xml).unwrap();
     assert!(styles_xml.contains("w:eastAsia="), "⑧ format-spec 字体面（Normal 样式）");

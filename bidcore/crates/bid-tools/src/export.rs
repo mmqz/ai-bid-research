@@ -70,8 +70,12 @@
 //! crate 纪律不变：时间戳用 SystemTime→UNIX_EPOCH 秒（u64，no-chrono）。
 
 use crate::assembly::{AssemblerError, ChapterAssembler};
+use bid_domain::evidence::Evidence;
 use bid_domain::outline::{OutlineNode, SectionStatus};
-use docx_rs::{Docx, DocumentChild, Paragraph, Run, Style, StyleType, TableOfContents};
+use docx_rs::{
+    Docx, DocumentChild, Paragraph, Pic, Run, Style, StyleType, Table, TableCell, TableRow,
+    TableOfContents,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashSet};
@@ -165,6 +169,9 @@ pub enum ExportError {
     RecordOnStructuralNode { section_id: String },
     /// 组装工作区打开/校验失败（S-2 fail-closed 面透传——Corrupt 等原样上抛）
     Assembler(AssemblerError),
+    /// #68 阶段 3：图片不可解析/不可读/非图片格式——**响亮拒绝不静默跳过**
+    /// （issue §3.1 验收线；标书缺资质证书图是废标级事故）。
+    ImageUnresolvable { target: String, why: String },
 }
 
 impl std::fmt::Display for ExportError {
@@ -195,6 +202,10 @@ impl std::fmt::Display for ExportError {
                 "章节 {section_id} 是结构节点（非叶）却有已提交记录——工作区与树不匹配，显式报错不猜测"
             ),
             ExportError::Assembler(e) => write!(f, "组装工作区校验失败: {e}"),
+            ExportError::ImageUnresolvable { target, why } => write!(
+                f,
+                "图片 {target} 无法嵌入: {why}——缺图不静默跳过（EV 引用查 workspace/files/，路径引用相对工作区根）"
+            ),
         }
     }
 }
@@ -212,6 +223,10 @@ impl std::error::Error for ExportError {}
 pub struct DocumentExporter<'a> {
     /// 章节树全集（任意序传入，内部按「根起 DFS + 兄弟按 order 升序」全序化）
     nodes: &'a [OutlineNode],
+    /// #68 阶段 3：EV-id 图片解析面（`![说明](EV-0003)` → 证据台账 →
+    /// source_file → workspace `files/` 下取件）。空切片 = 无 EV 解析
+    /// （纯路径模式——既有调用方零变化）。
+    evidences: &'a [Evidence],
 }
 
 /// 导出选项（#59 阶段 2：format-spec 应用 + 暗标模式）。
@@ -243,7 +258,22 @@ impl<'a> ExportOptions<'a> {
 impl<'a> DocumentExporter<'a> {
     /// 以章节树构造导出器。`nodes` 为空 → export 时 [`ExportError::EmptyTree`]。
     pub fn new(nodes: &'a [OutlineNode]) -> Self {
-        Self { nodes }
+        Self { nodes, evidences: &[] }
+    }
+
+    /// 带 evidence 台账的构造（#68 阶段 3——`![说明](EV-xxxx)` 引用的
+    /// 解析面：EV → source_file → workspace `files/{source_file}`）。
+    pub fn with_evidences(nodes: &'a [OutlineNode], evidences: &'a [Evidence]) -> Self {
+        Self { nodes, evidences }
+    }
+
+    /// 图片目标解析 + 读取（#68 阶段 3——EV-id / 相对路径 / 绝对路径）。
+    fn resolve_image(&self, ws: &Path, target: &str) -> Result<Vec<u8>, ExportError> {
+        let path = resolve_image_target(self.evidences, ws, target);
+        std::fs::read(&path).map_err(|e| ExportError::ImageUnresolvable {
+            target: target.to_string(),
+            why: format!("{} 读取失败: {e}", path.display()),
+        })
     }
 
     /// 导出标书 docx（唯一入口）。
@@ -384,13 +414,39 @@ impl<'a> DocumentExporter<'a> {
             docx = docx.add_paragraph(heading);
             if is_leaf(node, &children) {
                 let rec = asm.record(&node.id).expect("叶记录已在导出门验证");
-                // 正文段：按换行切段（LLM 章内容的段落结构保留；空行跳过——
-                // 段落边界是排版面，不是内容面）。暗标：正文脱敏。
-                for line in content_paragraphs(&rec.content) {
-                    let line = opts.scrub(line);
-                    docx = docx.add_paragraph(
-                        Paragraph::new().add_run(Run::new().add_text(line.as_str())),
-                    );
+                // #68 阶段 3：正文按 md 块渲染（段落 / 图片 / 表格——issue
+                // §3.1/§3.2）。段落行为与既有版全兼容（无 md 语法的内容
+                // 字节级同输出）；图片缺失**响亮拒绝**（不静默跳过——fail-
+                // closed 纪律与导出门同族）。暗标：正文/单元格/图注同步脱敏。
+                for block in parse_blocks(&rec.content) {
+                    match block {
+                        Block::Para { text, bold } => {
+                            let text = opts.scrub(&text);
+                            let mut run = Run::new().add_text(text.as_str());
+                            if bold {
+                                run = run.bold();
+                            }
+                            docx = docx.add_paragraph(Paragraph::new().add_run(run));
+                        }
+                        Block::Image { alt, target } => {
+                            let bytes = self.resolve_image(dir, &target)?;
+                            let pic = build_pic(&bytes, &target)?;
+                            docx = docx.add_paragraph(
+                                Paragraph::new().add_run(Run::new().add_image(pic)),
+                            );
+                            let alt = opts.scrub(&alt);
+                            if !alt.trim().is_empty() {
+                                docx = docx.add_paragraph(
+                                    Paragraph::new()
+                                        .add_run(Run::new().add_text(format!("图：{alt}").as_str())),
+                                );
+                            }
+                        }
+                        Block::Table { rows } => {
+                            let table = build_table(rows, opts);
+                            docx = docx.add_table(table);
+                        }
+                    }
                 }
                 chapters_written += 1;
                 total_chars += u64::from(rec.char_count);
@@ -521,6 +577,187 @@ fn content_paragraphs(content: &str) -> impl Iterator<Item = &str> {
         .split('\n')
         .map(|l| l.trim_end_matches('\r'))
         .filter(|l| !l.is_empty())
+}
+
+// ---------------------------------------------------------------- #68 阶段 3：md 块解析与嵌入
+
+/// 章正文的 md 块（issue §3.1/§3.2 的最小语法面）。
+#[derive(Debug, Clone, PartialEq)]
+enum Block {
+    /// 普通段（bold = md 标题行 `#`/`##`… 剥号后的加粗段——章标题已由
+    /// 节点标题段承载，内容层标题不重复占 TOC 层级）。
+    Para { text: String, bold: bool },
+    /// 图片：`![说明](路径或EV-id)`（整行独立成块）。
+    Image { alt: String, target: String },
+    /// 表格：连续 `|` 起始行（首行表头 + 分隔行 `|---|` + 数据行）。
+    Table { rows: Vec<Vec<String>> },
+}
+
+/// 解析章正文为块序列（纯函数——同输入同输出，可单测）。
+///
+/// - 无 md 语法的内容 → 与旧逐行渲染**全兼容**（每非空行一个 Para）；
+/// - 图片行/表格块之外的空行是段落边界，跳过（与旧行为一致）；
+/// - 表格识别：≥2 行连续 `|` 行且第 2 行是分隔行（`|---|:--|` 形态）；
+///   分隔行从输出行集中剔除（它是排版指令不是内容）。
+fn parse_blocks(content: &str) -> Vec<Block> {
+    let mut blocks: Vec<Block> = Vec::new();
+    let mut table_lines: Vec<&str> = Vec::new();
+
+    let flush_table = |table_lines: &mut Vec<&str>, blocks: &mut Vec<Block>| {
+        if table_lines.is_empty() {
+            return;
+        }
+        let rows: Vec<Vec<String>> = table_lines.iter().map(|l| split_table_row(l)).collect();
+        // 分隔行剔除：第 2 行是分隔形态 → 表头+数据；否则整个按普通段落回退
+        if rows.len() >= 2 && table_lines.iter().all(|l| l.starts_with('|')) && rows.len() >= 2
+            && table_lines[1].chars().all(|c| matches!(c, '|' | '-' | ':' | ' '))
+            && table_lines[1].contains('-')
+        {
+            blocks.push(Block::Table { rows: rows.into_iter().enumerate()
+                .filter(|(i, _)| *i != 1).map(|(_, r)| r).collect() });
+        } else {
+            // 非法表格形态（无分隔行）——原样回退段落（不吞内容）
+            for l in table_lines.drain(..) {
+                blocks.push(Block::Para { text: l.to_string(), bold: false });
+            }
+            return;
+        }
+        table_lines.clear();
+    };
+
+    for raw in content.split('\n') {
+        let line = raw.trim_end_matches('\r');
+        let t = line.trim();
+        if t.starts_with('|') {
+            table_lines.push(t);
+            continue;
+        }
+        flush_table(&mut table_lines, &mut blocks);
+        if t.is_empty() {
+            continue;
+        }
+        if let Some((alt, target)) = parse_image_line(t) {
+            blocks.push(Block::Image { alt, target });
+            continue;
+        }
+        if let Some(text) = strip_heading(t) {
+            blocks.push(Block::Para { text, bold: true });
+            continue;
+        }
+        blocks.push(Block::Para { text: t.to_string(), bold: false });
+    }
+    flush_table(&mut table_lines, &mut blocks);
+    blocks
+}
+
+/// 图片行解析：`![说明](target)`（整行恰好一个图片语法——行内混合文本
+/// 不识别，防误吞；说明可为空）。
+fn parse_image_line(line: &str) -> Option<(String, String)> {
+    let rest = line.strip_prefix("![")?;
+    let close = rest.find("](")?;
+    let alt = &rest[..close];
+    let tail = &rest[close + 2..];
+    let end = tail.rfind(')')?;
+    if !tail.ends_with(')') || tail[..end].contains(')') {
+        return None; // ) 后还有内容或目标内含 )——不识别（保守面）
+    }
+    let target = &tail[..end];
+    if target.trim().is_empty() {
+        return None;
+    }
+    Some((alt.trim().to_string(), target.trim().to_string()))
+}
+
+/// md 标题行剥号（`#`/`##`/`###`… → 文本；非标题行 None）。
+fn strip_heading(line: &str) -> Option<String> {
+    let hashes = line.chars().take_while(|c| *c == '#').count();
+    if hashes == 0 || hashes > 6 {
+        return None;
+    }
+    let text = line[hashes..].trim();
+    if text.is_empty() {
+        return None;
+    }
+    Some(text.to_string())
+}
+
+/// 表格行切单元格（剥首尾竖线 → `|` 切分 → 逐格 trim）。
+fn split_table_row(line: &str) -> Vec<String> {
+    let inner = line.strip_prefix('|').unwrap_or(line);
+    let inner = inner.strip_suffix('|').unwrap_or(inner);
+    inner.split('|').map(|c| c.trim().to_string()).collect()
+}
+
+/// 图片目标解析（EV-id → 证据源文件；路径 → 相对 workspace 或绝对）。
+fn resolve_image_target(evidences: &[Evidence], ws: &Path, target: &str) -> PathBuf {
+    if let Some(ev) = evidences.iter().find(|e| e.id == target) {
+        return ws.join("files").join(&ev.source_file);
+    }
+    let p = Path::new(target);
+    if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        ws.join(p)
+    }
+}
+
+/// 版面宽上限（内容区 6 英寸 @96dpi——A4 默认边距的安全面；超出等比缩放）。
+const MAX_CONTENT_WIDTH_PX: u32 = 576;
+
+/// 图片字节 → docx Pic（PNG 直传 / 其他格式转 PNG；宽超限等比缩放）。
+///
+/// 错误面**不 panic**（docx-rs `Pic::new` 内部 expect 的 IO 面——本函数
+/// 预验证 + 显式 Err，与模块 fail-closed 纪律一致）。
+fn build_pic(bytes: &[u8], target: &str) -> Result<Pic, ExportError> {
+    use image::GenericImageView;
+    let unresolvable = |why: String| ExportError::ImageUnresolvable {
+        target: target.to_string(),
+        why,
+    };
+    let img = image::load_from_memory(bytes)
+        .map_err(|e| unresolvable(format!("不是可识别的图片格式: {e}")))?;
+    let (w, h) = img.dimensions();
+    let png: Vec<u8> = if bytes.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]) {
+        bytes.to_vec() // PNG 直传（免重编码——与 docx-rs Pic::new 的短路同路）
+    } else {
+        let mut buf = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+            .map_err(|e| unresolvable(format!("图片转 PNG 失败: {e}")))?;
+        buf
+    };
+    // 版面适配：宽超 6 英寸等比缩到界内（Word 页宽硬约束；高同比——
+    // 特长图（如扫描长页）高分屏不炸版）
+    let (mw, mh) = if w > MAX_CONTENT_WIDTH_PX {
+        let scale = MAX_CONTENT_WIDTH_PX as f64 / w as f64;
+        let mh = (h as f64 * scale).round().max(1.0) as u32;
+        (MAX_CONTENT_WIDTH_PX, mh)
+    } else {
+        (w, h)
+    };
+    Ok(Pic::new_with_dimensions(png, mw, mh))
+}
+
+/// md 表格行集 → docx Table（表头加粗；暗标脱敏逐格应用）。
+fn build_table(rows: Vec<Vec<String>>, opts: &ExportOptions<'_>) -> Table {
+    let doc_rows: Vec<TableRow> = rows
+        .into_iter()
+        .enumerate()
+        .map(|(i, cells)| {
+            let doc_cells: Vec<TableCell> = cells
+                .into_iter()
+                .map(|c| {
+                    let text = opts.scrub(&c);
+                    let mut run = Run::new().add_text(text.as_str());
+                    if i == 0 {
+                        run = run.bold(); // 表头行加粗（无样式表依赖的稳妥面）
+                    }
+                    TableCell::new().add_paragraph(Paragraph::new().add_run(run))
+                })
+                .collect();
+            TableRow::new(doc_cells)
+        })
+        .collect();
+    Table::new(doc_rows)
 }
 
 /// `out` + ".tmp" 的同目录兄弟路径（纯后缀追加——不猜调用方的扩展名形态）。

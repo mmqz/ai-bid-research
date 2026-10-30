@@ -132,6 +132,16 @@ out: { findings:[{vf_id, kind:DETERMINISTIC|MODEL, rule_code, severity, section_
 ## 8. export_bid_document
 ```
 in : { project_id, format:"docx"|"pdf", profile:{dark_bid? , template?}, options:{tracked_changes?, watermark?}, project_version }
+嵌入: #68 阶段 3——章正文支持 md 块语法（无语法内容与旧版字节级同输出）：
+     - 表格：连续 | 行（首行表头 + |---| 分隔行 + 数据行）→ docx 表格
+       （表头加粗；分隔行是排版指令不进正文；无分隔行的 | 行回退普通段落）
+     - 图片：整行 ![说明](路径或EV-id) → docx 内嵌图 + 图注「图：说明」
+       · 相对路径 → workspace 根解析；绝对路径直取
+       · EV-id → 证据台账 source_file → workspace files/{source_file}
+       · 缺图/非图片格式/未知 EV → E_UNPROCESSABLE 响亮拒绝（不静默跳过
+         ——标书缺资质证书图是废标级事故）
+       · 版面适配：宽超内容区 6 英寸等比缩放（A4 安全面）
+     - 标题行：# / ## … → 剥号加粗段（不再字面输出井号）
 out: { artifact:{url, sha256, size}, content_version_snapshot, precheck:{blockers:0, waived:[VF-*]} }
 前置: 所有 BLOCKER findings = Resolved/Waived（否则 E_STATE + 阻断清单）
 幂等: (project_id, content_version, format, profile) 相同 → 返回缓存 artifact

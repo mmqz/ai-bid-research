@@ -20,6 +20,8 @@ regex = { workspace = true }
 docx-rs = "0.4"
 # #68 阶段 1：RealGenerator 的 HTTP 传输面（阻塞 + rustls，无 tokio）。
 ureq = { workspace = true }
+# #68 阶段 3：导出图片嵌入（格式验证/转 PNG/版面缩放——Pic 构建面）。
+image = { workspace = true }
 
 [dev-dependencies]
 # 测试面（S-6 验收）：解包导出产物校验 zip 完整性 + XML 良构（「Word 打开

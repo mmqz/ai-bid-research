@@ -174,7 +174,10 @@ const full = await (await fetch(url)).json();  // 与内联时那个帧完全一
   "exe": "E:\\…\\bidcore\\target\\release\\mang-app.exe",
   "pid": 4236,
   "platform": "windows",
-  "protocol": 1
+  "protocol": 1,
+  "git_rev": "73e2697",          // #76：build.rs 注入（git 不可用时 "unknown"）
+  "build_epoch": 1793260341,      // #76：构建 Unix 秒（前端 Date 渲染本地时区）
+  "profile": "release"           // #76：debug | release
 }
 ```
 
@@ -267,6 +270,52 @@ const full = await (await fetch(url)).json();  // 与内联时那个帧完全一
 ### explorer.reveal  `{ path }`
 `explorer /select,"<path>"`（`CREATE_NO_WINDOW`）；目录则直接打开；路径不存在则打开最近的存在的父目录。→ `{ "ok": true, "path": "…" }`
 
+### mcp.status  —— MCP 通道自检（#76 设置面板）
+只读，无参数。bid-mcp 是 **stdio 传输**（AI 客户端拉起 `bid-mcp-stdio` 子进程），本壳不监听端口，无地址/端口面；`ready` 是本壳内嵌引擎（直链 bidcore，方案 A）的 dispatch 自检——未知工具探测必须应答 `E_NOT_FOUND` JSON 帧。
+```jsonc
+→ { "channel": "stdio",
+    "server": "bid-mcp-stdio（由 MCP 客户端拉起；本壳不监听端口）",
+    "protocol": "JSONL over stdio",
+    "tools": 13, "implemented": 11,
+    "ready": true, "probe": "dispatch 应答正常",
+    "engine": "本壳直链 bidcore（方案 A），与 bid-mcp 同源" }
+```
+
+### llm.status  —— LLM 配置 + 用量（只读；#76）
+读 `<workspace>/.mang/llm.json` + `.mang/llm-usage.json`，按引擎同一套 resolve 规则（env 覆盖文件）报告**生效模式**。文件缺失不是错误。**api_key 只出掩码，绝不回明文**（对面是 WebView）。
+```jsonc
+→ { "file": "E:\\…\\.mang\\llm.json", "file_present": true,
+    "api_base": "https://api.deepseek.com/v1", "model": "deepseek-chat",
+    "timeout_secs": 60, "temperature": 0.3, "max_tokens_cap": 8192,
+    "has_api_key": true, "api_key_hint": "sk-***cdef", "key_from_env": false,
+    "effective": "real",            // "real" | "mock（未配置 api_key，自动降级）" | "配置错误"
+    "resolve_error": null,
+    "usage_file": "E:\\…\\.mang\\llm-usage.json",
+    "usage": { "calls": 3, "prompt_tokens": 1200, "completion_tokens": 800,
+               "total_tokens": 2000, "last_at": 1793260341 } }
+```
+
+### llm.save  `{ apiBase?, apiKey?, model?, timeoutSecs?, temperature?, maxTokensCap?, clearApiKey? }`（#76）
+合并写 `.mang/llm.json`：**省略 = 保持原值**；`clearApiKey:true` = 移除 key；`apiKey:""` = 清空 key。写后 resolve 验证（有 key 缺 model → `bad_args` 且**回滚到写前文件**）。成功响应不含 key。
+```jsonc
+→ { "ok": true, "file": "E:\\…\\.mang\\llm.json", "effective": "real", "saved_key": true }
+```
+
+### llm.test  —— 连接测试（异步事件回执；#76）
+**不在 IPC 线程同步跑**（HTTP 最长 20s）：立即回 `{ "started": true, "note": "…" }`，真实结果以 `llm.test` **事件**送达（见 §7）。超时上限压到 20s（配置的 60s 是给整章生成的余量）。最小请求：`max_tokens=16`，提示「请只回复 OK」。
+
+### fspec.status  —— 格式规范只读摘要（#76）
+读 `<workspace>/.mang/format-spec.json`（引擎同源 serde 面）。缺失/坏 JSON 都不是错误（缺失本身就是要显示的状态）。
+```jsonc
+→ { "present": true, "invalid": false, "bytes": 402,
+    "page": { "size": "A4", "margin_mm": { "top": 25, "bottom": 25, "left": 28, "right": 26 } },
+    "font": { "body": "仿宋_GB2312", "size_pt": 12.0, "line_height": 1.5 },
+    "per_section_overrides": 1,
+    "path": "E:\\…\\.mang\\format-spec.json",
+    "hint": "由 MCP 管线（import_tender_files → extract）从招标文件推导落盘" }
+// 缺失：{ "present": false, "path": …, "hint": … }；坏 JSON：{ "present": true, "invalid": true, "error": "…" }
+```
+
 ### recent.load / recent.save `{ items }`
 文件 `%APPDATA%\mang\recent.json`（缺失退回 LOCALAPPDATA → TEMP），最多 50 条，按 `openedAt` 倒序。同一 `path` 只留最新一条。写盘先 `.tmp` 再 rename。
 ```jsonc
@@ -310,6 +359,14 @@ try{window.__ipcEvent&&window.__ipcEvent({…});}catch(e){}
 - 必须 `DragFinish`（已做），否则系统资源泄漏。
 - 回调在 UI 线程，只做“入队 + 唤醒”，真正注入由事件循环统一做。
 - 自测：`mang-app.exe --inject-drop "D:\a.docx;D:\b.xlsx"` 会在启动 1.5s 后推一条同样的 drop 事件（已验证能直接开出两个 Tab）。
+
+### llm.test —— LLM 连接测试结果（#76，后台线程发出）
+`llm.test` 命令的异步回执（命令本身只回「已启动」）。
+```jsonc
+{ "ev": "llm.test", "ok": true, "stage": "http",        // stage: config | network | http
+  "message": "模型 deepseek-chat 应答正常", "sample": "OK" }
+// 失败：{ "ev": "llm.test", "ok": false, "stage": "config", "message": "未配置 api_key（auto 模式将降级 mock）…" }
+```
 
 ---
 
@@ -356,7 +413,7 @@ mang-app.exe [DIR] [选项]
 bidcore\target\release\mang-app.exe --selftest
 ```
 
-无窗口跑：ping / app.info / fs.tree / fs.read / fs.readBytes / 大响应落盘取回删除 / fs.writeBytes(允许+拒绝) / fs.stat / fs.mkdir / 路径围栏 5 例 / recent 往返 / history.list / unknown_cmd / bad_json / 启动清理。输出 `PASS <name>：<detail>` / `FAIL …`，最后 `== N passed, M failed ==`。
+无窗口跑：ping / app.info / fs.tree / fs.read / fs.readBytes / 大响应落盘取回删除 / fs.writeBytes(允许+拒绝) / fs.stat / fs.mkdir / 路径围栏 5 例 / recent 往返 / history.list / unknown_cmd / bad_json / 启动清理 / mcp.status / llm.status→save→status 往返（掩码+拒绝+清 key）/ fspec.status（缺文件/在场）。输出 `PASS <name>：<detail>` / `FAIL …`，最后 `== N passed, M failed ==`。
 
 窗口内 IPC 冒烟（真实 WebView2，走 CDP）：
 ```

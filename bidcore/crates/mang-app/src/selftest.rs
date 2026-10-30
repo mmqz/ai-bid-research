@@ -3,6 +3,7 @@
 //! 覆盖：ping / app.info / fs.tree / fs.read / fs.readBytes / fs.writeBytes(happy+denied)
 //!       / fs.stat / fs.mkdir / path-guard(../ 与绝对越界) / 大响应落盘与取回 / recent 往返
 //!       / history.list / unknown_cmd / bad_json
+//!       / mcp.status / llm.status+save 往返（#76）/ fspec.status（#76）
 //! 输出形如 `PASS  <name>：<detail>` / `FAIL  <name>：<detail>`，最后一行汇总 + 退出码。
 
 use serde_json::{json, Value};
@@ -285,6 +286,70 @@ pub fn run(ui_dir: Option<&std::path::Path>) -> i32 {
     r.check("unknown_cmd", err_code(&resp) == "unknown_cmd" && resp["ok"] == json!(false), format!("{resp}"));
     let req = ipc::parse("{{{").err().map(|e| e.code);
     r.check("bad_json", req == Some("bad_json"), "魔改 JSON → bad_json");
+
+    // ---- #76 设置面板：mcp.status / llm.status→save→status 往返 / fspec.status
+    let resp = call(&ctx, json!({"id":"t-mcp","cmd":"mcp.status"}));
+    let mcp = result(&resp);
+    r.check(
+        "mcp.status",
+        resp["ok"] == json!(true)
+            && mcp["channel"].as_str() == Some("stdio")
+            && mcp["ready"] == json!(true)
+            && mcp["tools"].as_u64().unwrap_or(0) == 13,
+        format!("channel={} tools={} ready={}", mcp["channel"], mcp["tools"], mcp["ready"]),
+    );
+
+    let resp = call(&ctx, json!({"id":"t-llm0","cmd":"llm.status"}));
+    let llm0 = result(&resp);
+    r.check(
+        "llm.status(未配置)",
+        resp["ok"] == json!(true)
+            && llm0["file_present"] == json!(false)
+            && llm0["effective"].as_str().unwrap_or("").starts_with("mock"),
+        format!("effective={}", llm0["effective"]),
+    );
+    // 保存→状态往返（key 掩码 + 合并语义）
+    let resp = call(&ctx, json!({
+        "id":"t-llm-save","cmd":"llm.save",
+        "apiKey":"sk-selftest-0123456789abcdef","model":"selftest-model","apiBase":"https://selftest.invalid/v1"
+    }));
+    r.check("llm.save", resp["ok"] == json!(true) && result(&resp)["effective"] == json!("real"), format!("{resp}"));
+    let resp = call(&ctx, json!({"id":"t-llm1","cmd":"llm.status"}));
+    let llm1 = result(&resp);
+    r.check(
+        "llm.status(已配置)",
+        llm1["file_present"] == json!(true)
+            && llm1["has_api_key"] == json!(true)
+            && llm1["model"].as_str() == Some("selftest-model")
+            && llm1["api_key_hint"].as_str().map(|h| h.contains("***") && !h.contains("0123456789abcdef")).unwrap_or(false)
+            && llm1["effective"] == json!("real"),
+        format!("model={} hint={}", llm1["model"], llm1["api_key_hint"]),
+    );
+    // 拒绝面：有 key 无 model（保存时就拦，不留到生成时）
+    let resp = call(&ctx, json!({"id":"t-llm-bad","cmd":"llm.save","apiKey":"sk-selftest-xxxxxxxxxxxx","model":""}));
+    r.check("llm.save(有key无model拒绝)", resp["ok"] == json!(false) && err_code(&resp) == "bad_args", format!("{resp}"));
+    // 清 key 回到 mock
+    let resp = call(&ctx, json!({"id":"t-llm-clr","cmd":"llm.save","clearApiKey":true}));
+    r.check("llm.save(清key)", resp["ok"] == json!(true) && result(&resp)["effective"].as_str().unwrap_or("").starts_with("mock"), format!("{resp}"));
+
+    let resp = call(&ctx, json!({"id":"t-fspec0","cmd":"fspec.status"}));
+    r.check(
+        "fspec.status(缺文件)",
+        resp["ok"] == json!(true) && result(&resp)["present"] == json!(false),
+        format!("{}", result(&resp)["path"]),
+    );
+    std::fs::write(
+        root.join(".mang/format-spec.json"),
+        r#"{"global":{"page":{"size":"A4","margin":{"top":25,"bottom":25,"left":28,"right":26}},"font":{"body":"仿宋_GB2312","size":12,"lineHeight":1.5},"header":{"enabled":false,"content":""},"footer":{"enabled":true,"content":"第 {page} 页"}},"per_section":{}}"#,
+    )
+    .unwrap();
+    let resp = call(&ctx, json!({"id":"t-fspec1","cmd":"fspec.status"}));
+    let fs1 = result(&resp);
+    r.check(
+        "fspec.status(在场)",
+        fs1["present"] == json!(true) && fs1["invalid"] == json!(false) && fs1["page"]["size"] == json!("A4") && fs1["font"]["body"] == json!("仿宋_GB2312"),
+        format!("{} {}pt", fs1["page"]["size"], fs1["font"]["size_pt"]),
+    );
 
     println!();
     println!("== {} passed, {} failed ==", r.pass, r.fail);

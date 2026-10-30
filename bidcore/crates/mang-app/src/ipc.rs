@@ -319,6 +319,10 @@ impl Ctx {
                 "pid": std::process::id(),
                 "platform": std::env::consts::OS,
                 "protocol": 1,
+                // #76 设置「关于」面：构建元数据（build.rs 注入；git 不可用时 unknown）
+                "git_rev": option_env!("MANG_GIT_REV").unwrap_or("unknown"),
+                "build_epoch": option_env!("MANG_BUILD_EPOCH").unwrap_or("0"),
+                "profile": if cfg!(debug_assertions) { "debug" } else { "release" },
             })),
 
             "fs.tree" => crate::fsapi::tree(&self.workspace, a),
@@ -374,6 +378,12 @@ impl Ctx {
             "annotations.load" => crate::annotations::load(&self.workspace, a),
 
             "annotations.setStatus" => crate::annotations::set_status(&self.workspace, a),
+
+            // ── #76 设置面板状态面（diag.rs）──────────────────────────
+            "mcp.status" => crate::diag::mcp_status(),
+            "llm.status" => crate::diag::llm_status(&self.workspace),
+            "llm.save" => crate::diag::llm_save(&self.workspace, &a),
+            "fspec.status" => crate::diag::fspec_status(&self.workspace),
 
             // 绝对路径（拖拽/对话框/最近打开）→ 归一成 {path, rel, kind, size, mtimeMs, insideWorkspace}
             "file.fromPath" => crate::fsapi::from_path(&self.workspace, a),

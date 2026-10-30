@@ -19,6 +19,7 @@
 mod b64;
 mod annotations;
 mod chrome;
+mod diag;
 mod dialogs;
 mod dnd;
 mod fsapi;
@@ -525,6 +526,24 @@ fn handle_ipc(
             outbox_push(ipc::resolve_script(&req.id, &resp, ok));
             let _ = proxy.send_event(UserEvent::Wake);
         }
+        // #76 LLM 连接测试：HTTP 调用最长 20s，绝不能在 UI 线程同步跑
+        //（WebView 的 IPC handler 就在事件循环上——阻塞它等于冻住整个窗口）。
+        // 立即回执「已启动」，真实结果以后台线程的 llm.test 事件送达。
+        "llm.test" => {
+            let ws = ctx.workspace.clone();
+            let bg_proxy = proxy.clone();
+            std::thread::spawn(move || {
+                let ev = run_llm_test(&ws);
+                outbox_push(ipc::event_script(&ev));
+                let _ = bg_proxy.send_event(UserEvent::Wake);
+            });
+            outbox_push(ipc::resolve_script(
+                &req.id,
+                &serde_json::json!({ "started": true, "note": "测试进行中（≤20s），结果将以 llm.test 事件送达" }),
+                true,
+            ));
+            let _ = proxy.send_event(UserEvent::Wake);
+        }
         // 对话框要在主线程跑（Win32 模态），顺手给事件循环发个唤醒
         "dialog.openFile" | "dialog.openFolder" => {
             {
@@ -602,6 +621,70 @@ fn window_cmd(req: &ipc::Request) -> Value {
             ipc::ok_frame(&req.id, serde_json::json!({ "width": w.round() as i32 }))
         }
         _ => ipc::err_frame(&req.id, &ipc::IpcError::bad_args("未知窗口命令")),
+    }
+}
+
+/// #76 LLM 连接测试（后台线程跑——结果以 `{"ev":"llm.test",...}` 事件送达）。
+///
+/// 最小真实请求：`POST {api_base}/chat/completions`，max_tokens=16，
+/// 超时上限压到 20s（配置 60s 是给整章生成留的余量，测试不需要等那么久）。
+/// 复用 bid-tools 的 HttpTransport（rustls，无异步栈——与引擎同一套传输）。
+fn run_llm_test(ws: &paths::Workspace) -> Value {
+    use bid_tools::llm::{HttpTransport, LlmConfig, LlmTransport};
+    let cfg = match LlmConfig::resolve(Some(ws.root_canonical())) {
+        Err(e) => {
+            return serde_json::json!({
+                "ev": "llm.test", "ok": false, "stage": "config",
+                "message": format!("配置无效：{e}")
+            })
+        }
+        Ok(None) => {
+            return serde_json::json!({
+                "ev": "llm.test", "ok": false, "stage": "config",
+                "message": "未配置 api_key（auto 模式将降级 mock）——请先在下方填入 API Key 并保存"
+            })
+        }
+        Ok(Some(mut c)) => {
+            c.timeout_secs = c.timeout_secs.min(20);
+            c
+        }
+    };
+    let model = cfg.model.clone();
+    let body = serde_json::json!({
+        "model": model,
+        "messages": [{ "role": "user", "content": "连接测试：请只回复 OK" }],
+        "max_tokens": 16,
+    });
+    match HttpTransport.post_chat(&cfg, &body) {
+        Err(bid_tools::llm::LlmHttpError::Timeout(m)) => serde_json::json!({
+            "ev": "llm.test", "ok": false, "stage": "network",
+            "message": format!("超时（≤20s）：{m}")
+        }),
+        Err(bid_tools::llm::LlmHttpError::Transport(m)) => serde_json::json!({
+            "ev": "llm.test", "ok": false, "stage": "network",
+            "message": format!("传输失败：{m}")
+        }),
+        Ok(r) if r.status == 200 => {
+            let sample = r
+                .body
+                .split_once("\"content\":\"")
+                .and_then(|(_, rest)| rest.split('"').next())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "(空回复)".to_string());
+            serde_json::json!({
+                "ev": "llm.test", "ok": true, "stage": "http",
+                "message": format!("模型 {model} 应答正常"),
+                "sample": sample
+            })
+        }
+        Ok(r) => {
+            // 非 200：body 常见是 {"error":{"message":...}}——截 200 字给用户看
+            let snippet: String = r.body.chars().take(200).collect();
+            serde_json::json!({
+                "ev": "llm.test", "ok": false, "stage": "http",
+                "message": format!("HTTP {}：{}", r.status, snippet)
+            })
+        }
     }
 }
 

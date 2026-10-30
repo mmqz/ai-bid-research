@@ -14,6 +14,9 @@ wry = "0.57"
 # 直链 bidcore（方案 A：不经 MCP 层）
 bid-domain = { path = "../bid-domain" }
 bid-tools = { path = "../bid-tools" }
+# #76 设置面板的 MCP 状态面：tools_schema / dispatch 自检（与 bid-mcp 同源
+# 编译的引擎应答探测）。依赖均在既有树内（bid-tools 已含其全部三方依赖）。
+bid-mcp = { path = "../bid-mcp" }
 mang-snap = { path = "../mang-snap" }
 serde_json = "1"
 # 系统文件对话框（同步 API，主线程调用）。关闭默认的 xdg-portal/wayland，

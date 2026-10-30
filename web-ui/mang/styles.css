@@ -1493,6 +1493,81 @@ button.status-item:hover {
   color: var(--fg-soft);
 }
 
+/* ---- #76 设置面板扩展：诊断分组 / 表单 / 小按钮 / 测试结果 ---- */
+.setting-row .setting-name .status-dot {
+  display: inline-block;
+  margin-right: 5px;
+  vertical-align: 1px;
+}
+
+.btn-sm {
+  height: 22px;
+  padding: 0 9px;
+  font-size: 11.5px;
+}
+
+.setting-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 0 2px;
+}
+
+.setting-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.setting-input {
+  height: 26px;
+  padding: 0 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-editor);
+  color: var(--fg);
+  font-size: 12px;
+  font-family: inherit;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.setting-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.setting-input::placeholder {
+  color: var(--fg-soft);
+}
+
+.setting-actions {
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+.setting-test-result {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  font-size: 11.5px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.setting-test-result[data-ok="true"] {
+  border-color: var(--ok);
+}
+
+.setting-test-result[data-ok="false"] {
+  border-color: var(--danger);
+}
+
 .seg {
   display: inline-flex;
   flex: none;

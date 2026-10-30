@@ -1,0 +1,97 @@
+{
+  "fixture": "synth-tender",
+  "spec_version": "v0.1",
+  "spec_source": "scripts/synth_tender_spec.py（内容单一真源）+ synth_tender_gen.py",
+  "deterministic": true,
+  "issue": "#80 路线 1（Lead 2026-10-30 13:24 指令：先造合成招标文件保底）",
+  "stats": {
+    "A": {
+      "path": "A-招标文件.docx",
+      "paragraph_blocks": 213,
+      "tables": 7,
+      "page_breaks": 25,
+      "estimated_pages": 26
+    },
+    "B": {
+      "path": "B-技术规范书.docx",
+      "paragraph_blocks": 56,
+      "tables": 5,
+      "page_breaks": 8,
+      "estimated_pages": 9
+    },
+    "C": {
+      "path": "C-补遗文件.pdf",
+      "pages": 2,
+      "nonempty_lines": 21
+    },
+    "D": {
+      "path": "D-图纸说明.md",
+      "bytes": 996
+    },
+    "E": {
+      "path": "E-原招标公告盖章页-扫描件.pdf",
+      "text_layer": false,
+      "pages": 1
+    },
+    "answers": {
+      "entries": 95
+    }
+  },
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "ca722e5f0a3c9869c3dc7cffb78cdf9a9995e02752b3a458cc62506c0fc5d439",
+      "bytes": 5328
+    },
+    {
+      "path": "参考答案/expected-format-spec.json",
+      "sha256": "1e4733280a2f5353faa7348683eb1eb050e8268674c947ebb990ba7b5224ed31",
+      "bytes": 858
+    },
+    {
+      "path": "参考答案/expected-import.json",
+      "sha256": "19ff3544b46019bbcba750937e55f6a4877fafad04f258c0a55c79caf173a7f4",
+      "bytes": 1490
+    },
+    {
+      "path": "参考答案/expected-outline.json",
+      "sha256": "68379c3c181b5d64a93c1b272b3c333240f05a1a212856693cf2f71e28854cbd",
+      "bytes": 780
+    },
+    {
+      "path": "参考答案/expected-requirements.json",
+      "sha256": "e11558c05acae11b280e313ad9359758027332ae9d530654c0169dd368b699c5",
+      "bytes": 51459
+    },
+    {
+      "path": "参考答案/expected-validation.json",
+      "sha256": "466172110cc189bda6a612eaf912d686c1ee5bf1d22ae646c2e81c4fe00394d3",
+      "bytes": 693
+    },
+    {
+      "path": "招标文件/A-招标文件.docx",
+      "sha256": "b5cfe741e924be7fcb2b59180645999f625450a32224a277b904eb803388423f",
+      "bytes": 45668
+    },
+    {
+      "path": "招标文件/B-技术规范书.docx",
+      "sha256": "b9400b7f92aa7e1d13993b0ce4ae6047c7797aa8b7673672f2aaabb86d2e5545",
+      "bytes": 39210
+    },
+    {
+      "path": "招标文件/C-补遗文件.pdf",
+      "sha256": "28815b77d1dbc1846afb53988fa33d95dc62af76e17d7caf9e385bc9237a4d83",
+      "bytes": 4343
+    },
+    {
+      "path": "招标文件/D-图纸说明.md",
+      "sha256": "90af3c8c50839adfaeaeda1764ea1d2eb1b5ec57395b7845bceb5d55efe05697",
+      "bytes": 996
+    },
+    {
+      "path": "招标文件/E-原招标公告盖章页-扫描件.pdf",
+      "sha256": "796057319ba93433881e34e3b88a004b0d3371f5106012dec83dc76dbcd3b052",
+      "bytes": 76461
+    }
+  ]
+}

@@ -1,0 +1,1736 @@
+{
+  "fixture": "synth-tender",
+  "design_note": "人工核对的标准答案（ideal）+ 跑前人工推演的引擎行为预判（engine_expect）——跑后不回改（防循环论证）；推演错误在评测报告中如实呈现",
+  "traps": {
+    "T1": {
+      "title": "否决项藏在表格里",
+      "home": "A §第二章 前附表 行6/行10",
+      "tests": "前附表分支（locator 含「前附表」+ 行文本含「否决」）"
+    },
+    "T2": {
+      "title": "评分项分值形态锁",
+      "home": "A §第四章 4.1-4.4",
+      "tests": "评标办法章内「N 分」→ 评分项 + params.score"
+    },
+    "T2b": {
+      "title": "分值形态锁盲面（额外探针）",
+      "home": "A §第四章 4.6",
+      "tests": "含「N 分」的否决条款被判评分项（应为否决项）——G4"
+    },
+    "T3": {
+      "title": "格式要求用中文数字",
+      "home": "A §第三章 3.3.3",
+      "tests": "字号（小四→12pt）可识别；行距「一点五倍」/边距「三十毫米」不识别——G2"
+    },
+    "T4": {
+      "title": "条款跨页/跨行",
+      "home": "A §第三章 3.7.2 第(8)条（docx 拆段）+ C 补遗 2.1（PDF 跨行）",
+      "tests": "docx：空分页段被丢弃但条款拆 2 条 REQ（G5）；PDF：段落重组还原"
+    },
+    "T5": {
+      "title": "扫描件附录（无文本层）",
+      "home": "E-原招标公告盖章页-扫描件.pdf",
+      "tests": "导入 OCR 链（OcrRequired→pdftoppm→tesseract chi_sim）；抽取无路径（G1）"
+    },
+    "T6": {
+      "title": "串通情形成组列举",
+      "home": "A §第三章 3.7.3",
+      "tests": "总括句开否决语境，8 个无关键词子项继承（语境传播）"
+    },
+    "T7": {
+      "title": "双生文本（须知↔评标办法）",
+      "home": "A §第三章 3.7.3 首两条 ↔ §第四章串通认定段",
+      "tests": "同文两处各抽各的（dedupe_hash 含 locator 不去重——G7）"
+    }
+  },
+  "requirements": [
+    {
+      "syn_id": "SYN-A-001",
+      "ideal_category": "否决项",
+      "clause_no": "1.2",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "投标报价超过最高限价的作否决投标处理",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "1.2",
+        "params": {
+          "amount_wan": 1650
+        },
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-002",
+      "ideal_category": "资格条件",
+      "clause_no": "1.4.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "独立承担民事责任能力的法人营业执照",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "资格条件",
+        "clause_no": "1.4.1",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-003",
+      "ideal_category": "资格条件",
+      "clause_no": "1.4.2",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "电子与智能化工程专业承包二级（含）以上资质",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "资格条件",
+        "clause_no": "1.4.2",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-004",
+      "ideal_category": "资格条件",
+      "clause_no": "1.4.3",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "至少完成 3 个合同额 500 万元（含）以上的类似工程业绩",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "资格条件",
+        "clause_no": "1.4.3",
+        "params": {
+          "amount_wan": 500
+        },
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-005",
+      "ideal_category": "资格条件",
+      "clause_no": "1.4.4",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "拟派项目负责人须具备二级（含）以上注册建造师执业资格",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "资格条件",
+        "clause_no": "1.4.4",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-006",
+      "ideal_category": "资格条件",
+      "clause_no": "1.4.5",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "须具备健全的财务会计制度",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "资格条件",
+        "clause_no": "1.4.5",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-007",
+      "ideal_category": "资格条件",
+      "clause_no": "1.4.6",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "未被列入失信被执行人、重大税收违法案件当事人名单",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "1.4.6",
+        "params": {},
+        "note": "G3：正面信用要求含「失信」被负面清单词误判否决项（is_qual 分支被 is_veto 抢先）"
+      }
+    },
+    {
+      "syn_id": "SYN-A-008",
+      "ideal_category": "资格条件",
+      "clause_no": "1.4.7",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "在经营活动中没有重大违法记录",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": false,
+        "category": "资格条件",
+        "clause_no": "1.4.7",
+        "params": {},
+        "note": "无词面信号（无资质/营业执照/失信等）——M1 确定性层召回边界，语义归类属 M2"
+      }
+    },
+    {
+      "syn_id": "SYN-A-009",
+      "ideal_category": "否决项",
+      "clause_no": "前附表-6",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "未按要求提交的，其投标作否决投标处理",
+      "trap": "T1",
+      "dedupe_group": "D-投标保证金",
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "前附表-6",
+        "params": {},
+        "note": "T1b：否决藏在保证金金额行"
+      }
+    },
+    {
+      "syn_id": "SYN-A-010",
+      "ideal_category": "否决项",
+      "clause_no": "前附表-10",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "未按本表第 9 项规定格式填写技术偏离表的",
+      "trap": "T1",
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "前附表-10",
+        "params": {},
+        "note": "T1a：否决藏在提示行"
+      }
+    },
+    {
+      "syn_id": "SYN-A-011",
+      "ideal_category": "资格条件",
+      "clause_no": "3.2.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "本项目采用资格后审",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "资格条件",
+        "clause_no": "3.2.1",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-012",
+      "ideal_category": "资格条件",
+      "clause_no": "3.2.2",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "本项目不接受联合体投标",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "资格条件",
+        "clause_no": "3.2.2",
+        "params": {},
+        "note": "DOCX 词表无「不接受联合体」强词（PDF 侧有）——跨格式口径差；落资格条件靠章节上下文"
+      }
+    },
+    {
+      "syn_id": "SYN-A-013",
+      "ideal_category": "格式要求",
+      "clause_no": "3.3.3",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "正文字体为宋体、字号为小四、行距为一点五倍行距",
+      "trap": "T3",
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "格式要求",
+        "clause_no": "3.3.3",
+        "params": {},
+        "note": "T3：字号（小四）可识别；行距（一点五倍）/边距（三十毫米）中文数字不识别——G2"
+      }
+    },
+    {
+      "syn_id": "SYN-A-014",
+      "ideal_category": "否决项",
+      "clause_no": "3.3.4",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "技术标正文中不得出现投标人名称",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "3.3.4",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-015",
+      "ideal_category": "否决项",
+      "clause_no": "3.3.5",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "超过页数上限的作否决投标处理",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "3.3.5",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-016",
+      "ideal_category": "否决项",
+      "clause_no": "3.4.2",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "投标报价超过第一章及第五章所列招标控制价",
+      "trap": null,
+      "dedupe_group": "D-控制价",
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "3.4.2",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-017",
+      "ideal_category": "否决项",
+      "clause_no": "3.4.3",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "视为无效投标",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "3.4.3",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-018",
+      "ideal_category": "否决项",
+      "clause_no": "3.5.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "内提交投标保证金，未按要求提交的作否决投标处理",
+      "trap": null,
+      "dedupe_group": "D-投标保证金",
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "3.5.1",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-019",
+      "ideal_category": "否决项",
+      "clause_no": "3.6.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "逾期送达或者未按照招标文件规定密封的投标文件，招标人将拒收",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "3.6.1",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-020",
+      "ideal_category": "否决项",
+      "clause_no": "3.7.2",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "投标人有下列情形之一的，其投标将被否决",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "3.7.2",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-021",
+      "ideal_category": "否决项",
+      "clause_no": null,
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "（1）投标文件未经法定代表人或其授权代理人签字",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": null,
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-022",
+      "ideal_category": "否决项",
+      "clause_no": null,
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "（2）签字人未取得法定代表人授权委托书",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": null,
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-023",
+      "ideal_category": "否决项",
+      "clause_no": null,
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "（3）投标文件内容不完整、字迹模糊无法辨认",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": null,
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-024",
+      "ideal_category": "否决项",
+      "clause_no": null,
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "（4）投标文件载明的项目名称、项目编号与本项目不一致的",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": null,
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-025",
+      "ideal_category": "否决项",
+      "clause_no": null,
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "（5）投标有效期不满足须知前附表规定的",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": null,
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-026",
+      "ideal_category": "否决项",
+      "clause_no": null,
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "（6）未按招标文件规定格式填写投标函及开标一览表的",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": null,
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-027",
+      "ideal_category": "否决项",
+      "clause_no": null,
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "（7）投标文件内容前后矛盾且可能影响评标结果公正性的",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": null,
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-028",
+      "ideal_category": "否决项",
+      "clause_no": null,
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "（8）投标文件未按招标文件规定要求密封和标记的",
+      "trap": "T4",
+      "dedupe_group": null,
+      "expect_engine_occurrences": 2,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": null,
+        "params": {},
+        "note": "T4：docx 显式分页符把第(8)条拆两段——前半（语境传播）+后半（强词「将拒收」）各成一条（G5 碎片化）；理想=1 条（两段同属第(8)项）"
+      }
+    },
+    {
+      "syn_id": "SYN-A-029",
+      "ideal_category": "否决项",
+      "clause_no": null,
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "（9）投标报价超过招标控制价（最高限价）的",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": null,
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-030",
+      "ideal_category": "否决项",
+      "clause_no": null,
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "（10）评标委员会认定的其他不符合招标文件实质性要求情形的",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": null,
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-031",
+      "ideal_category": "否决项",
+      "clause_no": "3.7.3",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "视为投标人相互串通投标，其投标将被否决",
+      "trap": "T6",
+      "dedupe_group": "D-串通情形",
+      "expect_engine_occurrences": 2,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "3.7.3",
+        "params": {},
+        "note": "T6 总括句 + T7：评标办法章重现（双生）→ 引擎两处各抽（G7 dedupe_hash 含 locator）"
+      }
+    },
+    {
+      "syn_id": "SYN-A-032",
+      "ideal_category": "否决项",
+      "clause_no": null,
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "（1）不同投标人的投标文件由同一单位或者个人编制的",
+      "trap": "T6",
+      "dedupe_group": "D-串通情形",
+      "expect_engine_occurrences": 2,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": null,
+        "params": {},
+        "note": "T6 子项无关键词（语境传播）+ T7 双生"
+      }
+    },
+    {
+      "syn_id": "SYN-A-033",
+      "ideal_category": "否决项",
+      "clause_no": null,
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "（2）不同投标人委托同一单位或者个人办理投标事宜的",
+      "trap": "T6",
+      "dedupe_group": "D-串通情形",
+      "expect_engine_occurrences": 2,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": null,
+        "params": {},
+        "note": "T6 子项 + T7 双生"
+      }
+    },
+    {
+      "syn_id": "SYN-A-034",
+      "ideal_category": "否决项",
+      "clause_no": null,
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "（3）不同投标人的投标文件载明的项目管理成员为同一人的",
+      "trap": "T6",
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": null,
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-035",
+      "ideal_category": "否决项",
+      "clause_no": null,
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "（4）不同投标人的投标文件异常一致或者投标报价呈规律性差异的",
+      "trap": "T6",
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": null,
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-036",
+      "ideal_category": "否决项",
+      "clause_no": null,
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "（5）不同投标人的投标文件相互混装的",
+      "trap": "T6",
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": null,
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-037",
+      "ideal_category": "否决项",
+      "clause_no": null,
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "（6）不同投标人的投标保证金从同一单位或者个人的账户转出的",
+      "trap": "T6",
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": null,
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-038",
+      "ideal_category": "否决项",
+      "clause_no": null,
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "（7）投标人之间为谋取中标或者排斥特定投标人而采取的其他联合行动的",
+      "trap": "T6",
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": null,
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-039",
+      "ideal_category": "否决项",
+      "clause_no": null,
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "（8）投标人之间约定部分投标人放弃投标或者中标的",
+      "trap": "T6",
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": null,
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-040",
+      "ideal_category": "否决项",
+      "clause_no": "3.9.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "投标人不得与招标人、其他投标人串通投标",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "3.9.1",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-041",
+      "ideal_category": "评分项",
+      "clause_no": "4.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "价格分（30 分）",
+      "trap": "T2",
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "评分项",
+        "clause_no": "4.1",
+        "params": {
+          "score": 30
+        },
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-042",
+      "ideal_category": "评分项",
+      "clause_no": "4.2",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "技术分（55 分）",
+      "trap": "T2",
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "评分项",
+        "clause_no": "4.2",
+        "params": {
+          "score": 55
+        },
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-043",
+      "ideal_category": "评分项",
+      "clause_no": "4.3",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "商务分（15 分）",
+      "trap": "T2",
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "评分项",
+        "clause_no": "4.3",
+        "params": {
+          "score": 15
+        },
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-044",
+      "ideal_category": "评分项",
+      "clause_no": "4.4",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "项目团队评分（10 分，计入技术分）",
+      "trap": "T2",
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "评分项",
+        "clause_no": "4.4",
+        "params": {
+          "score": 10
+        },
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-045",
+      "ideal_category": "否决项",
+      "clause_no": "4.5",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "投标文件有一项不符合本章评审标准的，其投标将被否决",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "4.5",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-046",
+      "ideal_category": "否决项",
+      "clause_no": "表-2",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "否则否决其投标",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "表-2",
+        "params": {},
+        "note": "评审标准表行——直接否决词分支（表头行开审查语境）"
+      }
+    },
+    {
+      "syn_id": "SYN-A-047",
+      "ideal_category": "否决项",
+      "clause_no": "表-3",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "营业执照复印件须在有效期内且与投标人名称一致",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "表-3",
+        "params": {},
+        "note": "审查表条目（符合性句式「一致」）——隐含否决面"
+      }
+    },
+    {
+      "syn_id": "SYN-A-048",
+      "ideal_category": "否决项",
+      "clause_no": "表-4",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "授权委托书须为法定代表人出具且在有效期内",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "表-4",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-049",
+      "ideal_category": "否决项",
+      "clause_no": "表-5",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "投标有效期须满足须知前附表第 5 项规定",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "表-5",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-050",
+      "ideal_category": "否决项",
+      "clause_no": "表-6",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "投标报价须唯一且与开标一览表一致",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "表-6",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-051",
+      "ideal_category": "否决项",
+      "clause_no": "表-7",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "技术偏离表填报内容须完整并与投标文件技术方案一致",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "表-7",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-052",
+      "ideal_category": "否决项",
+      "clause_no": "表-8",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "投标保证金须为投标人基本账户转出且金额满足前附表第 6 项规定",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "表-8",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-053",
+      "ideal_category": "否决项",
+      "clause_no": "表-9",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "投标工期须满足 180 日历天要求",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "表-9",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-054",
+      "ideal_category": "否决项",
+      "clause_no": null,
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "（3）弄虚作假骗取中标的，其中标无效",
+      "trap": null,
+      "dedupe_group": "D-弄虚作假",
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": null,
+        "params": {},
+        "note": "串通认定段第(3)项（自身含强词「弄虚作假」）"
+      }
+    },
+    {
+      "syn_id": "SYN-A-055",
+      "ideal_category": "否决项",
+      "clause_no": "4.6",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "出现实质性负偏离的，作否决投标处理",
+      "trap": "T2b",
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "评分项",
+        "clause_no": "4.6",
+        "params": {
+          "score": 1
+        },
+        "note": "G4：评标办法章内含「1 分」分值形态→分值形态锁抢先判评分项，否决处置被吞"
+      }
+    },
+    {
+      "syn_id": "SYN-A-056",
+      "ideal_category": "技术参数",
+      "clause_no": "5.0",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "本章为本项目货物及服务的技术需求",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "技术参数",
+        "clause_no": "5.0",
+        "params": {
+          "amount_wan": 1650
+        },
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-057",
+      "ideal_category": "技术参数",
+      "clause_no": "5.1.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "须支持不少于 5000 个感知终端并发接入",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "技术参数",
+        "clause_no": "5.1.1",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-058",
+      "ideal_category": "技术参数",
+      "clause_no": "5.2.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "病区网络须采用内外网物理隔离架构",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "技术参数",
+        "clause_no": "5.2.1",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-059",
+      "ideal_category": "技术参数",
+      "clause_no": "5.3.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "提供设备管理、数据采集、规则引擎、告警联动与开放接口五类核心能力",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "技术参数",
+        "clause_no": "5.3.1",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-060",
+      "ideal_category": "技术参数",
+      "clause_no": "5.4.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "床旁交互终端须支持床头卡信息展示、呼叫对讲、输液监测",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "技术参数",
+        "clause_no": "5.4.1",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-061",
+      "ideal_category": "技术参数",
+      "clause_no": "5.5.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "护理呼叫系统须实现床旁呼叫、卫生间紧急呼叫",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "技术参数",
+        "clause_no": "5.5.1",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-062",
+      "ideal_category": "技术参数",
+      "clause_no": "5.1.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "下行 LoRaWAN/RS485/蓝牙多模，上行双链路",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "技术参数",
+        "clause_no": "5.1.1",
+        "params": {
+          "model": "IoT-GW-3000"
+        },
+        "note": "参数表行收养最近编号头 5.1.1 作条款号"
+      }
+    },
+    {
+      "syn_id": "SYN-A-063",
+      "ideal_category": "技术参数",
+      "clause_no": "5.1.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "测温精度±0.3℃，测湿精度±3%RH",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "技术参数",
+        "clause_no": "5.1.1",
+        "params": {
+          "model": "SNS-TH-02"
+        },
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-064",
+      "ideal_category": "技术参数",
+      "clause_no": "5.2.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "48 口 10/100/1000Base-T＋4 口 10GE SFP＋",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "技术参数",
+        "clause_no": "5.2.1",
+        "params": {
+          "model": "S5735-L48T4X-A1"
+        },
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-065",
+      "ideal_category": "技术参数",
+      "clause_no": "5.3.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "2×Intel Xeon Silver 4310/256G/2×960G SSD/双电源",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "技术参数",
+        "clause_no": "5.3.1",
+        "params": {
+          "model": "GW-8000-T4"
+        },
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-066",
+      "ideal_category": "技术参数",
+      "clause_no": "5.3.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "2×Intel Xeon Silver 4310/512G/4×1.92T SSD/双电源",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "技术参数",
+        "clause_no": "5.3.1",
+        "params": {
+          "model": "GW-8000-T4"
+        },
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-067",
+      "ideal_category": "技术参数",
+      "clause_no": "5.4.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "15.6 英寸电容触控屏，Android 12",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "技术参数",
+        "clause_no": "5.4.1",
+        "params": {
+          "model": "BED-T12-AND"
+        },
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-068",
+      "ideal_category": "技术参数",
+      "clause_no": "5.4.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "UWB＋蓝牙双模，定位精度≤0.5 米",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "技术参数",
+        "clause_no": "5.4.1",
+        "params": {
+          "model": "RTLS-TAG-B1"
+        },
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-069",
+      "ideal_category": "技术参数",
+      "clause_no": "5.5.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "支持 64 路呼叫，双机热备，10.1 英寸触控屏",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "技术参数",
+        "clause_no": "5.5.1",
+        "params": {
+          "model": "NCS-64-E"
+        },
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-070",
+      "ideal_category": "技术参数",
+      "clause_no": "5.6.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "全部设备须于 2026-12-30 前到场",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "技术参数",
+        "clause_no": "5.6.1",
+        "params": {
+          "date": "2026-12-30"
+        },
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-071",
+      "ideal_category": "资格条件",
+      "clause_no": "7.4",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "资格审查资料装订顺序：营业执照→资质证书",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "资格条件",
+        "clause_no": "7.4",
+        "params": {},
+        "note": "装订顺序行含「营业执照/资质证书」命中资格面"
+      }
+    },
+    {
+      "syn_id": "SYN-C-001",
+      "ideal_category": "商务要求",
+      "clause_no": "1.1",
+      "source_file": "C-补遗文件.pdf",
+      "excerpt_key": "原招标文件规定的开标时间",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "其他",
+        "clause_no": "1.1",
+        "params": {},
+        "note": "G6：补遗无「第X章」章节上下文——时间类商务条款落「其他」"
+      }
+    },
+    {
+      "syn_id": "SYN-C-002",
+      "ideal_category": "商务要求",
+      "clause_no": "1.2",
+      "source_file": "C-补遗文件.pdf",
+      "excerpt_key": "投标截止时间（递交截止时间）相应顺延",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "其他",
+        "clause_no": "1.2",
+        "params": {
+          "date": "2026-11-30"
+        },
+        "note": "G6 同上"
+      }
+    },
+    {
+      "syn_id": "SYN-C-003",
+      "ideal_category": "否决项",
+      "clause_no": "2.1",
+      "source_file": "C-补遗文件.pdf",
+      "excerpt_key": "投标报价超过调整后控制价的作否决投标处理",
+      "trap": "T4",
+      "dedupe_group": "D-控制价",
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "2.1",
+        "params": {
+          "amount_wan": 1650
+        },
+        "note": "T4-pdf：条款跨两物理行（行尾无终结标点）——PDF 段落重组应还原为一条"
+      }
+    },
+    {
+      "syn_id": "SYN-C-004",
+      "ideal_category": "否决项",
+      "clause_no": "3.1",
+      "source_file": "C-补遗文件.pdf",
+      "excerpt_key": "未按本补遗文件要求提交加盖公章的回执确认函",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "3.1",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-C-005",
+      "ideal_category": "否决项",
+      "clause_no": "3.2",
+      "source_file": "C-补遗文件.pdf",
+      "excerpt_key": "逾期送达的投标文件，招标人将拒收",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "否决项",
+        "clause_no": "3.2",
+        "params": {},
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-C-006",
+      "ideal_category": "评分项",
+      "clause_no": "4.1",
+      "source_file": "C-补遗文件.pdf",
+      "excerpt_key": "类似项目获省级以上奖项每个 1 分，最多 3 分",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "其他",
+        "clause_no": "4.1",
+        "params": {},
+        "note": "G6：评分修正条款无章节上下文落「其他」——应并入评分矩阵（M2）"
+      }
+    },
+    {
+      "syn_id": "SYN-C-007",
+      "ideal_category": "商务要求",
+      "clause_no": "5.1",
+      "source_file": "C-补遗文件.pdf",
+      "excerpt_key": "现场踏勘定于 2026-11-05 09:30",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "其他",
+        "clause_no": "5.1",
+        "params": {
+          "date": "2026-11-05"
+        },
+        "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-B-001",
+      "ideal_category": "技术参数",
+      "clause_no": "1.2",
+      "source_file": "B-技术规范书.docx",
+      "excerpt_key": "各层设备须支持远程集中管理与固件在线升级",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": false,
+        "category": "技术参数",
+        "clause_no": "1.2",
+        "params": {},
+        "note": "G1：B- 前缀无抽取路径（extract.rs 按文件名分发）"
+      }
+    },
+    {
+      "syn_id": "SYN-B-002",
+      "ideal_category": "技术参数",
+      "clause_no": "2.1",
+      "source_file": "B-技术规范书.docx",
+      "excerpt_key": "物联网关技术规范",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": false,
+        "category": "技术参数",
+        "clause_no": "2.1",
+        "params": {},
+        "note": "G1"
+      }
+    },
+    {
+      "syn_id": "SYN-B-003",
+      "ideal_category": "技术参数",
+      "clause_no": "2.2",
+      "source_file": "B-技术规范书.docx",
+      "excerpt_key": "生理与生命体征传感器技术规范",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": false,
+        "category": "技术参数",
+        "clause_no": "2.2",
+        "params": {},
+        "note": "G1"
+      }
+    },
+    {
+      "syn_id": "SYN-B-004",
+      "ideal_category": "技术参数",
+      "clause_no": "3.1",
+      "source_file": "B-技术规范书.docx",
+      "excerpt_key": "接入交换机技术规范",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": false,
+        "category": "技术参数",
+        "clause_no": "3.1",
+        "params": {},
+        "note": "G1"
+      }
+    },
+    {
+      "syn_id": "SYN-B-005",
+      "ideal_category": "技术参数",
+      "clause_no": "4.1",
+      "source_file": "B-技术规范书.docx",
+      "excerpt_key": "提供 RESTful 开放接口不少于 120 个",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": false,
+        "category": "技术参数",
+        "clause_no": "4.1",
+        "params": {},
+        "note": "G1"
+      }
+    },
+    {
+      "syn_id": "SYN-B-006",
+      "ideal_category": "技术参数",
+      "clause_no": "4.2",
+      "source_file": "B-技术规范书.docx",
+      "excerpt_key": "支持时序数据库与关系数据库混合部署",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": false,
+        "category": "技术参数",
+        "clause_no": "4.2",
+        "params": {},
+        "note": "G1"
+      }
+    },
+    {
+      "syn_id": "SYN-B-007",
+      "ideal_category": "技术参数",
+      "clause_no": "5.1",
+      "source_file": "B-技术规范书.docx",
+      "excerpt_key": "床旁交互终端技术规范",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": false,
+        "category": "技术参数",
+        "clause_no": "5.1",
+        "params": {},
+        "note": "G1"
+      }
+    },
+    {
+      "syn_id": "SYN-B-008",
+      "ideal_category": "技术参数",
+      "clause_no": "5.2",
+      "source_file": "B-技术规范书.docx",
+      "excerpt_key": "输液监测终端技术规范",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": false,
+        "category": "技术参数",
+        "clause_no": "5.2",
+        "params": {},
+        "note": "G1"
+      }
+    },
+    {
+      "syn_id": "SYN-B-009",
+      "ideal_category": "技术参数",
+      "clause_no": "6.1",
+      "source_file": "B-技术规范书.docx",
+      "excerpt_key": "设备开箱逐台核对型号、数量与外观",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": false,
+        "category": "技术参数",
+        "clause_no": "6.1",
+        "params": {},
+        "note": "G1"
+      }
+    },
+    {
+      "syn_id": "SYN-B-010",
+      "ideal_category": "技术参数",
+      "clause_no": "6.2",
+      "source_file": "B-技术规范书.docx",
+      "excerpt_key": "功能测试、性能测试与连续 72 小时稳定性测试",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": false,
+        "category": "技术参数",
+        "clause_no": "6.2",
+        "params": {},
+        "note": "G1"
+      }
+    },
+    {
+      "syn_id": "SYN-B-011",
+      "ideal_category": "技术参数",
+      "clause_no": "2.1",
+      "source_file": "B-技术规范书.docx",
+      "excerpt_key": "单网关并发接入终端数≥256",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": false,
+        "category": "技术参数",
+        "clause_no": "2.1",
+        "params": {
+          "model": "IoT-GW-3000"
+        },
+        "note": "G1"
+      }
+    },
+    {
+      "syn_id": "SYN-B-012",
+      "ideal_category": "技术参数",
+      "clause_no": "2.2",
+      "source_file": "B-技术规范书.docx",
+      "excerpt_key": "心率、血氧、呼吸、体温四参数连续监测",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": false,
+        "category": "技术参数",
+        "clause_no": "2.2",
+        "params": {
+          "model": "VSM-V80"
+        },
+        "note": "G1"
+      }
+    },
+    {
+      "syn_id": "SYN-B-013",
+      "ideal_category": "技术参数",
+      "clause_no": "3.1",
+      "source_file": "B-技术规范书.docx",
+      "excerpt_key": "≥2.4Tbps，包转发率≥360Mpps",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": false,
+        "category": "技术参数",
+        "clause_no": "3.1",
+        "params": {
+          "model": "S5735-L48T4X-A1"
+        },
+        "note": "G1"
+      }
+    },
+    {
+      "syn_id": "SYN-B-014",
+      "ideal_category": "技术参数",
+      "clause_no": "5.1",
+      "source_file": "B-技术规范书.docx",
+      "excerpt_key": "与护士呼叫主机双向可视对讲，通话时延≤200 毫秒",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": false,
+        "category": "技术参数",
+        "clause_no": "5.1",
+        "params": {
+          "model": "BED-T12-AND"
+        },
+        "note": "G1"
+      }
+    },
+    {
+      "syn_id": "SYN-B-015",
+      "ideal_category": "技术参数",
+      "clause_no": "5.2",
+      "source_file": "B-技术规范书.docx",
+      "excerpt_key": "滴速测量误差≤±5%，累计误差≤±2ml",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": false,
+        "category": "技术参数",
+        "clause_no": "5.2",
+        "params": {
+          "model": "INF-SP-98"
+        },
+        "note": "G1"
+      }
+    },
+    {
+      "syn_id": "SYN-E-001",
+      "ideal_category": "资格条件",
+      "clause_no": null,
+      "source_file": "E-原招标公告盖章页-扫描件.pdf",
+      "excerpt_key": "具备电子与智能化工程专业承包二级（含）以上资质；",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": false,
+        "category": "资格条件",
+        "clause_no": null,
+        "params": {},
+        "note": "G1：E- 前缀无抽取路径；OCR 后内容也应进条款面（交叉登记）"
+      }
+    },
+    {
+      "syn_id": "SYN-E-002",
+      "ideal_category": "资格条件",
+      "clause_no": null,
+      "source_file": "E-原招标公告盖章页-扫描件.pdf",
+      "excerpt_key": "近三年完成 3 个合同额 500 万元以上的类似工程业绩",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": false,
+        "category": "资格条件",
+        "clause_no": null,
+        "params": {},
+        "note": "G1"
+      }
+    }
+  ],
+  "counts": {
+    "total": 95,
+    "by_ideal_category": {
+      "否决项": 44,
+      "资格条件": 12,
+      "格式要求": 1,
+      "评分项": 5,
+      "技术参数": 30,
+      "商务要求": 3
+    }
+  },
+  "engine_prediction": {
+    "total": 81,
+    "by_category": {
+      "否决项": 48,
+      "资格条件": 8,
+      "技术参数": 15,
+      "评分项": 5,
+      "格式要求": 1,
+      "其他": 4
+    },
+    "note": "A(74) + C(7) 推演；B/E 因 G1 无抽取路径为 0"
+  }
+}

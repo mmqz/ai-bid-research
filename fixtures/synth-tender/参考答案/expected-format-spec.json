@@ -1,0 +1,31 @@
+{
+  "ideal": {
+    "page": {
+      "size": "A4",
+      "margin": {
+        "top": 30,
+        "bottom": 25,
+        "left": 28,
+        "right": 26
+      }
+    },
+    "font": {
+      "body": "宋体",
+      "size": 12.0,
+      "line_height": 1.5
+    },
+    "source_clause": "A 3.3.3（字号「小四」→12pt；行距「一点五倍」；边距中文数字）"
+  },
+  "engine_expect": {
+    "font.body": "宋体",
+    "font.size": 12.0,
+    "font.line_height": 1.5,
+    "margin.top": 35,
+    "margin.bottom": 30,
+    "margin.left": 28,
+    "margin.right": 26,
+    "margin_note": "top/bottom 回落工程基线（35/30）——中文数字「三十/二十五」不识别（G2）；left/right 与基线同值不可见",
+    "extraction_hits": 1,
+    "warning_expect": "从招标文件格式条款提取 1 项格式参数（未识别项保持基线）"
+  }
+}

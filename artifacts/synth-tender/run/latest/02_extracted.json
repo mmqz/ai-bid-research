@@ -1,0 +1,1806 @@
+{
+  "by_category": {
+    "其他": 31,
+    "否决项": 51,
+    "技术参数": 15,
+    "格式要求": 4,
+    "评分项": 6,
+    "资格条件": 8
+  },
+  "requirements": [
+    {
+      "anchors": [
+        {
+          "excerpt": "1.1 项目名称：某市第一人民医院智慧病房物联网平台建设项目；项目编号：ZHYY-2026-GK-018；采 购 人：某市第一人民医院；招标代理机构：某省招标集团有限责任公司。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第一章 招标公告 > 一、项目概况"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "1.1",
+      "id": "REQ-0001",
+      "params": {
+        "model": "ZHYY-2026-GK-018"
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1.2 本项目预算金额为1650 万元（含税），最高限价（招标控制价）：人民币 1650 万元（含税）；投标报价超过最高限价的作否决投标处理。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第一章 招标公告 > 一、项目概况"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "1.2",
+      "id": "REQ-0002",
+      "params": {
+        "amount_wan": 1650.0
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1.3 建设地点：某市第一人民医院院区内；工期：180 日历天（自开工令下达之日起算）；质量标准：符合国家现行验收规范合格标准。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第一章 招标公告 > 一、项目概况"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "1.3",
+      "id": "REQ-0003",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1.4.1 投标人须具有独立承担民事责任能力的法人营业执照，提供营业执照副本复印件并加盖公章。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第一章 招标公告 > 二、投标人资格要求"
+        }
+      ],
+      "category": "资格条件",
+      "clause_no": "1.4.1",
+      "id": "REQ-0004",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1.4.2 投标人须具备电子与智能化工程专业承包二级（含）以上资质，且资质证书在有效期内。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第一章 招标公告 > 二、投标人资格要求"
+        }
+      ],
+      "category": "资格条件",
+      "clause_no": "1.4.2",
+      "id": "REQ-0005",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1.4.3 投标人近三年（自 2023 年 1 月 1 日以来，以合同签订时间为准）须至少完成 3 个合同额 500 万元（含）以上的类似工程业绩。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第一章 招标公告 > 二、投标人资格要求"
+        }
+      ],
+      "category": "资格条件",
+      "clause_no": "1.4.3",
+      "id": "REQ-0006",
+      "params": {
+        "amount_wan": 500.0
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1.4.4 拟派项目负责人须具备二级（含）以上注册建造师执业资格（机电工程专业），并提供无在建项目承诺书。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第一章 招标公告 > 二、投标人资格要求"
+        }
+      ],
+      "category": "资格条件",
+      "clause_no": "1.4.4",
+      "id": "REQ-0007",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1.4.5 投标人须具备健全的财务会计制度，提供经审计的上一年度（2025 年度）财务审计报告以及依法缴纳税收和社会保障资金的证明材料。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第一章 招标公告 > 二、投标人资格要求"
+        }
+      ],
+      "category": "资格条件",
+      "clause_no": "1.4.5",
+      "id": "REQ-0008",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1.4.6 投标人须提供未被列入失信被执行人、重大税收违法案件当事人名单的书面承诺及信用中国网站查询记录截图。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第一章 招标公告 > 二、投标人资格要求"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "1.4.6",
+      "id": "REQ-0009",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1.4.7 投标人参加政府采购活动前三年内，在经营活动中没有重大违法记录，并提供书面声明。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第一章 招标公告 > 二、投标人资格要求"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "1.4.7",
+      "id": "REQ-0010",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1.5 获取时间：2026-10-21 至 2026-10-28（工作日）；获取方式：现场购买或电子邮箱获取；售价：每套 300 元，售后不退。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第一章 招标公告 > 三、获取招标文件"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "1.5",
+      "id": "REQ-0011",
+      "params": {
+        "date": "2026-10-21"
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1.6 投标截止时间（递交截止时间）及开标时间：2026-11-18 09:30（北京时间）；地点：某市公共资源交易中心第三开标厅。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第一章 招标公告 > 四、投标截止及开标"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "1.6",
+      "id": "REQ-0012",
+      "params": {
+        "date": "2026-11-18"
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1.7 联系方式：招标代理机构项目管理科，电话 0XXX-XXXXXXX；质疑接收邮箱：yizhi@xxbid.example。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第一章 招标公告 > 四、投标截止及开标"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "1.7",
+      "id": "REQ-0013",
+      "params": {
+        "model": "XXX-XXXXXXX"
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "6 投标保证金 人民币 16 万元；未按要求提交的，其投标作否决投标处理",
+          "file": "A-招标文件.docx",
+          "kind": "table",
+          "locator": "第二章 投标人须知前附表 表1 行7"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "前附表-6",
+      "id": "REQ-0014",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "10 否决情形提示 未按本表第 9 项规定格式填写技术偏离表的，其投标作否决投标处理",
+          "file": "A-招标文件.docx",
+          "kind": "table",
+          "locator": "第二章 投标人须知前附表 表1 行11"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "前附表-10",
+      "id": "REQ-0015",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.1.1 适用范围：本须知适用于本项目投标、开标、评标、定标及合同签订全过程。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 一、总则"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "3.1.1",
+      "id": "REQ-0016",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.1.2 资金来源：财政性资金与单位自筹资金相结合，已落实。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 一、总则"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "3.1.2",
+      "id": "REQ-0017",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.1.3 招标人及招标代理机构的名称、地址与联系方式见第一章招标公告。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 一、总则"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "3.1.3",
+      "id": "REQ-0018",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.2.1 资格审查方式：本项目采用资格后审。投标人资格条件按第一章招标公告「二、投标人资格要求」的规定执行。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 二、投标人资格要求"
+        }
+      ],
+      "category": "资格条件",
+      "clause_no": "3.2.1",
+      "id": "REQ-0019",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.2.2 联合体投标：本项目不接受联合体投标，也不接受未经招标人同意的任何形式的分包或转包。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 二、投标人资格要求"
+        }
+      ],
+      "category": "资格条件",
+      "clause_no": "3.2.2",
+      "id": "REQ-0020",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.3.1 投标文件须按第七章规定的格式编制，包括：投标函、开标一览表、投标分项报价表、技术方案、商务部分及资格证明文件。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 三、投标文件的编制"
+        }
+      ],
+      "category": "格式要求",
+      "clause_no": "3.3.1",
+      "id": "REQ-0021",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.3.2 投标文件正本 1 份，副本 5 份，每册均须在封面明确标注\"正本\"或\"副本\"字样。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 三、投标文件的编制"
+        }
+      ],
+      "category": "格式要求",
+      "clause_no": "3.3.2",
+      "id": "REQ-0022",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.3.3 投标文件版式要求：正文字体为宋体、字号为小四、行距为一点五倍行距；页边距为上三十毫米、下二十五毫米、左二十八毫米、右二十六毫米。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 三、投标文件的编制"
+        }
+      ],
+      "category": "格式要求",
+      "clause_no": "3.3.3",
+      "id": "REQ-0023",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.3.4 技术标部分采用暗标评审：技术标正文中不得出现投标人名称、投标人标识、项目班子成员姓名及其他可识别投标人身份的标记，否则作否决投标处理。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 三、投标文件的编制"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "3.3.4",
+      "id": "REQ-0024",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.3.5 投标文件总页数不得超过 200 页（含封面、目录及附件），超过页数上限的作否决投标处理。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 三、投标文件的编制"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "3.3.5",
+      "id": "REQ-0025",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.3.6 投标文件应采用简体中文编制；随投标文件提供的检测报告、说明书等原件资料为外文的，须附中文译文并以中文译文为准。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 三、投标文件的编制"
+        }
+      ],
+      "category": "格式要求",
+      "clause_no": "3.3.6",
+      "id": "REQ-0026",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.4.1 投标报价为一次包干总价，包含货物、安装、调试、运输、保险、税费及质保期服务等全部费用。报价口径以人民币\"元/含税\"计。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 四、投标报价"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "3.4.1",
+      "id": "REQ-0027",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.4.2 投标报价超过第一章及第五章所列招标控制价（最高限价）的，作否决投标处理。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 四、投标报价"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "3.4.2",
+      "id": "REQ-0028",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.4.3 每个投标人对同一招标项目只能提交一个有效报价；出现两个及以上报价且未声明以何者为准的，视为无效投标。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 四、投标报价"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "3.4.3",
+      "id": "REQ-0029",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.5.1 投标人须在须知前附表规定金额（人民币 16 万元（大写：壹拾陆万元整））内提交投标保证金，未按要求提交的作否决投标处理。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 五、投标保证金"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "3.5.1",
+      "id": "REQ-0030",
+      "params": {
+        "amount_wan": 16.0
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.5.2 未中标的投标人的投标保证金，将在中标通知书发出后 5 个工作日内不计息退还；中标人的投标保证金将在签订合同并提交履约担保后退还。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 五、投标保证金"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "3.5.2",
+      "id": "REQ-0031",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.6.1 投标人应当在投标截止时间前将投标文件递交至第一章规定的地点；逾期送达或者未按照招标文件规定密封的投标文件，招标人将拒收。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 六、投标文件的递交"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "3.6.1",
+      "id": "REQ-0032",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.6.2 招标人在收到投标文件后向投标人出具签收凭证，签收凭证不代表对投标文件内容的有效性认可。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 六、投标文件的递交"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "3.6.2",
+      "id": "REQ-0033",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.7.1 开标在第一章规定的投标截止时间及地点公开进行；投标人法定代表人或其授权代表须出席开标会议并携带有效身份证明文件。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "3.7.1",
+      "id": "REQ-0034",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.7.2 评标委员会对投标文件进行初步评审时，投标人有下列情形之一的，其投标将被否决：",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "3.7.2",
+      "id": "REQ-0035",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（1）投标文件未经法定代表人或其授权代理人签字，或未加盖投标人单位公章的；",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0036",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（2）签字人未取得法定代表人授权委托书或者授权委托书无效的；",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0037",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（3）投标文件内容不完整、字迹模糊无法辨认或者关键内容缺失的；",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0038",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（4）投标文件载明的项目名称、项目编号与本项目不一致的；",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0039",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（5）投标有效期不满足须知前附表规定的；",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0040",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（6）未按招标文件规定格式填写投标函及开标一览表的；",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0041",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（7）投标文件内容前后矛盾且可能影响评标结果公正性的；",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0042",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（8）投标文件未按招标文件规定要求密封和标记的，",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0043",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "招标人将拒收其投标文件，并如实记录拒收情形。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0044",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（9）投标报价超过招标控制价（最高限价）的；",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0045",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（10）评标委员会认定的其他不符合招标文件实质性要求情形的。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0046",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.7.3 评标委员会在评标过程中发现投标人有下列情形之一的，视为投标人相互串通投标，其投标将被否决：",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "3.7.3",
+      "id": "REQ-0047",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（1）不同投标人的投标文件由同一单位或者个人编制的；",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0048",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（2）不同投标人委托同一单位或者个人办理投标事宜的；",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0049",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（3）不同投标人的投标文件载明的项目管理成员为同一人的；",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0050",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（4）不同投标人的投标文件异常一致或者投标报价呈规律性差异的；",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0051",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（5）不同投标人的投标文件相互混装的；",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0052",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（6）不同投标人的投标保证金从同一单位或者个人的账户转出的；",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0053",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（7）投标人之间为谋取中标或者排斥特定投标人而采取的其他联合行动的；",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0054",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（8）投标人之间约定部分投标人放弃投标或者中标的。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0055",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.7.4 评标委员会成员应当客观、公正地履行职务，遵守职业道德，对其评审意见承担个人责任；评标过程依法保密。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "3.7.4",
+      "id": "REQ-0056",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.8.1 中标人须在中标通知书发出之日起 30 日内与招标人签订合同；合同签订前须提交合同价 10% 的履约保证金。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 八、合同授予"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "3.8.1",
+      "id": "REQ-0057",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.8.2 招标人将在中标通知书发出后 7 个工作日内向中标人发出合同文本草案；双方对合同条款有争议的按第六章合同条款及格式执行。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 八、合同授予"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "3.8.2",
+      "id": "REQ-0058",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.9.1 投标人不得与招标人、其他投标人串通投标，不得向招标人或者评标委员会成员行贿或者采取其他不正当手段谋取中标。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 九、纪律和监督"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "3.9.1",
+      "id": "REQ-0059",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.9.2 对招标过程中招标人、招标代理机构及评标委员会成员的违法违纪行为，投标人可依法向有关行政监督部门投诉。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第三章 投标人须知 > 九、纪律和监督"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "3.9.2",
+      "id": "REQ-0060",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "4.1 价格分（30 分）：以通过初步评审的有效投标报价的算术平均值下浮 5% 为基准价，价格分＝（基准价／投标报价）×30，四舍五入保留两位小数。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第四章 评标办法（综合评分法） > 一、评分细则"
+        }
+      ],
+      "category": "评分项",
+      "clause_no": "4.1",
+      "id": "REQ-0061",
+      "params": {
+        "score": 30.0
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "4.2 技术分（55 分）：技术方案完整性与针对性 30 分；项目实施方案与进度保障措施 10 分；售后服务方案（含响应时限承诺）8 分；信息安全与等保符合性方案 7 分。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第四章 评标办法（综合评分法） > 一、评分细则"
+        }
+      ],
+      "category": "评分项",
+      "clause_no": "4.2",
+      "id": "REQ-0062",
+      "params": {
+        "score": 55.0
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "4.3 商务分（15 分）：近三年完成的合同额 500 万元（含）以上类似工程业绩，每提供 1 个得 2 分，最多得 6 分；企业认证体系（ISO9001）1 分；企业认证体系（ISO27001）1 分；银行资信等级 AAA 级 2 分；类似项目获省级以上奖项每个 1 分，最多 3 分；拟派项目团队中级以上职称人员每人 1 分，最多 2 分。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第四章 评标办法（综合评分法） > 一、评分细则"
+        }
+      ],
+      "category": "评分项",
+      "clause_no": "4.3",
+      "id": "REQ-0063",
+      "params": {
+        "amount_wan": 500.0,
+        "score": 15.0
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "4.4 项目团队评分（10 分，计入技术分）：项目负责人具备一级注册建造师（机电工程）资格且无在建项目的加 3 分；项目团队具有高级网络工程师或高级信息系统项目管理师职称证书的每人 1 分，最多 3 分；拟派项目经理具有同类项目管理业绩的每个 1 分，最多 2 分。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第四章 评标办法（综合评分法） > 一、评分细则"
+        }
+      ],
+      "category": "评分项",
+      "clause_no": "4.4",
+      "id": "REQ-0064",
+      "params": {
+        "score": 10.0
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "4.5 初步评审是对投标文件的形式评审、资格评审和响应性评审。投标文件有一项不符合本章评审标准的，其投标将被否决。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第四章 评标办法（综合评分法） > 二、初步评审"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "4.5",
+      "id": "REQ-0065",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1 投标函签署 投标函须经法定代表人或其授权代理人签字并加盖单位公章，否则否决其投标",
+          "file": "A-招标文件.docx",
+          "kind": "table",
+          "locator": "第四章 评标办法（综合评分法） 表2 行2"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "表-2",
+      "id": "REQ-0066",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "2 营业执照 营业执照复印件须在有效期内且与投标人名称一致",
+          "file": "A-招标文件.docx",
+          "kind": "table",
+          "locator": "第四章 评标办法（综合评分法） 表2 行3"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "表-3",
+      "id": "REQ-0067",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3 授权委托书 授权委托书须为法定代表人出具且在有效期内",
+          "file": "A-招标文件.docx",
+          "kind": "table",
+          "locator": "第四章 评标办法（综合评分法） 表2 行4"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "表-4",
+      "id": "REQ-0068",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "4 投标有效期 投标有效期须满足须知前附表第 5 项规定（90 日历天）",
+          "file": "A-招标文件.docx",
+          "kind": "table",
+          "locator": "第四章 评标办法（综合评分法） 表2 行5"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "表-5",
+      "id": "REQ-0069",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "5 报价唯一 投标报价须唯一且与开标一览表一致",
+          "file": "A-招标文件.docx",
+          "kind": "table",
+          "locator": "第四章 评标办法（综合评分法） 表2 行6"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "表-6",
+      "id": "REQ-0070",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "6 技术偏离表 技术偏离表填报内容须完整并与投标文件技术方案一致",
+          "file": "A-招标文件.docx",
+          "kind": "table",
+          "locator": "第四章 评标办法（综合评分法） 表2 行7"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "表-7",
+      "id": "REQ-0071",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "7 投标保证金 投标保证金须为投标人基本账户转出且金额满足前附表第 6 项规定",
+          "file": "A-招标文件.docx",
+          "kind": "table",
+          "locator": "第四章 评标办法（综合评分法） 表2 行8"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "表-8",
+      "id": "REQ-0072",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "8 投标工期 投标工期须满足 180 日历天要求",
+          "file": "A-招标文件.docx",
+          "kind": "table",
+          "locator": "第四章 评标办法（综合评分法） 表2 行9"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "表-9",
+      "id": "REQ-0073",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "三、串通投标与弄虚作假的认定",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第四章 评标办法（综合评分法） > 三、串通投标与弄虚作假的认定"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0074",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "评标委员会在评标过程中应当重点核查串通投标情形。有下列情形之一的，视为投标人相互串通投标，其投标将被否决：",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第四章 评标办法（综合评分法） > 三、串通投标与弄虚作假的认定"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0075",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（1）不同投标人的投标文件由同一单位或者个人编制的；",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第四章 评标办法（综合评分法） > 三、串通投标与弄虚作假的认定"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0076",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（2）不同投标人委托同一单位或者个人办理投标事宜的；",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第四章 评标办法（综合评分法） > 三、串通投标与弄虚作假的认定"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0077",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "（3）弄虚作假骗取中标的，其中标无效，并依法承担相应法律责任。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第四章 评标办法（综合评分法） > 三、串通投标与弄虚作假的认定"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": null,
+      "id": "REQ-0078",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "4.6 投标文件技术参数出现一般负偏离的，每项扣 1 分（最多扣 5 分）；出现实质性负偏离的，作否决投标处理。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第四章 评标办法（综合评分法） > 四、技术偏离处理"
+        }
+      ],
+      "category": "评分项",
+      "clause_no": "4.6",
+      "id": "REQ-0079",
+      "params": {
+        "score": 1.0
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "4.7 评标委员会按照得分由高到低排序推荐中标候选人，并出具评标报告；得分相同的，投标报价低者优先。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第四章 评标办法（综合评分法） > 五、评标结果"
+        }
+      ],
+      "category": "评分项",
+      "clause_no": "4.7",
+      "id": "REQ-0080",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "5.0 总则：本章为本项目货物及服务的技术需求，设备采购预算 1650 万元（含税）；供货及实施范围包括感知层、网络层、平台层、终端层及信息安全五大部分。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第五章 技术需求书"
+        }
+      ],
+      "category": "技术参数",
+      "clause_no": "5.0",
+      "id": "REQ-0081",
+      "params": {
+        "amount_wan": 1650.0
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "5.1.1 智慧病房物联网平台须支持不少于 5000 个感知终端并发接入，系统年可用性不低于 99.9%，故障恢复时间不超过 30 分钟。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第五章 技术需求书 > 一、系统总体要求"
+        }
+      ],
+      "category": "技术参数",
+      "clause_no": "5.1.1",
+      "id": "REQ-0082",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1 物联网关 IoT-GW-3000 台 48 下行 LoRaWAN/RS485/蓝牙多模，上行双链路（以太网＋4G）",
+          "file": "A-招标文件.docx",
+          "kind": "table",
+          "locator": "第五章 技术需求书 表3 行2"
+        }
+      ],
+      "category": "技术参数",
+      "clause_no": "5.1.1",
+      "id": "REQ-0083",
+      "params": {
+        "model": "T-GW-3000"
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "2 温湿度传感器 SNS-TH-02 只 360 测温精度±0.3℃，测湿精度±3%RH，电池续航≥3 年",
+          "file": "A-招标文件.docx",
+          "kind": "table",
+          "locator": "第五章 技术需求书 表3 行3"
+        }
+      ],
+      "category": "技术参数",
+      "clause_no": "5.1.1",
+      "id": "REQ-0084",
+      "params": {
+        "model": "SNS-TH-02"
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "5.2.1 病区网络须采用内外网物理隔离架构，内网承载医疗物联网数据，外网承载互联网访问；核心设备须支持双机热备。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第五章 技术需求书 > 二、网络层技术要求"
+        }
+      ],
+      "category": "技术参数",
+      "clause_no": "5.2.1",
+      "id": "REQ-0085",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1 接入交换机 S5735-L48T4X-A1 台 12 48 口 10/100/1000Base-T＋4 口 10GE SFP＋，交换容量≥2.4Tbps",
+          "file": "A-招标文件.docx",
+          "kind": "table",
+          "locator": "第五章 技术需求书 表4 行2"
+        }
+      ],
+      "category": "技术参数",
+      "clause_no": "5.2.1",
+      "id": "REQ-0086",
+      "params": {
+        "model": "S5735-L48T4X-A1"
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "5.3.1 物联网平台须提供设备管理、数据采集、规则引擎、告警联动与开放接口五类核心能力，并与医院现有 HIS/EMR 系统完成接口对接。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第五章 技术需求书 > 三、平台层技术要求"
+        }
+      ],
+      "category": "技术参数",
+      "clause_no": "5.3.1",
+      "id": "REQ-0087",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1 应用服务器 GW-8000-T4 台 2 2×Intel Xeon Silver 4310/256G/2×960G SSD/双电源",
+          "file": "A-招标文件.docx",
+          "kind": "table",
+          "locator": "第五章 技术需求书 表5 行2"
+        }
+      ],
+      "category": "技术参数",
+      "clause_no": "5.3.1",
+      "id": "REQ-0088",
+      "params": {
+        "model": "GW-8000-T4"
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "2 数据库服务器 GW-8000-T4 台 2 2×Intel Xeon Silver 4310/512G/4×1.92T SSD/双电源",
+          "file": "A-招标文件.docx",
+          "kind": "table",
+          "locator": "第五章 技术需求书 表5 行3"
+        }
+      ],
+      "category": "技术参数",
+      "clause_no": "5.3.1",
+      "id": "REQ-0089",
+      "params": {
+        "model": "GW-8000-T4"
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "5.4.1 床旁交互终端须支持床头卡信息展示、呼叫对讲、输液监测与生命体征数据查看，且支持免工具壁挂安装。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第五章 技术需求书 > 四、终端层技术要求"
+        }
+      ],
+      "category": "技术参数",
+      "clause_no": "5.4.1",
+      "id": "REQ-0090",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1 床旁交互终端 BED-T12-AND 台 180 15.6 英寸电容触控屏，Android 12，支持 NFC 刷卡",
+          "file": "A-招标文件.docx",
+          "kind": "table",
+          "locator": "第五章 技术需求书 表6 行2"
+        }
+      ],
+      "category": "技术参数",
+      "clause_no": "5.4.1",
+      "id": "REQ-0091",
+      "params": {
+        "model": "BED-T12-AND"
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "2 人员定位标签 RTLS-TAG-B1 只 400 UWB＋蓝牙双模，定位精度≤0.5 米，防水等级 IP67",
+          "file": "A-招标文件.docx",
+          "kind": "table",
+          "locator": "第五章 技术需求书 表6 行3"
+        }
+      ],
+      "category": "技术参数",
+      "clause_no": "5.4.1",
+      "id": "REQ-0092",
+      "params": {
+        "model": "RTLS-TAG-B1"
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "5.5.1 护理呼叫系统须实现床旁呼叫、卫生间紧急呼叫、门灯与走廊显示屏联动，呼叫记录保存不少于 2 年。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第五章 技术需求书 > 五、护理呼叫系统技术要求"
+        }
+      ],
+      "category": "技术参数",
+      "clause_no": "5.5.1",
+      "id": "REQ-0093",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1 护士呼叫主机 NCS-64-E 台 24 支持 64 路呼叫，双机热备，10.1 英寸触控屏",
+          "file": "A-招标文件.docx",
+          "kind": "table",
+          "locator": "第五章 技术需求书 表7 行2"
+        }
+      ],
+      "category": "技术参数",
+      "clause_no": "5.5.1",
+      "id": "REQ-0094",
+      "params": {
+        "model": "NCS-64-E"
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "5.6.1 全部设备须于 2026-12-30 前到场并完成安装调试；试运行期不少于 30 日历天，试运行通过后组织验收。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第五章 技术需求书 > 六、交货期及实施要求"
+        }
+      ],
+      "category": "技术参数",
+      "clause_no": "5.6.1",
+      "id": "REQ-0095",
+      "params": {
+        "date": "2026-12-30"
+      },
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "6.1 合同价格形式：固定总价合同，除招标文件约定的调整情形外不做调整。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第六章 合同条款及格式（摘要）"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "6.1",
+      "id": "REQ-0096",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "6.2 违约责任：逾期交付每日按合同总价 0.5‰ 计违约金，上限为合同总价的 5%；逾期超过 30 日的，采购人有权解除合同。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第六章 合同条款及格式（摘要）"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "6.2",
+      "id": "REQ-0097",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "6.3 付款节点：合同签订生效后 10 个工作日内支付预付款 30%；全部设备到场并安装调试完成、验收合格后支付至合同总价 60%；终验合格且质保期满无质量问题后支付尾款 10%。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第六章 合同条款及格式（摘要）"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "6.3",
+      "id": "REQ-0098",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "6.4 争议解决：协商不成的，提交项目所在地有管辖权的人民法院诉讼解决。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第六章 合同条款及格式（摘要）"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "6.4",
+      "id": "REQ-0099",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "7.1 投标函格式（略，按本章附件样例填写）：投标函须按样例格式签署并加盖单位公章及法定代表人签字。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第七章 投标文件格式"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "7.1",
+      "id": "REQ-0100",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "7.2 开标一览表、投标分项报价表格式（略）：开标一览表中的投标总报价须与投标函载明的总报价一致。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第七章 投标文件格式"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "7.2",
+      "id": "REQ-0101",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "7.3 法定代表人身份证明及授权委托书格式（略）：授权委托书须载明授权事项、权限范围及有效期限。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第七章 投标文件格式"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "7.3",
+      "id": "REQ-0102",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "7.4 资格审查资料装订顺序：营业执照→资质证书→类似工程业绩合同→财务审计报告→信用承诺及查询记录→项目班子成员证书（复印件均须加盖公章）。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第七章 投标文件格式"
+        }
+      ],
+      "category": "资格条件",
+      "clause_no": "7.4",
+      "id": "REQ-0103",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "7.5 技术方案编制格式：技术方案按「总体方案—分项技术方案—实施方案—售后方案」四部分编制，正文不得出现投标人身份信息。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第七章 投标文件格式"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "7.5",
+      "id": "REQ-0104",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "7.6 已标价工程量清单格式（略）：按第五章技术需求书的分项逐项报价，不得缺漏项。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第七章 投标文件格式"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "7.6",
+      "id": "REQ-0105",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "8.1 附件 1：图纸目录说明——随本招标文件发出的《D-图纸说明》及全套图纸（26 张）为本招标文件的组成部分。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第八章 附件说明"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "8.1",
+      "id": "REQ-0106",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "8.2 附件 2：设备技术参数明细表——详见随本招标文件发出的《B-技术规范书》，其技术参数与第五章技术需求书不一致时以较高要求为准。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第八章 附件说明"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "8.2",
+      "id": "REQ-0107",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "8.3 附件 3：原招标公告盖章页（扫描件）——见《E-原招标公告盖章页-扫描件.pdf》，与第一章招标公告具有同等效力。",
+          "file": "A-招标文件.docx",
+          "kind": "para",
+          "locator": "第八章 附件说明"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "8.3",
+      "id": "REQ-0108",
+      "params": {},
+      "source_file": "A-招标文件.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1.1 原招标文件规定的开标时间\"2026-11-18 09:30\"变更为\"2026-11-30 09:30\"；",
+          "file": "C-补遗文件.pdf",
+          "kind": "pdf_line",
+          "locator": "第1页 行6"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "1.1",
+      "id": "REQ-0109",
+      "params": {
+        "date": "2026-11-18",
+        "date_cn": "2026-11-18"
+      },
+      "source_file": "C-补遗文件.pdf"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1.2 投标截止时间（递交截止时间）相应顺延为 2026-11-30 09:30。",
+          "file": "C-补遗文件.pdf",
+          "kind": "pdf_line",
+          "locator": "第1页 行7"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "1.2",
+      "id": "REQ-0110",
+      "params": {
+        "date": "2026-11-30",
+        "date_cn": "2026-11-30"
+      },
+      "source_file": "C-补遗文件.pdf"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "2.1 原招标文件第一章 1.2 款所列招标控制价\"人民币 1650 万元（含税）\"统一调整为",
+          "file": "C-补遗文件.pdf",
+          "kind": "pdf_line",
+          "locator": "第1页 行9"
+        },
+        {
+          "excerpt": "\"人民币 1580 万元（含税）\"，投标报价超过调整后控制价的作否决投标处理。",
+          "file": "C-补遗文件.pdf",
+          "kind": "pdf_line",
+          "locator": "第1页 行10"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "2.1",
+      "id": "REQ-0111",
+      "params": {
+        "amount_wan": 1650.0
+      },
+      "source_file": "C-补遗文件.pdf"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.1 投标人未按本补遗文件要求提交加盖公章的回执确认函的，招标人有权拒收其投标文件。",
+          "file": "C-补遗文件.pdf",
+          "kind": "pdf_line",
+          "locator": "第2页 行2"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "3.1",
+      "id": "REQ-0112",
+      "params": {},
+      "source_file": "C-补遗文件.pdf"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.2 逾期送达的投标文件，招标人将拒收，并如实记录拒收情形。",
+          "file": "C-补遗文件.pdf",
+          "kind": "pdf_line",
+          "locator": "第2页 行3"
+        }
+      ],
+      "category": "否决项",
+      "clause_no": "3.2",
+      "id": "REQ-0113",
+      "params": {},
+      "source_file": "C-补遗文件.pdf"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "4.1 原招标文件第四章 4.3 商务分中\"类似项目获省级以上奖项每个 1 分，最多 3 分\"调整为",
+          "file": "C-补遗文件.pdf",
+          "kind": "pdf_line",
+          "locator": "第2页 行5"
+        },
+        {
+          "excerpt": "\"每个 1 分，最多 4 分\"，商务分其余细项不变。",
+          "file": "C-补遗文件.pdf",
+          "kind": "pdf_line",
+          "locator": "第2页 行6"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "4.1",
+      "id": "REQ-0114",
+      "params": {},
+      "source_file": "C-补遗文件.pdf"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "5.1 现场踏勘定于 2026-11-05 09:30 在某市第一人民医院住院部北门集合；答疑截止时间为 2026-11-08 17:00。",
+          "file": "C-补遗文件.pdf",
+          "kind": "pdf_line",
+          "locator": "第2页 行8"
+        }
+      ],
+      "category": "其他",
+      "clause_no": "5.1",
+      "id": "REQ-0115",
+      "params": {
+        "date": "2026-11-05",
+        "date_cn": "2026-11-05"
+      },
+      "source_file": "C-补遗文件.pdf"
+    }
+  ],
+  "total": 115
+}

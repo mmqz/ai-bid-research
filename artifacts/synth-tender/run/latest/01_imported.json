@@ -1,0 +1,58 @@
+{
+  "batch1_abc_e": {
+    "error": null,
+    "totals": {
+      "chunks": 341,
+      "files": 4,
+      "parse_failed": 0,
+      "partial": 0
+    }
+  },
+  "batch2_d": {
+    "error": "E_PARTIAL（预期）",
+    "totals": {
+      "chunks": 0,
+      "files": 1,
+      "parse_failed": 1,
+      "partial": 1
+    }
+  },
+  "pdf_env": "full",
+  "pdf_missing": [],
+  "per_file": {
+    "A-招标文件.docx": {
+      "chunks": 232,
+      "errors": null,
+      "ocr_tier": "none",
+      "pages": 0,
+      "parse_status": "ok"
+    },
+    "B-技术规范书.docx": {
+      "chunks": 75,
+      "errors": null,
+      "ocr_tier": "none",
+      "pages": 0,
+      "parse_status": "ok"
+    },
+    "C-补遗文件.pdf": {
+      "chunks": 21,
+      "errors": null,
+      "ocr_tier": "none",
+      "pages": 2,
+      "parse_status": "ok"
+    },
+    "D-图纸说明.md": {
+      "errors": [
+        "不支持的文件类型 .md（D-图纸说明.md）"
+      ],
+      "parse_status": "failed"
+    },
+    "E-原招标公告盖章页-扫描件.pdf": {
+      "chunks": 13,
+      "errors": null,
+      "ocr_tier": "ocr",
+      "pages": 1,
+      "parse_status": "ocr_required"
+    }
+  }
+}

@@ -42,6 +42,33 @@ pub fn extract_requirements(files: &[ParsedFile]) -> Vec<Requirement> {
             _ => {} // B3 图纸目录/证据件：无条款抽取面（证据入库走 chunk 索引）
         }
     }
+    // #52 排除面统一复检（引擎排除面——精确率攻坚）：
+    // 否决类 REQ 命中形态锁排除面 → 改判「评分项/其他」。
+    // - 不删 REQ——L1 抽取面不受影响（召回红线 L1 天然保住）；
+    // - 统一后置——覆盖全部分类路径（强词/语境传播/审查表/前附表/
+    //   章节上下文映射），两侧（PDF/DOCX）单点接入零遗漏；
+    // - 排除原因写入 params["_veto_excluded"]（可审计——下游可追溯
+    //   为什么这条不是否决项；issue #52 纪律：每条规则要能解释）。
+    // 零误伤已验证：排除面全集对 GT 1752 true 命中 0 条
+    // （scripts/tp_collateral_scan.py + fp_attribution.py）。
+    for r in reqs.iter_mut() {
+        if r.category != "否决项" {
+            continue;
+        }
+        let joined: String = r.anchors.iter().map(|a| a.excerpt.as_str()).collect();
+        if let Some(reason) = crate::veto_lexicon::exclusion_reason(&joined) {
+            r.category = if reason.starts_with("评分公式") {
+                "评分项"
+            } else {
+                "其他"
+            }
+            .to_string();
+            r.params.insert(
+                "_veto_excluded".to_string(),
+                serde_json::Value::String(reason.to_string()),
+            );
+        }
+    }
     reqs
 }
 

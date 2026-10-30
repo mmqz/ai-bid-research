@@ -84,7 +84,7 @@ cargo run -p mang-app
 
 ## 四、MCP 工具面（AI Agent 调用）
 
-12 个工具（`bid-mcp-stdio` 的 stdio 协议），按项目状态机有序开放：
+13 个工具（`bid-mcp-stdio` 的 stdio 协议），按项目状态机有序开放：
 
 | 工具 | 什么时候能调 | 干什么 |
 |---|---|---|
@@ -93,7 +93,8 @@ cargo run -p mang-app
 | `extract_requirements` | 导入后 | 抽条款（重抽零新增——幂等合并） |
 | `get_compliance_matrix` | 随时 | 看矩阵（要求×响应状态，游标分页） |
 | `list_evidence` / `list_tasks` | 随时 | 证据台账 / 任务分工 |
-| `draft_response_section` | 矩阵就绪后 | 单章起草（引用回查防幻觉；字数按配额 ±20%） |
+| `draft_response_section` | 矩阵就绪后 | 单章起草（`generator: auto\|mock\|real`；引用回查防幻觉；字数 ±20%；未回应条款即时告警） |
+| `check_bid_quality` | 矩阵就绪后 | 只读质量体检（覆盖度/幻觉引用/字数带宽/需人工清单——报告落 `artifacts/quality-report.json`） |
 | `validate_bid_document` | 起草后 | 校验（8 规则——BLOCKER 清零才可导出） |
 | `export_bid_document` | 起草后 | 导出（docx/pdf；暗标模式公司名→「投标人」） |
 | `save_version` | 随时 | 存版本快照（桌面壳「改动」面板可见） |
@@ -119,7 +120,58 @@ DRAFT → FILES_IMPORTED → REQUIREMENTS_EXTRACTED → MATRIX_READY
 
 ---
 
-## 五、格式规格（.mang/format-spec.json）
+## 五、LLM 配置（真实 AI 生成）
+
+### 5.1 api_key 放哪（两处，env 优先）
+
+**方式 A：项目工作区配置文件**（推荐——随项目走）：
+
+```
+{工作区}/.mang/llm.json
+{
+  "api_base": "https://api.openai.com/v1",   // 任何 OpenAI 兼容端点（DeepSeek/z.ai 等同款）
+  "api_key":  "sk-……",
+  "model":    "……",                           // api_key 在场时必填
+  "timeout_secs": 60,                          // 可选，缺省 60
+  "temperature": 0.3,                          // 可选，缺省 0.3（标书文风偏稳）
+  "max_tokens_cap": 8192                       // 可选，缺省 8192（单章防失控）
+}
+```
+
+**方式 B：环境变量**（CI / 本地免写盘）：
+
+```
+BID_LLM_API_BASE   覆盖 api_base
+BID_LLM_API_KEY    覆盖 api_key
+BID_LLM_MODEL      覆盖 model
+```
+
+⚠️ `.mang/llm.json` 已在 `.gitignore`（含密钥绝不入库）；密钥也绝不进日志与用量台账。
+
+### 5.2 真实生成 vs mock 的区别
+
+| | mock（缺省降级） | real（配了 key） |
+|---|---|---|
+| 内容 | 确定性模板句（同输入字节级同输出——e2e 可复现） | 真实 AI 写作（按章节素材逐条响应） |
+| 怎么触发 | 未配 api_key 自动降级（告警「降级 mock」） | 配 key 自动启用；或显式 `generator: "real"` |
+| 强制 mock | `generator: "mock"`（显式选择无告警） | — |
+| 显式要 real 但没 key | — | `E_UNPROCESSABLE` 响亮拒绝（不静默降级） |
+| 引用回查 | 生效 | 同样生效（幻觉引用剔除 + 告警） |
+| 覆盖度检查 | 生效 | 同样生效（未回应条款 warning + `stats.uncovered_requirements`） |
+| 版本快照/断点续跑 | 生效 | 同样生效 |
+
+判断当前用的哪个：返回的 `stats.generator` 字段（`"real"` / `"mock"`）。
+
+### 5.3 成本预估与控制
+
+- **用量台账**：每次真实调用累计落 `{工作区}/.mang/llm-usage.json`（calls / prompt_tokens / completion_tokens / total_tokens / by_model）——随时查总账；
+- **单章上限**：`max_tokens` 按目标字数自动推导（target × 3 + 400，上限 `max_tokens_cap`）——生成失控（服务端忽略上限超 2 倍）整章废弃报错；
+- **超时重试**：60s 超时自动重试 1 次（共 2 次尝试）；失败走 `assemble_all` 的 3 次指数退避重试，仍失败标记 FAILED 不阻塞其他章；
+- **粗估**：中文 1 字 ≈ 1-2 token。一章 2,000 字 ≈ 输入 2-4k + 输出 3-6k token；50 万字标书（252 章）≈ 全链 200-400 万 token 量级——**建议先单章试跑看台账再全量**。
+
+---
+
+## 六、格式规格（.mang/format-spec.json）
 
 **格式从招标文件读，不硬编码**——每份标书要求不同。
 
@@ -149,7 +201,7 @@ DRAFT → FILES_IMPORTED → REQUIREMENTS_EXTRACTED → MATRIX_READY
 
 ---
 
-## 六、暗标模式
+## 七、暗标模式
 
 导出时传 `profile`：
 
@@ -162,7 +214,7 @@ DRAFT → FILES_IMPORTED → REQUIREMENTS_EXTRACTED → MATRIX_READY
 
 ---
 
-## 七、常见问题
+## 八、常见问题
 
 **Q：跑 `cargo test` 有的测试显示 SKIP？**
 环境缺依赖（soffice/pdftotext/真件）——SKIP 横幅会写明缺什么。缺件不是
@@ -183,6 +235,17 @@ DRAFT → FILES_IMPORTED → REQUIREMENTS_EXTRACTED → MATRIX_READY
 **Q：PDF 和 docx 哪个先出？**
 docx 是真源（PDF 由 docx 转换）。PDF 需要 LibreOffice（`soffice`）——
 缺失时 docx 通道不受影响。
+
+**Q：生成的是模板句不是真内容？**
+没配 api_key——auto 模式降级 mock（告警里有「降级 mock」字样）。配好
+`.mang/llm.json` 或环境变量后重起草即走真实生成（`stats.generator` 可验）。
+
+**Q：真实生成的费用怎么查？**
+`{工作区}/.mang/llm-usage.json`——按模型分列的累计 token 台账。
+
+**Q：怎么知道哪些章需要人工处理？**
+`check_bid_quality` 一键体检：`needs_human` 清单 = FAILED 章 + 有未回应
+条款的章 + 幻觉引用 + 字数带外；报告落 `artifacts/quality-report.json`。
 
 **Q：重启后进度还在吗？**
 在。工作区三件套：`db.json`（状态机）+ `chapters/*.json`（章内容）+

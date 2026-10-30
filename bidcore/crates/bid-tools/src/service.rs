@@ -452,6 +452,30 @@ impl BidService {
         })
     }
 
+    /// `validate_bid_document` 业务半边（#59 阶段 3——防废标最后一道关）。
+    ///
+    /// 纯只读诊断（不改稿不落库——BLOCKER 解除走既有面：矩阵覆写/证据补绑/
+    /// 章节 draft）；成功跑完推进项目到至少 VALIDATING（Drafting → Validating
+    /// 一步——复审语义；已在 Validating+ 者 no-op）+ checkpoint。
+    pub fn validate_document(
+        &mut self,
+        scope_sections: Option<&[String]>,
+    ) -> Result<crate::validate::ValidationReport, ToolError> {
+        let mut model = crate::validate::NoModel;
+        let report = crate::validate::validate_document(self.store(), scope_sections, &mut model)?;
+        // 状态推进（合法链一步；幂等面由 advance_project_status 承担）
+        let cur = self.store().project()?.status;
+        let steps: &[bid_domain::ProjectStatus] = match cur {
+            bid_domain::ProjectStatus::Drafting => &[bid_domain::ProjectStatus::Validating],
+            _ => &[],
+        };
+        for to in steps {
+            self.store_mut().advance_project_status(*to)?;
+        }
+        self.auto_checkpoint()?;
+        Ok(report)
+    }
+
     /// format-spec 装载：`.mang/format-spec.json` 读盘 → validate；缺失 →
     /// 从格式条款 derive（零命中 → 基线 + warning）。
     fn load_or_derive_format_spec(

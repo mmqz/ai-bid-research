@@ -32,13 +32,12 @@ fn unknown_tool_is_typed_not_found() {
 
 #[test]
 fn unimplemented_tools_return_typed_unimplemented_not_ok() {
-    // 2 个未落地工具：必须全部返回 UNIMPLEMENTED_INTERNAL，一个都不能"空成功"
-    // （B-1 落地 create/import；B5 落地 extract/matrix；#59 阶段 1 落地
-    // draft_response_section、阶段 2 落地 export_bid_document——不在此清单。
-    // 工具落地时本清单同步收缩，防止骨架与实现脱钩）
+    // 1 个未落地工具：必须返回 UNIMPLEMENTED_INTERNAL，不能"空成功"
+    // （B-1 落地 create/import；B5 落地 extract/matrix；#59 阶段 1-3 落地
+    // draft/export/validate——不在此清单。工具落地时本清单同步收缩，
+    // 防止骨架与实现脱钩）
     let unimplemented = [
         "search_evidence",
-        "validate_bid_document",
     ];
     for tool in unimplemented {
         match call(tool, json!({})) {
@@ -115,6 +114,7 @@ fn tools_schema_lists_all_twelve() {
             "list_evidence",
             "list_tasks",
             "draft_response_section",
+            "validate_bid_document",
             "export_bid_document",
             "get_bid_project_state",
         ]

@@ -142,14 +142,15 @@ impl ProjectStatus {
             RequirementsExtracted => &["import_tender_files", "extract_requirements",
                 "get_compliance_matrix", "search_evidence", "get_bid_project_state"],
             MatrixReady | EvidenceBound => &["get_compliance_matrix", "search_evidence",
-                "get_bid_project_state", "draft_response_section"],
+                "get_bid_project_state", "draft_response_section", "check_bid_quality"],
             Drafting => &["get_compliance_matrix", "search_evidence",
                 "get_bid_project_state", "draft_response_section", "validate_bid_document",
-                "export_bid_document"],
+                "export_bid_document", "check_bid_quality"],
             Validating | Reviewing | ReadyToExport => &["get_compliance_matrix", "search_evidence",
-                "get_bid_project_state", "validate_bid_document", "export_bid_document"],
+                "get_bid_project_state", "validate_bid_document", "export_bid_document",
+                "check_bid_quality"],
             Exported => &["get_compliance_matrix", "search_evidence",
-                "get_bid_project_state", "export_bid_document"],
+                "get_bid_project_state", "export_bid_document", "check_bid_quality"],
         }
     }
 

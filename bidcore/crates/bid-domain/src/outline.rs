@@ -30,6 +30,10 @@ pub enum SectionStatus {
     Pending,
     Outlining,
     Drafting,
+    /// 生成失败（重试耗尽）——#68 阶段 2 的标记态：批量组装对单章的
+    /// 「已知失败」显式落域（不阻塞其他章）；可经 Drafting 重试（续跑/
+    /// 人工修复后重新起草）。从 Drafting 进入；不与 Drafted 直通。
+    Failed,
     Drafted,
     Validating,
     Revising,
@@ -43,7 +47,11 @@ impl SectionStatus {
         match self {
             Pending => &[Outlining],
             Outlining => &[Drafting],
-            Drafting => &[Drafted],
+            // 生成成功 → Drafted；重试耗尽 → Failed（#68 阶段 2——失败是
+            // 一等结果，显式建模优于「停在 DRAFTING 靠调用方猜」）
+            Drafting => &[Drafted, Failed],
+            // 失败章的重试入口（人工修复/续跑重起草——不回退到 Pending）
+            Failed => &[Drafting],
             Drafted => &[Validating],
             // 校验零发现直通验收（免空转 REVISING）；有发现走修订
             Validating => &[Revising, Accepted],
@@ -58,6 +66,7 @@ impl SectionStatus {
             Pending => "PENDING",
             Outlining => "OUTLINING",
             Drafting => "DRAFTING",
+            Failed => "FAILED",
             Drafted => "DRAFTED",
             Validating => "VALIDATING",
             Revising => "REVISING",

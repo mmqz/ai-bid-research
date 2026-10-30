@@ -245,10 +245,10 @@ fn draft_override_requirements_and_ghost_warning() {
 // ---------------------------------------------------------------- 3. 契约十二工具面回归
 
 #[test]
-fn tool_face_remains_twelve_with_draft_implemented() {
+fn tool_face_remains_thirteen_with_draft_implemented() {
     let v = bid_mcp::tools_schema();
     let arr = v["tools"].as_array().unwrap();
-    assert_eq!(arr.len(), 12, "工具面保持 12 个");
+    assert_eq!(arr.len(), 13, "工具面保持 13 个");
     let draft = arr.iter().find(|t| t["name"] == "draft_response_section").unwrap();
     assert_eq!(draft["implemented"], json!(true));
     // 其余一个仍未实现（search——骨架纪律；export/validate 已在阶段 2/3 落地）

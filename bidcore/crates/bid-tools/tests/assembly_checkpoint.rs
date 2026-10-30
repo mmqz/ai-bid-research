@@ -324,37 +324,55 @@ fn assemble_all_skips_done_and_advances_status() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// generator 失败面：第 37 章 generator 返回 Err → assemble_all 立即报错；
-/// 已提交 36 章、第 37 章无记录（可续跑面）；修复 generator 后全量重跑 →
-/// 从 37 章续跑完成 500（前 36 章零重生成）。
+/// generator 失败面（#68 阶段 2 新语义——重试 3 次 + FAILED 标记 + 不阻塞）：
+/// 第 37 章 generator 恒 Err → 该章 4 次尝试（1+3 重试）后标记 FAILED，
+/// **其余章继续**（500 章里 499 提交、1 失败）；失败章无章节文件（可续跑）；
+/// failed.json 边车记错误明细；修复 generator 后续跑 → 从 37 章补完 500
+/// （前 36 章零重生成）且失败痕迹被清除（恢复即抹痕）。
 #[test]
-fn generator_failure_leaves_no_commit() {
+fn generator_failure_retries_marks_failed_and_continues() {
     let dir = temp_dir("fail");
     let mut store = store_with_500_chapters();
     let mut asm = ChapterAssembler::open(&dir).unwrap();
-    let mut calls = 0usize;
-    let result = assemble_all(&mut store, &mut asm, &mut |node| {
-        calls += 1;
-        if calls >= 37 {
-            Err(format!("第 37 章生成器故障（模拟 LLM 超时）：{}", node.id))
-        } else {
-            deterministic_gen(node)
-        }
-    });
-    let err = result.err().expect("第 37 章生成失败必须报错");
-    match err {
-        AssemblerError::Generator { section_id, why } => {
-            assert_eq!(section_id, "SEC-0037", "报错定位到失败章");
-            assert!(why.contains("SEC-0037"), "失败原因透传: {why}");
-        }
-        other => panic!("期望 Generator 错误，实际: {other}"),
-    }
-    assert_eq!(asm.committed_count(), 36, "失败前 36 章已提交（立即落盘的收益）");
-    assert!(!asm.has_committed("SEC-0037"), "失败章未提交（下次续跑从此章重来）");
-    // 状态面：失败章停在 DRAFTING（推进到了生成前——合法中态，非半提交）
-    assert_eq!(store.sections()[36].status, SectionStatus::Drafting);
+    let sleeps: std::cell::RefCell<Vec<u64>> = std::cell::RefCell::new(Vec::new());
+    let report = bid_tools::assembly::assemble_all_with_policy(
+        &mut store, &mut asm,
+        &mut |node| {
+            if node.id == "SEC-0037" {
+                Err(format!("第 37 章生成器故障（模拟 LLM 超时）：{}", node.id))
+            } else {
+                deterministic_gen(node)
+            }
+        },
+        &bid_tools::assembly::DraftPolicy { retries: 3, backoff_base_ms: 500 },
+        &|ms| sleeps.borrow_mut().push(ms),
+    ).unwrap();
+    // —— 不阻塞面：其余 499 章全部提交，仅 37 章 FAILED ——
+    assert_eq!(report.chapters_total, 500);
+    assert_eq!(report.chapters_generated, 499, "失败章不阻塞其他章");
+    assert_eq!(report.chapters_skipped, 0);
+    assert_eq!(report.failed.len(), 1, "最终报告：恰好 1 章需人工处理");
+    let f = &report.failed[0];
+    assert_eq!(f.section_id, "SEC-0037");
+    assert_eq!(f.attempts, 4, "首试 + 3 次重试 = 4 次尝试");
+    assert!(f.error.contains("SEC-0037"), "错误原文透传: {}", f.error);
+    // —— 指数退避序列：500/1000/2000（第 k 次重试前 base × 2^(k-1)）——
+    assert_eq!(*sleeps.borrow(), vec![500, 1000, 2000], "指数退避序列");
+    // —— 域状态：失败章 FAILED（一等结果，非「停在 DRAFTING 靠猜」）——
+    assert_eq!(store.sections()[36].status, SectionStatus::Failed);
+    assert_eq!(
+        store.sections().iter().filter(|n| n.status == SectionStatus::Failed).count(),
+        1, "全树恰好 1 个 FAILED",
+    );
+    assert!(!asm.has_committed("SEC-0037"), "失败章未提交（续跑从此章重来）");
+    // —— failed.json 边车：错误明细在位 ——
+    let failed_map = asm.failed_records();
+    assert_eq!(failed_map.len(), 1);
+    assert_eq!(failed_map["SEC-0037"].attempts, 4);
+    assert!(failed_map["SEC-0037"].error.contains("SEC-0037"));
 
-    // 修复 generator 后全量续跑 → 从 37 章续跑完成 500
+    // 修复 generator 后续跑 → 只补第 37 章（首轮不阻塞已提交 499——新语义
+    // 的断点面从「36 已提交 + 464 待跑」变为「499 已提交 + 1 待补」）
     let mut store2 = store_with_500_chapters();
     let mut asm2 = ChapterAssembler::open(&dir).unwrap();
     let mut gen_calls2 = 0usize;
@@ -362,11 +380,81 @@ fn generator_failure_leaves_no_commit() {
         gen_calls2 += 1;
         deterministic_gen(node)
     }).unwrap();
-    assert_eq!(report.chapters_generated, 464, "从第 37 章续跑（500 - 36）");
-    assert_eq!(report.chapters_skipped, 36, "前 36 章不重跑");
-    assert_eq!(gen_calls2, 464, "前 36 章零重生成（token 不含重复）");
+    assert_eq!(report.chapters_generated, 1, "只补第 37 章（其余 499 已提交）");
+    assert_eq!(report.chapters_skipped, 499, "499 章零重生成（token 不含重复）");
+    assert_eq!(gen_calls2, 1, "generator 恰好 1 次调用");
     assert_eq!(asm2.committed_count(), 500, "最终 500 章在位");
+    assert!(report.failed.is_empty(), "修复后零失败");
+    // 恢复即抹痕：failed.json 中 SEC-0037 被清除
+    assert!(!asm2.failed_records().contains_key("SEC-0037"));
+    // FAILED → DRAFTED 的域推进（重试成功链）
+    assert_eq!(store2.sections()[36].status, SectionStatus::Drafted);
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// 瞬时故障面：第 37 章前 2 次失败第 3 次成功 → 退避 2 次后该章正常提交，
+/// 零 FAILED 零报告失败（重试的价值面）。
+#[test]
+fn transient_failure_recovers_within_retries() {
+    let dir = temp_dir("transient");
+    let mut store = store_with_500_chapters();
+    let mut asm = ChapterAssembler::open(&dir).unwrap();
+    let sleeps: std::cell::RefCell<Vec<u64>> = std::cell::RefCell::new(Vec::new());
+    let report = bid_tools::assembly::assemble_all_with_policy(
+        &mut store, &mut asm,
+        &mut |node| {
+            if node.id == "SEC-0037" {
+                thread_local_attempts(&node.id, 2, || deterministic_gen(node))
+            } else {
+                deterministic_gen(node)
+            }
+        },
+        &bid_tools::assembly::DraftPolicy { retries: 3, backoff_base_ms: 100 },
+        &|ms| sleeps.borrow_mut().push(ms),
+    ).unwrap();
+    assert_eq!(report.chapters_generated, 500, "全部提交（瞬时故障被重试吸收）");
+    assert!(report.failed.is_empty(), "零失败章");
+    assert_eq!(store.sections()[36].status, SectionStatus::Drafted);
+    assert_eq!(*sleeps.borrow(), vec![100, 200], "两次退避（100/200）后成功");
+    assert!(asm.failed_records().is_empty(), "无失败边车");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// 退避上限防御：retries=0 → 单次尝试无退避即 FAILED（策略可关重试）。
+#[test]
+fn zero_retry_policy_fails_fast() {
+    let dir = temp_dir("noretry");
+    let mut store = store_with_500_chapters();
+    let mut asm = ChapterAssembler::open(&dir).unwrap();
+    let sleeps: std::cell::RefCell<Vec<u64>> = std::cell::RefCell::new(Vec::new());
+    let report = bid_tools::assembly::assemble_all_with_policy(
+        &mut store, &mut asm,
+        &mut |node| {
+            if node.id == "SEC-0001" { Err("boom".into()) } else { deterministic_gen(node) }
+        },
+        &bid_tools::assembly::DraftPolicy { retries: 0, backoff_base_ms: 500 },
+        &|ms| sleeps.borrow_mut().push(ms),
+    ).unwrap();
+    assert_eq!(report.failed.len(), 1);
+    assert_eq!(report.failed[0].attempts, 1, "retries=0 → 单次尝试");
+    assert!(sleeps.borrow().is_empty(), "无退避");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// 章内计数夹具：同章前 `fail_times` 次返回 Err，之后转成功。
+fn thread_local_attempts(id: &str, fail_times: usize, ok: impl FnOnce() -> Result<String, String>) -> Result<String, String> {
+    use std::cell::RefCell;
+    thread_local! {
+        static COUNTS: RefCell<std::collections::HashMap<String, u32>> = RefCell::new(Default::default());
+    }
+    let key = id.to_string();
+    let cur = COUNTS.with(|c| {
+        let mut m = c.borrow_mut();
+        let n = m.get(&key).copied().unwrap_or(0) + 1;
+        m.insert(key.clone(), n);
+        n
+    });
+    if (cur as usize) <= fail_times { Err(format!("第 {cur} 次瞬时故障")) } else { ok() }
 }
 
 /// 字节稳定面（跳过路径不触碰已完成章）：首轮全量跑完后快照全部 500 个

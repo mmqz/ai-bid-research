@@ -15,8 +15,9 @@ fn call(tool: &str, args: serde_json::Value) -> bid_mcp::ToolReply {
 
 #[test]
 fn tool_names_are_the_contract_twelve() {
-    // V3-5（S-4）：8+1+2 = 11；#42 阶段 10 增 save_version = 12
-    assert_eq!(TOOL_NAMES.len(), 12, "工具面必须恰为 12 个（8+1+2 契约 + save_version——issue #42 阶段 10）");
+    // V3-5（S-4）：8+1+2 = 11；#42 阶段 10 增 save_version = 12；
+    // #68 阶段 2 增 check_bid_quality = 13
+    assert_eq!(TOOL_NAMES.len(), 13, "工具面必须恰为 13 个（8+1+2 契约 + save_version + check_bid_quality）");
     for name in TOOL_NAMES {
         assert!(!name.is_empty());
     }
@@ -94,7 +95,7 @@ fn json_roundtrip_failure_is_typed() {
 fn tools_schema_lists_all_twelve() {
     let v = bid_mcp::tools_schema();
     let arr = v["tools"].as_array().unwrap();
-    assert_eq!(arr.len(), 12);
+    assert_eq!(arr.len(), 13);
     let implemented: Vec<&str> = arr
         .iter()
         .filter(|t| t["implemented"] == true)
@@ -102,6 +103,7 @@ fn tools_schema_lists_all_twelve() {
         .collect();
     // B-1：create/import；B5：extract/matrix；V3-5（S-4）：list_evidence/list_tasks；
     // #59 阶段 1+2：draft_response_section / export_bid_document；
+    // #68 阶段 2：check_bid_quality；
     // + get_bid_project_state（TOOL_NAMES 声明序）——工具落地时本清单同步
     // 收缩，防骨架与实现脱钩
     assert_eq!(
@@ -117,6 +119,7 @@ fn tools_schema_lists_all_twelve() {
             "validate_bid_document",
             "export_bid_document",
             "get_bid_project_state",
+            "check_bid_quality",
         ]
     );
 }

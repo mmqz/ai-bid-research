@@ -123,6 +123,8 @@ fn describe(name: &str) -> &'static str {
         "validate_bid_document" => "双层校验（确定性规则 + 模型复核）",
         "export_bid_document" => "导出（含暗标模式）",
         "get_bid_project_state" => "只读：项目状态与 allowed_next_tools",
+        "save_version" => "AI 主动存版本快照（mang-snap 同源）",
+        "check_bid_quality" => "只读：生成质量覆盖度检查 + 报告落盘（#68 阶段 2）",
         _ => "unknown",
     }
 }
@@ -140,5 +142,6 @@ fn is_implemented(name: &str) -> bool {
             | "draft_response_section"
             | "export_bid_document"
             | "validate_bid_document"
+            | "check_bid_quality"
     )
 }

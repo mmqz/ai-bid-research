@@ -47,6 +47,18 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// 章节工作区子目录名（`{dir}/chapters/{section_id}.json`）。
 pub const CHAPTERS_SUBDIR: &str = "chapters";
 
+/// 失败边车文件名（`{dir}/failed.json`——#68 阶段 2）。
+const FAILED_SIDECAR: &str = "failed.json";
+
+/// 失败章边车记录（「需人工处理」的持久化面——错误原文/尝试次数/时间）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FailedRecord {
+    pub attempts: u32,
+    pub error: String,
+    /// 最后失败时间（unix 秒）。
+    pub last_at: u64,
+}
+
 /// 单章落盘记录（S-2 规格：content + char_count + attempt + citations + 时间戳）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ChapterRecord {
@@ -76,11 +88,6 @@ pub enum AssemblerError {
     Corrupt { path: PathBuf, why: String },
     /// 引用了章节树里不存在的 section_id（幽灵章——半个工作区）
     GhostSection { section_id: String },
-    /// 章节生成失败（generator 返回 Err——该章未提交，下次续跑从此章重来）。
-    /// 规格枚举面之外的补充变体：assemble_all 必须把 generator 失败透传为
-    /// typed 错误，而既有变体无一可承载（Domain 只装 bid_domain::ToolError
-    /// 的域裁决错——生成失败不是状态机拒绝）。
-    Generator { section_id: String, why: String },
     /// 状态机拒绝（透传 bid_domain::ToolError）
     Domain(ToolError),
 }
@@ -98,10 +105,6 @@ impl std::fmt::Display for AssemblerError {
             AssemblerError::GhostSection { section_id } => write!(
                 f,
                 "已提交章 {section_id} 不在当前章节树中（幽灵章——重开纲后旧工作区不匹配，显式报错不猜测）"
-            ),
-            AssemblerError::Generator { section_id, why } => write!(
-                f,
-                "章节 {section_id} 生成失败（未提交——下次续跑从此章重来）: {why}"
             ),
             AssemblerError::Domain(e) => write!(f, "域状态机拒绝: {e:?}"),
         }
@@ -222,6 +225,36 @@ impl ChapterAssembler {
     }
 
     /// 该章是否已提交（断点续跑的跳过判据——assemble_all 消费面）。
+    /// 失败边车全量（check_bid_quality 的报告素材——workspace 不在场则空）。
+    pub fn failed_records(&self) -> BTreeMap<String, FailedRecord> {
+        read_failed_sidecar(&self.dir)
+    }
+
+    /// 记失败章（#68 阶段 2——重试耗尽时；tmp+rename 原子写）。
+    pub fn record_failed(&mut self, section_id: &str, attempts: u32, error: &str) {
+        let mut m = read_failed_sidecar(&self.dir);
+        m.insert(
+            section_id.to_string(),
+            FailedRecord {
+                attempts,
+                error: error.to_string(),
+                last_at: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0),
+            },
+        );
+        let _ = write_failed_sidecar(&self.dir, &m); // 尽力而为（诊断面不阻断主流程）
+    }
+
+    /// 清失败章（成功提交时调用——恢复即抹痕）。
+    pub fn clear_failed(&mut self, section_id: &str) {
+        let mut m = read_failed_sidecar(&self.dir);
+        if m.remove(section_id).is_some() {
+            let _ = write_failed_sidecar(&self.dir, &m);
+        }
+    }
+
     pub fn has_committed(&self, section_id: &str) -> bool {
         self.records.contains_key(section_id)
     }
@@ -324,7 +357,7 @@ impl ChapterAssembler {
 // ---------------------------------------------------------------- 组装驱动（与 DomainStore 联动）
 
 /// 组装报告（对账面——一轮 assemble_all 的增量账）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AssemblyReport {
     /// 树中叶节点总数
     pub chapters_total: usize,
@@ -332,8 +365,37 @@ pub struct AssemblyReport {
     pub chapters_generated: usize,
     /// 断点续跑跳过的已完成章（不重跑——总 token 不含重复生成的结构保证）
     pub chapters_skipped: usize,
+    /// 重试耗尽后标记 FAILED 的章（#68 阶段 2——不阻塞其他章，最终报告面）
+    pub failed: Vec<FailedChapter>,
     /// 全部已提交章字数和（u64——500 章 × 2,000 字 = 1e6 量级，u32 余量四千倍）
     pub total_chars: u64,
+}
+
+/// 失败章明细（#68 阶段 2——「哪些章需要人工处理」的数据面）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct FailedChapter {
+    pub section_id: String,
+    /// 总尝试次数（首试 + 重试）
+    pub attempts: u32,
+    /// 最后一次错误原文
+    pub error: String,
+}
+
+/// 单章生成失败策略（#68 阶段 2 §2.2：重试 3 次指数退避）。
+///
+/// - `retries`：首试失败后的重试次数（默认 3——总尝试 = 1 + retries）；
+/// - `backoff_base_ms`：退避基数（第 k 次重试前睡 base × 2^(k-1)——
+///   500/1000/2000ms；测试注入零耗时 sleeper）。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DraftPolicy {
+    pub retries: u32,
+    pub backoff_base_ms: u64,
+}
+
+impl Default for DraftPolicy {
+    fn default() -> Self {
+        Self { retries: 3, backoff_base_ms: 500 }
+    }
 }
 
 /// 全量组装驱动：按文档序逐叶「OUTLINING→DRAFTING→生成→提交→DRAFTED」。
@@ -345,8 +407,9 @@ pub struct AssemblyReport {
 /// - 未提交章 → 逐级推进到 DRAFTING → generator → **commit_section 立即
 ///   落盘** → 推进 DRAFTED（先持久化后改状态——死在中间最多丢一次状态推进，
 ///   章内容已安全）；
-/// - generator 失败 → 立即返回 [`AssemblerError::Generator`]（该章未提交，
-///   下次续跑从此章重来）；
+/// - generator 失败 → 重试（首试 + 策略重试，指数退避）→ 耗尽标记
+///   `FAILED` + failed.json 边车 + **继续下一章**（#68 阶段 2——报告面
+///   `failed` 即「需人工处理清单」；Err 只留给工作区/域层真故障）；
 /// - 已提交记录不在树中 → [`AssemblerError::GhostSection`] 拒（同 resume_plan
 ///   语义——重开纲后的旧工作区显式报错）。
 ///
@@ -358,6 +421,29 @@ pub fn assemble_all(
     store: &mut DomainStore,
     asm: &mut ChapterAssembler,
     gen: &mut dyn FnMut(&OutlineNode) -> Result<String, String>,
+) -> Result<AssemblyReport, AssemblerError> {
+    // 生产策略：3 次重试 × 500ms 基数指数退避（真实睡眠）
+    assemble_all_with_policy(store, asm, gen, &DraftPolicy::default(), &|ms| {
+        std::thread::sleep(std::time::Duration::from_millis(ms));
+    })
+}
+
+/// 带注入策略的组装主循环（#68 阶段 2 §2.2——测试注零耗时 sleeper）。
+///
+/// 失败语义（对旧「立即报错」的替换，issue 原文「失败就失败」→「重试 3 次
+/// 退避；仍失败标记 FAILED 不阻塞其他章节」）：
+/// - 单章：首试 + `policy.retries` 次重试（指数退避）；耗尽 → 域状态推
+///   `FAILED` + failed.json 边车记错误明细 + **继续下一章**；
+/// - 全部跑完后 report.failed 即「需人工处理清单」——非 Err（Err 只保留给
+///   工作区/域层真故障：GhostSection/Corrupt/Domain）；
+/// - FAILED 章未提交（S-2 语义不变）——续跑/修复后从此章重来；成功提交
+///   时同步清 failed.json 对应条目（恢复即抹痕）。
+pub fn assemble_all_with_policy(
+    store: &mut DomainStore,
+    asm: &mut ChapterAssembler,
+    gen: &mut dyn FnMut(&OutlineNode) -> Result<String, String>,
+    policy: &DraftPolicy,
+    sleep: &dyn Fn(u64),
 ) -> Result<AssemblyReport, AssemblerError> {
     // 幽灵章防御：每条已提交记录必须都在当前树中（旧工作区遇新树——显式拒）
     let tree_ids: HashSet<&str> = store.sections().iter().map(|n| &n.id[..]).collect();
@@ -381,6 +467,7 @@ pub fn assemble_all(
         chapters_total: leaves.len(),
         chapters_generated: 0,
         chapters_skipped: 0,
+        failed: Vec::new(),
         total_chars: 0,
     };
     for leaf in &leaves {
@@ -391,14 +478,35 @@ pub fn assemble_all(
         } else {
             advance_to(store, &leaf.id, SectionStatus::Outlining).map_err(AssemblerError::Domain)?;
             advance_to(store, &leaf.id, SectionStatus::Drafting).map_err(AssemblerError::Domain)?;
-            let content = gen(leaf).map_err(|why| AssemblerError::Generator {
-                section_id: leaf.id.clone(),
-                why,
-            })?;
-            // 唯一持久化点：先落盘后推进状态（顺序不可换——见模块头）
-            asm.commit_section(&leaf.id, &content, leaf.requirement_ids.clone())?;
-            advance_to(store, &leaf.id, SectionStatus::Drafted).map_err(AssemblerError::Domain)?;
-            report.chapters_generated += 1;
+            // #68 阶段 2 §2.2：首试 + retries 次重试（指数退避）——耗尽标记
+            // FAILED 继续，不阻塞后续章
+            let (content, attempts, last_err) = draft_with_retry(leaf, gen, policy, sleep);
+            match content {
+                Some(c) => {
+                    // 唯一持久化点：先落盘后推进状态（顺序不可换——见模块头）
+                    asm.commit_section(&leaf.id, &c, leaf.requirement_ids.clone())?;
+                    asm.clear_failed(&leaf.id);
+                    advance_to(store, &leaf.id, SectionStatus::Drafted)
+                        .map_err(AssemblerError::Domain)?;
+                    report.chapters_generated += 1;
+                }
+                None => {
+                    // 重试耗尽：FAILED 标记（幂等——已在 FAILED 则跳过推进）+
+                    // 边车记错误明细；**继续下一章**（不阻塞面）
+                    let cur = store.sections().iter()
+                        .find(|n| n.id == leaf.id).map(|n| n.status);
+                    if cur != Some(SectionStatus::Failed) {
+                        store.advance_section_status(&leaf.id, SectionStatus::Failed)
+                            .map_err(AssemblerError::Domain)?;
+                    }
+                    asm.record_failed(&leaf.id, attempts, &last_err);
+                    report.failed.push(FailedChapter {
+                        section_id: leaf.id.clone(),
+                        attempts,
+                        error: last_err,
+                    });
+                }
+            }
         }
     }
     // 字数账：工作区全量已提交章（幽灵已在入口拒——账面即树内账面）
@@ -416,7 +524,9 @@ fn status_rank(s: SectionStatus) -> u8 {
     match s {
         Pending => 0,
         Outlining => 1,
-        Drafting => 2,
+        // FAILED 与 DRAFTING 同位（生成的双结果分支——成功走 DRAFTED，失败
+        // 走 FAILED；advance_to 的前向补齐对两者语义一致：已到/已过即 no-op）
+        Drafting | Failed => 2,
         Drafted => 3,
         Validating => 4,
         Revising => 5,
@@ -429,6 +539,9 @@ fn status_rank(s: SectionStatus) -> u8 {
 fn step_forward(s: SectionStatus) -> Option<SectionStatus> {
     use SectionStatus::*;
     match s {
+        // 失败章的前向一步：先回 DRAFTING（next_allowed(Failed)=[Drafting]
+        // 的合法链），再由 DRAFTING→DRAFTED——advance_to 循环自动走完
+        Failed => Some(Drafting),
         Pending => Some(Outlining),
         Outlining => Some(Drafting),
         Drafting => Some(Drafted),
@@ -455,6 +568,55 @@ fn advance_to(store: &mut DomainStore, id: &str, target: SectionStatus) -> Resul
         match step_forward(cur) {
             Some(next) => store.advance_section_status(id, next)?,
             None => return Ok(()), // 理论不可达（rank 守卫）——防御性收口
+        }
+    }
+}
+
+
+// ---------------------------------------------------------------- #68 阶段 2 辅助
+
+/// failed.json 读（缺失/损坏 → 空表——诊断面 fail-open，主流程已掌握失败）。
+fn read_failed_sidecar(dir: &Path) -> BTreeMap<String, FailedRecord> {
+    std::fs::read_to_string(dir.join(FAILED_SIDECAR))
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
+}
+
+/// failed.json 原子写（tmp + rename——与 commit_section 同纪律）。
+fn write_failed_sidecar(dir: &Path, m: &BTreeMap<String, FailedRecord>) -> Result<(), String> {
+    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    let path = dir.join(FAILED_SIDECAR);
+    let tmp = dir.join("failed.json.tmp");
+    let body = serde_json::to_string_pretty(m).map_err(|e| e.to_string())?;
+    std::fs::write(&tmp, body).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
+}
+
+/// 单章生成 + 重试（首试 + policy.retries 次指数退避重试）。
+///
+/// 返回 (Some(content), attempts, err) 成功；耗尽返回 (None, attempts, 最后错误)。
+fn draft_with_retry(
+    leaf: &OutlineNode,
+    gen: &mut dyn FnMut(&OutlineNode) -> Result<String, String>,
+    policy: &DraftPolicy,
+    sleep: &dyn Fn(u64),
+) -> (Option<String>, u32, String) {
+    let mut attempts = 0u32;
+    let mut last_err = String::new();
+    loop {
+        attempts += 1;
+        match gen(leaf) {
+            Ok(c) => return (Some(c), attempts, last_err),
+            Err(e) => {
+                last_err = e;
+                if attempts > policy.retries {
+                    return (None, attempts, last_err);
+                }
+                // 指数退避：base × 2^(k-1)（500/1000/2000ms @ 默认）
+                let backoff = policy.backoff_base_ms << (attempts - 1).min(16);
+                sleep(backoff);
+            }
         }
     }
 }

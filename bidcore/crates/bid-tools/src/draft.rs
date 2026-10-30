@@ -441,6 +441,20 @@ impl super::service::BidService {
             strip_unknown_citations(&draft.content, &unknown)
         };
 
+        // ---- 3.5 覆盖度自动检查（#68 阶段 2 §2.1——响应面 REQ 未被正文
+        //      引用回应 → warning 即时告警；不拒稿——补写/重起草是上游决策）
+        let cited_ids = scan_citations(&content);
+        let cited_now: HashSet<&str> = cited_ids.iter().map(|s| &s[..]).collect();
+        let uncovered_requirements: Vec<String> = input.requirements.iter()
+            .filter(|r| !cited_now.contains(&r.id[..]))
+            .map(|r| r.id.clone())
+            .collect();
+        for rid in &uncovered_requirements {
+            warnings.push(format!(
+                "覆盖度：{rid} 未被本章正文回应——人工补写或重起草"
+            ));
+        }
+
         // ---- 4. CAS 写入（同内容 no-op——幂等面）
         let (attempt, chars) = self.store_mut().set_section_content(section_id, content.clone())?;
 
@@ -473,6 +487,7 @@ impl super::service::BidService {
             chars,
             citations: valid,
             unanchored_claims: count_unanchored_claims(&content),
+            uncovered_requirements,
             warnings,
             instructions: instructions.map(str::to_string),
             content,
@@ -489,6 +504,8 @@ pub struct DraftOutcome {
     /// 回查后的有效引用（REQ+EV 混合清单，保序）
     pub citations: Vec<String>,
     pub unanchored_claims: usize,
+    /// 响应面内未被正文回应的 REQ（#68 阶段 2 §2.1 覆盖度面）
+    pub uncovered_requirements: Vec<String>,
     pub warnings: Vec<String>,
     pub instructions: Option<String>,
     pub content: String,
@@ -505,6 +522,8 @@ fn advance_section_to_drafted(store: &mut DomainStore, section_id: &str) -> Resu
         Pending => &[Outlining, Drafting, Drafted],
         Outlining => &[Drafting, Drafted],
         Drafting => &[Drafted],
+        // 失败章重起草（#68 阶段 2）：FAILED 经 Drafting 回到正轨
+        Failed => &[Drafting, Drafted],
         Drafted | Validating | Revising | Accepted => &[],
     };
     for to in steps {

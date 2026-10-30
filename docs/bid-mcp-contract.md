@@ -102,7 +102,9 @@ in : { project_id, section_id? | spec:{title, order, parent_id?, toc_ref}, instr
        source_requirements:[REQ-*], evidence_ids:[EV-*], style_profile?, project_version,
        generator?:"auto"|"mock"|"real" }        ← #68 阶段 1（缺省 auto）
 out: { section_id, content_ref:"DOC-*", version, stats:{words, citations, unanchored_claims:0,
-       generator:"real"|"mock"}, warnings[] }    ← stats.generator 标记实际使用的生成器
+       generator:"real"|"mock", uncovered_requirements:[REQ-*]}, warnings[] }
+     ← stats.generator 标记实际生成器；uncovered_requirements = 覆盖度自动检查
+       （#68 阶段 2 §2.1——响应面内未被正文回应的 REQ，逐条另发 warning）
 幂等: (section_id, instructions_hash, inputs_version) 相同 → no-op 返回原稿
 前置: 矩阵 READY（资格/否决行 policy 已填）；EV 状态 OK（EXPIRED 拒绝绑定→E_UNPROCESSABLE）；
      引用的 REQ 必须在 depends_on 中
@@ -137,6 +139,26 @@ out: { artifact:{url, sha256, size}, content_version_snapshot, precheck:{blocker
 ```
 
 ---
+
+## 9. check_bid_quality（#68 阶段 2 新增——只读诊断）
+```
+in : { project_id }
+out: { project_id, summary:{total, drafted, failed, pending, uncovered_req_total, out_of_band,
+       unanchored_total}, needs_human:[SEC-*], sections:[{section_id, title, status, chars,
+       target_chars, within_band, covered_reqs, uncovered_reqs, ghost_reqs, cited_evs,
+       uncited_evs, unknown_citations, unanchored_claims, error, needs_human}],
+       artifact:{path, size}|null, warnings[] }
+前置: MATRIX_READY+（起草中即可查进度）；章节树已建
+语义: 只读诊断（D2 同款——报告是导数不是源数据）：
+     - 覆盖度：响应面 REQ 是否被正文引用回应（未起草章不计——pending 计数单列）；
+     - EV 核对：幻觉引用单列（unknown_citations）；绑定集未援引单列（信息面）；
+     - 带宽：target_chars ±20%（target=0 或未起草不评——within_band:null）；
+     - needs_human 判定：FAILED / 有未覆盖 REQ / 幻觉引用 / 带外字数；
+     - FAILED 章错误明细从 S-2 的 failed.json 边车并入（assembler 在场时）；
+     - 落盘：{workspace}/artifacts/quality-report.json（workspace 在场；纯内存态
+       artifact:null + 告警）。
+状态: 不推状态（只读）
+```
 
 ## 附录 A：KBAdapter（知识库适配器接口）
 

@@ -137,5 +137,6 @@ fn is_implemented(name: &str) -> bool {
             | "get_compliance_matrix"
             | "list_evidence"
             | "list_tasks"
+            | "draft_response_section"
     )
 }

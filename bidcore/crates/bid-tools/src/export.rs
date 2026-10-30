@@ -559,6 +559,7 @@ mod tests {
             target_chars: 100,
             status: SectionStatus::Drafted,
             dirty: false,
+            content: None, content_attempt: 0,
         };
         // 正常态：根 A(order 1) → 子 A1(order 3)、A2(order 2)；根 B(order 4)。
         // A2 的 order < A1 但同为 A 的子——兄弟序按 order：A1 前还是后？

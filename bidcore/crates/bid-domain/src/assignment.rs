@@ -255,6 +255,8 @@ mod tests {
             target_chars: 2000,
             status: SectionStatus::Pending,
             dirty: false,
+            content: None,
+            content_attempt: 0,
         }).collect();
         s.set_outline(nodes).unwrap();
         s

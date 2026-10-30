@@ -41,11 +41,12 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         // ---- S-4 大结果分页（V3-5）：只读列表工具，游标信封见 cursor.rs ----
         "list_evidence" => list_evidence(svc, args),
         "list_tasks" => list_tasks(svc, args),
+        // ---- #59 阶段 1：单章起草（契约 §6——mock 生成 + 引用回查 + CAS 写入）----
+        "draft_response_section" => draft_response_section(svc, args),
         // ---- M0 骨架：以下工具待各自里程碑接线 ----
         "search_evidence" => Err(ToolError::unimplemented(name, "M2-b（双通道检索——落地时必须走 cursor.rs 游标模块）")),
-        "draft_response_section" => Err(ToolError::unimplemented(name, "M3（起草 + 内核 CAS 写入）")),
-        "validate_bid_document" => Err(ToolError::unimplemented(name, "M4（规则注册表）")),
-        "export_bid_document" => Err(ToolError::unimplemented(name, "M5（内核导出适配器）")),
+        "validate_bid_document" => Err(ToolError::unimplemented(name, "M4（规则注册表——#59 阶段 3）")),
+        "export_bid_document" => Err(ToolError::unimplemented(name, "M5（内核导出适配器——#59 阶段 2，依赖 format-spec）")),
         other => Err(ToolError::ENotFound {
             what: format!("未接入的工具 {other}"),
         }),
@@ -933,4 +934,124 @@ fn save_version(args: Value) -> ToolResult {
         "workspace": root.display().to_string(),
         "hint": "版本已存入 .mang/history；桌面壳「改动」面板可见（AI 徽章），支持预览/对比/回滚",
     }))
+}
+
+// ---------------------------------------------------------------- §6 draft_response_section（#59 阶段 1）
+
+/// `draft_response_section` —— 单章起草（契约 §6 + Lead #59 重排指令）。
+///
+/// 壳层职责（薄壳纪律）：参数校验 → 项目路由（E_NOTFOUND）→ 状态机裁决
+/// （guard_tool——MatrixReady+，E_STATE）→ 乐观并发（E_CONFLICT）→ 幂等
+/// 前置（(section_id, instructions_hash, content_version) 命中 → 直返首次
+/// 结果）→ 转发 `BidService::draft_section` → 契约 §6 out 组装。
+///
+/// 生成器：**mock 确定性生成**（无 API key 的 e2e 面——Lead「无 key 时用
+/// mock，否则 e2e 跑不了」）。真实 AI 面经 `SectionGenerator` trait 注入
+/// （后续独立 PR 接 LLM 通路），本壳不感知生成器差异。
+fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "draft_response_section";
+    // ---- 参数校验（契约 §6 in）
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let section_id = req_str(&args, "section_id", TOOL)?;
+    let instructions = opt_str(&args, "instructions", TOOL)?;
+    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    // source_requirements / evidence_ids：字符串数组（缺省 = 章节绑定集 / 矩阵绑定集）
+    let req_ids = opt_str_array(&args, "source_requirements", TOOL)?;
+    let ev_ids = opt_str_array(&args, "evidence_ids", TOOL)?;
+
+    // ---- 项目路由 + 状态机裁决 + 乐观并发
+    let proj = svc.store().project().map_err(ToolError::from)?;
+    if proj.id != project_id {
+        return Err(ToolError::ENotFound {
+            what: format!("project 不存在：{project_id}（当前服务态项目：{}）", proj.id),
+        });
+    }
+    svc.store().guard_tool(TOOL).map_err(ToolError::from)?;
+    let version = svc.store().check_version(project_version).map_err(ToolError::from)?;
+
+    // ---- 前置：章节树必须已建（无纲即无起草对象——契约 §6 前置的本地化）
+    if svc.store().sections().is_empty() {
+        return Err(ToolError::EState {
+            what: format!("{} 态无章节树——先经 store 推导大纲（derive_and_set_outline）再起草", proj.status.as_str()),
+        });
+    }
+
+    // ---- 幂等前置：(section_id, instructions_hash, content_version) 命中 → 直返首次结果
+    let ikey = format!("draft:{section_id}:{}", instructions_hash(instructions.as_deref()));
+    if let Some(first) = svc.store().idempotent_hit(&ikey).cloned() {
+        // 重放不带 project_version 检查面（version 已在上面对账）——直返
+        let mut out = first;
+        if let Some(o) = out.as_object_mut() {
+            o.insert("deduplicated".into(), json!(true));
+        }
+        return Ok(out);
+    }
+
+    // ---- 转发业务（bid-tools service::draft_section——生成/回查/CAS/落盘/推进）
+    let mut gen = bid_tools::draft::MockGenerator;
+    let outcome = svc.draft_section(
+        &section_id,
+        req_ids.as_deref(),
+        ev_ids.as_deref(),
+        instructions.as_deref(),
+        &mut gen,
+    ).map_err(ToolError::from)?;
+
+    // ---- 契约 §6 out 组装
+    let out = json!({
+        "section_id": outcome.section_id,
+        "content_ref": format!("DOC-{}-v{}", section_id, outcome.attempt),
+        "version": outcome.attempt,
+        "stats": {
+            "words": outcome.chars,
+            "citations": outcome.citations.len(),
+            "cited_ids": outcome.citations,
+            "unanchored_claims": outcome.unanchored_claims,
+        },
+        "section_status": "DRAFTED",
+        "project_status": svc.store().project().map(|p| p.status.as_str()).unwrap_or("UNKNOWN"),
+        "project_version": svc.store().content_version(),
+        "warnings": outcome.warnings,
+        "request_id": next_request_id(),
+    });
+    // 幂等登记（重放面——content_version 已含本次写入的 bump，重放不重执行）
+    let _ = version;
+    svc.store_mut().record_idempotent(ikey, out.clone());
+    Ok(out)
+}
+
+/// 可选字符串数组参数（缺省/null → None；非数组或含非字符串 → 拒）。
+fn opt_str_array(v: &Value, key: &str, at: &str) -> Result<Option<Vec<String>>, ToolError> {
+    match v.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Array(a)) => {
+            let mut out = Vec::with_capacity(a.len());
+            for item in a {
+                match item.as_str() {
+                    Some(s) => out.push(s.to_string()),
+                    None => return Err(ToolError::EUnprocessable {
+                        what: format!("{at}: {key} 须为字符串数组"),
+                    }),
+                }
+            }
+            Ok(Some(out))
+        }
+        Some(_) => Err(ToolError::EUnprocessable {
+            what: format!("{at}: {key} 须为字符串数组"),
+        }),
+    }
+}
+
+/// instructions 的稳定哈希（幂等键素材——sha256 前 16 位十六进制）。
+fn instructions_hash(s: Option<&str>) -> String {
+    use sha2::{Digest, Sha256};
+    use std::fmt::Write;
+    let mut h = Sha256::new();
+    h.update(s.unwrap_or("").as_bytes());
+    let d = h.finalize();
+    let mut hex = String::with_capacity(16);
+    for b in &d[..8] {
+        let _ = write!(hex, "{b:02x}");
+    }
+    hex
 }

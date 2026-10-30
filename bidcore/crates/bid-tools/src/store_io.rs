@@ -78,6 +78,12 @@ pub struct StoreFile {
 }
 
 impl StoreFile {
+    /// 存储目录（工作区锚点——`db.json`、`chapters/`、导出产物共用根）。
+    #[must_use]
+    pub fn dir(&self) -> &Path {
+        &self.dir
+    }
+
     pub fn new(dir: impl AsRef<Path>) -> Self {
         StoreFile { dir: dir.as_ref().to_path_buf() }
     }

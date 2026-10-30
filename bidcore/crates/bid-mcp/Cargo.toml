@@ -21,6 +21,9 @@ serde_json = { workspace = true }
 # S-4 游标分页：opaque cursor 的 base64 线格式（0.22 已在 workspace 锁内——
 # zip/calamine 传递依赖，零新增网络取数；直连声明同 bid-engine 的 sha2 先例）
 base64 = "0.22"
+# #59 阶段 1：draft_response_section 的幂等键（instructions_hash）——
+# workspace 锁内既有版本（bid-tools 同款直连声明先例）
+sha2 = { workspace = true }
 
 [dev-dependencies]
 mang-snap = { path = "../mang-snap" }

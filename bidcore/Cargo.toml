@@ -27,6 +27,10 @@ libc = "0.2"
 # #68 阶段 1：真实 LLM 通路（OpenAI 兼容 chat/completions）——阻塞式
 # HTTP 客户端 + rustls（workspace 无异步栈，ureq 2 是最小三方面）。
 ureq = { version = "2", default-features = true }
+# #68 阶段 3：导出图片嵌入的格式验证/转 PNG/尺寸面（已在依赖图中——
+# docx-rs 0.4 default feature "image" 直依赖，此处提为直接依赖零新增）。
+image = "0.25"
+
 # B4（issue #11 任务 3）：zip / quick-xml / calamine / memchr 工作区条目已删——
 # docx/xlsx 解析收敛引擎（bid-engine → mdc-office-io），workspace 成员不再
 # 直接依赖 OOXML 解析栈（引擎侧依赖不入本清单）。

@@ -431,7 +431,11 @@ impl BidService {
         // ---- 3. 导出（S-6 既有面 + 选项）。pdf 面：docx 落工作区临时位 →
         //      soffice 转换（阶段 7 Lead 路线 A：LibreOffice headless 保真度
         //      最高；页眉页脚页码/中文字体嵌入均由 Writer 渲染管线承载）
-        let exporter = crate::export::DocumentExporter::new(self.store.sections());
+        // #68 阶段 3：带 evidence 台账（EV-id 图片引用的解析面）
+        let exporter = crate::export::DocumentExporter::with_evidences(
+            self.store.sections(),
+            self.store.evidences(),
+        );
         let dir = self.workspace_dir().ok_or_else(|| ToolError::EUnprocessable {
             reason: "导出需要持久化工作区（BidService::open 建立的服务态才有章内容可导）".into(),
         })?;

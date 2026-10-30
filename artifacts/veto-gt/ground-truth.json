@@ -81906,6 +81906,664 @@
    "is_veto": true,
    "category": "实质性响应否决",
    "note": "[增补轮1-S6微清扫] 16. 投标报价否决情形子项：超最高限价（双生第二处）"
+  },
+  {
+   "id": "S68-SUP-001",
+   "file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
+   "page": 0,
+   "locator": "第24页 行14",
+   "main_block_idx": 876,
+   "clause_blocks": [
+    876
+   ],
+   "text": "⑵投标人从其它单位通过转让或租借的方式获取资格或资质证书；",
+   "is_veto": true,
+   "category": "串通造假否决",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-002",
+   "file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
+   "page": 0,
+   "locator": "第24页 行15",
+   "main_block_idx": 877,
+   "clause_blocks": [
+    877
+   ],
+   "text": "⑶由其它单位及法定代表人在自己编制的投标文件上加盖印章或签字的行为。",
+   "is_veto": true,
+   "category": "串通造假否决",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-003",
+   "file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
+   "page": 0,
+   "locator": "第32页 行27",
+   "main_block_idx": 1066,
+   "clause_blocks": [
+    1066
+   ],
+   "text": "9投标总报价是否高于或等于招标控制价（即最高投标限价）；",
+   "is_veto": true,
+   "category": "资格性否决-限价",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-004",
+   "file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
+   "page": 0,
+   "locator": "第40页 行3",
+   "main_block_idx": 1330,
+   "clause_blocks": [
+    1330
+   ],
+   "text": "⑸不同投标人的投标文件相互混装；",
+   "is_veto": true,
+   "category": "串通造假否决",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-005",
+   "file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
+   "page": 0,
+   "locator": "第50页 行20",
+   "main_block_idx": 1652,
+   "clause_blocks": [
+    1652
+   ],
+   "text": "6只能有一个报价（含修正报价）；",
+   "is_veto": true,
+   "category": "实质性响应否决-审查表",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-006",
+   "file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
+   "page": 0,
+   "locator": "第51页 行10",
+   "main_block_idx": 1701,
+   "clause_blocks": [
+    1701
+   ],
+   "text": "2投标人施工项目经理未同时在两个及以上工程中担任项目经理；",
+   "is_veto": true,
+   "category": "实质性响应否决-审查表",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-007",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 0,
+   "locator": "第15页 行29",
+   "main_block_idx": 536,
+   "clause_blocks": [
+    536
+   ],
+   "text": "(2）为本标段前期准备提供设计或咨询服务的，但设计施工总承包的除外；",
+   "is_veto": true,
+   "category": "资格性否决-利害关系",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-008",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 0,
+   "locator": "第16页 行2",
+   "main_block_idx": 538,
+   "clause_blocks": [
+    538
+   ],
+   "text": "(3）为本标段的监理人；",
+   "is_veto": true,
+   "category": "资格性否决-利害关系",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-009",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 0,
+   "locator": "第16页 行3",
+   "main_block_idx": 539,
+   "clause_blocks": [
+    539
+   ],
+   "text": "(4）为本标段的代建人；",
+   "is_veto": true,
+   "category": "资格性否决-利害关系",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-010",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 0,
+   "locator": "第16页 行4",
+   "main_block_idx": 540,
+   "clause_blocks": [
+    540
+   ],
+   "text": "(5）为本标段提供招标代理服务的；",
+   "is_veto": true,
+   "category": "资格性否决-利害关系",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-011",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 0,
+   "locator": "第16页 行6",
+   "main_block_idx": 542,
+   "clause_blocks": [
+    542
+   ],
+   "text": "(7）与本标段的监理人或代建人或招标代理机构相互控股或参股的；",
+   "is_veto": true,
+   "category": "资格性否决-利害关系",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-012",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 0,
+   "locator": "第16页 行7",
+   "main_block_idx": 543,
+   "clause_blocks": [
+    543
+   ],
+   "text": "(8）与本标段的监理人或代建人或招标代理机构相互任职或工作的；",
+   "is_veto": true,
+   "category": "资格性否决-利害关系",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-013",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 0,
+   "locator": "第24页 行18",
+   "main_block_idx": 776,
+   "clause_blocks": [
+    776
+   ],
+   "text": "(4)招标人预先内定中标人；",
+   "is_veto": true,
+   "category": "串通造假否决",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-014",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 0,
+   "locator": "第24页 行26",
+   "main_block_idx": 784,
+   "clause_blocks": [
+    784
+   ],
+   "text": "(2)投标人从其它施工单位通过转让或租借的方式获取资格或资质证书；",
+   "is_veto": true,
+   "category": "串通造假否决",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-015",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 0,
+   "locator": "第24页 行27",
+   "main_block_idx": 785,
+   "clause_blocks": [
+    785
+   ],
+   "text": "(3)由其它单位及法定代表人在自己编制的投标文件上加盖印章或签字的行为。",
+   "is_veto": true,
+   "category": "串通造假否决",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-016",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 0,
+   "locator": "第34页 行9",
+   "main_block_idx": 963,
+   "clause_blocks": [
+    963
+   ],
+   "text": "2.投标文件的签名盖章符合规定；施工招标项目投标人报价文件（包括投标报价书、已标价的工程量清单和单价分析表）由已经信息登记的造价专业人员逐页签名、加盖造价执业印章",
+   "is_veto": true,
+   "category": "实质性响应否决-审查表",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-017",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 0,
+   "locator": "第35页 行3",
+   "main_block_idx": 982,
+   "clause_blocks": [
+    982
+   ],
+   "text": "3.投标人施工项目经理未同时在两个及以上工程中担任项目经理；",
+   "is_veto": true,
+   "category": "实质性响应否决-审查表",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-018",
+   "file": "A-05_伊犁州奎屯东郊水库质量检测_招标文件.pdf",
+   "page": 0,
+   "locator": "第9页 行33",
+   "main_block_idx": 282,
+   "clause_blocks": [
+    282
+   ],
+   "text": "（5）与本标段的代建人或招标代理机构相互控股或参股的；",
+   "is_veto": true,
+   "category": "资格性否决-利害关系",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-019",
+   "file": "A-05_伊犁州奎屯东郊水库质量检测_招标文件.pdf",
+   "page": 0,
+   "locator": "第25页 行17",
+   "main_block_idx": 713,
+   "clause_blocks": [
+    713
+   ],
+   "text": "5只能有一个报价（含修正报价）；",
+   "is_veto": true,
+   "category": "实质性响应否决-审查表",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-020",
+   "file": "A-05_伊犁州奎屯东郊水库质量检测_招标文件.pdf",
+   "page": 0,
+   "locator": "第37页 行24",
+   "main_block_idx": 998,
+   "clause_blocks": [
+    998
+   ],
+   "text": "（1）使用通过受让或者租借等方式获取的资格、资质证书投标的；",
+   "is_veto": true,
+   "category": "串通造假否决",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-021",
+   "file": "A-15_兰溪双峰岭水库勘察设计_招标文件.pdf",
+   "page": 0,
+   "locator": "第11页 行29",
+   "main_block_idx": 303,
+   "clause_blocks": [
+    303
+   ],
+   "text": "（2）为本标段前期准备提供设计或咨询服务的，但设计施工总承包的除外；",
+   "is_veto": true,
+   "category": "资格性否决-利害关系",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-022",
+   "file": "A-15_兰溪双峰岭水库勘察设计_招标文件.pdf",
+   "page": 0,
+   "locator": "第11页 行30",
+   "main_block_idx": 304,
+   "clause_blocks": [
+    304
+   ],
+   "text": "（3）为本标段提供招标代理服务的；",
+   "is_veto": true,
+   "category": "资格性否决-利害关系",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-023",
+   "file": "A-15_兰溪双峰岭水库勘察设计_招标文件.pdf",
+   "page": 0,
+   "locator": "第24页 行21",
+   "main_block_idx": 718,
+   "clause_blocks": [
+    718
+   ],
+   "text": "2、招标人（或招标代理机构）泄露投标人名称、数量或联系方式等应当保密的事项；",
+   "is_veto": true,
+   "category": "资格性否决-利害关系",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-024",
+   "file": "A-17_喀什噶尔河灌区信息化I标_招标文件.pdf",
+   "page": 0,
+   "locator": "第26页 行9",
+   "main_block_idx": 794,
+   "clause_blocks": [
+    794
+   ],
+   "text": "⑵招标人向投标人泄露标底；",
+   "is_veto": true,
+   "category": "串通造假否决",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-025",
+   "file": "A-17_喀什噶尔河灌区信息化I标_招标文件.pdf",
+   "page": 0,
+   "locator": "第26页 行19",
+   "main_block_idx": 804,
+   "clause_blocks": [
+    804
+   ],
+   "text": "⑵投标人从其它单位通过转让或租借的方式获取资格或资质证书；",
+   "is_veto": true,
+   "category": "串通造假否决",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-026",
+   "file": "A-17_喀什噶尔河灌区信息化I标_招标文件.pdf",
+   "page": 0,
+   "locator": "第26页 行20",
+   "main_block_idx": 805,
+   "clause_blocks": [
+    805
+   ],
+   "text": "⑶由其它单位及法定代表人在自己编制的投标文件上加盖印章或签字的行为。",
+   "is_veto": true,
+   "category": "串通造假否决",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-027",
+   "file": "A-17_喀什噶尔河灌区信息化I标_招标文件.pdf",
+   "page": 0,
+   "locator": "第26页 行25",
+   "main_block_idx": 810,
+   "clause_blocks": [
+    810
+   ],
+   "text": "⑴聘任合同必须由投标人单位与之签订；",
+   "is_veto": true,
+   "category": "资格性否决-本单位人员",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-028",
+   "file": "A-17_喀什噶尔河灌区信息化I标_招标文件.pdf",
+   "page": 0,
+   "locator": "第26页 行26",
+   "main_block_idx": 811,
+   "clause_blocks": [
+    811
+   ],
+   "text": "⑵与投标人单位有合法的工资关系；",
+   "is_veto": true,
+   "category": "资格性否决-本单位人员",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-029",
+   "file": "A-17_喀什噶尔河灌区信息化I标_招标文件.pdf",
+   "page": 0,
+   "locator": "第33页 行33",
+   "main_block_idx": 991,
+   "clause_blocks": [
+    991
+   ],
+   "text": "11投标总报价是否高于招标控制价（即最高投标限价）；",
+   "is_veto": true,
+   "category": "资格性否决-限价",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-030",
+   "file": "A-17_喀什噶尔河灌区信息化I标_招标文件.pdf",
+   "page": 0,
+   "locator": "第49页 行19",
+   "main_block_idx": 1396,
+   "clause_blocks": [
+    1396
+   ],
+   "text": "6只能有一个报价（含修正报价）；",
+   "is_veto": true,
+   "category": "实质性响应否决-审查表",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-031",
+   "file": "A-17_喀什噶尔河灌区信息化I标_招标文件.pdf",
+   "page": 0,
+   "locator": "第50页 行12",
+   "main_block_idx": 1415,
+   "clause_blocks": [
+    1415
+   ],
+   "text": "2投标人项目经理未同时在两个及以上工程中担任项目经理；",
+   "is_veto": true,
+   "category": "实质性响应否决-审查表",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-032",
+   "file": "A-18_塔里木河希尼尔水库监理I标二次_招标文件.pdf",
+   "page": 0,
+   "locator": "第21页 行10",
+   "main_block_idx": 673,
+   "clause_blocks": [
+    673
+   ],
+   "text": "⑷与本招标项目的其他投标人存在控股、管理关系；",
+   "is_veto": true,
+   "category": "资格性否决-利害关系",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-033",
+   "file": "A-18_塔里木河希尼尔水库监理I标二次_招标文件.pdf",
+   "page": 0,
+   "locator": "第21页 行11",
+   "main_block_idx": 674,
+   "clause_blocks": [
+    674
+   ],
+   "text": "⑸为本招标项目的代建人；",
+   "is_veto": true,
+   "category": "资格性否决-利害关系",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-034",
+   "file": "A-18_塔里木河希尼尔水库监理I标二次_招标文件.pdf",
+   "page": 0,
+   "locator": "第21页 行12",
+   "main_block_idx": 675,
+   "clause_blocks": [
+    675
+   ],
+   "text": "⑹为本招标项目的招标代理机构；",
+   "is_veto": true,
+   "category": "资格性否决-利害关系",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-SUP-035",
+   "file": "A-18_塔里木河希尼尔水库监理I标二次_招标文件.pdf",
+   "page": 0,
+   "locator": "第21页 行14",
+   "main_block_idx": 677,
+   "clause_blocks": [
+    677
+   ],
+   "text": "⑻与本招标项目的代建人或招标代理机构存在控股或参股关系；",
+   "is_veto": true,
+   "category": "资格性否决-利害关系",
+   "source": "s68-stage4-supplement（兄弟条目补全——见 supplement-s68.json）"
+  },
+  {
+   "id": "S68-S2-001",
+   "file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
+   "page": 0,
+   "locator": "第1页 行1",
+   "main_block_idx": 0,
+   "clause_blocks": [
+    0
+   ],
+   "text": "⑴招标人在开标前开启投标文件，并将投标情况告知其它投标人，或者协助投标人撤换17塔里木河流域希尼尔水库除险加固工程坝基防渗处理施工标招标文件第一卷投标文件，更改报价；",
+   "is_veto": true,
+   "category": "文本匹配异地已标",
+   "source": "s68-stage4-supplement-v2（文本匹配——见 supplement-s68.json items_v2）"
+  },
+  {
+   "id": "S68-S2-002",
+   "file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
+   "page": 0,
+   "locator": "第24页 行12",
+   "main_block_idx": 874,
+   "clause_blocks": [
+    874
+   ],
+   "text": "9.2.1下列行为均属以他人名义投标：",
+   "is_veto": true,
+   "category": "文本匹配异地已标",
+   "source": "s68-stage4-supplement-v2（文本匹配——见 supplement-s68.json items_v2）"
+  },
+  {
+   "id": "S68-S2-003",
+   "file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
+   "page": 0,
+   "locator": "第24页 行26",
+   "main_block_idx": 888,
+   "clause_blocks": [
+    888
+   ],
+   "text": "⑵投标人之间约定，在招标项目中分别以高、中、低价位报价；",
+   "is_veto": true,
+   "category": "文本匹配异地已标",
+   "source": "s68-stage4-supplement-v2（文本匹配——见 supplement-s68.json items_v2）"
+  },
+  {
+   "id": "S68-S2-004",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 0,
+   "locator": "第42页 行17",
+   "main_block_idx": 1212,
+   "clause_blocks": [
+    1212
+   ],
+   "text": "1）不同投标人的投标文件由同一单位或者个人编制；",
+   "is_veto": true,
+   "category": "文本匹配异地已标",
+   "source": "s68-stage4-supplement-v2（文本匹配——见 supplement-s68.json items_v2）"
+  },
+  {
+   "id": "S68-S2-005",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 0,
+   "locator": "第42页 行19",
+   "main_block_idx": 1214,
+   "clause_blocks": [
+    1214
+   ],
+   "text": "3）不同投标人的投标文件载明的项目管理成员之一为同一人；",
+   "is_veto": true,
+   "category": "文本匹配异地已标",
+   "source": "s68-stage4-supplement-v2（文本匹配——见 supplement-s68.json items_v2）"
+  },
+  {
+   "id": "S68-S2-006",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 0,
+   "locator": "第42页 行21",
+   "main_block_idx": 1216,
+   "clause_blocks": [
+    1216
+   ],
+   "text": "5）不同投标人的投标文件相互混装；",
+   "is_veto": true,
+   "category": "文本匹配异地已标",
+   "source": "s68-stage4-supplement-v2（文本匹配——见 supplement-s68.json items_v2）"
+  },
+  {
+   "id": "S68-S2-007",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 0,
+   "locator": "第42页 行22",
+   "main_block_idx": 1217,
+   "clause_blocks": [
+    1217
+   ],
+   "text": "6）不同投标人的投标保证金从同一单位或者个人的账户转出。",
+   "is_veto": true,
+   "category": "串通造假否决",
+   "source": "s68-stage4-supplement-v2（文本匹配——见 supplement-s68.json items_v2）"
+  },
+  {
+   "id": "S68-S2-008",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 0,
+   "locator": "第42页 行27",
+   "main_block_idx": 1222,
+   "clause_blocks": [
+    1222
+   ],
+   "text": "1）使用伪造、变造的许可证件；",
+   "is_veto": true,
+   "category": "文本匹配异地已标",
+   "source": "s68-stage4-supplement-v2（文本匹配——见 supplement-s68.json items_v2）"
+  },
+  {
+   "id": "S68-S2-009",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 0,
+   "locator": "第26页 行28",
+   "main_block_idx": 841,
+   "clause_blocks": [
+    841
+   ],
+   "text": "使用通过受让或者租借等方式获取的资格、资质证书投标的，属于招标投标法第三十三条规定的以他人名义投标。",
+   "is_veto": true,
+   "category": "串通造假否决",
+   "source": "s68-stage4-supplement-v2（文本匹配——见 supplement-s68.json items_v2）"
+  },
+  {
+   "id": "S68-S2-010",
+   "file": "A-05_伊犁州奎屯东郊水库质量检测_招标文件.pdf",
+   "page": 0,
+   "locator": "第37页 行23",
+   "main_block_idx": 997,
+   "clause_blocks": [
+    997
+   ],
+   "text": "2.1.7.3有下列情形之一的，属于以他人名义投标：",
+   "is_veto": true,
+   "category": "串通造假否决",
+   "source": "s68-stage4-supplement-v2（文本匹配——见 supplement-s68.json items_v2）"
+  },
+  {
+   "id": "S68-S2-011",
+   "file": "A-16_郏县老虎洞水库监理_招标文件.pdf",
+   "page": 0,
+   "locator": "第20页 行21",
+   "main_block_idx": 588,
+   "clause_blocks": [
+    588
+   ],
+   "text": "（4）曾因在招标、评标以及其他与招标投标有关活动中从事违法行为而受过行政处罚或刑事处罚的；",
+   "is_veto": true,
+   "category": "文本匹配异地已标",
+   "source": "s68-stage4-supplement-v2（文本匹配——见 supplement-s68.json items_v2）"
+  },
+  {
+   "id": "S68-S2-012",
+   "file": "A-17_喀什噶尔河灌区信息化I标_招标文件.pdf",
+   "page": 0,
+   "locator": "第26页 行17",
+   "main_block_idx": 802,
+   "clause_blocks": [
+    802
+   ],
+   "text": "9.2.1下列行为均属以他人名义投标：",
+   "is_veto": true,
+   "category": "文本匹配异地已标",
+   "source": "s68-stage4-supplement-v2（文本匹配——见 supplement-s68.json items_v2）"
   }
  ],
  "supplement": {

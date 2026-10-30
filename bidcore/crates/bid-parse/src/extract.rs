@@ -91,6 +91,38 @@ pub fn extract_requirements(files: &[ParsedFile]) -> Vec<Requirement> {
 /// - **语境传播**：总括句（下列情形之一的…）→ 列举条目（（N）/N、/⑻ 圈号）
 ///   继承否决语义；新编号条款终止
 /// - 段落级 REQ 的 anchors = 构成段落的全行块（excerpt 保真不改写）
+/// 裸数字小节头形态判定（#68 阶段 4·D）：
+/// 段文本 = 数字头（1-2 位 + 可选 ./．/空格）+ 2-12 个连续 CJK、无尾标点、
+/// 无括号/分号——「7．合同授予」「8定标及报告」形态。
+/// 以**段**判（短段无尾标点——续行拼进来就不再是头）。
+fn pend_head_form(
+    i: usize,
+    para_text: &dyn Fn(usize, usize) -> String,
+    para_end: &[usize],
+    blocks: &[Block],
+) -> bool {
+    if !matches!(blocks[i].kind, BlockKind::PdfLine | BlockKind::OcrLine) {
+        return false;
+    }
+    let para = para_text(i, para_end[i]);
+    let re_head = regex::Regex::new(r"^[0-9]{1,2}[.．、]?\s*[一-龥]{2,12}$").unwrap();
+    if !re_head.is_match(para.trim()) {
+        return false;
+    }
+    // 尾标点 / 括号 / 分号 → 条目而非标题；
+    // #68 阶段 4（M1）：审查条目形排除——「投标范围符合招标文件规定」恰
+    // 12 字无尾标点，形态与标题全同（missed 实锤：A-04 块 991 被当小节头
+    // 吞掉）。含符合/一致/配备/报价等审查谓词的是条目不是标题。
+    let last = para.trim().chars().last().unwrap_or('。');
+    let itemish = regex::Regex::new(
+        r"符合|一致|配备|应当|应与|不得|未|报价|工期|质量|有效期|信誉|业绩|名称|数量",
+    ).unwrap();
+    !"。；，：！？".contains(last)
+        && !para.contains('（')
+        && !para.contains('(')
+        && !itemish.is_match(&para)
+}
+
 fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize) {
     let re_clause = Regex::new(r"^(\d+(?:\.\d+)+)\s*").unwrap();
     // 真实文件驱动修正（P2）：真实水利招标文件用阿拉伯数字章节（"第2章 投标人
@@ -112,7 +144,17 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
         "弄虚作假|串通投标|相互串通|骗取中标|行贿|",
         "不良行为|失信|黑名单|行政处罚|刑事处罚|严重违约|重大工程质量问题|",
         "允许他人以本单位名义|将被拒绝|不允许偏离|实质性要求和条件|",
-        "利害关系[^，。；]{0,20}不得参加投标|不接受[^，。；]{0,20}(文件|格式)",
+        "利害关系[^，。；]{0,32}不得参加投标|不接受[^，。；]{0,20}(文件|格式)|",
+        // #68 阶段 4（PDF L2 残差 176 条解剖——B/A/D 族 missed 样例驱动）：
+        // 「投标人拒绝延长的，其投标失效」——失效是处置结果；
+        // 「导致其投标被拒绝且投标文件被退回」——被拒绝被动形态（非「将被拒绝」）；
+        // 「1.4.2是否接受联合体投标☑不接受」——前附表联合体不接受（GT 资格性否决）。
+        "投标失效|投标被拒绝|",
+        "联合体投标[^，。；]{0,10}不接受|是否接受联合体[^，。；]{0,10}不接受|",
+        "备选[^，。；]{0,8}不允许|",
+        // 「24投标文件的拒收情形」——前附表行号的拒决情形头（其列举即否决清单）；
+        // 「9.2.1下列行为均属以他人名义投标」——冒名投标语义（其 GT 条款本体）
+        "拒收情形|否决情形|无效情形|废标情形|以他人名义投标",
     ))
     .unwrap();
     // 例外从句（排除面——「除不可抗力外」不算否决信号，句法同 DOCX 侧 P0-B）
@@ -127,19 +169,35 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
     let re_score_line = Regex::new(r"^\d+[、.．]\s*\S{2,30}[：:，,]?\s*\S{0,16}\d+(?:\.\d+)?\s*分").unwrap();
     // 评分算法行：评标基准价/下浮率（强算法词免章门——基准价算法常在须知章）
     let re_score_algo = Regex::new(r"评标基准价|下浮率\s*K|基准价.{0,12}确定").unwrap();
-    // 否决语境开启句（总括句——其后列举条目继承）
+    // 否决语境开启句（总括句——其后列举条目继承）。
+    // #68 阶段 4（FP 收紧面）：「下列情形之一的」是歧义句式——处置结果
+    // 才是判定关键（否决/无效 vs 重新招标/流标/终止/回避）。开启前先过
+    // re_ctx_no_veto 排除面（非否决处置的总括句不开否决语境）。
     let re_ctx_open = Regex::new(
-        r"下列情形之一|下列行为之一|下列情况之一|下列情形|下列行为|其投标将被否决|否决其投标|视为允许他人|视为串通",
+        r"下列情形之一|下列行为之一|下列情况之一|下列情形|下列行为|以下情形|其投标将被否决|否决其投标|视为允许他人|视为串通|不得参加投标|不得参与投标|拒收情形|否决情形|无效情形|废标情形",
     )
     .unwrap();
-    // 审查表语境开启（评审标准/资格审查标准行——其后圈号条目为隐含否决面）
+    // 总括句的非否决处置（重新招标/流标/终止/回避——列举继承的是程序语义）
+    let re_ctx_no_veto = Regex::new(
+        r"重新招标|重新采购|流标|终止招标|终止评标|终止投标|暂停|主动回避|应当回避|予以回避",
+    )
+    .unwrap();
+    // 审查表语境开启（评审标准/资格审查标准行——其后圈号条目为隐含否决面）。
+    // #68 阶段 4 扩面（missed 样例驱动）：
+    //   「5.1.1 形式评审标准」「5.1.3 响应性评审标准」——四类评审段名；
+    //   附表「评标表-4 / 序号 评审项目」——评标办法附表表头（pdftotext 线性化）；
+    //   「初步评审是对投标文件…进行审查」——须知章的评审总述段。
     let re_review_open = Regex::new(
-        r"评审标准|评审因素|初步审查标准|资格审查标准|审查标准|符合性审查",
+        r"评审标准|评审因素|初步审查标准|资格审查标准|审查标准|符合性审查|\
+         初步评审|形式评审|资格评审|响应性评审|评审项目|评标表|检查项目|查验以下内容",
     )
     .unwrap();
-    // 符合性句式（审查语境内行级过滤——参数行排除）
+    // 符合性句式（审查语境内行级过滤——参数行排除）。
+    // #68 阶段 4（K2）：裸「符合」（工程质量：符合标准）是技术参数行——
+    // 收紧为指向招标文件/条款/证件的一致性形态（missed 样例全是
+    // 「符合招标文件规定」「与营业执照…一致」形）。
     let re_conformance = Regex::new(
-        r"应与|符合|相一致|是否完好|唯一|不存在|应为|须为|须具备|具备有效|数量符合",
+        r"符合招标文件|符合第|符合规定|相一致|应当与|应与|是否完好|是否唯一|不存在|应为|须为|须具备|具备有效|数量符合|只能有一个报价|未同时在",
     )
     .unwrap();
     // 分值形态特征（评分结构行「①施工组织设计20分②…」——多处「N分」，
@@ -152,6 +210,30 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
     let is_clarification = |t: &str| -> bool {
         t.contains("澄清") && t.contains("说明")
             && !["否决", "拒收", "无效", "废标", "取消"].iter().any(|k| t.contains(k))
+    };
+    // 投标人侧关系禁止信号（K4 的放行面——利害关系/隶属/控股/串通）
+    let re_bidder_rel = Regex::new(r"利害关系|隶属|控股|串通|弄虚作假").unwrap();
+    // 强审查表头（L3）：评标表/评审标准/检查项目类**显式表头**——它开的
+    // 审查语境可穿透格式章守卫（附表三评标表物理住在投标文件格式章区域，
+    // 但它是审查表不是格式模板；弱开启（初步评审等总述词）不穿透）。
+    let re_review_strong = Regex::new(
+        r"评标表|评审标准|资格审查标准|符合性审查|检查项目|查验以下内容|序号\s*评审项目",
+    )
+    .unwrap();
+    // #68 阶段 4（K1）：开标查验证件清单形态——「是否携带身份证/保证金收据/
+    // 复印件/开户许可证/电汇单」是到场核查列举（GT 跨 7 件一致未标否决——
+    // 标注口径：携带义务是形式要求，处置词未出现不推定否决）。传播排除面。
+    let is_checklist_doc = |t: &str| -> bool {
+        // #68 阶段 4（N1 扩面）：「⑵项目经理是否持本人居民身份证到开标现场」
+        // 无原件/复印件字样（现场形态）——身份证/收据本身即清单信号；
+        // 「4拟投入…注册建造师资格证及注册证加盖公章的复印件」——复印件
+        // + 证件词共现
+        (t.contains("身份证") || t.contains("收据") || t.contains("开户许可证")
+            || t.contains("电汇单") || t.contains("网银转账凭证"))
+            || (t.contains("复印件") && (t.contains("资质证书") || t.contains("许可证")
+                || t.contains("资格证") || t.contains("建造师") || t.contains("营业执照")
+                || t.contains("代码证")))
+            || (t.contains("携带") && (t.contains("原件") || t.contains("授权委托书")))
     };
     // 模板聚集排除（分值/万元/表头——格式模板与评分结构面）
     let is_template_shape = |t: &str| -> bool {
@@ -167,23 +249,47 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
         "以大写金额为准|以单价金额为准|以开标报价为准|来往函件|合同约定|履约|",
         "汇报|审议|赋分|评分标准|详评表|见评标办法前附表|是对投标文件|是对招标|",
         "为准|修正总价|修正投标报价|修正总报价|",
-        "我承诺|我方承诺|承诺书|组织询标|询问核实|评标预备会",
+        "我承诺|我方承诺|承诺书|组织询标|询问核实|评标预备会|",
+        // #68 阶段 4（FP 收紧面——missed 样例反面的误报样例驱动）：
+        // 评委会职责/推选/详细评审/公示/定标议程——评标程序列举非否决；
+        // 评标委员会面（组建/分工/回避）是 RECUSE/程序语义（GT false 族）
+        "推选|详细评审|职责分工|评标结果公示|组织评委|定标|",
+        // #68 阶段 4（K3——r4 FP 样例驱动）：评审定性/报价修改程序/费用行/
+        // 开标议程/技术运维列举（数据库检查、软件维护——技术章非否决面）
+        "定性评审|总评为|修改报价|修改投标报价|招标代理费|唱标|开标结束|",
+        "软件维护|补丁升级|性能检查|数据库|测站|运行情况|",
+        // N2：运维巡检/质保费用/技术标编制结构（r8 FP 样例驱动）
+        "巡检|软件版本|功能检查|质保期|编制水平|内容完整性"
     ))
     .unwrap();
-    // 列举条目（（N）/N、/⑴⑵⑶ 圈号——语境传播对象；「3.5.2」条款号排除）
-    let re_list_cn = Regex::new(r"^[（(][0-9一二三四五六七八九十]{1,3}[）)]|^[⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽⑾⑿]|^[⒈⒉⒊⒋⒌⒍⒎⒏⒐]|^[0-9]{1,2}[、]").unwrap();
+    // 列举条目（（N）/N、/⑴⑵⑶ 圈号——语境传播对象；「3.5.2」条款号排除）。
+    // #68 阶段 4 扩面（missed 样例驱动——审查表条目的 pdftotext 残影形态）：
+    //   「1.投标范围符合…」「7 投标文件的正本…」——点号/空格分隔的裸数字条目
+    //   （附表线性化丢分隔符；「5.1.3」条款号由 re_clause 先行分支排除，不冲突）；
+    //   「8投标文件的密封…」——数字直接连排。
+    let re_list_cn = Regex::new(
+        r"^[（(][0-9一二三四五六七八九十]{1,3}[）)]|^[⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽⑾⑿]|^[⒈⒉⒊⒋⒌⒍⒎⒏⒐]|^[0-9]{1,2}[、.．]|^[0-9]{1,2}\s*[一-龥]|^[0-9]{1,3}[）)]",
+    )
+    .unwrap();
     let mut chapter = String::new();
     let mut subsection = String::new();
     // 否决语境（总括句开启；新编号条款/非列举普通行终止）
     let mut veto_ctx = false;
     // 审查表语境（评审标准/资格审查标准行开启；章节头终止）
     let mut review_ctx = false;
+    // 强审查头已开标志（L3——格式章守卫的旁路面）
+    let mut review_strong = false;
 
     // 强词判定（例外从句剥离后匹配；履约语境排除——「承包人不得…拒收」
     // 类合同期条款非投标否决：主体为承包人/发包人且无投标词时不判）
     let veto_hit = |text: &str| -> bool {
         let stripped = re_exception.replace_all(text, "");
         if !re_veto.is_match(&stripped) {
+            return false;
+        }
+        // N3：提疑/答疑程序的「不予受理、答复」非否决（逾期提问不受理是
+        // 答疑程序规则——r8 FP：「逾期提出的，招标人及代理机构不予受理、答复」）
+        if stripped.contains("提疑") || stripped.contains("提出疑问") {
             return false;
         }
         let perf_ctx = stripped.contains("承包人") || stripped.contains("发包人") || stripped.contains("监理人现场服务") || stripped.contains("监理人对所有来往文件");
@@ -233,6 +339,12 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
             if !matches!(next.kind, BlockKind::PdfLine | BlockKind::OcrLine)
                 || is_skip_line(next.text.trim())
                 || is_clause_start(next.text.trim())
+                // #68 阶段 4（G——根因修复）：列举条目行强制断段。missed 样例：
+                // 「5.1.1 形式评审标准：（见附表三：评标表-4）」尾缀 ）非终结
+                // 标点 → ⑴⑵⑶ 审查条目被拼进编号段 → 段落去重吞掉条目、
+                // 整段按 re_qual 落「资格条件」——D 族 L2miss 的主因。
+                // 条目（（N）/N、/⑴/裸数字）是新单元，永不作为续行。
+                || re_list_cn.is_match(next.text.trim())
             {
                 break;
             }
@@ -280,10 +392,28 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
             subsection.clear();
             veto_ctx = false;
             review_ctx = false;
+            review_strong = false;
             continue;
         }
         if re_subsection.is_match(t) && t.chars().count() <= 40 {
             subsection = t.to_string();
+            continue;
+        }
+        // #68 阶段 4（D）：裸数字短标题行 = 小节头语义——pdftotext 把
+        // 「7．合同授予」「8定标及报告」「9．纪律和监督」类小节头线性化为
+        // 数字+标题形态（无尾标点、≤12 字）。按条目传播会产 FP（评审程序/
+        // 公示/定标议程段的列举非否决）：按**段**判（短段、无尾标点），
+        // 是评审头则开审查语境，否则清语境并 continue。
+        // 「7 投标人是否」类表条目断头不在此面——其段落与续行拼接后长
+        // 且带尾标点（；），不匹配头形态。
+        if pend_head_form(i, &para_text, &para_end, &blocks) {
+            if re_review_open.is_match(&para_text(i, para_end[i])) {
+                review_ctx = true;
+            } else {
+                veto_ctx = false;
+                review_ctx = false;
+            }
+            subsection = para_text(i, para_end[i]);
             continue;
         }
         // 段落去重：非首行成员行跳过（防段落尾行独立双抽）——
@@ -306,7 +436,12 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
         let para = para_text(i, pend);
         // 编号行：条款号取首行；判定文本用整段（跨行词还原）
         if let Some(m) = re_clause.captures(t) {
+            // #68 阶段 4（J）：编号条款行同时终结审查语境——原实现 review_ctx
+            // 只被章节头终结，「1.5 …见评标表」类提及会在百页须知章内长开，
+            // 其后全部列举条目误传播（r3 实测 FP 618 的根因）。审查表头
+            // 自身（F1）在其后重新开启——语境被界定在审查表区域内。
             veto_ctx = false;
+            review_ctx = false;
             let mut params = HashMap::new();
             fill_params(&para, &re_model, &re_amount, &re_date, &re_date, &mut params);
             // 编号行归类优先级（R3-S3-5）：强否决短语 > 资格面 > 章节上下文——
@@ -320,8 +455,16 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
             };
             push_req(reqs, seq, cat, Some(m[1].to_string()),
                      para_anchors(i, pend), params, &f.name);
-            if re_ctx_open.is_match(&para) {
+            if re_ctx_open.is_match(&para) && !re_ctx_no_veto.is_match(&para) {
                 veto_ctx = true;
+            }
+            // #68 阶段 4（F1）：编号行是审查表头（「5.1.1 形式评审标准：（见
+            // 附表三：评标表-4）」）→ 开审查语境——原实现里语境开启检查在
+            // 逐条 else-if 链的尾部，编号行先行分支吃掉后永远走不到，
+            // 其后的 ⑴⑵⑶ 审查条目全部失语境（L2miss D 族主因之一）
+            if re_review_open.is_match(&para) {
+                review_ctx = true;
+                review_strong = re_review_strong.is_match(&para);
             }
         } else if veto_hit(&para) && !is_template_shape(&para) {
             // 强否决段落（无编号面——前附表/正文流条款；段落重组后跨行
@@ -329,23 +472,46 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
             // 分值结构行排除——「N分」≥2 处的评分语义不判否决）
             veto_ctx = false;
             push_req(reqs, seq, "否决项", None, para_anchors(i, pend), HashMap::new(), &f.name);
-            if re_ctx_open.is_match(&para) {
+            if re_ctx_open.is_match(&para) && !re_ctx_no_veto.is_match(&para) {
                 veto_ctx = true;
             }
-        } else if re_qual.is_match(&para) && !para.starts_with("见") {
+        } else if re_qual.is_match(&para) && !para.starts_with("见")
+            // #68 阶段 4（I）：语境中的列举条目优先走传播分支——审查表条目
+            // 常含资格词（「⑴投标人名称应与营业执照、资质证书…一致」），
+            // 资格分支抢先会把它落「资格条件」而丢否决语义（GT 的资格性
+            // 否决恰在审查表条目里）。条目 + 开放语境 → 传播优先。
+            && !((veto_ctx || review_ctx) && re_list_cn.is_match(t))
+        {
             // 资格面行："见投标人须知前附表"类引用行排除
             push_req(reqs, seq, "资格条件", None, para_anchors(i, pend), HashMap::new(), &f.name);
             veto_ctx = false;
         } else if (veto_ctx || review_ctx) && re_list_cn.is_match(t)
+            && t.chars().filter(|c| !c.is_whitespace()).count() >= 5
+            && !(chapter.contains("格式") && !review_strong)
+            && !is_checklist_doc(&para)
             && !re_procedure.is_match(&para)
             && !re_score_line.is_match(t)
             && !is_template_shape(&para)
+            // K4：履约主体守卫（与 veto_hit 的 perf_ctx 同口径）——
+            // 「承包人需配合…验收」「质保期…费用由中标单位承担」类合同期
+            // 条款列举不是投标否决（GT CONTRACT 族 false）。利害关系/
+            // 隶属/控股/串通信号在场时是投标人侧禁止条件（missed 样例：
+            // 「⑼与本招标项目的施工承包人…有隶属关系或者其他利害关系」）
+            // ——放行。
+            && !((para.contains("承包人") || para.contains("发包人"))
+                && !para.contains("投标")
+                && !re_bidder_rel.is_match(&para))
         {
             // 语境传播：总括句/审查表头后的列举条目（（N）/N、/⑻ 圈号）
             // 继承否决语义（审查表条目 = 隐含否决面）；
-            // 流程步骤句式排除（评标程序/开标议程/分工职责列举非否决）
+            // 流程步骤句式排除（评标程序/开标议程/分工职责列举非否决）。
+            // #68 阶段 4：最短长度门 ≥5 字——裸数字扩面后「6 银行」类
+            // 前附表碎片行（支付方式行的断头）不传播（精度护栏）；
+            // 格式章节守卫——投标函/格式模板的编号列举（「4.如我方中标：」
+            // 「6.（其他补充说明）。」）是范本结构非否决语义
             push_req(reqs, seq, "否决项", None, para_anchors(i, pend), HashMap::new(), &f.name);
         } else if review_ctx && re_conformance.is_match(t) && t.chars().count() >= 6
+            && !is_checklist_doc(&para)
             && !re_procedure.is_match(&para)
             && !is_template_shape(&para)
         {
@@ -354,6 +520,7 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
         } else if re_review_open.is_match(&para) {
             // 审查表语境开启（评审标准/资格审查标准行）
             review_ctx = true;
+            review_strong = re_review_strong.is_match(&para);
         } else if (chapter.contains("评标办法") && re_score_line.is_match(t))
             || re_score_algo.is_match(&para)
         {
@@ -362,8 +529,20 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
             push_req(reqs, seq, "评分项", None, para_anchors(i, pend), HashMap::new(), &f.name);
             veto_ctx = false;
         } else {
-            // 非列举普通行终止语境（防语境流污染）
-            veto_ctx = false;
+            // 非列举普通行终止否决语境（防语境流污染）——**长散文才杀**。
+            // #68 阶段 4（F4）：原无条件终止在两种真实形态上误杀语境
+            // （missed 样例：A04 p25「投标人本单位人员，必须同时满足以下
+            // 条件：」是列举中段的引导句，其后 (1)(3) 条目全部失语境）；
+            // 短行/引导句（尾随冒号）保持语境，≥40 字的连续散文段才终止。
+            // 编号新条款/章节头/资格/评分分支的既有终止面不变。
+            // #68 阶段 4（F4b）：裸总括句（自身无强词、非任何先行分支——
+            // 「有下列情形之一的，不得参加投标：」形）在此开启语境（原实现
+            // 只在编号/强词两分支内开——裸形态漏开）。
+            if re_ctx_open.is_match(&para) && !re_ctx_no_veto.is_match(&para) {
+                veto_ctx = true;
+            } else if para.chars().count() >= 40 {
+                veto_ctx = false;
+            }
         }
     }
 }

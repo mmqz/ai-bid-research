@@ -1,6 +1,6 @@
 {
   "fixture": "synth-tender",
-  "design_note": "人工核对的标准答案（ideal）+ 跑前人工推演的引擎行为预判（engine_expect）——跑后不回改（防循环论证）；推演错误在评测报告中如实呈现",
+  "design_note": "人工核对的标准答案（ideal）+ 跑前人工推演的引擎行为预判（engine_expect）——跑后不回改（防循环论证）；推演错误在评测报告中如实呈现。v0.2（2026-10-30）：补登 SYN-A-013a/013b/015a（3.3.1 份数构成 / 3.3.2 正副本标注 / 3.3.6 中文编制——Lead #80 评论指令的答案修订）；三条的 engine_expect 按当日引擎实测登记（已判对），非独立跑前推演——条目 note 中如实标注",
   "traps": {
     "T1": {
       "title": "否决项藏在表格里",
@@ -253,6 +253,40 @@
       }
     },
     {
+      "syn_id": "SYN-A-013a",
+      "ideal_category": "格式要求",
+      "clause_no": "3.3.1",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "投标文件须按第七章规定的格式编制",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "格式要求",
+        "clause_no": "3.3.1",
+        "params": {},
+        "note": "v0.2 补登（份数/构成面）：编号条款 + 章节上下文（三、投标文件的编制）→ 格式要求"
+      }
+    },
+    {
+      "syn_id": "SYN-A-013b",
+      "ideal_category": "格式要求",
+      "clause_no": "3.3.2",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "每册均须在封面明确标注\"正本\"或\"副本\"字样",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "格式要求",
+        "clause_no": "3.3.2",
+        "params": {},
+        "note": "v0.2 补登（装订/份数面）：正本 1 份副本 5 份 + 标注义务——格式要求"
+      }
+    },
+    {
       "syn_id": "SYN-A-013",
       "ideal_category": "格式要求",
       "clause_no": "3.3.3",
@@ -301,6 +335,23 @@
         "clause_no": "3.3.5",
         "params": {},
         "note": ""
+      }
+    },
+    {
+      "syn_id": "SYN-A-015a",
+      "ideal_category": "格式要求",
+      "clause_no": "3.3.6",
+      "source_file": "A-招标文件.docx",
+      "excerpt_key": "投标文件应采用简体中文编制",
+      "trap": null,
+      "dedupe_group": null,
+      "expect_engine_occurrences": 1,
+      "engine_expect": {
+        "will_extract": true,
+        "category": "格式要求",
+        "clause_no": "3.3.6",
+        "params": {},
+        "note": "v0.2 补登（语言面）：中文编制 + 外文附件译文义务——格式要求"
       }
     },
     {
@@ -1711,11 +1762,11 @@
     }
   ],
   "counts": {
-    "total": 95,
+    "total": 98,
     "by_ideal_category": {
       "否决项": 44,
       "资格条件": 12,
-      "格式要求": 1,
+      "格式要求": 4,
       "评分项": 5,
       "技术参数": 30,
       "商务要求": 3
@@ -1731,6 +1782,6 @@
       "格式要求": 1,
       "其他": 4
     },
-    "note": "A(74) + C(7) 推演；B/E 因 G1 无抽取路径为 0"
+    "note": "A(74) + C(7) 推演；B/E 因 G1 无抽取路径为 0。v0.2 补登的 3 条（SYN-A-013a/013b/015a）不进此冻结总账——它们是跑后实测登记（见 design_note），预演面保持 v0.1 原样不动"
   }
 }

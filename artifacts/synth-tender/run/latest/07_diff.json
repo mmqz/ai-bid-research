@@ -196,6 +196,38 @@
       "actual_category": "格式要求",
       "category_diff": false,
       "engine_category": "格式要求",
+      "excerpt_key": "投标文件须按第七章规定的格式编制",
+      "expect_occurrences": 1,
+      "hit": true,
+      "ideal_category": "格式要求",
+      "matched": 1,
+      "note": "v0.2 补登（份数/构成面）：编号条款 + 章节上下文（三、投标文件的编制）→ 格式要求",
+      "prediction_ok": true,
+      "source_file": "A-招标文件.docx",
+      "syn_id": "SYN-A-013a",
+      "trap": null,
+      "will_extract": true
+    },
+    {
+      "actual_category": "格式要求",
+      "category_diff": false,
+      "engine_category": "格式要求",
+      "excerpt_key": "每册均须在封面明确标注\"正本\"或\"副本\"字样",
+      "expect_occurrences": 1,
+      "hit": true,
+      "ideal_category": "格式要求",
+      "matched": 1,
+      "note": "v0.2 补登（装订/份数面）：正本 1 份副本 5 份 + 标注义务——格式要求",
+      "prediction_ok": true,
+      "source_file": "A-招标文件.docx",
+      "syn_id": "SYN-A-013b",
+      "trap": null,
+      "will_extract": true
+    },
+    {
+      "actual_category": "格式要求",
+      "category_diff": false,
+      "engine_category": "格式要求",
       "excerpt_key": "正文字体为宋体、字号为小四、行距为一点五倍行距",
       "expect_occurrences": 1,
       "hit": true,
@@ -237,6 +269,22 @@
       "prediction_ok": true,
       "source_file": "A-招标文件.docx",
       "syn_id": "SYN-A-015",
+      "trap": null,
+      "will_extract": true
+    },
+    {
+      "actual_category": "格式要求",
+      "category_diff": false,
+      "engine_category": "格式要求",
+      "excerpt_key": "投标文件应采用简体中文编制",
+      "expect_occurrences": 1,
+      "hit": true,
+      "ideal_category": "格式要求",
+      "matched": 1,
+      "note": "v0.2 补登（语言面）：中文编制 + 外文附件译文义务——格式要求",
+      "prediction_ok": true,
+      "source_file": "A-招标文件.docx",
+      "syn_id": "SYN-A-015a",
       "trap": null,
       "will_extract": true
     },
@@ -1579,27 +1627,6 @@
       "source_file": "A-招标文件.docx"
     },
     {
-      "category": "格式要求",
-      "clause_no": "3.3.1",
-      "excerpt": "3.3.1 投标文件须按第七章规定的格式编制，包括：投标函、开标一览表、投标分项",
-      "id": "REQ-0021",
-      "source_file": "A-招标文件.docx"
-    },
-    {
-      "category": "格式要求",
-      "clause_no": "3.3.2",
-      "excerpt": "3.3.2 投标文件正本 1 份，副本 5 份，每册均须在封面明确标注\"正本\"或",
-      "id": "REQ-0022",
-      "source_file": "A-招标文件.docx"
-    },
-    {
-      "category": "格式要求",
-      "clause_no": "3.3.6",
-      "excerpt": "3.3.6 投标文件应采用简体中文编制；随投标文件提供的检测报告、说明书等原件资",
-      "id": "REQ-0026",
-      "source_file": "A-招标文件.docx"
-    },
-    {
       "category": "其他",
       "clause_no": "3.4.1",
       "excerpt": "3.4.1 投标报价为一次包干总价，包含货物、安装、调试、运输、保险、税费及质保",
@@ -1764,11 +1791,11 @@
   "summary": {
     "category_diff": 7,
     "engine_reqs": 115,
-    "expected_entries": 95,
-    "extras_count": 34,
-    "hit": 78,
+    "expected_entries": 98,
+    "extras_count": 31,
+    "hit": 81,
     "miss": 17,
     "occurrence_diff": 1,
-    "prediction_ok": 94
+    "prediction_ok": 97
   }
 }

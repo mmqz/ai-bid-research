@@ -482,7 +482,13 @@ mod tests {
         // find_root：有 .mang 的祖先优先
         std::fs::create_dir_all(d.join(".mang")).unwrap();
         std::fs::create_dir_all(d.join("sub/deep")).unwrap();
-        assert_eq!(find_root(&d.join("sub/deep/a.md")), d.canonicalize().unwrap());
+        // Windows 的 canonicalize() 会带 \\?\ 前缀，find_root 返回裸路径——按语义比较
+        let got = find_root(&d.join("sub/deep/a.md"));
+        let want = d.canonicalize().unwrap();
+        assert_eq!(
+            got.to_string_lossy().trim_start_matches(r"\\?\"),
+            want.to_string_lossy().trim_start_matches(r"\\?\"),
+        );
         // 没有 .mang：用父目录
         let d2 = tmpws("noroot");
         std::fs::create_dir_all(d2.join("sub")).unwrap();

@@ -19,6 +19,9 @@ bid-tools = { path = "../bid-tools" }
 bid-mcp = { path = "../bid-mcp" }
 mang-snap = { path = "../mang-snap" }
 serde_json = "1"
+# #76 diag.rs：llm.json 的 serde 读/写面（derive）。已在既有依赖图中
+# （serde_json/bid-tools 均带），此处只是提为直接依赖，零新增三方取数。
+serde = { version = "1", features = ["derive"] }
 # 系统文件对话框（同步 API，主线程调用）。关闭默认的 xdg-portal/wayland，
 # Windows 只用 Win32 COM（IFileOpenDialog），不会引入 Linux 依赖。
 rfd = { version = "0.17", default-features = false }

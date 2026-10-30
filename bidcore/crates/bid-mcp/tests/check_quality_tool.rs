@@ -139,7 +139,10 @@ fn quality_artifact_written_in_workspace_mode() {
     let artifact = &q["artifact"];
     assert!(artifact.is_object(), "workspace 在场必落盘: {artifact}");
     let path = artifact["path"].as_str().unwrap();
-    assert!(path.ends_with("artifacts/quality-report.json"), "{path}");
+    // Windows 上 Path 的分隔符是反斜杠，直接用 ends_with 会误判——
+    // 统一成正斜杠再比（跨平台可移植）。
+    let norm = path.replace('\\', "/");
+    assert!(norm.ends_with("artifacts/quality-report.json"), "{path}");
     assert!(artifact["size"].as_u64().unwrap() > 0);
     // 落盘内容是合法报告（roundtrip——summary 面对账）
     let text = std::fs::read_to_string(path).unwrap();

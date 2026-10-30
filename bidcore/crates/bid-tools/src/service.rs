@@ -406,6 +406,9 @@ impl BidService {
                 reason: format!("format={format} 暂不支持（#59 阶段 2 仅 docx——PDF 是阶段 7 LibreOffice 通道）"),
             });
         }
+        // ---- 0b. 路径校验（逃逸防护）：导出路径必须落在工作区内。
+        // 工作区内的绝对路径合法（服务层内部用 workspace.join 拼接）；
+        // 拒绝的是「跑到工作区外面去」——父级逃逸与绝对但不含工作区前缀。
         // ---- 1a. 矩阵门（blocking 行未清零 → 逐行列出，E_UNPROCESSABLE）
         self.store.check_export_ready()?;
         // ---- 1b. 审核门（BLOCKER findings 未清 → E_UNPROCESSABLE）
@@ -429,6 +432,8 @@ impl BidService {
         let dir = self.workspace_dir().ok_or_else(|| ToolError::EUnprocessable {
             reason: "导出需要持久化工作区（BidService::open 建立的服务态才有章内容可导）".into(),
         })?;
+        // 路径逃逸校验（拿到工作区后才可判前缀）
+        validate_output_path(&dir, output_path)?;
         let opts = crate::export::ExportOptions {
             format_spec: Some(&spec),
             project_name: self.store.project()?.name.clone(),
@@ -495,6 +500,50 @@ impl Default for BidService {
 /// 补齐（Drafting → Validating → Reviewing → ReadyToExport → Exported 的
 /// 完整链）；已是 EXPORTED → no-op（重导幂等）。前段态直达 → 状态机错误
 /// 透传（防御面——guard 不应放行）。
+
+/// 导出路径校验（逃逸防护）：拒绝父级逃逸与工作区外的绝对路径。
+///
+/// 合法形态：
+///   - 相对路径且不含 `..`（如 `out/标书.docx`）—— 相对工作区解析
+///   - 绝对路径但落在工作区内（如 `<ws>/out/标书.docx`）—— 服务层内部拼接产物
+///
+/// 拒绝形态：
+///   - 任意位置的父级分量 `..`（逃出工作区）
+///   - 绝对路径且不以工作区为前缀（写到盘上任意位置 = 任意写权限）
+fn validate_output_path(workspace: &std::path::Path, output: &std::path::Path) -> Result<(), ToolError> {
+    for comp in output.components() {
+        if matches!(comp, std::path::Component::ParentDir) {
+            return Err(ToolError::EUnprocessable {
+                reason: format!(
+                    "output_path 不得包含父级逃逸 `..`（实际：{}）",
+                    output.display()
+                ),
+            });
+        }
+    }
+    if output.is_absolute() {
+        // 工作区与目标都做「去 \\?\ 前缀 + 大小写归一」后再比前缀
+        let ws = normalize_for_prefix(workspace);
+        let tgt = normalize_for_prefix(output);
+        if !tgt.starts_with(&ws) {
+            return Err(ToolError::EUnprocessable {
+                reason: format!(
+                    "output_path 必须在工作区内（工作区：{}；实际：{}）",
+                    workspace.display(),
+                    output.display()
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// 前缀比较用的路径归一：去 Windows `\\?\` 扩展前缀，统一小写（Windows 大小写不敏感）。
+fn normalize_for_prefix(p: &std::path::Path) -> String {
+    let s = p.to_string_lossy();
+    let s = s.strip_prefix(r"\\?\").unwrap_or(&s);
+    s.replace('\\', "/").to_lowercase()
+}
 fn advance_project_to_exported(store: &mut DomainStore) -> Result<(), ToolError> {
     use bid_domain::ProjectStatus::*;
     let cur = store.project()?.status;

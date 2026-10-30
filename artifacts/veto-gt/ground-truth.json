@@ -82564,6 +82564,60 @@
    "is_veto": true,
    "category": "文本匹配异地已标",
    "source": "s68-stage4-supplement-v2（文本匹配——见 supplement-s68.json items_v2）"
+  },
+  {
+   "id": "S68-REC-001",
+   "file": "A-17_喀什噶尔河灌区信息化I标_招标文件.pdf",
+   "page": 24,
+   "locator": "第24页 行25",
+   "main_block_idx": 741,
+   "clause_blocks": [
+    741
+   ],
+   "text": "⑶ 与投标人有经济利益关系，可能影响评标公正的；",
+   "context_prev": "⑵ 项目主管部门或者行政监督部门的人员；",
+   "context_next": "⑷ 在近三年内与投标人曾有工作关系的",
+   "is_veto": true,
+   "category": "资格性否决",
+   "note": "《招标投标法实施条例》第 34 条（利害关系负面清单口径）；RELATION/RECUSE 跨文档不一致：统一标 true；这不是「两个都对」，是口径错误修正；评标委员会成员回避清单成员（处置对象是评委，按裁决口径计 true）",
+   "source": "s68-recuse-ruling（Lead 裁决①——见 supplement-recuse-ruling.json）",
+   "legal_basis": "《招标投标法实施条例》第 34 条（利害关系负面清单口径）"
+  },
+  {
+   "id": "S68-REC-002",
+   "file": "A-17_喀什噶尔河灌区信息化I标_招标文件.pdf",
+   "page": 24,
+   "locator": "第24页 行26",
+   "main_block_idx": 742,
+   "clause_blocks": [
+    742
+   ],
+   "text": "⑷ 在近三年内与投标人曾有工作关系的",
+   "context_prev": "⑶ 与投标人有经济利益关系，可能影响评标公正的；",
+   "context_next": "⑸ 曾因在招标、评标以及其他与招标投标有关活动中从事违法行为而受过行政处罚或者",
+   "is_veto": true,
+   "category": "资格性否决",
+   "note": "《招标投标法实施条例》第 34 条（利害关系负面清单口径）；RELATION/RECUSE 跨文档不一致：统一标 true；这不是「两个都对」，是口径错误修正；评标委员会成员回避清单成员（处置对象是评委，按裁决口径计 true）",
+   "source": "s68-recuse-ruling（Lead 裁决①——见 supplement-recuse-ruling.json）",
+   "legal_basis": "《招标投标法实施条例》第 34 条（利害关系负面清单口径）"
+  },
+  {
+   "id": "S68-REC-003",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 22,
+   "locator": "第22页 行25",
+   "main_block_idx": 729,
+   "clause_blocks": [
+    729
+   ],
+   "text": "（3）与投标人有经济利益关系，可能影响对投标公正评审的；",
+   "context_prev": "（2）项目主管部门或者行政监督部门的人员；",
+   "context_next": "（4）曾因在招标、评标以及其他与招标投标有关活动中从事违法行为而受过行政",
+   "is_veto": true,
+   "category": "资格性否决",
+   "note": "《招标投标法实施条例》第 34 条（利害关系负面清单口径）；RELATION/RECUSE 跨文档不一致：统一标 true；这不是「两个都对」，是口径错误修正；评标委员会成员回避清单成员（处置对象是评委，按裁决口径计 true）",
+   "source": "s68-recuse-ruling（Lead 裁决①——见 supplement-recuse-ruling.json）",
+   "legal_basis": "《招标投标法实施条例》第 34 条（利害关系负面清单口径）"
   }
  ],
  "supplement": {

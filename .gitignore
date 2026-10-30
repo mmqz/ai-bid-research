@@ -24,3 +24,6 @@ artifacts/title-impact/experiment.json
 
 # 绿色版打包产物（scripts/package-mang-app.ps1 的输出目录）
 dist-pkg/
+
+artifacts/veto-gt/*.bak-*
+

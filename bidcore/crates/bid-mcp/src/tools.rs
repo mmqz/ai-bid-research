@@ -960,6 +960,8 @@ fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
     // source_requirements / evidence_ids：字符串数组（缺省 = 章节绑定集 / 矩阵绑定集）
     let req_ids = opt_str_array(&args, "source_requirements", TOOL)?;
     let ev_ids = opt_str_array(&args, "evidence_ids", TOOL)?;
+    // #68 阶段 1：生成器选择（auto = 有 key 走真实 LLM，无 key 降级 mock 并告警）
+    let generator_mode = opt_generator(&args, "generator", TOOL)?;
 
     // ---- 项目路由 + 状态机裁决 + 乐观并发
     let proj = svc.store().project().map_err(ToolError::from)?;
@@ -990,14 +992,57 @@ fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
     }
 
     // ---- 转发业务（bid-tools service::draft_section——生成/回查/CAS/落盘/推进）
-    let mut gen = bid_tools::draft::MockGenerator;
+    // #68 阶段 1：生成器选择面（issue §1.2——auto/real/mock 三态）：
+    //   auto  = 有 api_key → RealGenerator；无 → MockGenerator + 降级告警
+    //   real  = 无 key → E_UNPROCESSABLE（显式要求真实生成而配置缺失，要响亮）
+    //   mock  = 强制确定性生成（e2e/复算面——无告警，是显式选择）
+    let llm_cfg = bid_tools::llm::LlmConfig::resolve(svc.workspace_dir().as_deref())
+        .map_err(|e| ToolError::EUnprocessable {
+            what: format!("LLM 配置无效（.mang/llm.json 或 BID_LLM_*）: {e}"),
+        })?;
+    let mut gen_warnings: Vec<String> = Vec::new();
+    let gen_kind;
+    let mut gen: Box<dyn bid_tools::draft::SectionGenerator> = match generator_mode.as_deref() {
+        Some("mock") => {
+            gen_kind = "mock";
+            Box::new(bid_tools::draft::MockGenerator)
+        }
+        Some("real") => match llm_cfg {
+            Some(cfg) => {
+                gen_kind = "real";
+                Box::new(bid_tools::llm::RealGenerator::new(cfg, svc.workspace_dir()))
+            }
+            None => {
+                return Err(ToolError::EUnprocessable {
+                    what: "generator=real 但未配置 api_key（.mang/llm.json 或 BID_LLM_API_KEY）\
+                           ——要么配置 key，要么用 auto/mock".into(),
+                })
+            }
+        },
+        _ => match llm_cfg {
+            Some(cfg) => {
+                gen_kind = "real";
+                Box::new(bid_tools::llm::RealGenerator::new(cfg, svc.workspace_dir()))
+            }
+            None => {
+                gen_kind = "mock";
+                gen_warnings.push(
+                    "未配置 LLM api_key——降级 mock 生成（内容为确定性模板，非真实 AI）；\
+                     配置 .mang/llm.json 或 BID_LLM_API_KEY 后走真实生成".into(),
+                );
+                Box::new(bid_tools::draft::MockGenerator)
+            }
+        },
+    };
     let outcome = svc.draft_section(
         &section_id,
         req_ids.as_deref(),
         ev_ids.as_deref(),
         instructions.as_deref(),
-        &mut gen,
+        gen.as_mut(),
     ).map_err(ToolError::from)?;
+    let mut warnings = outcome.warnings;
+    warnings.append(&mut gen_warnings);
 
     // ---- 契约 §6 out 组装
     let out = json!({
@@ -1009,17 +1054,30 @@ fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
             "citations": outcome.citations.len(),
             "cited_ids": outcome.citations,
             "unanchored_claims": outcome.unanchored_claims,
+            // #68 阶段 1：本次实际使用的生成器（real/mock——Agent 可据此判断降级面）
+            "generator": gen_kind,
         },
         "section_status": "DRAFTED",
         "project_status": svc.store().project().map(|p| p.status.as_str()).unwrap_or("UNKNOWN"),
         "project_version": svc.store().content_version(),
-        "warnings": outcome.warnings,
+        "warnings": warnings,
         "request_id": next_request_id(),
     });
     // 幂等登记（重放面——content_version 已含本次写入的 bump，重放不重执行）
     let _ = version;
     svc.store_mut().record_idempotent(ikey, out.clone());
     Ok(out)
+}
+
+/// `generator` 参数（#68 阶段 1——缺省 auto；非 auto/mock/real 拒）。
+fn opt_generator(v: &Value, key: &str, at: &str) -> Result<Option<String>, ToolError> {
+    match opt_str(v, key, at)? {
+        None => Ok(None),
+        Some(g) if matches!(g.as_str(), "auto" | "mock" | "real") => Ok(Some(g)),
+        Some(g) => Err(ToolError::EUnprocessable {
+            what: format!("{at}: {key} 须为 auto | mock | real（实际: {g}）"),
+        }),
+    }
 }
 
 /// 可选字符串数组参数（缺省/null → None；非数组或含非字符串 → 拒）。

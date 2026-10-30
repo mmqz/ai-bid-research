@@ -18,6 +18,8 @@ regex = { workspace = true }
 # 传递依赖提为直接依赖。0.4.22 的 Docx::pack 直接把 XML 部件流式写进 zip
 # writer（不物化整包 Vec<u8>），TableOfContents 原生支持 TOC \o 域指令。
 docx-rs = "0.4"
+# #68 阶段 1：RealGenerator 的 HTTP 传输面（阻塞 + rustls，无 tokio）。
+ureq = { workspace = true }
 
 [dev-dependencies]
 # 测试面（S-6 验收）：解包导出产物校验 zip 完整性 + XML 良构（「Word 打开

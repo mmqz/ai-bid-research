@@ -12,11 +12,15 @@
 引擎核心能力（已达标）：
   L1 抽取召回 0.9338 / L2 否决分类召回 0.8413 / P 精确率 0.8762
 
-12 个 MCP 工具（全部接线，search_evidence 降级可选除外）：
+MCP 工具面：12 → **17 个**（#80 第三批 G1/G2/G3 补齐——外部 Agent 纯 MCP
+可驱动全链；search_evidence 降级可选除外）：
   ✅ create / import / extract / matrix / list×2 / state / save_version
   ✅ draft_response_section（#60）     ← 单章起草（mock + 引用回查）
   ✅ export_bid_document（#62/#66）    ← docx + PDF + 暗标
   ✅ validate_bid_document（#63）      ← 8 规则防废标
+  ✅ build_outline（#80 三批 G1）      ← 建纲+矩阵首建 → MATRIX_READY
+  ✅ register_evidence / bind_evidence（G2）← 证据登记/批量绑定+矩阵重算
+  ✅ record_review_gate（G3）          ← 三门记审（human: 复审人门）
   ⬜ search_evidence                   ← 降级可选（查表面够用）
 
 端到端（#64）：corpus-A 真件 8 步全链 0.83s——招标文件进成品 docx 出

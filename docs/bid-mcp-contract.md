@@ -1,7 +1,10 @@
 # 标书业务 MCP 工具契约（Bid MCP Contract）
 
 > 定位：MCP Server 是**薄壳**——工具只做参数校验、状态机裁决与转发，业务逻辑在后端服务层（参照 BidMaster services/mcp/server.py 的形态，但规避其 AGPL 实现）。每个工具均要求幂等；响应统一携带 `project_version`（乐观并发）。
-> 通用响应包装：`{ ok, data, request_id, project_version?, warnings? }`；错误：`{ ok:false, error:{ code, message, hint? , item_errors? } }`。
+> 通用响应包装：`{ ok, tool(回显), data, request_id, project_version?, warnings? }`；
+> 错误：`{ ok:false, tool, error:{ code, what, hint?, item_errors? } }`（`what` 是人读错误
+> 正文——#80 第三批外部 Agent 实测摩擦 #12：历史契约写 `message`，实现面是 `what`，
+> 以实现为准修订本文；`tool` 是调用回显字段）。
 
 ## 0. 通用约定
 
@@ -28,7 +31,7 @@ in : { project_id, files:[{upload_ref, filename, kind(招标文件|附件|图纸
 out: { file_ids:[TF-*], per_file:[{file_id, sha256, pages, tables, chunks, ocr_tier, parse_status, errors?}],
        totals:{files, chunks, parse_failed, partial} }
 幂等: sha256 已存在 → no-op 返回原 file_id（deduplicated:true）
-语义: 后端确定性管线——解析（表格单元格级、扫描件 OCR 分档）→ 结构化切块（chunk_id 稳定、登记 文件→位置 映射）→ 证据注册 → 向量+精确双索引。**Agent 不做解析与切块，只核对返回统计并重试失败件（R-01）。**
+语义: 后端确定性管线——解析（表格单元格级、扫描件 OCR 分档）→ 结构化切块（chunk_id 稳定、登记 文件→位置 映射）→ 证据注册（切块即入 EV 台账——后续 register_evidence 签发的 EV-id 从已有计数后继，不是从 EV-0001 起——#80 第三批外部 Agent 实测摩擦 #7）→ 向量+精确双索引。**Agent 不做解析与切块，只核对返回统计并重试失败件（R-01）。**
 错误: E_PARTIAL（部分文件 parse FAILED；失败件内容全程禁引）；E_STATE（project 已过 IMPORTED 阶段追加新文件 → 允许，但标 dirty 波及）
 状态: DRAFT → FILES_IMPORTED
 ```
@@ -127,11 +130,16 @@ out: { findings:[{vf_id, kind:DETERMINISTIC|MODEL, rule_code, severity, section_
       页数/字数上限（Word 渲染口径）、必填格式项、签章位存在性、暗标禁字清单扫描、条款引用完整性
   模型（仅产 finding 不改稿）: 表述质量、逻辑连贯、偏离合理化、疑似过度承诺
 状态: → VALIDATING → REVIEWING；BLOCKER 清零（或登记 WAIVED+理由）才可 EXPORT
+出参补充（#80 第三批外部 Agent 实测摩擦 #2）：validate 会推进项目版本（状态转换面），
+响应携带 project_version = 推进后的新值——后续工具调用必须用新值，否则 E_CONFLICT。
 ```
 
 ## 8. export_bid_document
 ```
-in : { project_id, format:"docx"|"pdf", profile:{dark_bid? , template?}, options:{tracked_changes?, watermark?}, project_version }
+in : { project_id, format:"docx"|"pdf", output_path(必填——产物路径，须为【工作区相对路径】，
+       不得绝对路径/含 ..；如 "out/投标文件-技术标.docx"——#80 第三批外部 Agent 实测摩擦
+       #1：历史契约漏写此参数，靠报错文案才能发现),
+       profile:{dark_bid? , template?}, options:{tracked_changes?, watermark?}, project_version }
 嵌入: #68 阶段 3——章正文支持 md 块语法（无语法内容与旧版字节级同输出）：
      - 表格：连续 | 行（首行表头 + |---| 分隔行 + 数据行）→ docx 表格
        （表头加粗；分隔行是排版指令不进正文；无分隔行的 | 行回退普通段落）
@@ -168,6 +176,12 @@ out: { project_id, summary:{total, drafted, failed, pending, uncovered_req_total
      - 落盘：{workspace}/artifacts/quality-report.json（workspace 在场；纯内存态
        artifact:null + 告警）。
 状态: 不推状态（只读）
+章节发现面（#80 第三批外部 Agent 实测摩擦 #3，从末尾括号注提升到正文）：
+     - 本工具 sections[] **只列叶节点**（可起草面，按 order 排序）——外部 Agent
+       获取章节清单的正式查询口；get_bid_project_state 不回章节清单；
+     - 章节→条款归属（draft 的 source_requirements / depends_on）：矩阵行
+       requirement × draft_section_id 反推（get_compliance_matrix 的行内字段）；
+     - 起草前 covered_reqs 为空属正常（覆盖度是起草后诊断面）。
 ```
 
 ## 附录 A：KBAdapter（知识库适配器接口）
@@ -231,3 +245,85 @@ CherryHQ/cherry-studio（AGPL-3.0，52.9k★）为 Electron **桌面客户端**�
 - 工作区根发现：从 file_path 向上找最近的 `.mang` 目录（桌面壳建过就在）；找不到用文件所在目录
 - 不走项目状态机（版本快照与项目状态正交，任何阶段都允许存）
 - 错误面：相对路径 / 空 message / 非文本 → `E_UNPROCESSABLE`；文件不存在 → `E_NOTFOUND`
+
+---
+
+## 10. build_outline（#80 第三批 MCP 补齐 · G1——外部 Agent 纯 MCP 驱动的前置）
+
+> 背景：此前建纲/建矩阵只有服务面 `prepare_outline_and_matrix`（e2e 走进程内直调），
+> 外部 Agent（Claude Desktop 等）在 extract 之后断链——评估见
+> docs/subagent-llm-assessment.md §四缺口 G1。
+
+```
+in : { project_id, target_total_chars?(1000..=5000000, 缺省 20000),
+       max_reqs_per_leaf?(1..=50, 缺省 8), project_version }
+out: { counts:{ sections, leaves, requirements, total_target_chars, matrix_rows, matrix_blocking },
+       status: "MATRIX_READY", project_version }
+语义: 推导大纲树（确定性——REQ 类目分组 + 每叶上限）+ 矩阵首建（推进
+      MATRIX_READY——draft 的硬前置）。写后自动落盘（服务层 auto_checkpoint）。
+状态: REQUIREMENTS_EXTRACTED 态可调（FilesImported/Draft → E_STATE；
+      MATRIX_READY+ 重复调用 → E_STATE——重建面属「补遗后增量重抽」后续需求，
+      不隐式放行）
+前置: 条款面非空（空纲无意义——与 build_matrix 同口径）
+幂等: 推导确定性（同输入同树）；状态机面不重入（见上）
+```
+
+## 11-A. register_evidence（#80 第三批 · G2）
+
+```
+in : { project_id, kind(qualification|performance|personnel|certificate|product_doc|
+                        solution_module|contract 或中文展示名),
+       title, source_file, source_sha256(必填——无文件身份不入账),
+       subject_name, scope?, valid_from?, valid_until?(ISO 日期),
+       fingerprint?(算法前缀:值——缺省 sha256:<source_sha256>),
+       locator?({ kind: docx_paragraph|pdf_page_text|markdown_block, ...指纹字段 }),
+       project_version }
+out: { ev_id: "EV-*", deduplicated, kind(snake_case), status, hint, project_version }
+语义: 语义位查重在域层（同 kind+title+subject+scope 最新非 SUPERSEDED 记录：
+      同指纹 → 幂等重放回原 id；异指纹 → 旧记录单向降级 SUPERSEDED + 签发新 EV）。
+      locator 缺省 = MarkdownBlock{ block_id: "mcp-registered:<source_file>" }——
+      诚实标记「经 MCP 登记面、无引擎定位器」（审计可辨识，不冒充引擎抽取）。
+状态: MATRIX_READY+（P4 面——矩阵就绪后登记）
+错误: E_UNPROCESSABLE（kind/日期/fingerprint 格式/locator 形态非法；source_sha256 缺失）
+```
+
+## 11-B. bind_evidence（#80 第三批 · G2）
+
+```
+in : { project_id, ev_id, requirement_ids:[REQ-*](非空), bid_open_date, project_version }
+out: { ev_id, bound_new, replayed, requested, matrix:{ rows, blocking },
+       status, project_version }
+bid_open_date 语义（#80 第三批外部 Agent 实测摩擦 #5）：证据有效性的裁决基准日
+       ——工程口径取【开标日】（评标时刻的有效性，不是 create 的 bid_deadline
+       递交截止日；两者通常相近但语义不同。无独立开标日真源时，用招标文件
+       载明的开标日期）。
+语义: 逐条绑定（REQ 不存在 → 逐件 E_NOTFOUND；EXPIRED/SUPERSEDED 禁绑 → 逐件
+      E_UNPROCESSABLE——R-03，开标日视角即时裁决；重复绑定 → 幂等重放）+
+      绑后矩阵重算（行内证据即时可见——不重算会让 get_compliance_matrix 看到
+      陈旧行）。部分失败 → E_PARTIAL（item_errors 逐件定位 + data 携带成功面
+      ——与 import_tender_files 同款「错误码不吞成功面」）。
+状态: MATRIX_READY+
+```
+
+## 12. record_review_gate（#80 第三批 · G3）
+
+```
+in : { project_id, gate(matrix_approval|outline_approval|pre_export_confirm),
+       decision(APPROVED|REJECTED), reviewer(须 "human:" 前缀),
+       findings?:[{ severity(BLOCKER|WARNING|INFO), code, message, section_id? }],
+       project_version }
+out: { receipt:{ review_id, gate, decision, reviewer, finding_ids, spawned_rt_ids },
+       gates_approved:[...], status, project_version }
+语义: 复审人门（borrow mdcore ReviewPolicy：AI 操作者不得自审自过）、状态门
+      （窗口外拒收——矩阵/大纲门 VALIDATING+ 不再受理）、门序（矩阵先于大纲；
+      pre_export 要求前两门 Approved）全在域层 record_review 裁决——壳层零重实现。
+      gates_approved 与域层 gate_approved 同一真源。
+状态: MATRIX_READY+（域层按门细分窗口）
+错误: E_UNPROCESSABLE（gate/decision/findings 形态非法；reviewer 缺 human: 前缀）；
+      E_STATE（门序/窗口外）
+```
+
+> **外部 Agent 纯 MCP 驱动闭环**（G1/G2/G3 补齐后）：create → import → extract →
+> build_outline → register/bind → 三门 → check_bid_quality（**章节发现面**——
+> sections 只列叶，get_bid_project_state 不回章节清单）→ draft → validate → export。
+> 验收：`tests/mcp_scaffold_tools.rs`（零服务面直调全链 + 错误路径）。

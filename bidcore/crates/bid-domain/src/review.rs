@@ -201,7 +201,9 @@ pub struct ReviewReceipt {
 impl DomainStore {
     /// 门是否已有 Approved 记录（门序进度的判定面——Rejected 是过程记录，
     /// 不推进门序；Approved 是里程碑事实，不因后续 Rejected 撤销）。
-    fn gate_approved(&self, gate: Gate) -> bool {
+    /// pub 化（#80 第三批 MCP 补齐 G3）：`record_review_gate` 工具出参
+    /// gates_approved 消费同一真源——壳层不得自建第二套门状态。
+    pub fn gate_approved(&self, gate: Gate) -> bool {
         self.reviews.iter().any(|r| r.gate == gate && r.decision == Decision::Approved)
     }
 

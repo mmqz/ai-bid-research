@@ -140,17 +140,24 @@ impl ProjectStatus {
             FilesImported => &["import_tender_files", "extract_requirements",
                 "get_compliance_matrix", "search_evidence", "get_bid_project_state"],
             RequirementsExtracted => &["import_tender_files", "extract_requirements",
-                "get_compliance_matrix", "search_evidence", "get_bid_project_state"],
+                "get_compliance_matrix", "search_evidence", "get_bid_project_state",
+                // #80 第三批 MCP 补齐 G1：建纲+矩阵首建（P3 的前置）
+                "build_outline"],
             MatrixReady | EvidenceBound => &["get_compliance_matrix", "search_evidence",
-                "get_bid_project_state", "draft_response_section", "check_bid_quality"],
+                "get_bid_project_state", "draft_response_section", "check_bid_quality",
+                // #80 第三批 MCP 补齐 G2/G3：证据登记绑定 + 审批门（P4 面）
+                "register_evidence", "bind_evidence", "record_review_gate"],
             Drafting => &["get_compliance_matrix", "search_evidence",
                 "get_bid_project_state", "draft_response_section", "validate_bid_document",
-                "export_bid_document", "check_bid_quality"],
+                "export_bid_document", "check_bid_quality",
+                // G3：PreExportConfirm 门在 Drafting+ 窗口内
+                "record_review_gate"],
             Validating | Reviewing | ReadyToExport => &["get_compliance_matrix", "search_evidence",
                 "get_bid_project_state", "validate_bid_document", "export_bid_document",
-                "check_bid_quality"],
+                "check_bid_quality", "record_review_gate"],
             Exported => &["get_compliance_matrix", "search_evidence",
-                "get_bid_project_state", "export_bid_document", "check_bid_quality"],
+                "get_bid_project_state", "export_bid_document", "check_bid_quality",
+                "record_review_gate"],
         }
     }
 
@@ -681,6 +688,10 @@ fn tool_name(tool: &str) -> &'static str {
         "draft_response_section" => "draft_response_section",
         "validate_bid_document" => "validate_bid_document",
         "export_bid_document" => "export_bid_document",
+        "build_outline" => "build_outline",
+        "register_evidence" => "register_evidence",
+        "bind_evidence" => "bind_evidence",
+        "record_review_gate" => "record_review_gate",
         _ => "unknown_tool",
     }
 }

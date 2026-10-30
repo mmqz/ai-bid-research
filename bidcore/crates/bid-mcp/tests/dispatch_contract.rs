@@ -14,10 +14,13 @@ fn call(tool: &str, args: serde_json::Value) -> bid_mcp::ToolReply {
 }
 
 #[test]
-fn tool_names_are_the_contract_twelve() {
+fn tool_names_are_the_contract_seventeen() {
     // V3-5（S-4）：8+1+2 = 11；#42 阶段 10 增 save_version = 12；
-    // #68 阶段 2 增 check_bid_quality = 13
-    assert_eq!(TOOL_NAMES.len(), 13, "工具面必须恰为 13 个（8+1+2 契约 + save_version + check_bid_quality）");
+    // #68 阶段 2 增 check_bid_quality = 13；
+    // #80 第三批 MCP 补齐增 4（build_outline / register_evidence /
+    // bind_evidence / record_review_gate）= 17（G1/G2/G3——外部 Agent
+    // 纯 MCP 驱动全链）
+    assert_eq!(TOOL_NAMES.len(), 17, "工具面必须恰为 17 个（13 + G1/G2/G3 补齐 4）");
     for name in TOOL_NAMES {
         assert!(!name.is_empty());
     }
@@ -92,10 +95,10 @@ fn json_roundtrip_failure_is_typed() {
 }
 
 #[test]
-fn tools_schema_lists_all_twelve() {
+fn tools_schema_lists_all_seventeen() {
     let v = bid_mcp::tools_schema();
     let arr = v["tools"].as_array().unwrap();
-    assert_eq!(arr.len(), 13);
+    assert_eq!(arr.len(), 17);
     let implemented: Vec<&str> = arr
         .iter()
         .filter(|t| t["implemented"] == true)
@@ -120,6 +123,10 @@ fn tools_schema_lists_all_twelve() {
             "export_bid_document",
             "get_bid_project_state",
             "check_bid_quality",
+            "build_outline",
+            "register_evidence",
+            "bind_evidence",
+            "record_review_gate",
         ]
     );
 }

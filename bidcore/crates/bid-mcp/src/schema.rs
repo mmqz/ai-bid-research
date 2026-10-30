@@ -125,6 +125,10 @@ fn describe(name: &str) -> &'static str {
         "get_bid_project_state" => "只读：项目状态与 allowed_next_tools",
         "save_version" => "AI 主动存版本快照（mang-snap 同源）",
         "check_bid_quality" => "只读：生成质量覆盖度检查 + 报告落盘（#68 阶段 2）",
+        "build_outline" => "建纲 + 矩阵首建（G1——#80 第三批补齐；REQUIREMENTS_EXTRACTED 态）",
+        "register_evidence" => "证据登记（G2——语义位查重/换版；MATRIX_READY+）",
+        "bind_evidence" => "证据批量绑定 + 矩阵重算（G2——EXPIRED 禁绑；MATRIX_READY+）",
+        "record_review_gate" => "三门记审（G3——matrix/outline/pre_export；reviewer 须 human: 前缀）",
         _ => "unknown",
     }
 }
@@ -143,5 +147,9 @@ fn is_implemented(name: &str) -> bool {
             | "export_bid_document"
             | "validate_bid_document"
             | "check_bid_quality"
+            | "build_outline"
+            | "register_evidence"
+            | "bind_evidence"
+            | "record_review_gate"
     )
 }

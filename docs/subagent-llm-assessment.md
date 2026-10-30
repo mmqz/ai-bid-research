@@ -119,6 +119,57 @@ P3（矩阵）之前卡死，根本到不了起草。
 语义），G3 做 `record_review_gate`（含 decision/actor/意见留痕）。三者都
 是薄壳转发，业务已在服务层——契约文档同步补 §10/§11/§12。
 
+### 四-B、缺口闭环（同批次落地——评估后 24 小时内）
+
+G1/G2/G3 已在同批补齐（拆法采纳上文建议的细分版）：
+
+| 工具 | 契约 | 验收 |
+|---|---|---|
+| `build_outline` | §10 | 建纲+矩阵首建 → MATRIX_READY；值域校验；空条款拒绝 |
+| `register_evidence` | §11-A | 语义位查重/换版；locator 可选（缺省诚实标记）；fingerprint 缺省规则 |
+| `bind_evidence` | §11-B | 批量绑定 + 绑后矩阵重算；逐件 E_PARTIAL；R-03 禁绑 |
+| `record_review_gate` | §12 | human: 复审人门；门序/窗口裁决全在域层；gates_approved 同源 |
+
+**闭环证据**：`tests/mcp_scaffold_tools.rs` ——外部 Agent 视角**零服务面直调**
+驱动全链（15 叶 / 绑 56 条 / 三门 / EXPORTED）+ 错误路径面（E_STATE×4 /
+E_UNPROCESSABLE×5 / E_PARTIAL×2）。工具面 13 → 17。G4（总工调用
+check_bid_quality 的编排纪律）在评估报告的下一轮选章规则中一并落地。
+
+### 四-C、终极检验：无上下文外部 Agent 纯 stdio MCP 驱动（黑盒）
+
+工具补齐后，又派遣一个**只拿契约文档**（docs/bid-mcp-contract.md）+ 部署配置
+（二进制路径 / stdio 行协议 / BID_WS / 素材路径）的子代理——严格模拟
+Claude Desktop 里对引擎一无所知的操作者（禁读源码/测试/其他文档，禁碰
+工作区内部文件，报错只能靠 error.what 自救）：
+
+**结果：45 次 MCP 调用（41 成功 / 4 报错全部自救）全链推到 EXPORTED**——
+108 条款抽取、21 章 15 叶、64 条证据绑定（blocking 56→0）、三门齐过、
+15 章 mock 起草 21,146 字、validate blocker=0、导出 docx 103,889 字节
+（file 核验合法 Word）。**MCP 能力判定从「不够」翻转为「够用」**——
+可驱动性成立，余下的是摩擦面。
+
+**摩擦清单（14 条，按痛感排序）与本批处置**：
+
+| # | 摩擦 | 处置 |
+|---|---|---|
+| 1 | export 的 output_path 契约漏写（两轮试错靠报错自救） | ✅ 契约 §8 补参数说明（含相对路径规则） |
+| 2 | validate 响应不回 project_version 却推版本 → 后续 E_CONFLICT | ✅ 实现补回传 + 契约注明 |
+| 3 | 章节 ID 发现路径藏在末尾括号注 | ✅ 契约 §9 提升为正文「章节发现面」 |
+| 5 | bid_open_date 与 bid_deadline 关系无出处 | ✅ 契约 §11-B 补语义说明 |
+| 7 | EV-id 不从 0001 起（import 自动入账没写） | ✅ 契约 §2 补注 |
+| 8 | register_evidence hint 罐头文案误导 | ✅ 实现改条件式措辞 |
+| 12 | 错误字段名 what vs 契约 message | ✅ 契约以实现为准修订 |
+| 4 | 章节→REQ 归属无正式查询口（靠矩阵反推） | ⬜ 登记后续项（outline 明细只读面候选） |
+| 6 | options.granularity 合法值未枚举 | ⬜ 登记后续项（契约补枚举） |
+| 9 | project_version 步进不透明（+1~+6 不等） | ⬜ 登记后续项（文档说明步进源） |
+| 10 | REVIEWING 状态从未出现（契约与状态机不符） | ⬜ 登记后续项（产品语义裁决） |
+| 11 | unanchored_claims>0 无 warning（契约承诺落空） | ⬜ 登记后续项（K5 相关联动） |
+| 13 | W_FORMAT_BASELINE 文案与事实打架 | ⬜ 登记后续项（文案修订） |
+| 14 | 小噪音（watermark 告警 / BID_DEADLINE_PAST 位置） | ⬜ 登记后续项 |
+
+**正面信号**（外部 Agent 原话归纳）：全部 4 次报错信息可操作、能 self-serve
+恢复；分页/过滤/幂等面无障碍——错误文案质量是本轮最结实的能力面。
+
 ## 五、顺带修复：环境 C 的 OCR 静默空导入（bug，非缺口）
 
 **现象**：本沙箱 tesseract 在位而 chi_sim 缺失（环境 C）时，

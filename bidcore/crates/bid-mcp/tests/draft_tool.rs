@@ -242,13 +242,13 @@ fn draft_override_requirements_and_ghost_warning() {
         "override 后非指定 REQ 不进响应面: {cited:?}");
 }
 
-// ---------------------------------------------------------------- 3. 契约十二工具面回归
+// ---------------------------------------------------------------- 3. 契约工具面回归（17——#80 第三批 G1/G2/G3 补齐后）
 
 #[test]
-fn tool_face_remains_thirteen_with_draft_implemented() {
+fn tool_face_remains_seventeen_with_draft_implemented() {
     let v = bid_mcp::tools_schema();
     let arr = v["tools"].as_array().unwrap();
-    assert_eq!(arr.len(), 13, "工具面保持 13 个");
+    assert_eq!(arr.len(), 17, "工具面保持 17 个（#80 第三批 G1/G2/G3 补齐 +4）");
     let draft = arr.iter().find(|t| t["name"] == "draft_response_section").unwrap();
     assert_eq!(draft["implemented"], json!(true));
     // 其余一个仍未实现（search——骨架纪律；export/validate 已在阶段 2/3 落地）

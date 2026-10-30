@@ -1,0 +1,49 @@
+{
+ "schema": "veto-gt-supplement-recuse-ruling/1",
+ "ruling": {
+  "authority": "Lead 裁决（issue #68 评论 2026-10-30「Lead 回复（三件事）」第 ① 条）",
+  "legal_basis": "《招标投标法实施条例》第 34 条（利害关系负面清单口径）",
+  "decision": "RELATION/RECUSE 跨文档不一致：统一标 true；这不是「两个都对」，是口径错误修正",
+  "context": "评标委员会成员回避清单（A-04 §6.1.2 / A-17 同款）成员条目；同清单既有 GT 条目（A04-GT-063/064、A17-GT-071）已标 true，本补标消除清单内口径分裂"
+ },
+ "count": 3,
+ "items": [
+  {
+   "id": "S68-REC-001",
+   "file": "A-17_喀什噶尔河灌区信息化I标_招标文件.pdf",
+   "main_block_idx": 741,
+   "page": 24,
+   "locator": "第24页 行25",
+   "text": "⑶ 与投标人有经济利益关系，可能影响评标公正的；",
+   "is_veto": true,
+   "category": "资格性否决",
+   "legal_basis": "《招标投标法实施条例》第 34 条（利害关系负面清单口径）",
+   "evidence": "同清单兄弟条目（A04-GT-063/064、A17-GT-071）既有 GT-true；A-17 ⑶⑷ 与 A-04（3）为同文本跨文档条目，此前缺标（=按 false 口径计）"
+  },
+  {
+   "id": "S68-REC-002",
+   "file": "A-17_喀什噶尔河灌区信息化I标_招标文件.pdf",
+   "main_block_idx": 742,
+   "page": 24,
+   "locator": "第24页 行26",
+   "text": "⑷ 在近三年内与投标人曾有工作关系的",
+   "is_veto": true,
+   "category": "资格性否决",
+   "legal_basis": "《招标投标法实施条例》第 34 条（利害关系负面清单口径）",
+   "evidence": "同清单兄弟条目（A04-GT-063/064、A17-GT-071）既有 GT-true；A-17 ⑶⑷ 与 A-04（3）为同文本跨文档条目，此前缺标（=按 false 口径计）"
+  },
+  {
+   "id": "S68-REC-003",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "main_block_idx": 729,
+   "page": 22,
+   "locator": "第22页 行25",
+   "text": "（3）与投标人有经济利益关系，可能影响对投标公正评审的；",
+   "is_veto": true,
+   "category": "资格性否决",
+   "legal_basis": "《招标投标法实施条例》第 34 条（利害关系负面清单口径）",
+   "evidence": "同清单兄弟条目（A04-GT-063/064、A17-GT-071）既有 GT-true；A-17 ⑶⑷ 与 A-04（3）为同文本跨文档条目，此前缺标（=按 false 口径计）"
+  }
+ ],
+ "pending": "重测（measure_baseline.py）待 PAT 到位后执行——Lead 已接受 P 可能下降；重测后按阶段 4 同款格式回帖报告"
+}

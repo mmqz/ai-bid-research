@@ -1,0 +1,23 @@
+warning: function `content_paragraphs` is never used
+   --> crates/bid-tools/src/export.rs:575:4
+    |
+575 | fn content_paragraphs(content: &str) -> impl Iterator<Item = &str> {
+    |    ^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `bid-tools` (lib) generated 1 warning
+    Finished `test` profile [unoptimized] target(s) in 0.15s
+     Running tests/subagent_llm_path.rs (/tmp/shared-target/debug/deps/subagent_llm_path-8032a7f0d1d0fe12)
+
+running 1 test
+test subagent_llm_multi_chapter_path ... [subagent-path] 准备链 766ms｜目标章节 ["SEC-0008", "SEC-0009", "SEC-0010"]｜叶 16 个
+[subagent-path] capture SEC-0008 → 503（prompt 已落盘 prompt-0.json）
+[subagent-path] capture SEC-0009 → 503（prompt 已落盘 prompt-1.json）
+[subagent-path] capture SEC-0010 → 503（prompt 已落盘 prompt-2.json）
+[subagent-path] capture ✅ 3 章真实传输面（ureq → 中继 → 503 错误语义）｜20ms
+[subagent-path] prompt 已由中继落盘——主代理派遣子代理作者后跑 serve 相位
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.79s
+

@@ -1,0 +1,24 @@
+warning: function `content_paragraphs` is never used
+   --> crates/bid-tools/src/export.rs:575:4
+    |
+575 | fn content_paragraphs(content: &str) -> impl Iterator<Item = &str> {
+    |    ^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `bid-tools` (lib) generated 1 warning
+    Finished `test` profile [unoptimized] target(s) in 0.10s
+     Running tests/subagent_llm_path.rs (/tmp/shared-target/debug/deps/subagent_llm_path-8032a7f0d1d0fe12)
+
+running 1 test
+test subagent_llm_multi_chapter_path ... [subagent-path] 准备链 5ms｜目标章节 ["SEC-0008", "SEC-0009", "SEC-0010"]｜叶 16 个
+[subagent-path] serve SEC-0008 ✅ 真实链路（1547 字｜引用 8｜偏离 11.1%｜版本 manuscripts__SEC-0008.md-ac5aa684/20261030-163330-cc24c0.md）｜29ms
+[subagent-path] serve SEC-0009 ✅ 真实链路（1610 字｜引用 8｜偏离 15.7%｜版本 manuscripts__SEC-0009.md-5a29427d/20261030-163330-e8cc90.md）｜21ms
+[subagent-path] serve SEC-0010 ✅ 真实链路（1493 字｜引用 8｜偏离 7.3%｜版本 manuscripts__SEC-0010.md-c6342abe/20261030-163330-578e28.md）｜21ms
+[subagent-path] mock 补齐 13 章｜258ms
+[subagent-path] serve 全链 ✅ 导出 /tmp/subagent-ws/out/子代理通路-投标文件-技术标.docx（103781 字节）｜台账 3 次调用｜真实章节 ["SEC-0008", "SEC-0009", "SEC-0010"]
+[subagent-path] 成品中上述 3 章为【子代理作者真实撰写】，其余为 mock 补齐
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+

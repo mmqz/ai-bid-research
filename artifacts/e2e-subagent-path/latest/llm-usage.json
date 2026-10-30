@@ -1,0 +1,15 @@
+{
+  "calls": 3,
+  "prompt_tokens": 3159,
+  "completion_tokens": 4650,
+  "total_tokens": 7809,
+  "by_model": {
+    "subagent-author-v1": {
+      "calls": 3,
+      "prompt_tokens": 3159,
+      "completion_tokens": 4650,
+      "total_tokens": 7809
+    }
+  },
+  "last_at": 1793378010
+}

@@ -7,8 +7,8 @@
 //! 拒绝（不留可被误认为完整 OCR 的部分结果）。
 
 use crate::guard::{
-    self, LIMIT_INPUT_BYTES_PDF, LIMIT_PDFTOTEXT_STDOUT, LIMIT_TESSERACT_STDOUT, MAX_OCR_PAGES,
-    TIMEOUT_PDFTOPPM, TIMEOUT_PDFTOTEXT, TIMEOUT_TESSERACT, RunOutcome, TmpGuard,
+    self, RunOutcome, TmpGuard, LIMIT_INPUT_BYTES_PDF, LIMIT_PDFTOTEXT_STDOUT,
+    LIMIT_TESSERACT_STDOUT, MAX_OCR_PAGES, TIMEOUT_PDFTOPPM, TIMEOUT_PDFTOTEXT, TIMEOUT_TESSERACT,
 };
 use crate::{Block, BlockKind, ParsedFile};
 use std::path::Path;
@@ -20,8 +20,8 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
         .map_err(|e| format!("pdf 防护拒绝: {e}"))?;
     let mut text_cmd = Command::new("pdftotext");
     text_cmd.arg("-layout").arg(path.as_os_str()).arg("-");
-    let text = guard::run_limited(text_cmd, TIMEOUT_PDFTOTEXT, LIMIT_PDFTOTEXT_STDOUT)
-        .into_result()?;
+    let text =
+        guard::run_limited(text_cmd, TIMEOUT_PDFTOTEXT, LIMIT_PDFTOTEXT_STDOUT).into_result()?;
     // pdftotext 以 \f 分页且末页后常带尾随 \f——按「非空分片」计页
     let pages = text
         .split('\u{c}')
@@ -92,14 +92,15 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
         if !pngs.is_empty() {
             pages = pngs.len(); // 扫描件页数以实际渲染张数为准（诚实页数，非文本层猜测）
         }
+        let mut ocr_fail_pages = 0usize; // NonZeroExit 页计（环境类失败与数据面残缺的分频面）
         for (pi, png) in pngs.iter().enumerate() {
-            let tessdata = std::path::PathBuf::from(
-                std::env::var("TESSDATA_PREFIX").unwrap_or_else(|_| {
+            let tessdata =
+                std::path::PathBuf::from(std::env::var("TESSDATA_PREFIX").unwrap_or_else(|_| {
                     format!("{}/.tessdata", std::env::var("HOME").unwrap_or_default())
-                }),
-            );
+                }));
             let mut t_cmd = Command::new("tesseract");
-            t_cmd.arg(png.as_os_str())
+            t_cmd
+                .arg(png.as_os_str())
                 .arg("stdout")
                 .args(["-l", "chi_sim", "--psm", "6"])
                 .env("TESSDATA_PREFIX", &tessdata);
@@ -108,14 +109,15 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
                 // 单页 OCR 失败：诚实降级说明（不静默、不中断整档——扫描页残缺属
                 // 数据面，parse_summary 承载原因）；超时/溢出类治理失败向上传播拒绝
                 match ocr {
-                    RunOutcome::Timeout { .. } | RunOutcome::OutputOverflow { .. }
-                    | RunOutcome::Busy { .. } | RunOutcome::Spawn { .. } => {
+                    RunOutcome::Timeout { .. }
+                    | RunOutcome::OutputOverflow { .. }
+                    | RunOutcome::Busy { .. }
+                    | RunOutcome::Spawn { .. } => {
                         return Err(format!("tesseract 治理失败: {}", short_err(&ocr)));
                     }
                     RunOutcome::NonZeroExit { stderr_head, .. } => {
-                        summary = format!(
-                            "pdf 扫描层: {pages} 页，OCR 失败（{stderr_head}）"
-                        );
+                        ocr_fail_pages += 1;
+                        summary = format!("pdf 扫描层: {pages} 页，OCR 失败（{stderr_head}）");
                         break;
                     }
                     RunOutcome::Success { .. } => unreachable!(),
@@ -145,6 +147,19 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
         if summary.is_empty() {
             summary = format!("pdf 扫描层 OCR: {pages} 页，{ocr_blocks} 行块（chi_sim）");
         }
+        // 堵漏（#80 第三批实测发现·环境 C：tesseract 在位而 chi_sim 缺失）：
+        // NonZeroExit 走「诚实降级」后，扫描件以 0 块【静默导入成功】——内容
+        // 整档丢失却无任何失败信号（issue #9「环境缺失伪装成业务行为」的变体）。
+        // 规则：OCR 页失败且零行块 = 无可用产物 → 解析失败（E_PARTIAL 让调用方
+        // 看见）；部分页成功（ocr_blocks > 0）仍走降级（扫描页残缺属数据面，
+        // 语义不变）；全页 OCR 成功但空文本（白扫）不在此列——那是诚实空。
+        if ocr_fail_pages > 0 && ocr_blocks == 0 {
+            return Err(format!(
+                "pdf 扫描层 OCR 失败（{ocr_fail_pages} 页报错、零行块产出）——\
+                 疑似 OCR 环境缺失：检查 tesseract 与 chi_sim 语言数据\
+                 （TESSDATA_PREFIX 或 ~/.tessdata）；本文件按失败处理，不留空内容伪装成功"
+            ));
+        }
     }
 
     let tables = blocks
@@ -170,7 +185,11 @@ fn short_err(out: &RunOutcome) -> String {
         RunOutcome::OutputOverflow { program, limit } => {
             format!("输出超限（{program} > {limit} 字节）")
         }
-        RunOutcome::NonZeroExit { program, code, stderr_head } => {
+        RunOutcome::NonZeroExit {
+            program,
+            code,
+            stderr_head,
+        } => {
             format!("{program} 退出码 {code:?}: {stderr_head}")
         }
         RunOutcome::Busy { program } => format!("并发满载（{program}）"),
@@ -245,8 +264,11 @@ mod tests {
                     Err(e) => {
                         assert!(e.contains("超过 OCR 上限"), "必须是页数门拒绝，实际 {e}");
                         // 门在渲染前生效：不得耗 OCR 时间（201 页 OCR 需数百秒）
-                        assert!(started.elapsed().as_secs() < 30,
-                            "拒绝必须在渲染前返回，实际 {:?}", started.elapsed());
+                        assert!(
+                            started.elapsed().as_secs() < 30,
+                            "拒绝必须在渲染前返回，实际 {:?}",
+                            started.elapsed()
+                        );
                     }
                     Ok(_) => panic!("201 页扫描 PDF 必须被拒绝（R3-S1-1 门失效）"),
                 }

@@ -33,7 +33,7 @@ use serde_json::Value;
 ///
 /// V3-5（S-4 游标分页）新增 `list_evidence` / `list_tasks` 两个只读列表工具
 /// （原 8 工具契约 + `get_bid_project_state` + 2 = 11）。
-pub const TOOL_NAMES: [&str; 11] = [
+pub const TOOL_NAMES: [&str; 12] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -45,6 +45,7 @@ pub const TOOL_NAMES: [&str; 11] = [
     "validate_bid_document",
     "export_bid_document",
     "get_bid_project_state",
+    "save_version",
 ];
 
 /// 工具解析与分发入口（进程级全局服务态——stdio 默认传输面）。

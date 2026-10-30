@@ -1,0 +1,9 @@
+[package]
+name = "mang-snap"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "mang 版本快照核心（.mang/history 写端单一真源）：桌面壳与 MCP 共用"
+
+[dependencies]
+serde_json = { workspace = true }

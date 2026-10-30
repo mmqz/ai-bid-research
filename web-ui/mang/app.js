@@ -287,8 +287,45 @@
               return fail(m.id, "unsupported", "\u6F14\u793A\u6A21\u5F0F\u65E0\u6CD5\u5F39\u51FA\u7CFB\u7EDF\u6587\u4EF6\u5BF9\u8BDD\u6846");
             case "explorer.reveal":
               return respond(m.id, { ok: true });
-            case "history.list":
-              return respond(m.id, { items: [] });
+            case "history.list": {
+              const now2 = Date.now();
+              return respond(m.id, { items: [
+                { ts: now2 - 36e5, kind: "ai", message: "第2章 技术方案完成", file: "技术标.md", snapshot: "demo/1.md" },
+                { ts: now2 - 108e5, kind: "auto", message: "", file: "技术标.md", snapshot: "demo/2.md" }
+              ] });
+            }
+            case "snapshots.check":
+              return respond(m.id, { saved: [], skipped: (m.paths || []).map((p) => ({ file: p, reason: "演示模式" })) });
+            case "snapshots.save":
+              return respond(m.id, { ok: true, file: m.path, ts: Date.now(), snapshot: "demo/" + Date.now() + ".md" });
+            case "snapshots.read": {
+              const c1 = "# \u6280\u672F\u6807\uFF08\u7B2C2\u7AE0\u5B8C\u6210\u540E\u7684\u7248\u672C\uFF09\n\n> \u6F14\u793A\u6A21\u5F0F\uFF1A\u5FEB\u7167\u6B63\u6587\u5360\u4F4D\u3002\n\n## \u7B2C1\u7AE0 \u6982\u8FF0\n\n\u672C\u6587\u6863\u4E3A\u6F14\u793A\u5360\u4F4D\uFF0C\u7528\u4E8E\u5C55\u793A\u7248\u672C diff\u3002\n\n## \u7B2C2\u7AE0 \u6280\u672F\u65B9\u6848\n\n- \u5206\u5E03\u5F0F\u67B6\u6784\uFF1A\u4E3B\u5907\u53CC\u6D3B\n- \u5B58\u50A8\uFF1A\u5206\u5E03\u5F0F\u6570\u636E\u5E93\n- \u76D1\u63A7\uFF1A\u5168\u94FE\u8DEF\u8FFD\u8E2A\n\n## \u7B2C3\u7AE0 \u5B9E\u65BD\u8BA1\u5212\n\n\uFF08\u5F85\u7EED\uFF09";
+              const c2 = "# \u6280\u672F\u6807\uFF08\u521D\u7A3F\uFF09\n\n> \u6F14\u793A\u6A21\u5F0F\uFF1A\u5FEB\u7167\u6B63\u6587\u5360\u4F4D\u3002\n\n## \u7B2C1\u7AE0 \u6982\u8FF0\n\n\u672C\u6587\u6863\u4E3A\u6F14\u793A\u5360\u4F4D\u3002\n\n## \u7B2C2\u7AE0 \u6280\u672F\u65B9\u6848\n\n\uFF08\u5F85\u5199\uFF09";
+              const content = String(m.snapshot || "").endsWith("2.md") ? c2 : c1;
+              return respond(m.id, { content, bytes: content.length });
+            }
+            
+            case "snapshots.rollback":
+              return respond(m.id, { ok: true, file: m.file, snapshot: m.snapshot, bytes: 128, backupTs: Date.now() });
+            case "annotations.load": {
+              const isDemoMd = /\u6280\u672F\u6807\.md$/.test(String(m.path || ""));
+              return respond(m.id, isDemoMd ? {
+                file: m.path, present: true,
+                items: [
+                  { id: "1", block: "b4", quote: "\u672C\u6B21\u6295\u6807\u65B9\u6848\u91C7\u7528\u5206\u5E03\u5F0F\u67B6\u6784",
+                    source: { file: "\u62DB\u6807\u6587\u4EF6.docx", page: 12, section: "3.2", quote: "\u6295\u6807\u4EBA\u987B\u63D0\u4F9B\u5206\u5E03\u5F0F\u67B6\u6784\u65B9\u6848" },
+                    status: "pending", note: "" },
+                  { id: "2", block: "b9", quote: "\u4E09\u3001\u98CE\u9669\u63A7\u5236",
+                    source: { file: "\u62DB\u6807\u6587\u4EF6.docx", page: 18, section: "6.1", quote: "\u6295\u6807\u4EBA\u5E94\u5236\u5B9A\u98CE\u9669\u5E94\u5BF9\u63AA\u65BD\u4E0E\u7F13\u91CA\u673A\u5236" },
+                    status: "confirmed", note: "\u5DF2\u5BF9\u7167\u8BC4\u5206\u529E\u6CD5\u7B2C\u516D\u7AE0" }
+                ]
+              } : { file: m.path, present: false, items: [] });
+            }
+            case "annotations.setStatus": {
+              window.__demoAnno = window.__demoAnno || {};
+              window.__demoAnno[m.id] = m.status;
+              return respond(m.id, { ok: true, file: m.file, id: m.id, status: m.status });
+            }
             default:
               return fail(m.id, "unknown_cmd", "\u6F14\u793A\u6A21\u5F0F\u672A\u5B9E\u73B0\u8BE5\u547D\u4EE4\uFF1A" + m.cmd);
           }
@@ -321,7 +358,9 @@
     /** 是否运行在桌面壳里（自绘标题栏/窗口按钮只在这种模式下启用） */
     nativeChrome: false,
     // git 数据（「改动」面板）：{ status, available, branch, items, log, error }
-    git: { status: "idle", available: false, branch: "", items: [], log: [], error: "" }
+    git: { status: "idle", available: false, branch: "", items: [], log: [], error: "" },
+    // 版本快照（issue #42 阶段 7）：{ status, file, entries, error }
+    snapshots: { status: "idle", file: "", entries: [], error: "" }
   };
   var SIDEBARS = [
     { id: "files", icon: "files", title: "\u8D44\u6E90\u7BA1\u7406\u5668", key: "Ctrl+Shift+E" },
@@ -987,6 +1026,398 @@
     const btn = host.querySelector('[data-act="refresh"]');
     if (btn) btn.addEventListener("click", () => ui.refreshTree());
   }
+
+  // ============ #42 阶段 7：版本快照（自动 30s 检查 + 改动面板 + 预览/回滚） ============
+  /** 只有文本文件入快照（issue #42 §八：源头是 md，二进制不做） */
+  function snapshotablePath(p) {
+    return /\.(md|markdown|txt)$/i.test(p || "");
+  }
+  /** 绝对路径 → 工作区 rel（history.list 的 file 字段是 rel、正斜杠） */
+  function relOfPath(p) {
+    const ws = state.workspace || "";
+    if (ws) {
+      const np = String(p).replace(/\\/g, "/");
+      const nw = ws.replace(/\\/g, "/").replace(/\/+$/, "") + "/";
+      if (np.toLowerCase().startsWith(nw.toLowerCase())) return np.slice(nw.length);
+    }
+    return String(p).replace(/\\/g, "/");
+  }
+
+  // ============ #42 阶段 8：来源标注浮层（覆盖层，绝不修改文件） ============
+  /** 给已渲染的 tab 挂标注层：.view-scroll 内绝对定位（随内容滚动），
+   *  角标锚在目标块右下角；点角标开来源详情浮层（认校验三态可点）。 */
+  function attachAnnotations(tab) {
+    const pane = document.getElementById("pane-" + tab.id);
+    if (!pane) return;
+    detachAnnotations(pane);
+    if (tab.kind !== "md" && tab.kind !== "docx") return;
+    const sc = pane.querySelector(".view-scroll");
+    if (!sc) return;
+    const rel = relOfPath(tab.path || "");
+    ipc("annotations.load", { path: rel }, 15e3).then((r) => {
+      if (!r || !r.present || !Array.isArray(r.items) || !r.items.length) return;
+      if (document.getElementById("pane-" + tab.id) !== pane) return; // tab 已关
+      const layer = document.createElement("div");
+      layer.className = "anno-layer";
+      layer.dataset.for = tab.id;
+      sc.appendChild(layer);
+      const items = r.items;
+      const render = () => {
+        layer.innerHTML = "";
+        layer.style.height = sc.scrollHeight + "px";
+        const scRect = sc.getBoundingClientRect();
+        let placed = 0;
+        items.forEach((it, idx) => {
+          const blk = sc.querySelector('[data-block-id="' + esc(it.block || "") + '"]');
+          if (!blk) return;
+          const bRect = blk.getBoundingClientRect();
+          const mk = document.createElement("button");
+          mk.className = "anno-mark st-" + (it.status || "pending");
+          mk.textContent = String(idx + 1);
+          const quote = (it.quote || "").slice(0, 60);
+          mk.title = quote + "\uFF08\u70B9\u770B\u6765\u6E90\uFF09";
+          // 相对滚动内容定位（层原点 = 内容顶部）
+          mk.style.top = (bRect.bottom - scRect.top + sc.scrollTop - 11) + "px";
+          mk.style.left = Math.min(bRect.right - scRect.left + sc.scrollLeft + 4, sc.clientWidth - 24) + "px";
+          mk.addEventListener("click", (e) => {
+            e.stopPropagation();
+            showAnnotationDetail(tab, items, idx);
+          });
+          layer.appendChild(mk);
+          placed++;
+        });
+        if (placed) {
+          ui.setStatus({ annotations: "\u6807\u6CE8 " + placed + " \u6761" });
+        }
+      };
+      render();
+      // 内容尺寸变化（字体加载/图片展开/窗口缩放）重摆角标
+      const ro = new ResizeObserver(() => render());
+      ro.observe(sc.firstElementChild || sc);
+      layer.__ro = ro;
+    }).catch(() => {
+      /* 标注加载失败不打扰正文（下次切回重试） */
+    });
+  }
+
+  function detachAnnotations(pane) {
+    const old = pane.querySelector(".anno-layer");
+    if (old) {
+      if (old.__ro) old.__ro.disconnect();
+      old.remove();
+      ui.setStatus({ annotations: "" });
+    }
+  }
+
+  /** 来源详情浮层：认校验三态（✅已确认 / ⚠待确认 / ❌不符）+ 来源引用 */
+  function showAnnotationDetail(tab, items, idx) {
+    closeAnnotationDetail();
+    const it = items[idx];
+    if (!it) return;
+    const src = it.source || {};
+    const ov = document.createElement("div");
+    ov.id = "anno-detail";
+    const srcLine = [src.file, src.page ? "P" + src.page : "", src.section ? "\u00A7" + src.section : ""].filter(Boolean).join(" \u00B7 ");
+    const st = it.status || "pending";
+    const btn = (s, label) =>
+      '<button class="anno-status" data-status="' + s + '"' + (st === s ? ' aria-pressed="true"' : "") + ">" + label + "</button>";
+    ov.innerHTML =
+      '<div class="anno-box">' +
+      '<div class="anno-head"><span class="anno-title">\u6765\u6E90 [' + (idx + 1) + ']</span>' +
+      '<button class="anno-close" title="\u5173\u95ED (Esc)">\u00D7</button></div>' +
+      '<div class="anno-src">' + esc(srcLine || "\u672A\u77E5\u6765\u6E90") + "</div>" +
+      (src.quote ? '<div class="anno-quote">\u300C' + esc(src.quote) + "\u300D</div>" : "") +
+      (it.quote ? '<div class="anno-where">\u6B63\u6587\u4F4D\u7F6E\uFF1A' + esc(it.quote.slice(0, 80)) + "</div>" : "") +
+      (it.note ? '<div class="anno-note">' + esc(it.note) + "</div>" : "") +
+      '<div class="anno-verify"><span>\u8BA4\u6821\u9A8C</span>' +
+      btn("confirmed", "\u2705 \u5DF2\u786E\u8BA4") +
+      btn("pending", "\u26A0\uFE0F \u5F85\u786E\u8BA4") +
+      btn("rejected", "\u274C \u4E0D\u7B26") +
+      "</div>" +
+      '<div class="anno-hint">\u6807\u6CE8\u5B58\u5728\u8FB9\u8F66\uFF08.mang/annotations\uFF09\uFF0C\u7EDD\u4E0D\u4FEE\u6539\u6587\u4EF6\u5185\u5BB9</div>' +
+      "</div>";
+    ov.addEventListener("mousedown", (e) => {
+      if (e.target === ov) closeAnnotationDetail();
+    });
+    ov.querySelector(".anno-close").addEventListener("click", closeAnnotationDetail);
+    ov.querySelectorAll(".anno-status").forEach((b) => {
+      b.addEventListener("click", () => {
+        const status = b.dataset.status;
+        ipc("annotations.setStatus", { path: relOfPath(tab.path || ""), id: it.id, status }, 15e3).then(() => {
+          it.status = status;
+          ov.querySelectorAll(".anno-status").forEach((x) => x.removeAttribute("aria-pressed"));
+          b.setAttribute("aria-pressed", "true");
+          const layer = document.getElementById("pane-" + tab.id)?.querySelector(".anno-layer");
+          const marks = layer ? Array.from(layer.children) : [];
+          const mk = marks[idx];
+          if (mk) mk.className = "anno-mark st-" + status;
+          ui.toast("ok", "\u5DF2\u6807\u8BB0\uFF1A" + (status === "confirmed" ? "\u5DF2\u786E\u8BA4" : status === "pending" ? "\u5F85\u786E\u8BA4" : "\u4E0D\u7B26"));
+        }).catch((e2) => ui.toast("error", "\u4FDD\u5B58\u5931\u8D25\uFF1A" + (e2.message || e2)));
+      });
+    });
+    document.body.appendChild(ov);
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        closeAnnotationDetail();
+        document.removeEventListener("keydown", onKey);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+  }
+
+  function closeAnnotationDetail() {
+    const ov = document.getElementById("anno-detail");
+    if (ov) ov.remove();
+  }
+
+  /** 30s 一档：打开的文本文件内容有变 → 壳侧存快照（无变化自动跳过） */
+  function snapshotTick() {
+    if (!state.bridge || state.bridge.mode !== "host") return;
+    const seen = /* @__PURE__ */ new Set();
+    const paths = [];
+    for (const t of state.tabs) {
+      if (t.state === "ready" && snapshotablePath(t.path) && !seen.has(t.path)) {
+        seen.add(t.path);
+        paths.push(t.path);
+      }
+    }
+    if (!paths.length) return;
+    ipc("snapshots.check", { paths }, 3e4).then((r) => {
+      const saved = (r && r.saved) || [];
+      if (saved.length) {
+        ui.toast("info", "已存版本快照：" + saved.map((s) => baseName(s.file)).join("、"));
+        if (settings.sidebarActive === "changes") ui.loadSnapshots(state.snapshots.file);
+      }
+    }).catch(() => {
+      /* 快照失败不打扰（下一轮再试） */
+    });
+  }
+  /** 载入某文件的快照列表进改动面板（file 为空 = 清空） */
+  function loadSnapshotsInto(file) {
+    state.snapshots.file = file || "";
+    state.snapshots.status = file ? "loading" : "idle";
+    state.snapshots.entries = [];
+    state.snapshots.error = "";
+    if (!file) {
+      renderSidebar();
+      return Promise.resolve();
+    }
+    return ipc("history.list", { path: file, limit: 100 }, 15e3).then((r) => {
+      state.snapshots.entries = (r && r.items) || [];
+      state.snapshots.status = "ready";
+      renderSidebar();
+    }).catch((e) => {
+      state.snapshots.status = "error";
+      state.snapshots.error = e.message || String(e);
+      renderSidebar();
+    });
+  }
+  /**
+   * #42 阶段 9：md 层逐行 diff（类 git diff）。
+   * 返回 [{t: '='|'-'|'+', a?, b?, text}]；t 是操作，text 取对应侧的行。
+   * 公共前后缀裁剪后对中段做 LCS（Uint32 DP，超过 16M 格退化为整块替换）。
+   */
+  function diffLines(aText, bText) {
+    const a = String(aText == null ? "" : aText).split("\n");
+    const b = String(bText == null ? "" : bText).split("\n");
+    let p = 0;
+    while (p < a.length && p < b.length && a[p] === b[p]) p++;
+    let s = 0;
+    while (s < a.length - p && s < b.length - p && a[a.length - 1 - s] === b[b.length - 1 - s]) s++;
+    const am = a.slice(p, a.length - s);
+    const bm = b.slice(p, b.length - s);
+    const ops = [];
+    for (let i = 0; i < p; i++) ops.push({ t: "=", text: a[i] });
+    if (am.length * bm.length > 16e6) {
+      // 超大变更块：不做精细对齐，诚实整块替换（防卡 UI）
+      for (const line of am) ops.push({ t: "-", text: line });
+      for (const line of bm) ops.push({ t: "+", text: line });
+    } else if (am.length || bm.length) {
+      const n = am.length, m = bm.length;
+      const w = m + 1;
+      const dp = new Uint32Array((n + 1) * (m + 1));
+      for (let i = n - 1; i >= 0; i--) {
+        for (let j = m - 1; j >= 0; j--) {
+          dp[i * w + j] = am[i] === bm[j]
+            ? dp[(i + 1) * w + (j + 1)] + 1
+            : Math.max(dp[(i + 1) * w + j], dp[i * w + (j + 1)]);
+        }
+      }
+      let i = 0, j = 0;
+      while (i < n && j < m) {
+        if (am[i] === bm[j]) {
+          ops.push({ t: "=", text: am[i] });
+          i++; j++;
+        } else if (dp[(i + 1) * w + j] >= dp[i * w + (j + 1)]) {
+          ops.push({ t: "-", text: am[i] });
+          i++;
+        } else {
+          ops.push({ t: "+", text: bm[j] });
+          j++;
+        }
+      }
+      while (i < n) ops.push({ t: "-", text: am[i++] });
+      while (j < m) ops.push({ t: "+", text: bm[j++] });
+    }
+    for (let k = a.length - s; k < a.length; k++) ops.push({ t: "=", text: a[k] });
+    return ops;
+  }
+
+  /** diff 操作流 → git 风格 HTML（上下文 3 行，中间折叠「⋯ N 行未变」） */
+  function renderDiffHtml(ops) {
+    const CTX = 3;
+    const keep = new Array(ops.length).fill(false);
+    for (let i = 0; i < ops.length; i++) {
+      if (ops[i].t !== "=") {
+        for (let k = Math.max(0, i - CTX); k <= Math.min(ops.length - 1, i + CTX); k++) keep[k] = true;
+      }
+    }
+    let add = 0, del = 0;
+    for (const o of ops) {
+      if (o.t === "+") add++;
+      else if (o.t === "-") del++;
+    }
+    let html = '<div class="diff-summary">' +
+      '<span class="diff-stat add">+' + add + " \u884C</span>" +
+      '<span class="diff-stat del">\u2212' + del + " \u884C</span>" +
+      (add + del === 0 ? '<span class="diff-stat same">\u65E0\u5DEE\u5F02</span>' : "") +
+      "</div>";
+    html += '<div class="diff-body">';
+    let skip = 0;
+    let started = false;
+    for (let i = 0; i < ops.length; i++) {
+      if (!keep[i]) {
+        skip++;
+        continue;
+      }
+      if (skip > 0) {
+        const label = started ? "\u22EF " + skip + " \u884C\u672A\u53D8" : "\u22EF \uFF08\u524D\u9762 " + skip + " \u884C\u672A\u53D8\uFF09";
+        html += '<div class="diff-line gap">' + label + "</div>";
+        skip = 0;
+      }
+      started = true;
+      const o = ops[i];
+      const cls = o.t === "=" ? "ctx" : o.t === "-" ? "del" : "add";
+      const mark = o.t === "=" ? " " : o.t;
+      html += '<div class="diff-line ' + cls + '"><span class="diff-mark">' + mark + '</span><span class="diff-text">' + (esc(o.text) || "\u200B") + "</span></div>";
+    }
+    if (skip > 0) html += '<div class="diff-line gap">\u22EF \uFF08\u540E\u9762 ' + skip + " \u884C\u672A\u53D8\uFF09</div>";
+    html += "</div>";
+    return html;
+  }
+
+  /** 预览某版本（浮层，绝不改文件）；#42 阶段 9：可切换 diff 视图 */
+  function showSnapshotPreview(entry, siblings) {
+    closeSnapshotPreview();
+    ipc("snapshots.read", { file: entry.file, snapshot: entry.snapshot }, 15e3).then((r) => {
+      const ov = document.createElement("div");
+      ov.id = "snap-preview";
+      const when = new Date(entry.ts).toLocaleString();
+      const badge = entry.kind === "ai" ? "AI 存版本" : entry.kind === "manual" ? "手动存版" : "自动快照";
+      const msg = entry.message ? " · " + esc(entry.message) : "";
+      const canRoll = true;
+      const sibs = Array.isArray(siblings) ? siblings : [];
+      const prev = sibs.filter((x) => x.ts < entry.ts && x.snapshot).sort((x, y) => y.ts - x.ts)[0] || null;
+      ov.innerHTML =
+        '<div class="snap-box">' +
+        '<div class="snap-head"><span class="snap-title">\u7248\u672C\u9884\u89C8 \xB7 ' + esc(baseName(entry.file)) + '</span>' +
+        '<span class="snap-meta">' + esc(badge + " \xB7 " + when) + msg + '</span>' +
+        '<button class="snap-diff" data-diff="cur" title="\u5FEB\u7167 vs \u5F53\u524D\u6587\u4EF6\uFF08\u56DE\u6EDA\u4F1A\u6539\u52A8\u4EC0\u4E48\uFF09">\u4E0E\u5F53\u524D\u5BF9\u6BD4</button>' +
+        '<button class="snap-diff" data-diff="prev" title="\u4E0A\u4E00\u4EFD\u5FEB\u7167 vs \u672C\u4EFD\uFF08\u8FD9\u4E00\u7248\u6539\u4E86\u4EC0\u4E48\uFF09"' + (prev ? "" : " disabled") + ">\u4E0E\u4E0A\u4E00\u7248\u5BF9\u6BD4</button>" +
+        '<button class="snap-close" title="\u5173\u95ED (Esc)">\u00D7</button></div>' +
+        '<div class="snap-bodywrap"><pre class="snap-body">' + esc((r && r.content) || "(\u7A7A)") + "</pre></div>" +
+        '<div class="snap-foot">' +
+        (canRoll ? '<button class="btn snap-rollback" data-ts="' + entry.ts + '">回滚到此版本</button>' : "") +
+        '<span class="snap-hint">回滚会先把当前内容自动备份成新快照（可再回滚回来）</span>' +
+        "</div></div>";
+      ov.addEventListener("mousedown", (e) => {
+        if (e.target === ov) closeSnapshotPreview();
+      });
+      ov.querySelector(".snap-close").addEventListener("click", closeSnapshotPreview);
+      // #42 阶段 9：diff 视图切换（再点同按钮 = 返回正文预览）
+      const bodyWrap = ov.querySelector(".snap-bodywrap");
+      const curBtn = ov.querySelector('[data-diff=cur]');
+      const prevBtn = ov.querySelector('[data-diff=prev]');
+      const setDiffMode = (mode) => {
+        const active = ov.dataset.diffMode === mode;
+        ov.dataset.diffMode = active ? "" : mode;
+        curBtn.classList.toggle("on", !active && mode === "cur");
+        prevBtn.classList.toggle("on", !active && mode === "prev");
+        if (active) {
+          bodyWrap.innerHTML = '<pre class="snap-body">' + esc((r && r.content) || "(\u7A7A)") + "</pre>";
+          return;
+        }
+        bodyWrap.innerHTML = '<div class="view-state"><div class="view-spinner"></div><div>\u6B63\u5728\u5BF9\u6BD4\u2026</div></div>';
+        const other = mode === "cur"
+          ? ipc("fs.read", { path: entry.file }, 15e3).then((x) => (x && x.text) || "")
+          : prev
+            ? ipc("snapshots.read", { file: prev.file, snapshot: prev.snapshot }, 15e3).then((x) => (x && x.content) || "")
+            : Promise.resolve("");
+        other.then((otherText) => {
+          const ops = mode === "cur"
+            ? diffLines((r && r.content) || "", otherText)
+            : diffLines(prev ? (window.__snapPrevCache && window.__snapPrevCache) || "" : "", (r && r.content) || "");
+          bodyWrap.innerHTML = '<div class="snap-body snap-body-diff">' + renderDiffHtml(ops) + "</div>";
+        }).catch((e2) => {
+          bodyWrap.innerHTML = '<div class="snap-body">\u5BF9\u6BD4\u5931\u8D25\uFF1A' + esc(e2.message || String(e2)) + "</div>";
+        });
+      };
+      curBtn.addEventListener("click", () => setDiffMode("cur"));
+      if (prevBtn) prevBtn.addEventListener("click", () => {
+        if (prevBtn.disabled) return;
+        // 与上一版对比需要上一版的正文：先取回来再进 diff（缓存避免重复拉）
+        if (!window.__snapPrevCache) {
+          ipc("snapshots.read", { file: prev.file, snapshot: prev.snapshot }, 15e3).then((x) => {
+            window.__snapPrevCache = (x && x.content) || "";
+            setDiffMode("prev");
+          }).catch(() => setDiffMode("prev"));
+        } else {
+          setDiffMode("prev");
+        }
+      });
+      const rb = ov.querySelector(".snap-rollback");
+      if (rb) {
+        rb.addEventListener("click", () => {
+          if (rb.dataset.confirm !== "1") {
+            rb.dataset.confirm = "1";
+            rb.textContent = "确认回滚？（当前内容会先备份）";
+            return;
+          }
+          rb.disabled = true;
+          rb.textContent = "正在回滚…";
+          ipc("snapshots.rollback", { file: entry.file, snapshot: entry.snapshot }, 3e4).then(() => {
+            closeSnapshotPreview();
+            ui.toast("ok", "已回滚：" + baseName(entry.file));
+            for (const t of state.tabs) {
+              if (t.path && (t.path === entry.file || relOfPath(t.path) === entry.file)) {
+                ui.loadTab(t);
+                break;
+              }
+            }
+            ui.loadSnapshots(entry.file);
+          }).catch((e2) => {
+            rb.disabled = false;
+            rb.textContent = "回滚到此版本";
+            delete rb.dataset.confirm;
+            ui.toast("error", "回滚失败：" + (e2.message || e2));
+          });
+        });
+      }
+      document.body.appendChild(ov);
+      const onKey = (e) => {
+        if (e.key === "Escape") {
+          closeSnapshotPreview();
+          document.removeEventListener("keydown", onKey);
+        }
+      };
+      document.addEventListener("keydown", onKey);
+    }).catch((e) => ui.toast("error", "读不到该快照：" + (e.message || e)));
+  }
+  function closeSnapshotPreview() {
+    const ov = document.getElementById("snap-preview");
+    if (ov) ov.remove();
+    window.__snapPrevCache = null; // 上一版正文缓存随浮层失效
+  }
   function renderHistoryView(host) {
     if (!state.recent.length) {
       host.innerHTML = '<div class="panel-empty">\u8FD8\u6CA1\u6709\u6253\u5F00\u8FC7\u6587\u4EF6<br>\u6253\u5F00\u7684\u6587\u4EF6\u4F1A\u51FA\u73B0\u5728\u8FD9\u91CC</div>';
@@ -1003,17 +1434,46 @@
   }
   function renderChangesView(host) {
     const g = state.git;
+    let html = "";
+    // ── 版本快照段（#42 阶段 7）：独立于 git，当前文件是文本才显示 ──
+    const tab = activeTab();
+    const snapFile = state.snapshots.file || (tab && snapshotablePath(tab.path) ? relOfPath(tab.path) : "");
+    if (snapFile) {
+      const entries = state.snapshots.file === snapFile ? state.snapshots.entries : [];
+      html += '<div class="panel-section">\u7248\u672C\u5FEB\u7167 \xB7 ' + esc(baseName(snapFile)) +
+        (state.snapshots.file !== snapFile ? " \xB7 \u52A0\u8F7D\u4E2D" : entries.length ? " \xB7 " + entries.length + " \u4EFD" : "") + "</div>";
+      if (state.snapshots.file !== snapFile) {
+        setTimeout(() => ui.loadSnapshots(snapFile), 0);
+      } else if (state.snapshots.status === "loading") {
+        html += '<div class="panel-empty" style="padding:10px 14px">\u6B63\u5728\u8BFB\u53D6\u5FEB\u7167\u5217\u8868\u2026</div>';
+      } else if (state.snapshots.status === "error") {
+        html += '<div class="panel-empty" style="padding:10px 14px">' + esc(state.snapshots.error || "\u8BFB\u53D6\u5931\u8D25") + "</div>";
+      } else if (!entries.length) {
+        html += '<div class="panel-empty" style="padding:10px 14px">\u8FD8\u6CA1\u6709\u5FEB\u7167\uFF08\u6253\u5F00\u540E\u6BCF 30 \u79D2\u81EA\u52A8\u68C0\u67E5\u4E00\u6B21\uFF09</div>';
+      } else {
+        html += entries.map((e) => {
+          const badge = e.kind === "ai" ? '<span class="snap-badge" data-kind="ai">AI</span>' : e.kind === "manual" ? '<span class="snap-badge" data-kind="manual">\u624B\u52A8</span>' : '<span class="snap-badge" data-kind="auto">\u81EA\u52A8</span>';
+          return '<div class="list-item snap-item" data-snap="' + esc(String(e.ts)) + '" title="' + esc((e.message || "") + " " + new Date(e.ts).toLocaleString()) + '">' +
+            badge +
+            '<span class="list-main"><span class="list-title">' + esc(e.message || new Date(e.ts).toLocaleTimeString()) + '</span><span class="list-sub">' + esc(timeAgo(e.ts)) + "</span></span>" +
+            '<button class="snap-save-now" data-act="save-version" title="\u7ACB\u5373\u5B58\u4E00\u4EFD\u5FEB\u7167">\u{1F4BE}</button>' +
+            "</div>";
+        }).join("");
+      }
+    }
     if (g.status === "loading") {
-      host.innerHTML = '<div class="panel-empty">\u6B63\u5728\u8BFB\u53D6 git \u72B6\u6001\u2026</div>';
+      host.innerHTML = html + '<div class="panel-empty">\u6B63\u5728\u8BFB\u53D6 git \u72B6\u6001\u2026</div>';
+      bindSnapItems(host);
       return;
     }
     if (!g.available) {
-      host.innerHTML = '<div class="panel-empty">' + esc(g.error || "\u672A\u63A5\u5165 git") + '<br><button class="btn" data-act="git-retry">\u91CD\u8BD5</button></div>';
+      host.innerHTML = html + '<div class="panel-empty">' + esc(g.error || "\u672A\u63A5\u5165 git") + '<br><button class="btn" data-act="git-retry">\u91CD\u8BD5</button></div>';
       bindPanelActions(host);
+      bindSnapItems(host);
       return;
     }
     const commits = g.log.slice(0, 12);
-    let html = '<div class="panel-section">\u5DE5\u4F5C\u533A\u6539\u52A8 \xB7 ' + g.items.length + " \u9879</div>";
+    html += '<div class="panel-section">\u5DE5\u4F5C\u533A\u6539\u52A8 \xB7 ' + g.items.length + " \u9879</div>";
     if (!g.items.length) {
       html += '<div class="panel-empty" style="padding:10px 14px">\u6CA1\u6709\u672A\u63D0\u4EA4\u7684\u6539\u52A8</div>';
     } else {
@@ -1027,6 +1487,33 @@
     }
     host.innerHTML = html;
     bindPanelActions(host);
+    bindSnapItems(host);
+  }
+  /** 快照条目事件：点条目 → 预览；💾 → 立即存一版 */
+  function bindSnapItems(host) {
+    host.querySelectorAll(".snap-item").forEach((el) => {
+      el.addEventListener("click", (e) => {
+        if (e.target.closest("[data-act=save-version]")) return;
+        const ts = Number(el.dataset.snap);
+        const entry = state.snapshots.entries.find((x) => x.ts === ts);
+        if (entry) showSnapshotPreview(entry, state.snapshots.entries);
+      });
+    });
+    host.querySelectorAll("[data-act=save-version]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const file = state.snapshots.file;
+        if (!file) return;
+        btn.disabled = true;
+        ipc("snapshots.save", { path: file }, 2e4).then(() => {
+          ui.toast("ok", "已存版本快照");
+          ui.loadSnapshots(file);
+        }).catch((err) => {
+          btn.disabled = false;
+          ui.toast("error", "存快照失败：" + (err.message || err));
+        });
+      });
+    });
   }
   function bindPanelActions(host) {
     if (host.dataset.bound === "1") return;
@@ -1745,6 +2232,7 @@
           message: tab.meta.mtimeMs ? timeAgo(tab.meta.mtimeMs) + "\u66F4\u65B0" : ""
         });
         refreshOutlineIfVisible(); // #54：视图就绪后刷新大纲（md 同步渲染完成面）
+        attachAnnotations(tab); // #42 阶段 8：来源标注角标（有边车才有）
       } catch (err) {
         tab.state = "error";
         tab.error = err.message || String(err);
@@ -1853,7 +2341,12 @@
         { label: "\u751F\u6210 docx", enabled: () => isMd, act: notYet("\u751F\u6210 docx") },
         { label: "\u751F\u6210 PDF", enabled: () => isMd, act: notYet("\u751F\u6210 PDF") },
         { sep: true },
-        { label: "\u4FDD\u5B58\u7248\u672C\u5FEB\u7167", act: notYet("\u4FDD\u5B58\u7248\u672C\u5FEB\u7167") },
+        { label: "\u4FDD\u5B58\u7248\u672C\u5FEB\u7167", enabled: () => snapshotablePath(absPath), act: () => {
+          ipc("snapshots.save", { path: absPath }, 2e4).then(() => {
+            ui.toast("ok", "\u5DF2\u5B58\u7248\u672C\u5FEB\u7167\uFF1A" + baseName(absPath));
+            if (settings.sidebarActive === "changes") ui.loadSnapshots(relOfPath(absPath));
+          }).catch((err) => ui.toast("error", "\u5B58\u5FEB\u7167\u5931\u8D25\uFF1A" + (err.message || err)));
+        } },
         { label: "\u67E5\u770B\u5386\u53F2", act: () => ui.showHistoryFor(absPath) },
         { sep: true },
         { label: "\u590D\u5236\u8DEF\u5F84", act: () => copyText(absPath) },
@@ -1862,15 +2355,22 @@
         { label: "\u5237\u65B0", key: "F5", act: () => ui.refreshTree() }
       ], x, y);
     },
-    /** 文件树「查看历史」：切到历史面板并（有数据时）列出该文件的版本 */
+    /** 文件树「查看历史」：切到「改动」面板并列出该文件的版本快照（#42 阶段 7） */
     showHistoryFor(absPath) {
+      if (!snapshotablePath(absPath)) {
+        ui.toast("info", "\u53EA\u6709\u6587\u672C\u6587\u4EF6\uFF08.md/.txt\uFF09\u6709\u7248\u672C\u5FEB\u7167");
+        return;
+      }
       settings.sidebarVisible = true;
-      settings.sidebarActive = "history";
+      settings.sidebarActive = "changes";
       saveSettings();
       applyLayoutSettings();
       syncActivitySelection();
-      renderSidebar();
-      ui.toast("info", "\u7248\u672C\u5386\u53F2\uFF1A" + baseName(absPath) + "\uFF08\u7B49 save_version \u63A5\u5165\u540E\u5217\u51FA\u5FEB\u7167\uFF09");
+      ui.loadSnapshots(relOfPath(absPath));
+    },
+    /** 载入某文件的快照列表（改动面板数据源）；file 为空 = 重置 */
+    loadSnapshots(file) {
+      return loadSnapshotsInto(file);
     },
     revealPath(p0) {
       ipc("explorer.reveal", { path: p0 }, 8e3).catch((err) => ui.toast("error", "\u65E0\u6CD5\u5728\u8D44\u6E90\u7BA1\u7406\u5668\u4E2D\u663E\u793A\uFF1A" + err.message));
@@ -2121,6 +2621,13 @@
       }
       out.push("<p>" + para.map(inline).join("<br>") + "</p>");
     }
+    // #42 阶段 8：顶层块编号（data-block-id=b1..bN）——docx 渲染器同款钩子，
+    // 证据角标按块定位。out 的每项都是一个完整顶层元素，往首标签注入属性即可。
+    for (let k = 0; k < out.length; k++) {
+      const m = /^<([a-zA-Z][a-zA-Z0-9]*)([^>]*)>/.exec(out[k]);
+      if (!m) continue;
+      out[k] = "<" + m[1] + ' data-block-id="b' + (k + 1) + '"' + m[2] + ">" + out[k].slice(m[0].length);
+    }
     return out.join("\n");
   }
   function renderMarkdownView(tab, host) {
@@ -2336,5 +2843,8 @@
   setTimeout(function() {
     if (state.bridge && state.bridge.mode === "host") ui.loadGit();
   }, 800);
+  // #42 阶段 7：版本快照——每 30s 检查打开的文本文件（内容有变才存），开场 6s 先来一版
+  setTimeout(snapshotTick, 6e3);
+  setInterval(snapshotTick, 3e4);
   window.__mang = { state, ui, settings, ipc };
 })();

@@ -17,17 +17,20 @@
 3. **传输与业务解耦** —— `Transport` trait 让 stdio JSON-RPC 骨架与未来 HTTP 各自
    独立接入，`dispatch` 只做解析与转发。
 
-## 工具面（9 个）
+## 工具面（12 个）
 
 | 工具 | 状态 |
 |---|---|
 | `get_bid_project_state` | **已实现**（只读，走 `bid-domain` 状态机） |
-| `create_bid_project` | 骨架（`UNIMPLEMENTED_INTERNAL`） |
-| `import_tender_files` | 骨架 |
-| `extract_requirements` | 骨架 |
-| `get_compliance_matrix` | 骨架 |
-| `search_evidence` | 骨架 |
-| `draft_response_section` | 骨架 |
+| `create_bid_project` | **已实现**（B-1） |
+| `import_tender_files` | **已实现**（B-1） |
+| `extract_requirements` | **已实现**（B5） |
+| `get_compliance_matrix` | **已实现**（只读，S-4 游标分页） |
+| `list_evidence` | **已实现**（只读，S-4 游标分页） |
+| `list_tasks` | **已实现**（只读，S-4 游标分页） |
+| `save_version` | **已实现**（#42 阶段 10：AI 存版本快照，mang-snap 单一真源） |
+| `search_evidence` | 骨架（M2-b 落地时必须走 cursor.rs） |
+| `draft_response_section` | 骨架（M3） |
 | `validate_bid_document` | 骨架 |
 | `export_bid_document` | 骨架 |
 

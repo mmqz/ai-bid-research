@@ -30,6 +30,10 @@ use bid_tools::service::{BidService, ImportSpec};
 pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResult {
     match name {
         "get_bid_project_state" => get_bid_project_state(svc, args),
+        // ---- #42 阶段 10：AI 主动存版本（skill 纪律「每完成一个章节调用」）----
+        // 与桌面壳 snapshots.save 同一真源（mang-snap）；不走项目状态机（版本
+        // 快照与项目状态正交，任何阶段都允许存）。
+        "save_version" => save_version(args),
         "create_bid_project" => create_bid_project(svc, args),
         "import_tender_files" => import_tender_files(svc, args),
         "extract_requirements" => extract_requirements(svc, args),
@@ -876,5 +880,57 @@ fn list_tasks(svc: &mut BidService, args: Value) -> ToolResult {
         "next_cursor": page.next_cursor,
         "project_version": svc.store().content_version(),
         "request_id": next_request_id(),
+    }))
+}
+
+
+// ---------------------------------------------------------------- save_version
+
+/// `save_version { file_path, message? }` —— AI 主动存版本快照（issue #42 阶段 10）。
+///
+/// 与桌面壳「改动面板 / 30s 自动快照」写同一份 `.mang/history`（mang-snap 单一真源），
+/// kind=ai 在面板显示 AI 徽章。工作区根 = 从 file_path 向上找最近的 `.mang` 目录
+/// （桌面壳建过就在），找不到用文件所在目录。
+fn save_version(args: Value) -> ToolResult {
+    let file_path = req_str(&args, "file_path", "save_version")?;
+    let message = opt_str(&args, "message", "save_version")?.unwrap_or_default();
+    let message = message.trim();
+    if message.is_empty() {
+        return Err(ToolError::EUnprocessable {
+            what: "save_version: message 不能为空（版本说明是版本列表的核心信息——skill 纪律要求写明完成了什么）".to_string(),
+        });
+    }
+    let path = std::path::PathBuf::from(&file_path);
+    if !path.is_absolute() {
+        return Err(ToolError::EUnprocessable {
+            what: format!("save_version: file_path 必须是绝对路径（收到 {file_path}）"),
+        });
+    }
+    if !mang_snap::is_snapshotable(&path) {
+        return Err(ToolError::EUnprocessable {
+            what: "save_version: 只支持文本文件（.md/.txt/.markdown）——源头是 md，二进制不做版本（issue #42 §八）".to_string(),
+        });
+    }
+    if !path.is_file() {
+        return Err(ToolError::ENotFound {
+            what: format!("save_version: 文件不存在（{file_path}）"),
+        });
+    }
+    let root = mang_snap::find_root(&path);
+    // mang-snap 失败码（empty/too_large/denied/io）都是调用方可理解的面——
+    // 契约枚举无 E_INTERNAL，统一 E_UNPROCESSABLE 并在 what 里带核心层码位
+    let saved = mang_snap::save(&root, &path, mang_snap::Kind::Ai, message).map_err(|e| ToolError::EUnprocessable {
+        what: format!("save_version: {}（snap:{})", e.message, e.code),
+    })?;
+    Ok(json!({
+        "ok": true,
+        "file": saved.file,
+        "ts": saved.ts,
+        "snapshot": saved.snapshot,
+        "bytes": saved.bytes,
+        "message": message,
+        "kind": "ai",
+        "workspace": root.display().to_string(),
+        "hint": "版本已存入 .mang/history；桌面壳「改动」面板可见（AI 徽章），支持预览/对比/回滚",
     }))
 }

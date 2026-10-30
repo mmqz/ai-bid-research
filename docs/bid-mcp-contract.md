@@ -11,7 +11,7 @@
   `in : { project_id, filters:{...}, cursor?, limit?, page?(仅矩阵兼容) }`；
   `out: { rows|items, total(过滤后总数), limit(生效页宽), cursor(本次生效游标), next_cursor: string|null }`，`next_cursor=null` 即取完，原样回传取下一页。
   游标规则（fail-closed）：opaque base64（内嵌版本字节/偏移/过滤器指纹）；跨过滤器或跨工具复用游标 → `E_UNPROCESSABLE`；limit 合法域 1..=1000、缺省 100，越界/非整数**显式拒**（不静默 clamp）；游标损坏/版本不认识/偏移越界（底层列表已变化）→ `E_UNPROCESSABLE`。行序确定性（矩阵=条款位置序 CMP-0001..N；证据=id 字典序；任务=target_id 字典序）是分页安全前提，不得破坏。
-- **补充建议（第 9 个只读工具）**：`get_bid_project_state`——断点恢复的入口（读项目状态、各阶段完成度、DIRTY 章节、BLOCKER 计数），仿 LingYan `check_pipeline_state`。原 8 工具契约不受影响。V3-5（S-4）另增两个只读列表工具 `list_evidence` / `list_tasks`（§4-A/§4-B，工具面共 11）。
+- **补充建议（第 9 个只读工具）**：`get_bid_project_state`——断点恢复的入口（读项目状态、各阶段完成度、DIRTY 章节、BLOCKER 计数），仿 LingYan `check_pipeline_state`。原 8 工具契约不受影响。V3-5（S-4）另增两个只读列表工具 `list_evidence` / `list_tasks`（§4-A/§4-B，工具面共 11）。issue #42 阶段 10 增第 12 个工具 `save_version`（AI 主动存版本快照，见文末 §SV）。
 
 ## 1. create_bid_project
 ```
@@ -170,3 +170,25 @@ class KBAdapter(Protocol):
 
 ### AdapterC：Cherry Studio 知识库（否决记录）
 CherryHQ/cherry-studio（AGPL-3.0，52.9k★）为 Electron **桌面客户端**，知识库为本地功能（客户端解析+本地索引），无 headless 服务端 API；第三方 api-for-cherrystudio（141★）需另建 API 服务反证其客户端定位。**不能作为封闭 Agent 的后端 RAG**。其 MCP 客户端能力可用于人工调试前端，不作为运行时。
+
+
+## SV. save_version（AI 主动存版本，#42 阶段 10 新增）
+
+**用途**：skill 编排层「每完成一个章节，调用 save_version 存版本」纪律的落点。与桌面壳
+（mang-app「改动」面板 / 30s 自动快照）写**同一份** `<workspace>/.mang/history/`
+（mang-snap crate 单一真源），kind=ai 在面板显示 AI 徽章，支持预览 / md 层 diff / 安全回滚。
+
+**入参**：
+
+```json
+{ "file_path": "<绝对路径，.md/.txt/.markdown>", "message": "<版本说明——必填，写明完成了什么>" }
+```
+
+**出参**：`{ ok, file, ts, snapshot, bytes, message, kind: "ai", workspace, hint }`
+
+**规则**：
+- `file_path` 必须绝对路径；`message` 必填非空（版本列表的核心信息）
+- 只支持文本文件（源头是 md，二进制不做版本——issue #42 §八）
+- 工作区根发现：从 file_path 向上找最近的 `.mang` 目录（桌面壳建过就在）；找不到用文件所在目录
+- 不走项目状态机（版本快照与项目状态正交，任何阶段都允许存）
+- 错误面：相对路径 / 空 message / 非文本 → `E_UNPROCESSABLE`；文件不存在 → `E_NOTFOUND`

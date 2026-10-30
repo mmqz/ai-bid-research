@@ -17,6 +17,7 @@
 //! 协议细节见 docs/mang/IPC-CONTRACT.md。
 
 mod b64;
+mod annotations;
 mod chrome;
 mod dialogs;
 mod dnd;
@@ -27,6 +28,7 @@ mod paths;
 mod recent;
 mod selftest;
 mod shell;
+mod snapshots;
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};

@@ -24,7 +24,7 @@ description: >
 | P2 抽条款 | 抽取+冲突确认 | extract_requirements | missing_sequence 为空（缺号必须解释）；conflicts 逐条向用户确认口径 | dedupe_hash 幂等合并 |
 | P3 矩阵 | 建响应矩阵+资格判断 | get_compliance_matrix | 资格/否决行 policy 全填；资格三态结论（eligible/conditional/not_eligible）向用户报告；**not_eligible → 停止流程，只产审查报告**（ark 闸门） | 矩阵只读，随时重查 |
 | P4 证据 | 绑定证据+补缺清单 | search_evidence | 每条必选项≥1 条 OK 证据；EXPIRED 禁绑；缺失项形成补料清单交用户 | 缺料→等待用户补充后仅补跑受影响行 |
-| P5 起草 | 逐章节起草 | draft_response_section | unanchored_claims=0；citations 全部来自已绑定 EV | per-SEC 重试，不影响其他章节 |
+| P5 起草 | 逐章节起草 | draft_response_section, save_version | unanchored_claims=0；citations 全部来自已绑定 EV；**每完成一个章节，调用 save_version 存版本**（message 写明章节与完成内容——桌面壳「改动」面板可预览/对比/回滚） | per-SEC 重试，不影响其他章节 |
 | P6 校验 | 双层校验 | validate_bid_document | deterministic findings 清零（BLOCKER 必须 Resolved/Waived） | 按 scope 重跑 |
 | P7 审校 | 模型审校→修订任务闭环 | validate + (后端)RT | 每个 MAJOR finding 有 RT 且 DONE | 只重跑 DIRTY 章节 |
 | P8 导出 | 预检+导出 | export_bid_document | precheck.blockers=0；artifact sha256 复述 | 同参幂等 |
@@ -37,6 +37,7 @@ description: >
 5. **风控隔离**：废标条款台账/评分分值估算不进入正文（tender-master 物理隔离）。
 6. **数字核对**：每次工具返回统计（文件数/块数/条款数/发现数）必须复述并比对预期；不符即停（防"看起来完成了"，R-01）。
 7. **草稿痕迹清零**：正文不得残留 TODO/待确认/占位公司名；无法提供的证据改为引用其他正式章节（tender-master）。
+8. **版本快照**：每完成一个章节，调用 `save_version` 存版本（file_path + message 必填，message 写明章节与完成内容）；断点恢复前先看版本列表判断草稿新旧（issue #42 §八）。
 
 ## 2. 恢复协议（断点续跑，R-05；原引审计问题 Q8，编号映射见 risk-register 追溯矩阵）
 

@@ -99,11 +99,18 @@ out: { hits:[{ev_id, chunk_id, content, source:{file, position}, score, match_ty
 ## 6. draft_response_section
 ```
 in : { project_id, section_id? | spec:{title, order, parent_id?, toc_ref}, instructions,
-       source_requirements:[REQ-*], evidence_ids:[EV-*], style_profile?, project_version }
-out: { section_id, content_ref:"DOC-*", version, stats:{words, citations, unanchored_claims:0}, warnings[] }
+       source_requirements:[REQ-*], evidence_ids:[EV-*], style_profile?, project_version,
+       generator?:"auto"|"mock"|"real" }        ← #68 阶段 1（缺省 auto）
+out: { section_id, content_ref:"DOC-*", version, stats:{words, citations, unanchored_claims:0,
+       generator:"real"|"mock"}, warnings[] }    ← stats.generator 标记实际使用的生成器
 幂等: (section_id, instructions_hash, inputs_version) 相同 → no-op 返回原稿
 前置: 矩阵 READY（资格/否决行 policy 已填）；EV 状态 OK（EXPIRED 拒绝绑定→E_UNPROCESSABLE）；
      引用的 REQ 必须在 depends_on 中
+生成: #68 阶段 1 三态——auto：配置了 api_key（.mang/llm.json 或 BID_LLM_API_KEY 等 env，
+     env 覆盖文件）走真实 LLM（OpenAI 兼容 chat/completions），未配置降级 mock 并 warning；
+     real：未配置 key → E_UNPROCESSABLE（显式要求要响亮拒绝）；mock：强制确定性生成（e2e 面）。
+     真实通路：60s 超时重试 1 次；max_tokens 按 target_chars 推导（防失控，completion 超
+     硬上限 2 倍 → 整章废弃报错）；用量累计落 .mang/llm-usage.json（api_key 绝不落日志/台账）。
 执行: 后端经**文档内核稳定接口**创建/更新 DOC 块（本系统不触碰内核内部结构）；引用覆盖率校验——承诺句无证据引用计为 unanchored_claims>0 时 warning（阻断留给 validate）
 状态: SEC → DRAFTED；项目 → DRAFTING
 ```

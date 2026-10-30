@@ -38,7 +38,12 @@ fn vm_hwm_kb() -> Option<u64> {
     None
 }
 
-fn call(svc: &mut BidService, tool: &str, args: Value) -> ToolReply {
+fn call(svc: &mut BidService, tool: &str, mut args: Value) -> ToolReply {
+    // #68 阶段 1：确定性套件钉 mock（防 dev 机配了 BID_LLM_API_KEY 后 auto
+    // 走真实调用——测试断言全部基于 mock 的确定性内容面）。
+    if tool == "draft_response_section" && args.get("generator").is_none() {
+        args.as_object_mut().unwrap().insert("generator".into(), serde_json::json!("mock"));
+    }
     dispatch_with(svc, ToolCall { tool: tool.to_string(), args })
 }
 

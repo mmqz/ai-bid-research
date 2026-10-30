@@ -16,3 +16,8 @@ real-corpus/telecom/lo-tmp/
 # 结论入 artifacts/title-impact/summary.json + gt-recall-by-variant.json；
 # 本地可再生（scripts/title_impact/ + scripts/title_impact_summary.py），不入库。
 artifacts/title-impact/experiment.json
+
+# #68 阶段 1：LLM 配置与用量台账——llm.json 含 api_key 绝不入库（凭据纪律）；
+# llm-usage.json 是运行时累计态（按项目工作区再生）。
+.mang/llm.json
+.mang/llm-usage.json

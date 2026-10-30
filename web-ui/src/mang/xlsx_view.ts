@@ -797,6 +797,8 @@ type Cell = {
   kind: CellKind;
   /** cellXfs 下标 */
   style: number;
+  /** 公式原文（不带 = 前缀；shared 从句已展开成完整公式；非公式格缺省） */
+  formula?: string;
 };
 
 type MergeRect = { r0: number; c0: number; r1: number; c1: number };
@@ -1036,36 +1038,104 @@ function inlineString(inner: string): string {
   return richTextFrom(isStart >= 0 ? inner.slice(isStart) : inner);
 }
 
-/** 由 t 属性 + 内容造显示格；返回 null 表示空值（不占内存） */
-function makeCell(t: string, v: string, inner: string, shared: string[], styles: StyleSheet | null, style: number): Cell | null {
+/** <f> 元素：属性段 + 可选文本体（自闭合从句 <f t="shared" si="0"/> 文本体为 undefined） */
+const FORMULA_RE = /<f\b([^>]*?)(?:\/>|>([\s\S]*?)<\/f>)/;
+
+/** 单元格里的 A1 引用（列 1–3 字母 + 行号；$ 锁定轴由捕获组区分） */
+const REF_RE = /(\$?)([A-Za-z]{1,3})(\$?)(\d{1,7})/g;
+
+/**
+ * 把公式里的相对 A1 引用平移 (dRow, dCol)——shared formula 从句展开的核心。
+ * 规则（与 Excel 一致）：
+ *   - $ 锁定的轴不平移（$A1 只平移行，A$1 只平移列）；
+ *   - 字符串字面量（"…"，"" 转义）内的内容不动；
+ *   - 更长标识符的尾部（如 LOG10 里的 G10）不动；
+ *   - 平移后越界（行/列 < 1）保守保持原样（Excel 真跑会得 #REF!，但查看器不动声色更稳妥）。
+ */
+function translateFormula(formula: string, dRow: number, dCol: number): string {
+  if (!formula) return formula;
+  if (dRow === 0 && dCol === 0) return formula;
+  let out = '';
+  let i = 0;
+  while (i < formula.length) {
+    // 字符串字面量段：原样搬到下一个未转义引号（含收尾引号）
+    if (formula[i] === '"') {
+      let j = i + 1;
+      while (j < formula.length) {
+        if (formula[j] === '"') {
+          if (formula[j + 1] === '"') { j += 2; continue; } // "" 转义
+          break;
+        }
+        j++;
+      }
+      out += formula.slice(i, Math.min(j + 1, formula.length));
+      i = j + 1;
+      continue;
+    }
+    // 代码段：搬到下一个引号前，段内平移引用
+    const next = formula.indexOf('"', i);
+    const end = next < 0 ? formula.length : next;
+    out += shiftRefs(formula.slice(i, end), dRow, dCol);
+    i = end;
+  }
+  return out;
+}
+
+/** 代码段内的引用平移（translateFormula 的段内实现） */
+function shiftRefs(seg: string, dRow: number, dCol: number): string {
+  return seg.replace(REF_RE, (whole: string, colLock: string, colLetters: string, rowLock: string, rowDigits: string, at: number, s: string): string => {
+    // 前一个字符是标识符成分 → 是更长名字的尾部（LOG10 / A1B2），不动
+    const prev = at > 0 ? s[at - 1] : '';
+    if (prev && /[A-Za-z0-9_$.]/.test(prev)) return whole;
+    // 后一个字符是字母/数字/_ → 引用后面还拖着标识符（A1B 之类怪写法），不动
+    const nextIdx = at + whole.length;
+    const next = nextIdx < s.length ? s[nextIdx] : '';
+    if (next && /[A-Za-z0-9_]/.test(next)) return whole;
+    let col = 0;
+    for (let k = 0; k < colLetters.length; k++) col = col * 26 + (colLetters.toUpperCase().charCodeAt(k) - 64);
+    const row = parseInt(rowDigits, 10);
+    const nCol = colLock ? col : col + dCol;
+    const nRow = rowLock ? row : row + dRow;
+    if (nRow < 1 || nCol < 1 || nCol > 16384 || nRow > 1048576) return whole; // 越界保守不动
+    return (colLock ? '$' : '') + colName(nCol - 1) + (rowLock ? '$' : '') + nRow;
+  });
+}
+
+/** 无缓存值的公式格：显示公式原文（Excel 真跑会显示 0，但只读查看器显示公式更有信息量） */
+function formulaCell(formula: string, style: number): Cell {
+  return { text: '=' + formula, raw: formula, kind: 'text', style, formula };
+}
+
+/** 由 t 属性 + 内容造显示格；返回 null 表示空值（不占内存）；公式原文随格携带供公式栏展示 */
+function makeCell(t: string, v: string, shared: string[], styles: StyleSheet | null, style: number, formula?: string): Cell | null {
   if (t === 's') {
     const idx = parseInt(v, 10);
     const s = Number.isFinite(idx) ? shared[idx] : undefined;
-    if (s === undefined || s === '') return null;
-    return { text: s, raw: s, kind: 'text', style };
+    if (s === undefined || s === '') return formula ? formulaCell(formula, style) : null;
+    return { text: s, raw: s, kind: 'text', style, formula };
   }
   if (t === 'inlineStr' || t === 'str') {
-    if (!v) return null;
-    return { text: v, raw: v, kind: 'text', style };
+    if (!v) return formula ? formulaCell(formula, style) : null;
+    return { text: v, raw: v, kind: 'text', style, formula };
   }
   if (t === 'b') {
-    if (!v) return null;
+    if (!v) return formula ? formulaCell(formula, style) : null;
     const on = v.trim() === '1' || v.trim().toLowerCase() === 'true';
-    return { text: on ? 'TRUE' : 'FALSE', raw: v, kind: 'bool', style };
+    return { text: on ? 'TRUE' : 'FALSE', raw: v, kind: 'bool', style, formula };
   }
   if (t === 'e') {
-    if (!v) return null;
-    const f = /<f\b[^>]*>([\s\S]*?)<\/f>/.exec(inner);
-    return { text: v, raw: f ? '=' + decodeEntities(f[1]) : v, kind: 'error', style };
+    if (!v) return formula ? formulaCell(formula, style) : null;
+    // 错误码入格显示（#DIV/0! 等）；公式原文走 formula 字段（由调用方统一提取）
+    return { text: v, raw: v, kind: 'error', style, formula };
   }
   if (t === 'd') {
-    if (!v) return null;
-    return { text: v.replace('T', ' ').replace(/Z$/, ''), raw: v, kind: 'date', style };
+    if (!v) return formula ? formulaCell(formula, style) : null;
+    return { text: v.replace('T', ' ').replace(/Z$/, ''), raw: v, kind: 'date', style, formula };
   }
   // t="n" / 缺省：数值
-  if (v === '') return null;
+  if (v === '') return formula ? formulaCell(formula, style) : null;
   const num = Number(v);
-  if (!Number.isFinite(num)) return { text: v, raw: v, kind: 'text', style };
+  if (!Number.isFinite(num)) return { text: v, raw: v, kind: 'text', style, formula };
   const xf = styles ? styles.xfs[style] : undefined;
   const numFmtId = xf ? xf.numFmtId : 0;
   const kindId = styles ? styles.kind(numFmtId) : 'general';
@@ -1076,6 +1146,7 @@ function makeCell(t: string, v: string, inner: string, shared: string[], styles:
     raw: v,
     kind: isDate ? 'date' : 'number',
     style,
+    formula,
   };
 }
 
@@ -1133,6 +1204,9 @@ function parseSheet(
   const dataStart = xml.indexOf('<sheetData');
   const dataEnd = dataStart < 0 ? -1 : xml.indexOf('</sheetData>', dataStart);
   let truncated = false;
+  // shared formula：si → 主句（锚点格 + 公式原文）；从句可能先于主句出现，事后回填
+  const sharedMasters = new Map<string, { r: number; c: number; f: string }>();
+  const pendingSlaves: Array<{ r: number; c: number; si: string; style: number; cell?: Cell }> = [];
   if (dataStart >= 0 && dataEnd > dataStart) {
     const body = xml.slice(dataStart, dataEnd);
     const rowRe = /<row\b([^>]*?)(\/>|>)/g;
@@ -1170,14 +1244,40 @@ function parseSheet(
 
         const t = cAttrs.t ?? 'n';
         const s = parseInt(cAttrs.s ?? '', 10);
+        const styleIdx = Number.isFinite(s) ? s : 0;
         const v = t === 'inlineStr' ? inlineString(inner) : tagText(inner, 'v');
-        const cell = makeCell(t, v, inner, shared, styles, Number.isFinite(s) ? s : 0);
+        // ---- 公式提取：普通 <f> 直读；shared 主句登记锚点；从句按主句平移展开 ----
+        let formula: string | undefined;
+        let pendingSi: string | null = null;
+        const fm = FORMULA_RE.exec(inner);
+        if (fm) {
+          const fa = readAttrs(' ' + fm[1], 0).attrs;
+          const fbody = fm[2] !== undefined ? decodeEntities(fm[2]).trim() : '';
+          if (fa.t === 'shared' && fa.si !== undefined) {
+            if (fbody) {
+              // 主句：登记锚点（从句按行列差平移的基准）
+              sharedMasters.set(fa.si, { r, c: col, f: fbody });
+              formula = fbody;
+            } else {
+              const mst = sharedMasters.get(fa.si);
+              if (mst) formula = translateFormula(mst.f, r - mst.r, col - mst.c);
+              else pendingSi = fa.si; // 主句还没扫到（罕见顺序），事后回填
+            }
+          } else if (fbody) {
+            formula = fbody;
+          }
+        }
+        const cell = makeCell(t, v, shared, styles, styleIdx, formula);
         if (!cell) {
-          // 只有样式没有值的格子：占位（保住边框/底色），但文本为空
-          if (Number.isFinite(s) && s > 0) putCell(sheet, r, col, { text: '', raw: '', kind: 'text', style: s });
+          // 无值也无缓存：shared 从句登记待回填；其余只有样式的格子占位（保住边框/底色）
+          if (pendingSi !== null) pendingSlaves.push({ r, c: col, si: pendingSi, style: styleIdx });
+          else if (Number.isFinite(s) && s > 0) putCell(sheet, r, col, { text: '', raw: '', kind: 'text', style: s });
           continue;
         }
         putCell(sheet, r, col, cell);
+        if (pendingSi !== null && cell.formula === undefined) {
+          pendingSlaves.push({ r, c: col, si: pendingSi, style: styleIdx, cell }); // 有缓存值但公式待回填
+        }
         budget.n++;
         if (budget.n >= MAX_PARSED_CELLS) {
           truncated = true;
@@ -1185,6 +1285,19 @@ function parseSheet(
         }
       }
       if (truncated) break;
+    }
+    // ---- shared 从句事后回填（主句已全部登记） ----
+    for (const p of pendingSlaves) {
+      const m = sharedMasters.get(p.si);
+      if (!m) continue; // 整个 si 组没有主句（坏文件），无法展开——保持原样
+      const f = translateFormula(m.f, p.r - m.r, p.c - m.c);
+      if (!f) continue;
+      if (p.cell) {
+        p.cell.formula = f; // 有缓存值：只补公式栏信息
+      } else {
+        // 无缓存值：公式原文入格（只读查看器的兜底显示）
+        putCell(sheet, p.r, p.c, { text: '=' + f, raw: f, kind: 'text', style: p.style, formula: f });
+      }
     }
     if (truncated) {
       warnings.push('「' + name + '」超出解析上限（累计 ' + MAX_PARSED_CELLS.toLocaleString() + ' 个单元格），其余内容未载入');
@@ -1336,6 +1449,24 @@ ${R} .mx-tab.on { color: var(--mxfg); background: var(--mxbg); font-weight: 600;
   box-shadow: inset 0 2px 0 var(--mxaccent); }
 ${R} .mx-tab.pend { font-style: italic; opacity: .75; }
 
+/* 公式格角标（左上绿三角，Excel 同款语义） */
+${R} .mx-cell.has-fx::after { content: ''; position: absolute; left: 0; top: 0; width: 0; height: 0;
+  border-top: 5px solid #16a34a; border-right: 5px solid transparent; pointer-events: none; }
+
+/* 加载骨架屏：大表异步解析期间的视觉反馈（shimmer 灰行，避免"卡死"错觉） */
+${R} .mx-skel { position: absolute; inset: 0; z-index: 60; background: var(--mxbg); overflow: hidden;
+  display: flex; flex-direction: column; }
+${R} .mx-skel-h { flex: 0 0 auto; height: ${HEAD_H}px; display: flex; align-items: flex-end;
+  padding: 3px 6px 3px 0; border-bottom: 1px solid var(--mxline); }
+${R} .mx-skel-h i { flex: 1 1 0; height: 12px; margin-left: 6px; border-radius: 2px;
+  background: var(--mxline); }
+${R} .mx-skel-b { flex: 1 1 auto; padding: 4px 6px 0 0; overflow: hidden; }
+${R} .mx-skel-r { display: flex; margin-bottom: 3px; }
+${R} .mx-skel-r i { height: ${ROW_H - 5}px; flex: 1 1 0; margin-left: 6px; border-radius: 2px;
+  background: linear-gradient(100deg, var(--mxline) 30%, var(--mxhead) 50%, var(--mxline) 70%);
+  background-size: 240% 100%; animation: mx-skel-shimmer 1.3s ease-in-out infinite; }
+@keyframes mx-skel-shimmer { from { background-position: 130% 0; } to { background-position: -30% 0; } }
+
 /* 错误面板 */
 ${R} .mang-xview-error { flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 6px; padding: 24px; text-align: center;
@@ -1416,6 +1547,8 @@ class XlsxViewImpl implements XlsxView {
   private stMsg!: HTMLElement;
   private tabs!: HTMLElement;
   private domReady = false;
+  /** 加载骨架屏（懒建，boot/切表期间挂在网格层之上） */
+  private skel: HTMLElement | null = null;
 
   // 池化："r:c" → 单元格元素；表头 c/r → 元素
   private pools: Record<Layer, Map<string, HTMLElement>> = { main: new Map(), fr: new Map(), fc: new Map() };
@@ -1470,6 +1603,8 @@ class XlsxViewImpl implements XlsxView {
       this.renderError('视图初始化失败', errMsg(e));
       return;
     }
+    // ⓪ 骨架屏先行：网格区先亮 shimmer 灰行，避免异步解析空窗期"白屏像卡死"
+    this.showSkeleton();
     // ① 同步阶段：先把 sheet 标签/工具栏画出来。注意顺序——boot() 是 async，
     //    一进入就会在首个 await 处让出，所以必须先把同步信息准备好再调它。
     this.bootSync();
@@ -1569,6 +1704,40 @@ class XlsxViewImpl implements XlsxView {
   // -----------------------------------------------------------------------
 
   /**
+   * 加载骨架屏：表头灰块 + shimmer 灰行，盖在网格层之上。
+   * 大表异步解压/解析可能秒级耗时，空窗期没有视觉反馈会以为卡死（issue #53）。
+   */
+  private showSkeleton(): void {
+    if (this.disposed || !this.domReady) return;
+    if (!this.skel) {
+      const mk = XlsxViewImpl.mk;
+      const skel = mk('div', 'mx-skel');
+      const h = mk('div', 'mx-skel-h');
+      for (let i = 0; i < 12; i++) h.appendChild(mk('i', ''));
+      const b = mk('div', 'mx-skel-b');
+      for (let r = 0; r < 22; r++) {
+        const row = mk('div', 'mx-skel-r');
+        const n = 4 + ((r * 7) % 7); // 每行 4~10 块，行行不同更像真表
+        for (let i = 0; i < n; i++) {
+          const blk = mk('i', '');
+          blk.style.flexGrow = String(1 + ((r * 31 + i * 17) % 9)); // 1~9 变宽
+          row.appendChild(blk);
+        }
+        b.appendChild(row);
+      }
+      skel.append(h, b);
+      this.skel = skel;
+      this.vp.appendChild(skel);
+    } else if (!this.skel.isConnected) {
+      this.vp.appendChild(this.skel);
+    }
+  }
+
+  private hideSkeleton(): void {
+    this.skel?.remove();
+  }
+
+  /**
    * 同步阶段：立刻算出「工作表张数」并画出来（表头 + sheet 标签）。
    * ZIP 目录解析是同步的，workbook.xml 只解压一个小条目——为了首屏不闪，
    * 这里用同步 inflate 兜底把 workbook.xml 读出来，随后 boot() 再做完整异步解析。
@@ -1608,7 +1777,9 @@ class XlsxViewImpl implements XlsxView {
       this.book = book;
       this.earlyBook = null;
 
-      // 逐张尝试：个别工作表损坏时顺延；第一张成功的立即渲染
+      // 逐张尝试：个别工作表损坏时顺延；**第一张成功的立即渲染**——
+      // 大簿（几十张 sheet）不必等全部解析完才见画面，骨架屏只盖首帧之前的空窗。
+      let firstPainted = false;
       for (let i = 0; i < book.sheetNames.length; i++) {
         try {
           const model = await book.getSheet(i);
@@ -1617,6 +1788,15 @@ class XlsxViewImpl implements XlsxView {
           if (!this.sheet) {
             this.sheet = model;
             this.sheetIndex = i;
+          }
+          this.markTab(i, true);
+          if (!firstPainted && this.sheet) {
+            firstPainted = true;
+            this.hideSkeleton();
+            this.buildSheetUi();
+            this.stMsg.textContent = ''; // 同步阶段挂的"正在解析"到此结束
+            this.render();
+            this.emitStatus();
           }
         } catch (e) {
           this.warnings.push('工作表「' + book.sheetNames[i] + '」解析失败：' + errMsg(e));
@@ -1628,7 +1808,6 @@ class XlsxViewImpl implements XlsxView {
       }
       this.buildSheetUi();
       this.finishStats();
-      this.stMsg.textContent = ''; // 同步阶段挂的"正在解析"到此结束
       this.render();
       this.emitStatus();
       this.prefetch();
@@ -1687,8 +1866,9 @@ class XlsxViewImpl implements XlsxView {
     this.tabs.replaceChildren();
     for (let i = 0; i < book.sheetNames.length; i++) {
       const tab = document.createElement('div');
+      // pend（斜体）= 还没解析完：earlyBook 阶段全部未解析；boot 后未 loaded 的表
       tab.className = 'mx-tab' + (i === this.sheetIndex ? ' on' : '')
-        + (this.loaded.has(i) || this.earlyBook ? ' pend' : '');
+        + (this.loaded.has(i) ? '' : ' pend');
       tab.dataset.i = String(i);
       tab.textContent = book.sheetNames[i];
       tab.title = book.sheetNames[i];
@@ -1724,9 +1904,12 @@ class XlsxViewImpl implements XlsxView {
     if (index === this.sheetIndex && this.sheet) return;
     const seq = ++this.loadSeq;
     this.stMsg.textContent = '正在解析「' + book.sheetNames[index] + '」…';
+    // 未解析过的表：骨架屏盖住旧表内容，避免"点了没反应像卡死"
+    if (!this.loaded.has(index)) this.showSkeleton();
     try {
       const model = await book.getSheet(index);
       if (this.disposed || seq !== this.loadSeq) return;
+      this.hideSkeleton();
       this.loaded.add(index);
       this.sheet = model;
       this.sheetIndex = index;
@@ -1747,6 +1930,7 @@ class XlsxViewImpl implements XlsxView {
       this.render();
       this.emitStatus();
     } catch (e) {
+      this.hideSkeleton(); // 失败退回旧表画面 + 状态条报错
       this.stMsg.textContent = '工作表解析失败：' + errMsg(e);
       this.warnings.push('工作表「' + book.sheetNames[index] + '」解析失败：' + errMsg(e));
     }
@@ -1925,6 +2109,7 @@ class XlsxViewImpl implements XlsxView {
       if (cell.kind === 'number' || cell.kind === 'date') cls += ' k-' + cell.kind;
       else if (cell.kind === 'bool') cls += ' k-bool';
       else if (cell.kind === 'error') cls += ' k-error';
+      if (cell.formula) cls += ' has-fx'; // 公式格：左上角小角标（Excel 绿三角同款语义）
       const xf = this.book?.styles?.xfs[cell.style];
       if (xf) {
         if (xf.bold) cls += ' st-bold';
@@ -2189,7 +2374,10 @@ class XlsxViewImpl implements XlsxView {
     if (!s || !this.domReady) return;
     const cell = s.cells.get(this.focus.r)?.get(this.focus.c);
     this.fxRef.textContent = colName(this.focus.c) + (this.focus.r + 1);
-    const raw = cell ? (cell.raw !== cell.text ? cell.raw : cell.text) : '';
+    // 公式格：fx 栏优先显示公式原文（Excel 同款行为）；其余格显示原始值/格式化值
+    const raw = cell
+      ? (cell.formula ? '=' + cell.formula : (cell.raw !== cell.text ? cell.raw : cell.text))
+      : '';
     if (this.fxVal.textContent !== raw) this.fxVal.textContent = raw;
     this.fxVal.title = raw;
 

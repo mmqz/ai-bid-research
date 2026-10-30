@@ -70,7 +70,9 @@
     sidebarActive: "files",
     statusbarVisible: true,
     wordWrap: true,
-    showLineNumbers: true
+    showLineNumbers: true,
+    // #76：自动快照间隔（秒）。0 = 关闭。旧 localStorage 无此键 → 默认 30（原硬编码值）
+    snapshotIntervalSec: 30
   };
   function loadSettings() {
     try {
@@ -89,6 +91,17 @@
     }
   }
   var settings = loadSettings();
+  // #76：自动快照定时器（间隔可配，原 30s 硬编码）。声明在 settings 之后、
+  // boot 之前：renderSettingsView 改间隔时会调 armSnapshotTimer，不能等文件尾再声明。
+  var snapshotTimer = 0;
+  function armSnapshotTimer() {
+    if (snapshotTimer) {
+      clearInterval(snapshotTimer);
+      snapshotTimer = 0;
+    }
+    const sec = Number(settings.snapshotIntervalSec);
+    if (sec > 0) snapshotTimer = setInterval(snapshotTick, sec * 1000);
+  }
   var systemDark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
   function applyTheme() {
     const want = settings.theme === "system" ? systemDark && systemDark.matches ? "dark" : "light" : settings.theme;
@@ -438,6 +451,13 @@
     }
     if (ev.ev === "drop") {
       ui.onDrop(Array.isArray(ev.paths) ? ev.paths : []);
+      return;
+    }
+    // #76：LLM 连接测试的异步回执（后台线程 HTTP 完成后由壳推送）
+    if (ev.ev === "llm.test") {
+      DIAG.llmTest = ev;
+      DIAG.llmTestBusy = false;
+      updateLlmTestResult();
       return;
     }
     if (ev.ev === "window" && ev.maximized !== void 0) {
@@ -1540,15 +1560,239 @@
       if (it) ui.openPath(it.dataset.path);
     });
   }
+  // ============ #76 设置面板：诊断状态（MCP / LLM / 格式规范 / 关于） ============
+  // DIAG 是设置视图的缓存态：renderSettingsView 先用缓存渲染（无则占位），
+  // 再异步拉真实状态、视图仍在设置页时就地补齐。demo 模式拉不到就显示
+  // 「演示模式」占位——不伪造宿主数据。
+  var DIAG = { mcp: null, llm: null, fspec: null, llmTest: null, llmTestBusy: false, llmSaving: false };
+  function diagIsHost() {
+    return state.bridge && state.bridge.mode === "host";
+  }
+  function loadDiag() {
+    if (!diagIsHost()) return;
+    // 只拉还缺的项：三个响应到达时间不同，整组重拉会在渲染回调里互相触发重复请求
+    if (!DIAG.mcp) {
+      ipc("mcp.status", {}, 8e3).then((r) => {
+        DIAG.mcp = r;
+        if (settings.sidebarActive === "settings") renderSidebar();
+      }).catch(() => {
+        DIAG.mcp = { error: true };
+        if (settings.sidebarActive === "settings") renderSidebar();
+      });
+    }
+    if (!DIAG.llm) {
+      ipc("llm.status", {}, 8e3).then((r) => {
+        DIAG.llm = r;
+        if (settings.sidebarActive === "settings") renderSidebar();
+      }).catch(() => {
+        DIAG.llm = { error: true };
+        if (settings.sidebarActive === "settings") renderSidebar();
+      });
+    }
+    if (!DIAG.fspec) {
+      ipc("fspec.status", {}, 8e3).then((r) => {
+        DIAG.fspec = r;
+        if (settings.sidebarActive === "settings") renderSidebar();
+      }).catch(() => {
+        DIAG.fspec = { error: true };
+        if (settings.sidebarActive === "settings") renderSidebar();
+      });
+    }
+  }
+  function dotHtml(ok, pending) {
+    return '<span class="status-dot" data-state="' + (pending ? "busy" : ok ? "saved" : "error") + '"></span>';
+  }
+  function mcpGroupHtml() {
+    const m = DIAG.mcp;
+    if (!diagIsHost()) {
+      return '<div class="settings-group"><div class="settings-group-title">MCP 连接</div><div class="setting-row"><div class="setting-label"><span class="setting-name">MCP 通道</span><span class="setting-desc">演示模式：无宿主，状态不可用</span></div></div></div>';
+    }
+    if (!m) return '<div class="settings-group"><div class="settings-group-title">MCP 连接</div><div class="setting-row"><span class="setting-desc">读取中…</span></div></div>';
+    if (m.error) return '<div class="settings-group"><div class="settings-group-title">MCP 连接</div><div class="setting-row">' + dotHtml(false) + '<span class="setting-name">状态读取失败</span><button class="btn btn-sm" data-act="diag-refresh">重试</button></div></div>';
+    const ready = !!m.ready;
+    return '<div class="settings-group"><div class="settings-group-title">MCP 连接</div>'
+      + '<div class="setting-row"><div class="setting-label"><span class="setting-name">' + dotHtml(ready) + esc(m.server && m.server.indexOf("stdio") >= 0 ? "MCP 服务：已就绪（stdio）" : "MCP 服务：" + (ready ? "已就绪" : "未就绪")) + '</span><span class="setting-desc">通道 ' + esc(m.channel || "stdio") + " · 协议 " + esc(m.protocol || "JSONL over stdio") + '</span></div></div>'
+      + '<div class="setting-row"><div class="setting-label"><span class="setting-name">工具面：' + esc(String(m.tools || 0)) + ' 个（已实现 ' + esc(String(m.implemented || 0)) + '）</span><span class="setting-desc">由 MCP 客户端（AI 侧）拉起 bid-mcp-stdio 调用</span></div></div>'
+      + '<div class="setting-row"><div class="setting-label"><span class="setting-name">引擎直链</span><span class="setting-desc">' + esc(m.engine || "本壳直链 bidcore（方案 A）") + '</span></div></div>'
+      + '<div class="setting-row"><button class="btn btn-sm" data-act="mcp-retest">测试连接</button><button class="btn btn-sm" data-act="reveal-mang">查看 .mang 目录</button></div></div>';
+  }
+  function llmGroupHtml() {
+    const l = DIAG.llm;
+    if (!diagIsHost()) {
+      return '<div class="settings-group"><div class="settings-group-title">LLM 配置</div><div class="setting-row"><span class="setting-desc">演示模式：无宿主，配置不可用</span></div></div>';
+    }
+    if (!l) return '<div class="settings-group"><div class="settings-group-title">LLM 配置</div><div class="setting-row"><span class="setting-desc">读取中…</span></div></div>';
+    const effOk = l.effective === "real";
+    const eff = l.error ? "状态读取失败" : l.effective === "real" ? "real（真实生成）"
+      : String(l.effective || "").indexOf("mock") === 0 ? "mock（降级）" : String(l.effective || "—");
+    const usage = l.usage || {};
+    const usageLine = (usage.calls || 0) > 0
+      ? "本次工作区累计 " + usage.calls + " 次调用 · " + (usage.total_tokens || 0) + " tokens" + (usage.last_at ? " · 最近 " + timeAgo(usage.last_at * 1000) : "")
+      : "尚无调用记录";
+    const hint = l.api_key_hint ? "已存：" + esc(l.api_key_hint) : "未保存（留空 = 保持现状）";
+    const html = ['<div class="settings-group"><div class="settings-group-title">LLM 配置</div>'];
+    html.push('<div class="setting-row"><div class="setting-label"><span class="setting-name">' + dotHtml(l.error ? false : effOk) + '当前生效：' + esc(eff) + '</span><span class="setting-desc">' + (l.error ? "宿主命令不可用" : esc(l.resolve_error || usageLine)) + '</span></div></div>');
+    if (!l.error) {
+      html.push('<div class="setting-form">');
+      html.push('<label class="setting-field"><span class="setting-name">API 地址（api_base）</span><input class="setting-input" id="llm-api-base" type="text" spellcheck="false" placeholder="https://api.deepseek.com/v1（OpenAI 兼容）" value="' + esc(l.api_base || "") + '"></label>');
+      html.push('<label class="setting-field"><span class="setting-name">API Key' + (l.key_from_env ? '（环境变量已设）' : '') + '</span><input class="setting-input" id="llm-api-key" type="password" spellcheck="false" autocomplete="off" placeholder="' + hint + '"></label>');
+      html.push('<label class="setting-field"><span class="setting-name">模型（model）</span><input class="setting-input" id="llm-model" type="text" spellcheck="false" list="llm-model-list" placeholder="deepseek-chat / glm-4 / gpt-4o" value="' + esc(l.model || "") + '"><datalist id="llm-model-list"><option value="deepseek-chat"></option><option value="glm-4"></option><option value="glm-4-plus"></option><option value="gpt-4o"></option></datalist></label>');
+      html.push('<div class="setting-row setting-actions"><button class="btn btn-sm" data-act="llm-clear-key">清除已存 Key</button><span class="setting-desc">保存位置 ' + esc(l.file || ".mang/llm.json") + '</span></div>');
+      html.push('<div class="setting-row setting-actions"><button class="btn btn-primary btn-sm" data-act="llm-save">保存配置</button><button class="btn btn-sm" data-act="llm-test">测试生成</button></div>');
+      html.push('<div class="setting-test-result" id="llm-test-result" hidden></div>');
+      html.push('</div>');
+    }
+    html.push('</div>');
+    return html.join("");
+  }
+  function workspaceGroupHtml() {
+    const snaps = [["15", "15 秒"], ["30", "30 秒"], ["60", "60 秒"], ["0", "关闭"]];
+    return '<div class="settings-group"><div class="settings-group-title">工作区</div>'
+      + '<div class="setting-row"><div class="setting-label"><span class="setting-name">当前工作区</span><span class="setting-desc" style="word-break:break-all">' + esc(state.workspace || "未设置") + '</span></div></div>'
+      + '<div class="setting-row"><div class="setting-label"><span class="setting-name">运行模式</span><span class="setting-desc">' + esc(state.bridge && state.bridge.mode === "host" ? "桌面壳（Rust 壳 + WebView2）" : "演示模式（无宿主）") + '</span></div></div>'
+      + '<div class="setting-row"><div class="setting-label"><span class="setting-name">自动快照间隔</span><span class="setting-desc">打开中的文件内容变化时存版本</span></div><div class="seg" data-seg="snap">' + snaps.map(
+        (s) => '<button data-snap-value="' + s[0] + '" aria-pressed="' + String(String(settings.snapshotIntervalSec) === s[0]) + '">' + s[1] + "</button>"
+      ).join("") + '</div></div>'
+      + '<div class="setting-row"><div class="setting-label"><span class="setting-name">扫描排除目录</span><span class="setting-desc">.git / node_modules / target / .mang（文件树与快照固定规则）</span></div></div>'
+      + '<div class="setting-row"><button class="btn" data-act="open-folder">更换工作区…</button></div></div>';
+  }
+  function fspecGroupHtml() {
+    const f = DIAG.fspec;
+    if (!diagIsHost()) {
+      return '<div class="settings-group"><div class="settings-group-title">格式规范</div><div class="setting-row"><span class="setting-desc">演示模式：无宿主，规范不可用</span></div></div>';
+    }
+    if (!f) return '<div class="settings-group"><div class="settings-group-title">格式规范</div><div class="setting-row"><span class="setting-desc">读取中…</span></div></div>';
+    if (f.error) return '<div class="settings-group"><div class="settings-group-title">格式规范</div><div class="setting-row">' + dotHtml(false) + '<span class="setting-name">状态读取失败</span><button class="btn btn-sm" data-act="diag-refresh">重试</button></div></div>';
+    if (!f.present) {
+      return '<div class="settings-group"><div class="settings-group-title">格式规范</div>'
+        + '<div class="setting-row"><div class="setting-label">' + dotHtml(false) + '<span class="setting-name">尚未生成</span><span class="setting-desc">' + esc(f.hint || "由 MCP 管线从招标文件推导落盘") + '</span></div></div>'
+        + '<div class="setting-row"><button class="btn btn-sm" data-act="fspec-refresh">重新检测</button></div></div>';
+    }
+    if (f.invalid) {
+      return '<div class="settings-group"><div class="settings-group-title">格式规范</div>'
+        + '<div class="setting-row"><div class="setting-label">' + dotHtml(false) + '<span class="setting-name">文件存在但解析失败</span><span class="setting-desc" style="word-break:break-all">' + esc(f.error || "") + '</span></div></div>'
+        + '<div class="setting-row"><button class="btn btn-sm" data-act="fspec-refresh">重新检测</button></div></div>';
+    }
+    const mm = f.page && f.page.margin_mm || {};
+    return '<div class="settings-group"><div class="settings-group-title">格式规范</div>'
+      + '<div class="setting-row"><div class="setting-label">' + dotHtml(true) + '<span class="setting-name">' + esc(f.page && f.page.size || "?") + " · 边距 " + esc(String(mm.top || 0)) + "/" + esc(String(mm.bottom || 0)) + "/" + esc(String(mm.left || 0)) + "/" + esc(String(mm.right || 0)) + ' mm</span><span class="setting-desc">导出 docx 按此规格排版</span></div></div>'
+      + '<div class="setting-row"><div class="setting-label"><span class="setting-name">正文：' + esc(f.font && f.font.body || "?") + ' ' + esc(String(f.font && f.font.size_pt || "?")) + 'pt</span><span class="setting-desc">行距 ' + esc(String(f.font && f.font.line_height || "?")) + ' 倍 · 章节级覆盖 ' + esc(String(f.per_section_overrides || 0)) + ' 处</span></div></div>'
+      + '<div class="setting-row"><button class="btn btn-sm" data-act="fspec-refresh">重新检测</button><button class="btn btn-sm" data-act="reveal-mang">查看来源文件</button></div></div>';
+  }
+  function aboutGroupHtml() {
+    const info = state.appInfo || {};
+    const build = info.build_epoch && Number(info.build_epoch) > 0
+      ? new Date(Number(info.build_epoch) * 1000).toLocaleString() : "未知";
+    return '<div class="settings-group"><div class="settings-group-title">关于</div>'
+      + '<div class="setting-row"><div class="setting-label"><span class="setting-name">mang ' + esc(info.version || "?") + '</span><span class="setting-desc">git ' + esc(info.git_rev || "unknown") + " · " + esc(build) + " · " + esc(info.profile || "?") + '</span></div></div>'
+      + '<div class="setting-row"><div class="setting-label"><span class="setting-name">平台</span><span class="setting-desc">' + esc(info.platform || navigator.platform || "?") + ' · 协议 v' + esc(String(info.protocol || 1)) + '</span></div></div>'
+      + '<div class="setting-row"><button class="btn btn-sm" data-act="copy-diag">复制诊断信息</button></div></div>';
+  }
+  function updateLlmTestResult() {
+    const el = document.getElementById("llm-test-result");
+    if (!el) return;
+    const t = DIAG.llmTest;
+    if (!t) {
+      el.hidden = true;
+      return;
+    }
+    el.hidden = false;
+    el.setAttribute("data-ok", String(!!t.ok));
+    el.innerHTML = '<span class="status-dot" data-state="' + (t.ok ? "saved" : "error") + '"></span><span>' + esc(t.message || (t.ok ? "成功" : "失败")) + (t.sample ? ' ——「' + esc(t.sample) + '」' : "") + '</span>';
+  }
+  function saveLlmConfig() {
+    if (DIAG.llmSaving) return;
+    const args = {};
+    const base = document.getElementById("llm-api-base");
+    const model = document.getElementById("llm-model");
+    const key = document.getElementById("llm-api-key");
+    if (base && base.value.trim() !== String(DIAG.llm && DIAG.llm.api_base || "")) args.apiBase = base.value.trim();
+    if (model && model.value.trim() !== String(DIAG.llm && DIAG.llm.model || "")) args.model = model.value.trim();
+    if (key && key.value.trim()) args.apiKey = key.value.trim();
+    if (!Object.keys(args).length) {
+      ui.toast("info", "没有改动需要保存");
+      return;
+    }
+    DIAG.llmSaving = true;
+    ipc("llm.save", args, 8e3).then((r) => {
+      DIAG.llmSaving = false;
+      ui.toast("ok", "已保存：" + (r.effective || ""));
+      key && (key.value = "");
+      return ipc("llm.status", {}, 8e3);
+    }).then((r) => {
+      DIAG.llm = r;
+      if (settings.sidebarActive === "settings") renderSidebar();
+    }).catch((e) => {
+      DIAG.llmSaving = false;
+      ui.toast("error", "保存失败：" + e.message);
+    });
+  }
+  function runLlmTest() {
+    if (DIAG.llmTestBusy) return;
+    const el = document.getElementById("llm-test-result");
+    if (el) {
+      el.hidden = false;
+      el.removeAttribute("data-ok");
+      el.innerHTML = '<span class="status-dot" data-state="busy"></span><span>测试进行中（≤20 秒）…</span>';
+    }
+    DIAG.llmTestBusy = true;
+    ipc("llm.test", {}, 5e3).then(() => {
+      // 真实结果以 llm.test 事件送达（onBridgeEvent → updateLlmTestResult）
+    }).catch((e) => {
+      DIAG.llmTestBusy = false;
+      DIAG.llmTest = { ok: false, message: "无法发起测试：" + e.message };
+      updateLlmTestResult();
+    });
+  }
+  function copyDiagnostics() {
+    const info = state.appInfo || {};
+    const m = DIAG.mcp || {}, l = DIAG.llm || {}, f = DIAG.fspec || {};
+    const lines = [
+      "mang 诊断信息",
+      "版本: " + (info.version || "?") + " (git " + (info.git_rev || "unknown") + ", " + (info.profile || "?") + ")",
+      "平台: " + (info.platform || navigator.platform || "?") + " · IPC 协议 v" + (info.protocol || 1),
+      "工作区: " + (state.workspace || "未设置"),
+      "运行模式: " + (diagIsHost() ? "桌面壳（Rust + WebView2）" : "演示模式"),
+      "MCP: " + (m.error || !m.channel ? "读取失败" : m.channel + " · " + (m.tools || 0) + " 工具 · ready=" + String(!!m.ready)),
+      "LLM: " + (l.error || !l.effective ? "读取失败" : l.effective + " · model=" + (l.model || "—") + " · key=" + (l.has_api_key ? "已配置" + (l.key_from_env ? "（env）" : "") : "未配置")),
+      "LLM 用量: " + ((l.usage && l.usage.calls) || 0) + " 次 / " + ((l.usage && l.usage.total_tokens) || 0) + " tokens",
+      "格式规范: " + (f.error ? "读取失败" : f.present ? (f.invalid ? "存在但无效" : (f.page && f.page.size) + " / " + (f.font && f.font.body)) : "未生成"),
+      "生成时间: " + new Date().toLocaleString()
+    ];
+    const text = lines.join("\n");
+    const done = () => ui.toast("ok", "诊断信息已复制到剪贴板");
+    const fail = () => ui.toast("error", "复制失败，请手动选择状态栏文本");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, fail);
+    } else {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        done();
+      } catch (e) {
+        fail();
+      }
+    }
+  }
   function renderSettingsView(host) {
     const themes = [
-      ["system", "\u8DDF\u968F\u7CFB\u7EDF"],
-      ["light", "\u6D45\u8272"],
-      ["dark", "\u6DF1\u8272"]
+      ["system", "跟随系统"],
+      ["light", "浅色"],
+      ["dark", "深色"]
     ];
-    host.innerHTML = '<div class="settings-group"><div class="settings-group-title">\u5916\u89C2</div><div class="setting-row"><div class="setting-label"><span class="setting-name">\u4E3B\u9898</span><span class="setting-desc">\u754C\u9762\u914D\u8272</span></div><div class="seg" data-seg="theme">' + themes.map(
+    host.innerHTML = '<div class="settings-group"><div class="settings-group-title">外观</div><div class="setting-row"><div class="setting-label"><span class="setting-name">主题</span><span class="setting-desc">界面配色</span></div><div class="seg" data-seg="theme">' + themes.map(
       (t) => '<button data-theme-value="' + t[0] + '" aria-pressed="' + String(settings.theme === t[0]) + '">' + t[1] + "</button>"
-    ).join("") + '</div></div><div class="setting-row"><div class="setting-label"><span class="setting-name">\u72B6\u6001\u680F</span><span class="setting-desc">\u663E\u793A\u5E95\u90E8\u72B6\u6001\u680F</span></div><button class="switch" role="switch" data-switch="statusbarVisible" aria-checked="' + String(settings.statusbarVisible) + '"></button></div></div><div class="settings-group"><div class="settings-group-title">\u7F16\u8F91\u5668</div><div class="setting-row"><div class="setting-label"><span class="setting-name">\u81EA\u52A8\u6362\u884C</span><span class="setting-desc">\u6587\u672C\u4E0E Markdown \u6E90\u7801\u89C6\u56FE</span></div><button class="switch" role="switch" data-switch="wordWrap" aria-checked="' + String(settings.wordWrap) + '"></button></div><div class="setting-row"><div class="setting-label"><span class="setting-name">\u884C\u53F7</span><span class="setting-desc">\u6587\u672C\u89C6\u56FE\u5DE6\u4FA7\u884C\u53F7</span></div><button class="switch" role="switch" data-switch="showLineNumbers" aria-checked="' + String(settings.showLineNumbers) + '"></button></div></div><div class="settings-group"><div class="settings-group-title">\u5DE5\u4F5C\u533A</div><div class="setting-row"><div class="setting-label"><span class="setting-name">\u5F53\u524D\u5DE5\u4F5C\u533A</span><span class="setting-desc" style="word-break:break-all">' + esc(state.workspace || "\u672A\u8BBE\u7F6E") + '</span></div></div><div class="setting-row"><div class="setting-label"><span class="setting-name">\u8FD0\u884C\u6A21\u5F0F</span><span class="setting-desc">' + esc(state.bridge && state.bridge.mode === "host" ? "\u684C\u9762\u58F3\uFF08Rust \u58F3 + WebView2\uFF09" : "\u6F14\u793A\u6A21\u5F0F\uFF08\u65E0\u5BBF\u4E3B\uFF09") + '</span></div></div><div class="setting-row"><button class="btn" data-act="open-folder">\u6253\u5F00\u6587\u4EF6\u5939\u2026</button></div></div>';
+    ).join("") + '</div></div><div class="setting-row"><div class="setting-label"><span class="setting-name">状态栏</span><span class="setting-desc">显示底部状态栏</span></div><button class="switch" role="switch" data-switch="statusbarVisible" aria-checked="' + String(settings.statusbarVisible) + '"></button></div></div>'
+      + '<div class="settings-group"><div class="settings-group-title">编辑器</div><div class="setting-row"><div class="setting-label"><span class="setting-name">自动换行</span><span class="setting-desc">文本与 Markdown 源码视图</span></div><button class="switch" role="switch" data-switch="wordWrap" aria-checked="' + String(settings.wordWrap) + '"></button></div><div class="setting-row"><div class="setting-label"><span class="setting-name">行号</span><span class="setting-desc">文本视图左侧行号</span></div><button class="switch" role="switch" data-switch="showLineNumbers" aria-checked="' + String(settings.showLineNumbers) + '"></button></div></div>'
+      + mcpGroupHtml()
+      + llmGroupHtml()
+      + workspaceGroupHtml()
+      + fspecGroupHtml()
+      + aboutGroupHtml();
     Array.prototype.forEach.call(host.querySelectorAll("[data-theme-value]"), (b) => {
       b.addEventListener("click", () => ui.setTheme(b.dataset.themeValue));
     });
@@ -1563,8 +1807,51 @@
         if (key === "wordWrap" || key === "showLineNumbers") ui.refreshActiveView();
       });
     });
-    const of = host.querySelector('[data-act="open-folder"]');
-    if (of) of.addEventListener("click", () => ui.openFolderDialog());
+    Array.prototype.forEach.call(host.querySelectorAll("[data-snap-value]"), (b) => {
+      b.addEventListener("click", () => {
+        settings.snapshotIntervalSec = Number(b.dataset.snapValue);
+        saveSettings();
+        armSnapshotTimer();
+        Array.prototype.forEach.call(host.querySelectorAll("[data-snap-value]"), (x) => {
+          x.setAttribute("aria-pressed", String(Number(x.dataset.snapValue) === settings.snapshotIntervalSec));
+        });
+      });
+    });
+    Array.prototype.forEach.call(host.querySelectorAll("[data-act]"), (b) => {
+      b.addEventListener("click", () => {
+        const act = b.dataset.act;
+        if (act === "open-folder") ui.openFolderDialog();
+        else if (act === "mcp-retest" || act === "diag-refresh") {
+          DIAG.mcp = null;
+          renderSidebar();
+          loadDiag();
+        } else if (act === "fspec-refresh") {
+          DIAG.fspec = null;
+          renderSidebar();
+          if (diagIsHost()) ipc("fspec.status", {}, 8e3).then((r) => {
+            DIAG.fspec = r;
+            if (settings.sidebarActive === "settings") renderSidebar();
+          }).catch(() => {
+            DIAG.fspec = { error: true };
+            if (settings.sidebarActive === "settings") renderSidebar();
+          });
+        } else if (act === "reveal-mang") {
+          ipc("explorer.reveal", { path: ".mang" }, 8e3).catch((e) => ui.toast("error", "无法打开目录：" + e.message));
+        } else if (act === "llm-save") saveLlmConfig();
+        else if (act === "llm-test") runLlmTest();
+        else if (act === "llm-clear-key") {
+          ipc("llm.save", { clearApiKey: true }, 8e3).then(() => {
+            ui.toast("ok", "已清除已存 API Key（auto 将降级 mock）");
+            return ipc("llm.status", {}, 8e3);
+          }).then((r) => {
+            DIAG.llm = r;
+            if (settings.sidebarActive === "settings") renderSidebar();
+          }).catch((e) => ui.toast("error", "清除失败：" + e.message));
+        } else if (act === "copy-diag") copyDiagnostics();
+      });
+    });
+    updateLlmTestResult();
+    if (diagIsHost() && (!DIAG.mcp || !DIAG.llm || !DIAG.fspec)) loadDiag();
   }
   function recentRowsHtml(limit) {
     if (!state.recent.length) return '<div class="recent-empty">\u8FD8\u6CA1\u6709\u6700\u8FD1\u6253\u5F00\u7684\u6587\u4EF6</div>';
@@ -1989,7 +2276,13 @@
     if (!handle) return;
     handle.addEventListener("mousedown", (e) => {
       e.preventDefault();
+      e.stopPropagation();
       handle.dataset.dragging = "true";
+      // #76 问题1：拖拽期间禁用文本选择——否则 mousemove 被浏览器当
+      // 「划选文本」，侧栏/正文出现选中高亮块（浅色主题下即「黑边」），
+      // 松手后仍保持。user-select 一关，拖全程干净。
+      document.body.style.userSelect = "none";
+      document.body.style.cursor = "col-resize";
       const startX = e.clientX;
       const startW = sidebarEl.getBoundingClientRect().width;
       const onMove = (m) => {
@@ -1999,6 +2292,8 @@
       };
       const onUp = () => {
         delete handle.dataset.dragging;
+        document.body.style.userSelect = "";
+        document.body.style.cursor = "";
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
         saveSettings();
@@ -2371,6 +2666,38 @@
     /** 载入某文件的快照列表（改动面板数据源）；file 为空 = 重置 */
     loadSnapshots(file) {
       return loadSnapshotsInto(file);
+    },
+    // #76 顺手修复：ui.loadGit 自 #42 起被 3 处调用但从未定义——真机壳里
+    // 启动 800ms 后必抛 TypeError（console 可见），「改动」面板 git 区永远不加载。
+    loadGit() {
+      if (!state.bridge || state.bridge.mode !== "host") {
+        state.git.available = false;
+        state.git.error = "演示模式：无宿主，git 不可用";
+        state.git.status = "ready";
+        if (settings.sidebarActive === "changes") renderSidebar();
+        return;
+      }
+      if (state.git.status === "loading") return;
+      state.git.status = "loading";
+      if (settings.sidebarActive === "changes") renderSidebar();
+      Promise.all([
+        ipc("git.status", {}, 8e3),
+        ipc("git.log", { limit: 12 }, 8e3)
+      ]).then((r) => {
+        const st = r[0] || {}, lg = r[1] || {};
+        state.git.available = !!st.available;
+        state.git.items = st.items || [];
+        state.git.error = st.error || lg.error || "";
+        state.git.branch = lg.branch || "";
+        state.git.log = lg.items || [];
+        state.git.status = "ready";
+        if (settings.sidebarActive === "changes") renderSidebar();
+      }).catch((e) => {
+        state.git.status = "ready";
+        state.git.available = false;
+        state.git.error = e && e.message || "git 读取失败";
+        if (settings.sidebarActive === "changes") renderSidebar();
+      });
     },
     revealPath(p0) {
       ipc("explorer.reveal", { path: p0 }, 8e3).catch((err) => ui.toast("error", "\u65E0\u6CD5\u5728\u8D44\u6E90\u7BA1\u7406\u5668\u4E2D\u663E\u793A\uFF1A" + err.message));
@@ -2843,8 +3170,8 @@
   setTimeout(function() {
     if (state.bridge && state.bridge.mode === "host") ui.loadGit();
   }, 800);
-  // #42 阶段 7：版本快照——每 30s 检查打开的文本文件（内容有变才存），开场 6s 先来一版
+  // #42 阶段 7：版本快照——按设置间隔检查打开的文本文件（内容有变才存），开场 6s 先来一版
   setTimeout(snapshotTick, 6e3);
-  setInterval(snapshotTick, 3e4);
+  armSnapshotTimer();
   window.__mang = { state, ui, settings, ipc };
 })();

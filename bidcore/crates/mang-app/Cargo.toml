@@ -14,8 +14,14 @@ wry = "0.57"
 # 直链 bidcore（方案 A：不经 MCP 层）
 bid-domain = { path = "../bid-domain" }
 bid-tools = { path = "../bid-tools" }
+# #76 设置面板的 MCP 状态面：tools_schema / dispatch 自检（与 bid-mcp 同源
+# 编译的引擎应答探测）。依赖均在既有树内（bid-tools 已含其全部三方依赖）。
+bid-mcp = { path = "../bid-mcp" }
 mang-snap = { path = "../mang-snap" }
 serde_json = "1"
+# #76 diag.rs：llm.json 的 serde 读/写面（derive）。已在既有依赖图中
+# （serde_json/bid-tools 均带），此处只是提为直接依赖，零新增三方取数。
+serde = { version = "1", features = ["derive"] }
 # 系统文件对话框（同步 API，主线程调用）。关闭默认的 xdg-portal/wayland，
 # Windows 只用 Win32 COM（IFileOpenDialog），不会引入 Linux 依赖。
 rfd = { version = "0.17", default-features = false }

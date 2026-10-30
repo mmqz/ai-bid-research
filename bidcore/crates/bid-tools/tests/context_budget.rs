@@ -49,6 +49,7 @@ fn base_store() -> DomainStore {
         target_chars: 2000,
         status: SectionStatus::Pending,
         dirty: false,
+        content: None, content_attempt: 0,
     }]).unwrap();
     s
 }

@@ -122,6 +122,14 @@ impl ProjectStatus {
     }
 
     /// 每个状态允许调用的工具（mcp-contract 各工具「状态」行——越级防护的裁决表）。
+    ///
+    /// #59 阶段 1 补全起草/校验/导出三工具面：
+    /// - `draft_response_section`：MatrixReady+（矩阵就绪即可起草——现实中
+    ///   「逐章起草」与「逐条绑证据」交叠进行，EvidenceBound 不是起草的
+    ///   硬前置；FILES_IMPORTED 仍拒——无矩阵即无响应对象）；
+    /// - `validate_bid_document`：Drafting+（起草面随时可复验）；
+    /// - `export_bid_document`：仅 ReadyToExport（BLOCKER 清零是导出的硬闸门，
+    ///   check_export_ready 在工具内部裁决）。
     pub fn allowed_tools(&self) -> &'static [&'static str] {
         use ProjectStatus::*;
         match self {
@@ -130,9 +138,15 @@ impl ProjectStatus {
                 "get_compliance_matrix", "search_evidence", "get_bid_project_state"],
             RequirementsExtracted => &["import_tender_files", "extract_requirements",
                 "get_compliance_matrix", "search_evidence", "get_bid_project_state"],
-            // M2+ 状态的工具面按里程碑补全；先登记已知只读面
-            MatrixReady | EvidenceBound | Drafting | Validating | Reviewing | ReadyToExport
-            | Exported => &["get_compliance_matrix", "search_evidence", "get_bid_project_state"],
+            MatrixReady | EvidenceBound => &["get_compliance_matrix", "search_evidence",
+                "get_bid_project_state", "draft_response_section"],
+            Drafting => &["get_compliance_matrix", "search_evidence",
+                "get_bid_project_state", "draft_response_section", "validate_bid_document"],
+            Validating | Reviewing => &["get_compliance_matrix", "search_evidence",
+                "get_bid_project_state", "validate_bid_document"],
+            ReadyToExport => &["get_compliance_matrix", "search_evidence",
+                "get_bid_project_state", "export_bid_document"],
+            Exported => &["get_compliance_matrix", "search_evidence", "get_bid_project_state"],
         }
     }
 
@@ -339,6 +353,29 @@ impl DomainStore {
             }
         }
         Ok(cur)
+    }
+
+    /// 项目状态正式推进（#59 阶段 1——MatrixReady 起的后段状态此前无推进
+    /// 通道，测试靠 force_status 直改字段绕过状态机）。
+    ///
+    /// - `to` 必须在当前状态的 `next_allowed` 内，或等于当前状态（幂等 no-op
+    ///   ——重放安全）；
+    /// - 跳级/回退 → E_STATE（零副作用）；
+    /// - 实际推进时 content_version + 1（与 upsert_file / set_requirements 的
+    ///   「状态变更即版本变更」先例同口径）。
+    pub fn advance_project_status(&mut self, to: ProjectStatus) -> Result<(), ToolError> {
+        let cur = self.project()?.status;
+        if cur == to {
+            return Ok(()); // 幂等 no-op
+        }
+        if !cur.next_allowed().contains(&to) {
+            return Err(ToolError::EState { current: cur, attempted: to.as_str() });
+        }
+        if let Some(p) = self.project.as_mut() {
+            p.status = to;
+            p.content_version += 1;
+        }
+        Ok(())
     }
 
     // ------------------------------------------------------------ import_tender_files（契约 §2）

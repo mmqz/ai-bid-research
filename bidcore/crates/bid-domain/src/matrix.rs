@@ -169,6 +169,9 @@ impl DomainStore {
     /// 构建/重建矩阵（幂等派生态——requirements/bindings/sections 任一变化后重跑）。
     ///
     /// 状态门：REQUIREMENTS_EXTRACTED+（无条款无矩阵）；重算发生实际变化 → content_version+1。
+    /// 首次构建成功 → 项目推进 MATRIX_READY（#59 阶段 1：矩阵就绪是起草
+    /// （draft_response_section）的硬前置——此前 MatrixReady 无推进通道，
+    /// 测试靠 force_status 绕过状态机；现在构建即就绪，语义闭环）。
     /// 返回 (行数, blocking 行数)。
     pub fn build_matrix(&mut self) -> Result<(usize, usize), ToolError> {
         let p = self.project()?;
@@ -183,6 +186,7 @@ impl DomainStore {
                 reason: "条款集为空（先 extract_requirements——空矩阵无意义）".into(),
             });
         }
+        let was_first_build = p.status == ProjectStatus::RequirementsExtracted;
         let bindings: Vec<(String, String)> = self.evidence_bindings.iter()
             .map(|b| (b.evidence_id.clone(), b.requirement_id.clone())).collect();
         let overrides = self.matrix_overrides.clone();
@@ -193,6 +197,13 @@ impl DomainStore {
         if changed {
             if let Some(p) = self.project.as_mut() {
                 p.content_version += 1;
+            }
+        }
+        // 首建推进（RequirementsExtracted → MatrixReady；重跑时已在
+        // MatrixReady+，不动——幂等）
+        if was_first_build {
+            if let Some(p) = self.project.as_mut() {
+                p.status = ProjectStatus::MatrixReady;
             }
         }
         Ok((self.matrix.len(), blocking))
@@ -307,6 +318,7 @@ mod tests {
             id: id.into(), parent_id: None, title: id.into(), level, order: level as u32,
             requirement_ids: reqs.iter().map(|s| s.to_string()).collect(),
             target_chars: 100, status: SectionStatus::Pending, dirty: false,
+            content: None, content_attempt: 0,
         }
     }
 

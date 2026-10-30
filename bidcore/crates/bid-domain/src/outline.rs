@@ -81,6 +81,16 @@ pub struct OutlineNode {
     /// 脏标记（可叠加——上游变更打标，非状态机成员；R-05 影响面分析的输入）
     #[serde(default)]
     pub dirty: bool,
+    /// #59 阶段 1（draft_response_section）：章正文（**仅叶节点**——结构节点
+    /// 是调度单元不承载内容；`None` = 未起草）。与 S-2 ChapterAssembler 的
+    /// `chapters/{id}.json` 双真源：内存面供 MCP 即时读，磁盘面供断点续跑
+    /// 与导出（两处由同一提交路径同步写——见 bid-tools service::draft_section）。
+    #[serde(default)]
+    pub content: Option<String>,
+    /// 正文版本（1 起；重提交不同内容 +1——CAS 写入的 attempt 账面，同内容
+    /// no-op 不推进）。与 ChapterRecord.attempt 同源同值。
+    #[serde(default)]
+    pub content_attempt: u32,
 }
 
 // ---------------------------------------------------------------- 纯逻辑面
@@ -205,6 +215,8 @@ pub fn derive_outline(
             target_chars: agg_chars,
             status: SectionStatus::Pending,
             dirty: false,
+            content: None,
+            content_attempt: 0,
         });
         for &li in &cat_leaves {
             order += 1;
@@ -218,6 +230,8 @@ pub fn derive_outline(
                 target_chars: quotas[li],
                 status: SectionStatus::Pending,
                 dirty: false,
+                content: None,
+                content_attempt: 0,
             });
         }
     }
@@ -377,6 +391,47 @@ impl DomainStore {
         self.set_outline(nodes)
     }
 
+    /// 写入章正文（#59 阶段 1 / draft_response_section 的 CAS 面）。
+    ///
+    /// - 章节不存在 → E_NOTFOUND；
+    /// - **结构节点（非叶）拒绝正文**——父节点是调度聚合单元，内容只住叶
+    ///   （与 S-2 assemble_all「只对叶提交」同口径，导出面 ChapterRecord
+    ///   挂非叶即 fail-closed，见 export.rs `RecordOnStructuralNode`）；
+    /// - 同内容重提交 → no-op（attempt 不推进——「前 N 章字节不变」的账面
+    ///   前提）；不同内容 → attempt + 1（版本单调）；
+    /// - content_version + 1（仅实际变更时）。
+    ///
+    /// 返回 (attempt, char_count)——char_count 用 `chars().count()`（中文
+    /// 字数口径，与 ChapterRecord.char_count / budget.rs N-3 同源）。
+    pub fn set_section_content(&mut self, id: &str, content: String)
+        -> Result<(u32, u32), ToolError> {
+        let idx = self.sections.iter().position(|n| n.id == id).ok_or_else(|| {
+            ToolError::ENotFound { what: format!("section {id} 不存在") }
+        })?;
+        // 叶判定：无子者（与 assemble_all 的 parents 集合同口径）
+        let has_child = self.sections.iter().any(|n| n.parent_id.as_deref() == Some(id));
+        if has_child {
+            return Err(ToolError::EUnprocessable {
+                reason: format!(
+                    "{id} 是结构节点（有子节点）——正文只住叶节点，聚合单元不承载内容"
+                ),
+            });
+        }
+        let node = &mut self.sections[idx];
+        if node.content.as_deref() == Some(content.as_str()) {
+            // no-op：同内容重提交（幂等面——attempt 与 content_version 均不动）
+            let chars = node.content.as_ref().map(|c| c.chars().count()).unwrap_or(0) as u32;
+            return Ok((node.content_attempt.max(1), chars));
+        }
+        node.content_attempt = node.content_attempt.saturating_add(1).max(1);
+        let chars = content.chars().count() as u32;
+        node.content = Some(content);
+        if let Some(p) = self.project.as_mut() {
+            p.content_version += 1;
+        }
+        Ok((node.content_attempt, chars))
+    }
+
     /// 章节状态推进（domain-model 线性链 + Validating 直通 Accepted 捷径）。
     /// 拒绝面零副作用（E_UNPROCESSABLE——T-7 审核闭环落地时升格为 typed 状态错）。
     pub fn advance_section_status(&mut self, id: &str, to: SectionStatus) -> Result<(), ToolError> {
@@ -475,6 +530,8 @@ mod tests {
                 target_chars: chars,
                 status: SectionStatus::Pending,
                 dirty: false,
+                content: None,
+                content_attempt: 0,
             }
         }).collect()
     }
@@ -558,29 +615,35 @@ mod tests {
         // 环（两节点互为父子——先造合法两代树再互指）
         let mut t2 = vec![
             OutlineNode { id: "SEC-A".into(), parent_id: None, title: "A".into(), level: 1, order: 1,
-                requirement_ids: vec!["REQ-0003".into()], target_chars: 100, status: SectionStatus::Pending, dirty: false },
+                requirement_ids: vec!["REQ-0003".into()], target_chars: 100, status: SectionStatus::Pending, dirty: false,
+                content: None, content_attempt: 0 },
             OutlineNode { id: "SEC-B".into(), parent_id: Some("SEC-A".into()), title: "B".into(), level: 2, order: 2,
-                requirement_ids: vec!["REQ-0004".into()], target_chars: 100, status: SectionStatus::Pending, dirty: false },
+                requirement_ids: vec!["REQ-0004".into()], target_chars: 100, status: SectionStatus::Pending, dirty: false,
+                content: None, content_attempt: 0 },
         ];
         t2[0].parent_id = Some("SEC-B".into()); // A 的父是 B，B 的父是 A
         assert_reject(&mut s, t2, "父链成环");
         // 跳级
         let t3 = vec![
             OutlineNode { id: "SEC-A".into(), parent_id: None, title: "A".into(), level: 1, order: 1,
-                requirement_ids: vec!["REQ-0003".into()], target_chars: 100, status: SectionStatus::Pending, dirty: false },
+                requirement_ids: vec!["REQ-0003".into()], target_chars: 100, status: SectionStatus::Pending, dirty: false,
+                content: None, content_attempt: 0 },
             OutlineNode { id: "SEC-B".into(), parent_id: Some("SEC-A".into()), title: "B".into(), level: 3, order: 2,
-                requirement_ids: vec!["REQ-0004".into()], target_chars: 100, status: SectionStatus::Pending, dirty: false },
+                requirement_ids: vec!["REQ-0004".into()], target_chars: 100, status: SectionStatus::Pending, dirty: false,
+                content: None, content_attempt: 0 },
         ];
         assert_reject(&mut s, t3, "level 跳级");
         // level 越域（5 层）
         let t4 = vec![
             OutlineNode { id: "SEC-A".into(), parent_id: None, title: "A".into(), level: 5, order: 1,
-                requirement_ids: vec!["REQ-0003".into()], target_chars: 100, status: SectionStatus::Pending, dirty: false },
+                requirement_ids: vec!["REQ-0003".into()], target_chars: 100, status: SectionStatus::Pending, dirty: false,
+                content: None, content_attempt: 0 },
         ];
         assert_reject(&mut s, t4, "level 越域");
         // 根非 level 1
         let t5 = vec![OutlineNode { id: "SEC-A".into(), parent_id: None, title: "A".into(), level: 2, order: 1,
-            requirement_ids: vec!["REQ-0003".into()], target_chars: 100, status: SectionStatus::Pending, dirty: false }];
+            requirement_ids: vec!["REQ-0003".into()], target_chars: 100, status: SectionStatus::Pending, dirty: false,
+                content: None, content_attempt: 0 }];
         assert_reject(&mut s, t5, "根 level≠1");
         // order 重复
         let mut t6 = gt_six_sections();
@@ -597,9 +660,11 @@ mod tests {
         // 聚合失真（父聚合 ≠ 子并集）
         let t9 = vec![
             OutlineNode { id: "SEC-A".into(), parent_id: None, title: "A".into(), level: 1, order: 1,
-                requirement_ids: vec!["REQ-0003".into(), "REQ-0004".into()], target_chars: 200, status: SectionStatus::Pending, dirty: false },
+                requirement_ids: vec!["REQ-0003".into(), "REQ-0004".into()], target_chars: 200, status: SectionStatus::Pending, dirty: false,
+                content: None, content_attempt: 0 },
             OutlineNode { id: "SEC-B".into(), parent_id: Some("SEC-A".into()), title: "B".into(), level: 2, order: 2,
-                requirement_ids: vec!["REQ-0003".into(), "REQ-0005".into()], target_chars: 100, status: SectionStatus::Pending, dirty: false },
+                requirement_ids: vec!["REQ-0003".into(), "REQ-0005".into()], target_chars: 100, status: SectionStatus::Pending, dirty: false,
+                content: None, content_attempt: 0 },
         ];
         assert_reject(&mut s, t9, "父聚合与子并集不一致");
         // 空树

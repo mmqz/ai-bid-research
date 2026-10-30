@@ -61,6 +61,7 @@ fn store_with_500_chapters() -> DomainStore {
             target_chars: 2000,
             status: SectionStatus::Pending,
             dirty: false,
+            content: None, content_attempt: 0,
         })
         .collect();
     s.set_outline(nodes).unwrap();

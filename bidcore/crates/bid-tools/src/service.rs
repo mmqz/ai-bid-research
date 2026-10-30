@@ -327,6 +327,13 @@ impl BidService {
         &mut self.store
     }
 
+    /// 持久化工作区目录（persist 在场时——章节内容/导出产物的落盘锚点；
+    /// 纯内存态返回 None，调用方自行降级）。#59 阶段 1：draft_section 的
+    /// S-2 落盘面用。
+    pub fn workspace_dir(&self) -> Option<std::path::PathBuf> {
+        self.persist.as_ref().map(|sf| sf.dir().to_path_buf())
+    }
+
     /// 已成功解析的文件面（`extract_requirements` 输入——M1-b 接线位）。
     pub fn parsed(&self) -> &[ParsedFile] {
         &self.parsed
@@ -345,6 +352,22 @@ impl BidService {
         let r = self.store.set_requirements(reqs)?;
         self.auto_checkpoint()?;
         Ok(r)
+    }
+
+    /// `draft_response_section` 的前置准备面（#59 阶段 1：抽取完成后
+    /// 「推导大纲 → 构建矩阵」的服务通道——MCP 12 工具面不含建纲/建矩阵
+    /// 工具（外部 Agent 经 runner / 测试经本方法准备；矩阵构建会推进项目
+    /// 到 MATRIX_READY，draft 的 guard_tool 由此放行）。
+    ///
+    /// 返回 (章节数, 矩阵行数, blocking 行数)。
+    pub fn prepare_outline_and_matrix(
+        &mut self,
+        spec: bid_domain::outline::OutlineSpec,
+    ) -> Result<(usize, usize, usize), ToolError> {
+        let (n_sections, _total_chars) = self.store.derive_and_set_outline(spec)?;
+        let (n_rows, n_blocking) = self.store.build_matrix()?;
+        self.auto_checkpoint()?;
+        Ok((n_sections, n_rows, n_blocking))
     }
 
     /// `import_tender_files` 业务执行（壳已完成参数校验 / 状态机裁决 /

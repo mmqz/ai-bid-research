@@ -87,6 +87,7 @@ fn store_with_500_chapter_tree() -> DomainStore {
             target_chars: (LEAVES_PER_PART * TARGET) as u32,
             status: SectionStatus::Pending, // 结构节点不推进（S-2 语义）
             dirty: false,
+            content: None, content_attempt: 0,
         });
         for k in 0..LEAVES_PER_PART {
             let i = p * LEAVES_PER_PART + k;
@@ -100,6 +101,7 @@ fn store_with_500_chapter_tree() -> DomainStore {
                 target_chars: TARGET as u32,
                 status: SectionStatus::Pending,
                 dirty: false,
+                content: None, content_attempt: 0,
             });
         }
     }
@@ -161,6 +163,7 @@ fn node(id: &str, parent: Option<&str>, level: u8, order: u32, status: SectionSt
         target_chars: 100,
         status,
         dirty: false,
+        content: None, content_attempt: 0,
     }
 }
 

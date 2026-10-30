@@ -400,10 +400,11 @@ impl BidService {
         anonymize: Option<&str>,
         output_path: &std::path::Path,
     ) -> Result<crate::export::ExportOutcome, ToolError> {
-        // ---- 0. format 面（壳层已拦 pdf——服务层防御性兜底，直调方同规矩）
-        if format != "docx" {
+        // ---- 0. format 面（docx 直达；pdf 走 docx 链 + soffice 转换——
+        //      其他诚实拒）
+        if format != "docx" && format != "pdf" {
             return Err(ToolError::EUnprocessable {
-                reason: format!("format={format} 暂不支持（#59 阶段 2 仅 docx——PDF 是阶段 7 LibreOffice 通道）"),
+                reason: format!("format={format} 非法（docx | pdf）"),
             });
         }
         // ---- 0b. 路径校验（逃逸防护）：导出路径必须落在工作区内。
@@ -427,7 +428,9 @@ impl BidService {
             other => other,
         };
 
-        // ---- 3. 导出（S-6 既有面 + 选项）
+        // ---- 3. 导出（S-6 既有面 + 选项）。pdf 面：docx 落工作区临时位 →
+        //      soffice 转换（阶段 7 Lead 路线 A：LibreOffice headless 保真度
+        //      最高；页眉页脚页码/中文字体嵌入均由 Writer 渲染管线承载）
         let exporter = crate::export::DocumentExporter::new(self.store.sections());
         let dir = self.workspace_dir().ok_or_else(|| ToolError::EUnprocessable {
             reason: "导出需要持久化工作区（BidService::open 建立的服务态才有章内容可导）".into(),
@@ -439,9 +442,53 @@ impl BidService {
             project_name: self.store.project()?.name.clone(),
             anonymize: anonymize_effective,
         };
+        let (docx_path, final_path) = if format == "pdf" {
+            // docx 先落工作区内部位（out/.pdf-staging/{stem}.docx——不入用户
+            // 输出路径，用户要的是 pdf；staging 名点开头隐藏 + manifest 同源幂等）
+            let staging = dir.join(".pdf-staging");
+            std::fs::create_dir_all(&staging).map_err(|e| ToolError::EUnprocessable {
+                reason: format!("PDF staging 目录创建失败: {e}"),
+            })?;
+            let stem = output_path.file_stem().and_then(|s| s.to_str()).unwrap_or("标书");
+            (staging.join(format!("{stem}.docx")), output_path.to_path_buf())
+        } else {
+            (output_path.to_path_buf(), output_path.to_path_buf())
+        };
         let report = exporter
-            .export_with(&dir, output_path, &opts)
+            .export_with(&dir, &docx_path, &opts)
             .map_err(crate::export::outcome_error)?;
+
+        // ---- 3b. PDF 转换（soffice --headless——阶段 7 通道）
+        let report = if format == "pdf" {
+            // 幂等跳过：staging docx 未变（sha 与上次转换标记全等）且产物在
+            // → 不重转（soffice 的 PDF 二进制不确定——CreationDate/ID 每次
+            // 变；「产物一个字节不重写」由跳过路径承载，与 docx 导出的
+            // manifest no-op 同语义）
+            let docx_sha = sha256_of(&docx_path)?;
+            let marker = docx_path.with_extension("converted");
+            let skip = final_path.is_file()
+                && std::fs::read_to_string(&marker).ok().as_deref() == Some(&docx_sha[..]);
+            if skip {
+                warnings.push("PDF 幂等：staging docx 未变——产物不重转（不重写）".into());
+            } else {
+                let t0 = std::time::Instant::now();
+                convert_to_pdf(&docx_path, &final_path).map_err(|e| ToolError::EUnprocessable {
+                    reason: format!("PDF 转换失败（soffice 通道）: {e}"),
+                })?;
+                std::fs::write(&marker, &docx_sha).map_err(|e| ToolError::EUnprocessable {
+                    reason: format!("转换标记写入失败: {e}"),
+                })?;
+                warnings.push(format!(
+                    "PDF 转换：LibreOffice headless {:.1}s（页眉页脚页码/中文字体嵌入由 Writer 渲染管线承载）",
+                    t0.elapsed().as_secs_f64()
+                ));
+            }
+            // 报告的 sha 面对最终产物（pdf）——docx 的 sha 是中间件
+            let sha = sha256_of(&final_path)?;
+            crate::export::ExportReport { output_sha256: sha, ..report }
+        } else {
+            report
+        };
 
         // ---- 4. 状态推进 EXPORTED（合法链补齐）
         advance_project_to_exported(&mut self.store)?;
@@ -453,7 +500,7 @@ impl BidService {
         Ok(crate::export::ExportOutcome {
             report,
             warnings,
-            output_path: output_path.to_path_buf(),
+            output_path: final_path,
         })
     }
 
@@ -598,4 +645,113 @@ fn file_extension(path: &std::path::Path, filename: &str) -> String {
         })
         .map(|e| e.to_ascii_lowercase())
         .unwrap_or_default()
+}
+
+// ---------------------------------------------------------------- #59 阶段 7：PDF 通道
+
+/// soffice 在场预检（SKIP 面：缺 soffice 不是业务失败——响亮横幅由调用方打）。
+#[must_use]
+pub fn soffice_available() -> bool {
+    which_software("soffice").is_some() || which_software("libreoffice").is_some()
+}
+
+fn which_software(name: &str) -> Option<std::path::PathBuf> {
+    let path = std::env::var_os("PATH")?;
+    std::env::split_paths(&path)
+        .map(|dir| dir.join(name))
+        .find(|p| p.is_file())
+}
+
+/// docx → pdf（LibreOffice headless——Lead 阶段 7 路线 A：保真度最高）。
+///
+/// - 产物原子性：soffice 写 `{outdir}/{stem}.pdf` → rename 到最终位（soffice
+///   不支持任意输出名，先落转换目录再搬——rename 原子）；
+/// - profile 隔离：`-env:UserInstallation=file:///tmp/...` 每次独立 profile
+///   （soffice 的用户锁会让并发转换串行化甚至死锁——隔离后并发安全）；
+/// - 页眉页脚页码 / 中文字体嵌入：Writer 渲染管线承载（docx 的 sectPr/
+///   header/footer/字体声明 → PDF 对象流——非嵌入中文由系统字体子集化）。
+fn convert_to_pdf(docx: &std::path::Path, out_pdf: &std::path::Path)
+    -> Result<(), String>
+{
+    let soffice = which_software("soffice")
+        .or_else(|| which_software("libreoffice"))
+        .ok_or_else(|| "soffice/libreoffice 不在 PATH（环境缺失——SKIP 面，非业务失败）".to_string())?;
+    let outdir = out_pdf.parent().unwrap_or(std::path::Path::new("."));
+    std::fs::create_dir_all(outdir).map_err(|e| format!("输出目录创建失败: {e}"))?;
+    // profile 隔离位（每次调用独立——并发安全；用 pid+nanos 防撞）
+    let profile = std::env::temp_dir().join(format!(
+        "bid-soffice-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos()).unwrap_or(0),
+    ));
+    let conv_out = profile.join("out");
+    std::fs::create_dir_all(&conv_out).map_err(|e| format!("转换目录创建失败: {e}"))?;
+    // URL 规范：绝对路径必须三斜杠（file:///tmp/...）——两斜杠是 host 形式，
+    // soffice 会静默忽略该参数 → 并发实例共享默认 profile → 锁冲突
+    // （四个测试并发时三个「成功但无产物」的实测根因）
+    let profile_url = format!("file:///{}", profile.display());
+
+    let status = std::process::Command::new(&soffice)
+        .arg("--headless")
+        .arg("--norestore")
+        .arg(format!("-env:UserInstallation={profile_url}"))
+        .arg("--convert-to").arg("pdf")
+        .arg("--outdir").arg(&conv_out)
+        .arg(docx)
+        .output()
+        .map_err(|e| format!("soffice 启动失败: {e}"))?;
+    let stdout = String::from_utf8_lossy(&status.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&status.stderr).into_owned();
+    if !status.status.success() {
+        let _ = std::fs::remove_dir_all(&profile);
+        return Err(format!(
+            "soffice 退出码 {:?}（stdout: {}；stderr: {}）",
+            status.status.code(),
+            stdout.chars().take(300).collect::<String>(),
+            stderr.chars().take(300).collect::<String>()
+        ));
+    }
+    // 产物名 = docx stem + .pdf（soffice 命名规则）
+    let stem = docx.file_stem().and_then(|s| s.to_str()).unwrap_or("标书");
+    let produced = conv_out.join(format!("{stem}.pdf"));
+    if !produced.is_file() {
+        // 诊断面：soffice 的 convert 消息打在 stdout（含它实际写的路径）——
+        // 「声称成功但产物缺失」时带出实际落点
+        let ls = std::fs::read_dir(&conv_out).ok()
+            .map(|rd| rd.filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().into_owned())
+                .collect::<Vec<_>>().join(", "))
+            .unwrap_or_default();
+        return Err(format!(
+            "soffice 声称成功但产物缺失（期望 {}；outdir 内容: [{}]；stdout: {}；stderr: {}）",
+            produced.display(), ls,
+            stdout.chars().take(300).collect::<String>(),
+            stderr.chars().take(200).collect::<String>()
+        ));
+    }
+    // PDF 魔数校验（%PDF——防空文件/HTML 错误页伪装产物）
+    let mut magic = [0u8; 5];
+    use std::io::Read;
+    std::fs::File::open(&produced)
+        .and_then(|mut f| f.read_exact(&mut magic))
+        .map_err(|e| format!("产物读取失败: {e}"))?;
+    if &magic != b"%PDF-" {
+        return Err("产物不是 PDF（魔数校验失败）——soffice 可能输出了错误页".into());
+    }
+    std::fs::rename(&produced, out_pdf).map_err(|e| format!("产物搬移失败: {e}"))?;
+    // profile 清理在产物搬移**之后**（conv_out 住在 profile 内——先删会把
+    // 产物一起删掉，「成功但产物缺失」的实测根因；rename 返回后产物已安全）
+    let _ = std::fs::remove_dir_all(&profile);
+    Ok(())
+}
+
+/// 文件 sha256（hex 小写——导出报告的产物指纹口径）。
+fn sha256_of(path: &std::path::Path) -> Result<String, ToolError> {
+    use sha2::{Digest, Sha256};
+    let bytes = std::fs::read(path).map_err(|e| ToolError::EUnprocessable {
+        reason: format!("产物读取失败（{}）: {e}", path.display()),
+    })?;
+    let mut h = Sha256::new();
+    h.update(&bytes);
+    Ok(hex::encode(h.finalize()))
 }

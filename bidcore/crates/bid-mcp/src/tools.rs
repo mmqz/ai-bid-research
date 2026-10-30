@@ -1093,9 +1093,15 @@ fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
         }
     }
 
-    if format != "docx" {
+    if format != "docx" && format != "pdf" {
         return Err(ToolError::EUnprocessable {
-            what: format!("format={format} 暂不支持（#59 阶段 2 仅 docx——PDF 是阶段 7 的 LibreOffice headless 通道，届时放开）"),
+            what: format!("format={format} 非法（docx | pdf——PDF 走 LibreOffice headless 通道）"),
+        });
+    }
+    // PDF 通道的环境预检（soffice 缺失 = 环境面——响亮拒，不静默降级 docx）
+    if format == "pdf" && !bid_tools::service::soffice_available() {
+        return Err(ToolError::EUnprocessable {
+            what: "PDF 导出需要 soffice/libreoffice（环境缺失——安装 LibreOffice 后重试；docx 通道不受影响）".into(),
         });
     }
     // 输出路径安全面：必须落在工作区内（防 ../ 逃逸——导出产物不该写任意盘位）

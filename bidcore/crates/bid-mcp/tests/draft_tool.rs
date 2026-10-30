@@ -246,9 +246,11 @@ fn tool_face_remains_twelve_with_draft_implemented() {
     assert_eq!(arr.len(), 12, "工具面保持 12 个");
     let draft = arr.iter().find(|t| t["name"] == "draft_response_section").unwrap();
     assert_eq!(draft["implemented"], json!(true));
-    // 其余三个仍未实现（search/validate/export——骨架纪律）
-    for name in ["search_evidence", "validate_bid_document", "export_bid_document"] {
+    // 其余两个仍未实现（search/validate——骨架纪律；export 已在阶段 2 落地）
+    for name in ["search_evidence", "validate_bid_document"] {
         let t = arr.iter().find(|t| t["name"] == name).unwrap();
         assert_eq!(t["implemented"], json!(false), "{name} 不得提前标实现");
     }
+    let exported = arr.iter().find(|t| t["name"] == "export_bid_document").unwrap();
+    assert_eq!(exported["implemented"], json!(true), "export 已落地（阶段 2）");
 }

@@ -214,6 +214,32 @@ pub struct DocumentExporter<'a> {
     nodes: &'a [OutlineNode],
 }
 
+/// 导出选项（#59 阶段 2：format-spec 应用 + 暗标模式）。
+///
+/// - `format_spec`：`None` = 纯默认面（无页眉页脚、docx-rs 默认 A4——
+///   既有测试的零变化通道）；`Some` = 应用规格（页面/边距/Normal 字体行距/
+///   页眉页脚，见 [`crate::format_spec::apply_to_docx`]）。
+/// - `project_name`：页眉占位符替换素材。
+/// - `anonymize`：暗标模式（Some(bidder_name) = 公司名 → 「投标人」——
+///   正文与章标题同步替换；None = 明标）。
+#[derive(Debug, Clone, Default)]
+pub struct ExportOptions<'a> {
+    pub format_spec: Option<&'a crate::format_spec::FormatSpec>,
+    pub project_name: String,
+    pub anonymize: Option<&'a str>,
+}
+
+impl<'a> ExportOptions<'a> {
+    /// 暗标替换（公司名 → 「投标人」；bidder 为空则原文不动——无名字可替
+    /// 不是错误，但导出报告需告警，见服务层）。
+    fn scrub(&self, text: &str) -> String {
+        match self.anonymize {
+            Some(bidder) if !bidder.is_empty() => text.replace(bidder, "投标人"),
+            _ => text.to_string(),
+        }
+    }
+}
+
 impl<'a> DocumentExporter<'a> {
     /// 以章节树构造导出器。`nodes` 为空 → export 时 [`ExportError::EmptyTree`]。
     pub fn new(nodes: &'a [OutlineNode]) -> Self {
@@ -230,6 +256,22 @@ impl<'a> DocumentExporter<'a> {
         &self,
         dir: impl AsRef<Path>,
         out_path: impl AsRef<Path>,
+    ) -> Result<ExportReport, ExportError> {
+        self.export_with(dir, out_path, &ExportOptions::default())
+    }
+
+    /// 带选项导出（#59 阶段 2：format-spec + 暗标）。
+    ///
+    /// 与 [`Self::export`] 同门同幂等面（manifest 指纹含 attempt + content
+    /// sha——同指纹重导 no-op 直返）；差异仅在构建面：
+    /// - format_spec 在场 → 页面/边距/Normal 字体行距/页眉页脚叠加；
+    /// - anonymize 在场 → 正文与标题的公司名 → 「投标人」（暗标评审禁
+    ///   公司名/logo——文本面替换；图片水印面属阶段 7 PDF 通道）。
+    pub fn export_with(
+        &self,
+        dir: impl AsRef<Path>,
+        out_path: impl AsRef<Path>,
+        opts: &ExportOptions<'_>,
     ) -> Result<ExportReport, ExportError> {
         let started = Instant::now();
         let dir = dir.as_ref();
@@ -317,16 +359,24 @@ impl<'a> DocumentExporter<'a> {
                     .name(format!("Heading {lvl}")),
             );
         }
+        // #59 阶段 2：format-spec 应用（页面/边距/Normal 字体行距/页眉页脚
+        // ——加性桥，不触碰下文的段落构建序）。None = 纯默认面（既有行为
+        // 零变化——测试与旧调用方的兼容通道）。
+        if let Some(spec) = opts.format_spec {
+            docx = crate::format_spec::apply_to_docx(docx, spec, &opts.project_name);
+        }
         // TOC 域插正文最前（Word F9 更新出目录；开关面见 toc_field 注释）。
         docx = docx.add_table_of_contents(toc_field());
         let mut chapters_written = 0usize;
         let mut total_chars = 0u64;
         for node in &ordered {
             // 标题段：Heading{level}（level 由 set_outline 保证 1..=4；防御性
-            // clamp——手工构造的树不因此产出悬空 pStyle）。
+            // clamp——手工构造的树不因此产出悬空 pStyle）。暗标：标题同步
+            // 脱敏（章标题含公司名同样是暗标度标识别点）。
             let lvl = node.level.clamp(1, 4);
+            let title = opts.scrub(node.title.as_str());
             let mut heading = Paragraph::new()
-                .add_run(Run::new().add_text(node.title.as_str()))
+                .add_run(Run::new().add_text(title.as_str()))
                 .style(&format!("Heading{lvl}"));
             if lvl == 1 {
                 heading = heading.page_break_before(true); // 一级部件换页起（标书惯例）
@@ -335,10 +385,11 @@ impl<'a> DocumentExporter<'a> {
             if is_leaf(node, &children) {
                 let rec = asm.record(&node.id).expect("叶记录已在导出门验证");
                 // 正文段：按换行切段（LLM 章内容的段落结构保留；空行跳过——
-                // 段落边界是排版面，不是内容面）。
+                // 段落边界是排版面，不是内容面）。暗标：正文脱敏。
                 for line in content_paragraphs(&rec.content) {
+                    let line = opts.scrub(line);
                     docx = docx.add_paragraph(
-                        Paragraph::new().add_run(Run::new().add_text(line)),
+                        Paragraph::new().add_run(Run::new().add_text(line.as_str())),
                     );
                 }
                 chapters_written += 1;
@@ -596,4 +647,23 @@ mod tests {
         // 空树 → EmptyTree
         assert!(matches!(order_tree(&[]), Err(ExportError::EmptyTree)));
     }
+}
+
+// ---------------------------------------------------------------- #59 阶段 2：服务面产物
+
+/// `export_bid_document` 的服务层产物（MCP 壳组装契约 §8 out 的素材面）。
+#[derive(Debug, Clone)]
+pub struct ExportOutcome {
+    pub report: ExportReport,
+    /// 服务层告警（format-spec 降级 / 暗标漏配 bidder_name 等）
+    pub warnings: Vec<String>,
+    /// 产物绝对路径（壳层补 url/size 面）
+    pub output_path: PathBuf,
+}
+
+/// `ExportError` → `bid_domain::ToolError`（服务层转发面——导出失败统一
+/// E_UNPROCESSABLE 带原文；导出门（blocking/幽灵/半个文档）都是「不可处理
+/// 的状态」，不是「对象不存在」或「状态机越级」）。
+pub fn outcome_error(e: ExportError) -> bid_domain::ToolError {
+    bid_domain::ToolError::EUnprocessable { reason: e.to_string() }
 }

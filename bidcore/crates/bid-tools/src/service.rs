@@ -377,12 +377,141 @@ impl BidService {
         self.auto_checkpoint()?;
         Ok(report)
     }
+
+    /// `export_bid_document` 业务半边（#59 阶段 2）。
+    ///
+    /// 步骤：
+    /// 1. **双前置门**（防废标的最后关口——fail-closed）：
+    ///    a. 矩阵 blocking 行清零（`check_export_ready`——必选未响应不得导出）；
+    ///    b. 审核 BLOCKER findings 清零（`export_allowed`——T-7 闸门）；
+    /// 2. format-spec 解析：`.mang/format-spec.json` 在场 → 读盘校验；
+    ///    缺失 → `derive_from_requirements`（从格式条款提取；零命中 → 基线
+    ///    + warning，Lead 铁律「不硬编码」的降级面）；
+    /// 3. `DocumentExporter::export_with`（S-6 既有导出面 + format-spec 应用
+    ///    + 暗标脱敏）；
+    /// 4. 状态推进 EXPORTED（合法链补齐——Drafting 起的完整链）；
+    /// 5. checkpoint。
+    ///
+    /// 暗标（anonymize = Some(bidder)）：正文与章标题的公司名 → 「投标人」。
+    /// bidder 为空 → 响亮 warning（无名字可替——用户漏配，不静默）。
+    pub fn export_document(
+        &mut self,
+        format: &str,
+        anonymize: Option<&str>,
+        output_path: &std::path::Path,
+    ) -> Result<crate::export::ExportOutcome, ToolError> {
+        // ---- 0. format 面（壳层已拦 pdf——服务层防御性兜底，直调方同规矩）
+        if format != "docx" {
+            return Err(ToolError::EUnprocessable {
+                reason: format!("format={format} 暂不支持（#59 阶段 2 仅 docx——PDF 是阶段 7 LibreOffice 通道）"),
+            });
+        }
+        // ---- 1a. 矩阵门（blocking 行未清零 → 逐行列出，E_UNPROCESSABLE）
+        self.store.check_export_ready()?;
+        // ---- 1b. 审核门（BLOCKER findings 未清 → E_UNPROCESSABLE）
+        self.store.export_allowed().map_err(ToolError::from)?;
+
+        // ---- 2. format-spec（读盘优先，derive 兜底）
+        let mut warnings: Vec<String> = Vec::new();
+        let spec = self.load_or_derive_format_spec(&mut warnings)?;
+        let anonymize_effective = match anonymize {
+            Some(bidder) if bidder.trim().is_empty() => {
+                warnings.push(
+                    "暗标模式但 bidder_name 为空——正文未做公司名脱敏（补 bidder_name 后重导）".into(),
+                );
+                None
+            }
+            other => other,
+        };
+
+        // ---- 3. 导出（S-6 既有面 + 选项）
+        let exporter = crate::export::DocumentExporter::new(self.store.sections());
+        let dir = self.workspace_dir().ok_or_else(|| ToolError::EUnprocessable {
+            reason: "导出需要持久化工作区（BidService::open 建立的服务态才有章内容可导）".into(),
+        })?;
+        let opts = crate::export::ExportOptions {
+            format_spec: Some(&spec),
+            project_name: self.store.project()?.name.clone(),
+            anonymize: anonymize_effective,
+        };
+        let report = exporter
+            .export_with(&dir, output_path, &opts)
+            .map_err(crate::export::outcome_error)?;
+
+        // ---- 4. 状态推进 EXPORTED（合法链补齐）
+        advance_project_to_exported(&mut self.store)?;
+
+        // ---- 5. checkpoint（导出产物路径在 ExportOutcome，磁盘面已由导出器
+        //      原子落盘；这里落的是域状态 EXPORTED）
+        self.auto_checkpoint()?;
+
+        Ok(crate::export::ExportOutcome {
+            report,
+            warnings,
+            output_path: output_path.to_path_buf(),
+        })
+    }
+
+    /// format-spec 装载：`.mang/format-spec.json` 读盘 → validate；缺失 →
+    /// 从格式条款 derive（零命中 → 基线 + warning）。
+    fn load_or_derive_format_spec(
+        &self,
+        warnings: &mut Vec<String>,
+    ) -> Result<crate::format_spec::FormatSpec, ToolError> {
+        use crate::format_spec::{baseline, derive_from_requirements, validate};
+        if let Some(dir) = self.workspace_dir() {
+            let spec_path = dir.join(".mang").join("format-spec.json");
+            if spec_path.is_file() {
+                let raw = std::fs::read_to_string(&spec_path).map_err(|e| ToolError::EUnprocessable {
+                    reason: format!("format-spec.json 读取失败: {e}"),
+                })?;
+                let spec: crate::format_spec::FormatSpec = serde_json::from_str(&raw)
+                    .map_err(|e| ToolError::EUnprocessable {
+                        reason: format!("format-spec.json 解析失败（schema 见 docs / format_spec.rs serde 面）: {e}"),
+                    })?;
+                validate(&spec).map_err(|e| ToolError::EUnprocessable {
+                    reason: format!("format-spec.json 域校验失败: {e}"),
+                })?;
+                warnings.push("format-spec 从 .mang/format-spec.json 装载（手写 spec 优先于条款提取）".into());
+                return Ok(spec);
+            }
+        }
+        let (spec, mut w) = derive_from_requirements(self.store.requirements());
+        warnings.append(&mut w);
+        let _ = baseline(); // 基线在 derive 内部承载
+        Ok(spec)
+    }
 }
 
 impl Default for BidService {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// 项目推进 EXPORTED 的合法链补齐（#59 阶段 2——export 的成功后半边）。
+///
+/// guard_tool（壳层）已保证项目在 Drafting+；此处逐态经 `next_allowed`
+/// 补齐（Drafting → Validating → Reviewing → ReadyToExport → Exported 的
+/// 完整链）；已是 EXPORTED → no-op（重导幂等）。前段态直达 → 状态机错误
+/// 透传（防御面——guard 不应放行）。
+fn advance_project_to_exported(store: &mut DomainStore) -> Result<(), ToolError> {
+    use bid_domain::ProjectStatus::*;
+    let cur = store.project()?.status;
+    let steps: &[bid_domain::ProjectStatus] = match cur {
+        Drafting => &[Validating, Reviewing, ReadyToExport, Exported],
+        Validating => &[Reviewing, ReadyToExport, Exported],
+        Reviewing => &[ReadyToExport, Exported],
+        ReadyToExport => &[Exported],
+        Exported => &[],
+        Draft | FilesImported | RequirementsExtracted | MatrixReady | EvidenceBound => {
+            return Err(ToolError::EState { current: cur, attempted: "advance_project_status" });
+        }
+    };
+    for to in steps {
+        store.advance_project_status(*to)?;
+    }
+    Ok(())
 }
 
 /// B3-4：文件扩展名（引擎路径路由——小写归一，upload_ref 优先、filename 兜底）。

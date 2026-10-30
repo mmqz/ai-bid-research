@@ -27,3 +27,5 @@ sha2 = { workspace = true }
 
 [dev-dependencies]
 mang-snap = { path = "../mang-snap" }
+# #59 阶段 2 测试面：解包导出 docx 校验（zip 部件面）——bid-tools 同款钉版本
+zip = "4"

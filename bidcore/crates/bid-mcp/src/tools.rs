@@ -47,6 +47,8 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         "export_bid_document" => export_bid_document(svc, args),
         // ---- #59 阶段 3：双层校验（契约 §7——确定性规则先行 + 模型复核注入）----
         "validate_bid_document" => validate_bid_document(svc, args),
+        // ---- #68 阶段 2：生成质量覆盖度检查（只读诊断 + 报告落盘）----
+        "check_bid_quality" => check_bid_quality(svc, args),
         // ---- M0 骨架：以下工具待各自里程碑接线 ----
         "search_evidence" => Err(ToolError::unimplemented(name, "M2-b（双通道检索——#59 已降级可选，素材库上来再启）")),
         other => Err(ToolError::ENotFound {
@@ -1056,6 +1058,8 @@ fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
             "unanchored_claims": outcome.unanchored_claims,
             // #68 阶段 1：本次实际使用的生成器（real/mock——Agent 可据此判断降级面）
             "generator": gen_kind,
+            // #68 阶段 2：覆盖度自动检查（issue §2.1——未回应 REQ 清单）
+            "uncovered_requirements": outcome.uncovered_requirements,
         },
         "section_status": "DRAFTED",
         "project_status": svc.store().project().map(|p| p.status.as_str()).unwrap_or("UNKNOWN"),
@@ -1067,6 +1071,96 @@ fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
     let _ = version;
     svc.store_mut().record_idempotent(ikey, out.clone());
     Ok(out)
+}
+
+// ---------------------------------------------------------------- #68 阶段 2 check_bid_quality
+
+/// `check_bid_quality` —— 生成质量覆盖度检查（只读诊断 + 报告落盘）。
+///
+/// 壳层职责：参数校验 → 项目路由 → 状态机裁决（guard_tool——MatrixReady+，
+/// 起草中即可查进度）→ 报告构建（bid-tools quality——覆盖度/带宽/无锚/
+/// FAILED 边车）→ 落盘 `artifacts/quality-report.json`（workspace 在场）→
+/// 契约 out 组装。
+///
+/// D2 同语义：只读不改稿不落库不推状态——报告是导数，真源在域/工作区。
+/// 工作区打不开（章节文件损坏）→ **不阻断**（降级无失败明细 + warning——
+/// 组装主流程会 fail-closed，诊断面不该比被诊断者更脆）。
+fn check_bid_quality(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "check_bid_quality";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+
+    // ---- 项目路由 + 状态机裁决
+    let proj = svc.store().project().map_err(ToolError::from)?;
+    if proj.id != project_id {
+        return Err(ToolError::ENotFound {
+            what: format!("project 不存在：{project_id}（当前服务态项目：{}）", proj.id),
+        });
+    }
+    svc.store().guard_tool(TOOL).map_err(ToolError::from)?;
+
+    // ---- 前置：章节树必须已建（无纲无检查对象）
+    if svc.store().sections().is_empty() {
+        return Err(ToolError::EState {
+            what: format!("{} 态无章节树——先建纲再查质量", proj.status.as_str()),
+        });
+    }
+
+    // ---- 报告构建（assembler 在场时并入 failed.json 失败明细）
+    let mut warnings: Vec<String> = Vec::new();
+    let asm = svc.workspace_dir().map(|dir| {
+        match bid_tools::assembly::ChapterAssembler::open(&dir) {
+            Ok(a) => Some(a),
+            Err(e) => {
+                warnings.push(format!(
+                    "章节工作区打开失败（{}）——失败明细未并入报告", e
+                ));
+                None
+            }
+        }
+    })
+    .flatten();
+    let report = bid_tools::quality::build_quality_report(svc.store(), asm.as_ref());
+
+    // ---- 落盘（workspace 在场；纯内存态降级返回 + 告警）
+    let artifact = match svc.workspace_dir() {
+        Some(ws) => match bid_tools::quality::write_report(&report, &ws) {
+            Ok(path) => {
+                let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+                serde_json::json!({
+                    "path": path.to_string_lossy(),
+                    "size": size,
+                })
+            }
+            Err(e) => {
+                warnings.push(format!("质量报告落盘失败: {e}"));
+                Value::Null
+            }
+        },
+        None => {
+            warnings.push("纯内存态（无持久化工作区）——报告只返未落盘".into());
+            Value::Null
+        }
+    };
+
+    // ---- out 组装（sections 内联——全量诊断一次到位；大文档以 artifact 为准）
+    let sm = &report.summary;
+    Ok(serde_json::json!({
+        "project_id": report.project_id,
+        "summary": {
+            "total": sm.total,
+            "drafted": sm.drafted,
+            "failed": sm.failed,
+            "pending": sm.pending,
+            "uncovered_req_total": sm.uncovered_req_total,
+            "out_of_band": sm.out_of_band,
+            "unanchored_total": sm.unanchored_total,
+        },
+        "needs_human": sm.needs_human,
+        "sections": report.sections,
+        "artifact": artifact,
+        "warnings": warnings,
+        "request_id": next_request_id(),
+    }))
 }
 
 /// `generator` 参数（#68 阶段 1——缺省 auto；非 auto/mock/real 拒）。

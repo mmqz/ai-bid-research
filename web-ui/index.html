@@ -1,0 +1,637 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>R9 — CM6 ↔ mdcore-wasm bridge</title>
+<style>
+  /* #3 UI 产品化：主题变量系统（消费 CONTRACT §4 appearance.theme——
+     light/dark/system 三态；system 走 prefers-color-scheme）。
+     变量清单 = 既有硬编码色的语义化映射（测试只断言 display 不断言
+     颜色——主题切换零测试面风险）。 */
+  :root {
+    --bg: #fff; --fg: #222; --fg-muted: #667; --fg-soft: #556;
+    --panel: #f7f8fa; --panel-hover: #eef0f4; --panel-active: #f2f3f6;
+    --border: #cfd4dc; --border-strong: #aeb6c2; --border-soft: #e4e7ec;
+    --accent: #2f6fed; --danger: #b00; --code-bg: #f4f4f5;
+    --marker: #b48eff; --marker-revealed: #fff3d6; --canvas-bg: #fbfbfc;
+    --grid-head: #f3f4f6; --edit-hl: #fff3d6; --warn-bg: #fff3d6;
+  }
+  [data-theme="dark"] {
+    --bg: #1b1d21; --fg: #e4e6ea; --fg-muted: #9aa3af; --fg-soft: #b6bcc4;
+    --panel: #25282d; --panel-hover: #2d3138; --panel-active: #292d33;
+    --border: #3a3f47; --border-strong: #43494f; --border-soft: #343941;
+    --accent: #7cabff; --danger: #ff8f8f; --code-bg: #2b2f35;
+    --marker: #c9a6ff; --marker-revealed: #4d4436; --canvas-bg: #202329;
+    --grid-head: #2b2f35; --edit-hl: #4d4436; --warn-bg: #4d4436;
+  }
+  body { margin: 0; font: 15px/1.6 -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--fg); }
+  html { --ed-font-size: 15px; } /* TR-UI 批 C-1：编辑器字号（Ctrl+=/-/0） */
+  .cm-content { font-size: var(--ed-font-size); }
+  /* 打印样式（TR-UI 批 C-2）：Ctrl+P = 轻量纸面输出（隐藏一切 chrome，
+     只留文档正文——重排 max-width 适配纸面） */
+  @media print {
+    body { background: #fff !important; color: #000 !important; }
+    #topbar, #view-tabs, #format-toolbar, #status-bar, #find-panel, #toc-panel,
+    #docx-export-options, #evidence-panel, #grid-panel, #pdf-panel, #canvas-panel,
+    #settings-overlay { display: none !important; }
+    #editor { max-width: 100% !important; margin: 0 !important; }
+    .cm-editor { background: #fff !important; }
+    .cm-line.cm-heading { color: #000 !important; }
+  }
+  /* 帮助面板（TR-UI 批 C-3）：快捷键速查 */
+  #help-overlay { position: fixed; inset: 0; z-index: 400; background: rgba(0,0,0,.38);
+                  display: flex; align-items: center; justify-content: center; }
+  #help-overlay[hidden] { display: none; }
+  #help-panel { width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 80px);
+                overflow-y: auto; background: var(--panel); color: var(--fg);
+                border: 1px solid var(--border-strong); border-radius: 10px; padding: 18px 22px; }
+  #help-panel h3 { margin: 0 0 4px; font-size: 16px; }
+  #help-panel .hp-hint { color: var(--fg-muted); font-size: 12px; margin-bottom: 12px; }
+  #help-panel table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  #help-panel td { padding: 4px 8px; border-bottom: 1px solid var(--border-soft); }
+  #help-panel td:first-child { white-space: nowrap; color: var(--fg-muted); width: 130px; }
+  #help-panel kbd { display: inline-block; padding: 1px 6px; font: 12px/1.5 ui-monospace, monospace;
+                    background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px; }
+  #editor { max-width: 760px; margin: 24px auto; padding: 0 16px; }
+  /* 格式工具条（TR-UI 批 A）——编辑器上方常驻 */
+  #format-toolbar {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 2px;
+    max-width: 760px; margin: 12px auto 0; padding: 6px 10px;
+    background: var(--panel); border: 1px solid var(--border-soft); border-radius: 8px;
+  }
+  #format-toolbar button {
+    min-width: 28px; height: 26px; padding: 0 7px; margin: 0;
+    font: 600 13px/1 -apple-system, "Segoe UI", sans-serif;
+    color: var(--fg); background: transparent;
+    border: 1px solid transparent; border-radius: 5px; cursor: pointer;
+  }
+  #format-toolbar button:hover { background: var(--panel-active); }
+
+  /* #3 UI 批 E：表面空态引导卡片（PDF/Grid/Canvas——纯色块改引导；
+     主题全走既有变量，浅/深自动跟随）。 */
+  .surface-guide { position: absolute; inset: 0; display: flex; align-items: center;
+                   justify-content: center; pointer-events: none; }
+  .surface-guide[hidden] { display: none; }
+  .surface-guide .sg-card { display: flex; flex-direction: column; align-items: center;
+                   gap: 7px; padding: 26px 36px; max-width: 320px; text-align: center;
+                   background: var(--panel); color: var(--fg);
+                   border: 1px solid var(--border-soft); border-radius: 10px; }
+  .surface-guide .sg-icon { color: var(--fg-muted); }
+  .surface-guide .sg-title { font-size: 14px; font-weight: 600; }
+  .surface-guide .sg-hint { font-size: 12px; line-height: 1.5; color: var(--fg-muted); }
+  #format-toolbar button:active { background: var(--edit-hl); }
+  #format-toolbar button.ft-b { font-weight: 800; }
+  #format-toolbar button.ft-i { font-style: italic; }
+  #format-toolbar button.ft-code { font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 12px; }
+  #format-toolbar button.ft-del { text-decoration: line-through; }
+  #format-toolbar .ft-sep { width: 1px; height: 18px; margin: 0 5px; background: var(--border); }
+  /* 状态栏（TR-UI 批 A-2）：编辑器下方常驻——字数/块数/行列/rev/保存态 */
+  #status-bar {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    max-width: 760px; margin: 4px auto 24px; padding: 4px 12px;
+    font-size: 12px; color: var(--fg-muted);
+    border-top: 1px solid var(--border-soft);
+  }
+  #status-bar .sb-item { white-space: nowrap; }
+  #status-bar .sb-save { margin-left: auto; }
+  #status-bar .sb-save.sb-dirty { color: var(--danger); }
+  /* TOC 大纲面板（TR-UI 批 B）：fixed 右侧零布局侵入 */
+  #toc-panel {
+    position: fixed; top: 120px; right: 16px; z-index: 150;
+    width: 240px; max-height: calc(100vh - 200px);
+    display: flex; flex-direction: column;
+    background: var(--panel); border: 1px solid var(--border-strong); border-radius: 8px;
+    font-size: 13px; overflow: hidden; box-shadow: 0 6px 18px rgba(0,0,0,.12);
+  }
+  #toc-panel[hidden] { display: none; }
+  #toc-head { padding: 8px 12px; border-bottom: 1px solid var(--border-soft);
+              color: var(--fg-muted); font-size: 12px; user-select: none; }
+  #toc-list { flex: 1 1 auto; overflow-y: auto; padding: 4px 0; }
+  .toc-item { padding: 4px 12px; cursor: pointer; white-space: nowrap;
+              overflow: hidden; text-overflow: ellipsis; color: var(--fg); }
+  .toc-item:hover { background: var(--panel-hover); }
+  .toc-empty { padding: 10px 12px; color: var(--fg-soft); font-size: 12px; }
+  #toc-toggle-btn.active { background: var(--edit-hl); }
+  /* 查找替换面板（TR-UI 批 B-2） */
+  #find-panel {
+    position: fixed; top: 120px; right: 16px; z-index: 160;
+    width: 320px; padding: 10px 12px;
+    background: var(--panel); border: 1px solid var(--border-strong); border-radius: 8px;
+    font-size: 13px; box-shadow: 0 6px 18px rgba(0,0,0,.12);
+  }
+  #find-panel[hidden] { display: none; }
+  #find-panel .fp-row { display: flex; gap: 6px; margin: 4px 0; align-items: center; }
+  #find-panel input {
+    flex: 1 1 auto; min-width: 0; padding: 4px 8px; font: inherit; font-size: 13px;
+    background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 6px;
+  }
+  #find-panel button {
+    padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer;
+    background: var(--panel-hover); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  #find-panel button:hover { background: var(--panel-active); }
+  #find-count { color: var(--fg-muted); font-size: 12px; min-width: 60px; text-align: right; }
+  .cm-editor { outline: none; }
+  .cm-content { font: inherit; }
+  .cm-line.cm-heading { font-weight: 700; }
+  .cm-line.cm-h1 { font-size: 1.9em; }
+  .cm-line.cm-h2 { font-size: 1.6em; }
+  .cm-line.cm-h3 { font-size: 1.35em; }
+  .cm-line.cm-list-line { padding-left: 8px; }
+  .cm-line.cm-quote-line { border-left: 3px solid var(--border); color: var(--fg-soft); padding-left: 8px; }
+  .cm-list-marker { color: var(--marker); font-weight: 600; }
+  .cm-quote-marker { color: var(--fg-muted); }
+  .cm-fence { color: var(--fg-muted); background: var(--panel); }
+  .cm-inline-code { background: var(--code-bg); border-radius: 4px; padding: 1px 4px; font: 0.92em ui-monospace, monospace; }
+  .cm-bold { font-weight: 700; }
+  .cm-marker-revealed { background: var(--marker-revealed); }
+  .cm-hr { border: none; border-top: 2px solid var(--border); margin: 12px 0; }
+  #debug { max-width: 760px; margin: 8px auto 40px; padding: 8px 12px; font: 11px/1.5 ui-monospace, monospace;
+           color: var(--fg-muted); background: var(--panel); border-radius: 6px; white-space: pre-wrap; max-height: 160px; overflow: auto; }
+  /* t16/t17：导入工具条（最小面——文件入口 + 状态行；.import-btn = 两导入钮共享样式）
+     t18/t19：export .docx / export .xlsx 同类面共享（动作钮无 file input） */
+  #toolbar { max-width: 760px; margin: 14px auto 0; padding: 0 16px; font-size: 13px;
+             display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+  .tb-group { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px 2px 8px;
+              border: 1px solid var(--border-soft); border-radius: 8px; margin-right: 6px;
+              color: var(--fg-muted); }
+  .tb-group svg { width: 14px; height: 14px; opacity: .8; }
+  .tb-spacer { flex: 1 1 auto; }
+  .tb-group[aria-label="导出组"] { position: relative; }
+  .import-btn { display: inline-flex; align-items: center; gap: 6px; padding: 3px 12px; border: 1px solid var(--border); border-radius: 6px;
+                color: var(--fg-soft); background: var(--panel); cursor: pointer; user-select: none; margin-right: 8px; }
+  .import-btn:hover { background: var(--panel-hover); }
+  .import-btn svg { width: 13px; height: 13px; flex: 0 0 auto; opacity: .75; }
+  button.import-btn { border: 0; font: inherit; }
+  #docx-status, #xlsx-status { margin-left: 10px; color: var(--fg-muted); }
+  #docx-status.docx-error, #xlsx-status.xlsx-error { color: var(--danger); }
+  /* #43 问题 6：成功态绿色加粗 + 3s 后变淡（文本保留——可测面不变）。 */
+  #docx-status.status-ok, #xlsx-status.status-ok, #docx-export-status.status-ok,
+  #xlsx-export-status.status-ok { color: #1a7f37; font-weight: 600; transition: opacity .6s ease; }
+  [data-theme="dark"] #docx-status.status-ok, [data-theme="dark"] #xlsx-status.status-ok,
+  [data-theme="dark"] #docx-export-status.status-ok, [data-theme="dark"] #xlsx-export-status.status-ok { color: #4cc38a; }
+  #docx-status.status-dim, #xlsx-status.status-dim, #docx-export-status.status-dim,
+  #xlsx-export-status.status-dim { opacity: .55; }
+  /* #22 P2-4：可见警告面——状态行可展开提示 + 明细面板（docx/xlsx 同构；
+     面板挂状态行后（afterend），absolute 锚定需 span 相对定位） */
+  #docx-status, #xlsx-status { position: relative; }
+  #docx-status.has-warnings, #xlsx-status.has-warnings {
+    cursor: pointer; text-decoration: underline dotted var(--fg-muted);
+  }
+  .import-warning-panel {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 210;
+    min-width: 300px; max-width: 480px; max-height: 220px; overflow: auto;
+    padding: 8px 12px; font-size: 12px; line-height: 1.7;
+    background: var(--panel); color: var(--fg);
+    border: 1px solid var(--border-strong); border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.18);
+    white-space: nowrap;
+  }
+  .import-warning-panel[hidden] { display: none; }
+  .import-warning.sev-error { color: var(--danger); }
+  .import-warning.sev-warn { color: var(--fg-soft); }
+  .import-warning.sev-info { color: var(--fg-muted); }
+  #docx-export-status { margin-left: 10px; color: var(--fg-muted); }
+  #docx-export-status.docx-export-error { color: var(--danger); }
+  /* 导出格式选项面板（issue #10 TR-4——G2 格式面消费 UI） */
+  #docx-export-options {
+    position: absolute; top: calc(100% + 6px); right: 0; z-index: 220;
+    min-width: 340px; padding: 12px 14px;
+    background: var(--panel); color: var(--fg);
+    border: 1px solid var(--border-strong); border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  }
+  #docx-export-options .deo-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  #docx-export-options .deo-row > label { min-width: 3.5em; color: var(--fg-muted); font-size: 12px; }
+  #docx-export-options .deo-row > label.deo-toggle { min-width: 0; margin-left: 10px; }
+  #docx-export-options select {
+    flex: 1; padding: 4px 8px; font-size: 12px;
+    background: var(--bg); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  #docx-export-options select:disabled { opacity: .5; }
+  #docx-export-options .deo-note { color: var(--fg-muted); font-size: 11px; line-height: 1.5; }
+  #xlsx-export-status { margin-left: 10px; color: var(--fg-muted); }
+  #xlsx-export-status.xlsx-export-error { color: var(--danger); }
+  /* Phase 5 §8.3：视图切换（文档编辑器 <-> 表格面板）*/
+  #view-tabs { max-width: 760px; margin: 12px auto 0; padding: 0 16px; font-size: 13px; }
+  .view-tab { border: 1px solid var(--border); border-bottom: none; border-radius: 6px 6px 0 0;
+              padding: 4px 18px; margin-right: 4px; cursor: pointer; font: inherit; font-size: 13px;
+              background: var(--panel-active); color: var(--fg-soft); }
+  .view-tab:hover { background: var(--panel-hover); }
+  .view-tab.active { background: var(--bg); color: var(--fg); font-weight: 600; }
+  /* ---- 表格 UI（xlsx_grid）：几何常量与 xlsx_grid.ts 镜像（CELL_W 88 / CELL_H 26 /
+     HEAD_W 48 / HEAD_H 24）---- */
+  #grid-panel { display: none; max-width: 1128px; margin: 8px auto 0; padding: 0 16px;
+                height: calc(100vh - 170px); }
+  /* #3 空态引导：未打开工作簿时（panel 无子节点）显示引导卡片——
+     打开后自动消失（:empty 判定，零 DOM 契约接触）。 */
+  #grid-panel:empty::before {
+    content: "打开工作簿开始\A 点上方 open .xlsx grid\A 虚拟滚动 · 切片加载 · 证据高亮";
+    white-space: pre-line; text-align: center;
+    display: flex; align-items: center; justify-content: center;
+    height: 100%; color: var(--fg-muted); font-size: 14px; line-height: 2;
+    border: 1px dashed var(--border-strong); border-radius: 10px;
+    background: var(--panel);
+  }
+  #grid-toolbar { display: flex; align-items: center; gap: 10px; font-size: 13px; height: 32px; }
+  #grid-sheet-select { font: inherit; font-size: 13px; padding: 2px 6px; border: 1px solid var(--border);
+                       border-radius: 6px; background: var(--bg); color: var(--fg); }
+  .grid-btn { font: inherit; font-size: 13px; padding: 3px 12px; border: 1px solid var(--border);
+              border-radius: 6px; background: var(--panel); color: var(--fg-soft); cursor: pointer; }
+  .grid-btn:hover { background: var(--panel-hover); }
+  #grid-status { margin-left: 8px; color: var(--fg-muted); }
+  .grid-error { color: var(--danger); }
+  #grid-viewport { position: relative; overflow: auto; height: calc(100% - 40px);
+                   border: 1px solid var(--border-strong); background: var(--bg); outline: none; font-size: 13px; }
+  #grid-viewport:focus { border-color: var(--accent); }
+  #grid-spacer { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+  #grid-cells { position: absolute; left: 48px; top: 24px; z-index: 10; }
+  #grid-frozen-row { position: absolute; left: 48px; top: 24px; z-index: 20; }
+  #grid-frozen-col { position: absolute; left: 48px; top: 24px; z-index: 25; }
+  #grid-rowhead { position: absolute; left: 0; top: 24px; width: 48px; z-index: 40; }
+  #grid-colhead { position: absolute; left: 48px; top: 0; height: 24px; z-index: 40; }
+  .grid-corner { position: absolute; left: 0; top: 0; width: 48px; height: 24px; z-index: 45;
+                 background: var(--grid-head); border-right: 1px solid var(--border-strong); border-bottom: 1px solid var(--border-strong); }
+  .grid-cell { position: absolute; box-sizing: border-box; width: 88px; height: 26px;
+               border-right: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft);
+               padding: 3px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+               line-height: 18px; background: var(--bg); }
+  .grid-cell.k-number { text-align: right; }
+  .grid-cell.k-bool { color: #7c3aed; }
+  .grid-cell.k-error { color: var(--danger); font-weight: 600; }
+  .grid-cell.edited { background: var(--edit-hl); }
+  .grid-cell.evidence { box-shadow: inset 0 0 0 2px #4a7dff; background: #eef3ff; }
+  .grid-cell.selected { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .grid-colhead-cell { position: absolute; top: 0; box-sizing: border-box; width: 88px; height: 24px;
+                       background: var(--grid-head); border-right: 1px solid var(--border-strong); border-bottom: 1px solid var(--border-strong);
+                       font-size: 12px; color: var(--fg-soft); text-align: center; line-height: 23px; user-select: none; }
+  .grid-rowhead-cell { position: absolute; left: 0; box-sizing: border-box; width: 48px; height: 26px;
+                       background: var(--grid-head); border-right: 1px solid var(--border-strong); border-bottom: 1px solid var(--border-strong);
+                       font-size: 12px; color: var(--fg-soft); text-align: center; line-height: 25px; user-select: none; }
+  /* Phase 5 §8.1：主体双栏（左证据栏 + 右主区[文档/表格]）——
+     #editor / #grid-panel / #view-tabs 的 id 与结构不变，只加外层 flex 容器 */
+  #main-row { display: flex; align-items: flex-start; }
+  #main-col { flex: 1 1 auto; min-width: 0; }
+  /* ---- 证据侧栏（evidence_panel）---- */
+  #evidence-panel { flex: 0 0 300px; width: 300px; margin: 12px 0 0 16px;
+                    height: calc(100vh - 190px); display: flex; flex-direction: column;
+                    border: 1px solid var(--border-strong); border-radius: 6px; background: var(--canvas-bg);
+                    font-size: 13px; overflow: hidden; }
+  #ev-toolbar { padding: 10px; border-bottom: 1px solid var(--border-soft); }
+  #ev-counts { display: block; color: var(--fg-soft); margin-bottom: 8px; font-size: 12px; }
+  .ev-btn { font: inherit; font-size: 12px; padding: 3px 10px; margin: 0 4px 4px 0; border: 1px solid var(--border);
+            border-radius: 6px; background: var(--panel); cursor: pointer; }
+  .ev-btn:hover:not(:disabled) { background: var(--panel-hover); }
+  .ev-btn:disabled { opacity: .45; cursor: default; }
+  #ev-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 8px; }
+  .ev-card { border: 1px solid var(--border-soft); border-radius: 6px; background: var(--bg); padding: 8px 10px; margin-bottom: 8px; }
+  .ev-head { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; font-size: 12px; }
+  .ev-id { font-weight: 600; color: var(--fg); }
+  .ev-badge { font-size: 11px; padding: 1px 6px; border-radius: 8px; border: 1px solid; font-weight: 500; }
+  .linkage-valid { color: #1a7f37; border-color: #9fc9ab; }
+  .linkage-stale { color: #b45309; border-color: #d9a35b; }
+  .linkage-missing { color: var(--fg-muted); border-color: #aab; }
+  .linkage-ambiguous { color: #7c3aed; border-color: #b79ae8; }
+  .calc-passed { color: #1a7f37; border-color: #9fc9ab; }
+  .calc-failed { color: var(--danger); border-color: #d98080; }
+  .calc-na { color: var(--fg-muted); border-color: #aab; }
+  .review-pending { color: #a16207; border-color: #d9b95b; }
+  .review-approved { color: #1a7f37; border-color: #9fc9ab; }
+  .review-rejected { color: var(--danger); border-color: #d98080; }
+  .ev-claim { margin: 6px 0 2px; cursor: pointer; }
+  .ev-claim:hover { text-decoration: underline; }
+  .ev-meta { color: var(--fg-muted); font-size: 12px; word-break: break-all; }
+  .ev-actions { margin-top: 6px; display: flex; gap: 6px; }
+  .ev-actions button { font: inherit; font-size: 12px; padding: 2px 10px; border: 1px solid var(--border);
+                       border-radius: 6px; background: var(--panel); cursor: pointer; }
+  .ev-actions button:hover:not(:disabled) { background: var(--panel-hover); }
+  .ev-actions button:disabled { opacity: .45; cursor: default; }
+  #ev-report { border-top: 1px solid var(--border-soft); padding: 8px 10px; }
+  #ev-report summary { cursor: pointer; color: var(--fg-soft); font-size: 12px; }
+  #ev-report pre { font: 11px/1.5 ui-monospace, monospace; white-space: pre-wrap; max-height: 180px;
+                   overflow: auto; margin: 6px 0 0; }
+  #ev-status { border-top: 1px solid var(--border-soft); padding: 6px 10px; font-size: 12px; color: var(--fg-muted);
+               min-height: 26px; word-break: break-all; }
+  #ev-status.ev-error { color: var(--danger); }
+  #grid-edit-input { position: absolute; z-index: 50; box-sizing: border-box; border: 2px solid var(--accent);
+                     border-radius: 0; padding: 2px 4px; font: inherit; font-size: 13px; outline: none;
+                     background: var(--bg); }
+  /* ---- Phase 5 §8.4：PDF 表面视图（pdf_view.ts）---- */
+  #pdf-panel { display: none; max-width: 1128px; margin: 8px auto 0; padding: 0 16px;
+               height: calc(100vh - 170px); }
+  #pdf-toolbar { display: flex; align-items: center; gap: 6px; font-size: 13px; height: 32px;
+                 flex-wrap: wrap; }
+  .pdf-btn { font: inherit; font-size: 13px; padding: 3px 10px; border: 1px solid var(--border);
+             border-radius: 6px; background: var(--panel); cursor: pointer; }
+  /* #43 问题 4：PDF 打开入口强化（accent 边框 + 加重字重——从「像文字」
+     变成明显的按钮；label-for 关联与 .pdf-btn 基类不动）。 */
+  .pdf-open-btn { border: 2px solid var(--accent); font-weight: 600; padding: 3px 12px;
+                  color: var(--accent); }
+  .pdf-open-btn:hover { background: var(--panel-hover); }
+  .pdf-btn:hover:not(:disabled) { background: var(--panel-hover); }
+  .pdf-btn:disabled { opacity: .45; cursor: default; }
+  #pdf-page-label { min-width: 56px; text-align: center; color: var(--fg-soft); font-variant-numeric: tabular-nums; }
+  #pdf-zoom-label { min-width: 42px; text-align: center; color: var(--fg-soft); font-variant-numeric: tabular-nums; }
+  #pdf-search { font: inherit; font-size: 13px; padding: 2px 6px; border: 1px solid var(--border);
+                border-radius: 6px; background: var(--bg); width: 140px; }
+  #pdf-search-count { color: var(--fg-muted); min-width: 48px; }
+  #pdf-annot-mode { font: inherit; font-size: 13px; padding: 2px 4px; border: 1px solid var(--border);
+                    border-radius: 6px; background: var(--bg); }
+  #pdf-status { margin-top: 4px; font-size: 12px; color: var(--fg-muted); min-height: 26px;
+                word-break: break-all; }
+  #pdf-status .pdf-error { color: var(--danger); }
+  #pdf-status .pdf-warn-line { display: block; background: var(--warn-bg); color: #7a5a00;
+                               padding: 1px 6px; border-radius: 4px; margin-top: 2px; }
+  #pdf-viewport { position: relative; overflow: auto; height: calc(100% - 64px);
+                  border: 1px solid var(--border-strong); background: #525659; outline: none; }
+  #pdf-viewport:focus { border-color: var(--accent); }
+  #pdf-content { position: relative; padding: 16px 0; width: max-content; margin: 0 auto; }
+  .pdf-page { position: relative; background: var(--bg); margin: 0 16px 16px; overflow: hidden;
+              box-shadow: 0 1px 4px rgb(0 0 0 / 0.35); }
+  .pdf-canvas { position: absolute; inset: 0; z-index: 1; display: block; }
+  /* pdf.js 标准文字层（v6 viewer CSS 移植——透明文字 + 原生选区；
+     --total-scale-factor/--scale-round-* 由 pdf_view.ts 逐页注入） */
+  .pdf-page .textLayer { position: absolute; inset: 0; z-index: 2; text-align: initial;
+                         overflow: clip; line-height: 1; letter-spacing: normal; word-spacing: normal;
+                         text-size-adjust: none; forced-color-adjust: none; transform-origin: 0 0;
+                         caret-color: CanvasText; opacity: 1;
+                         --min-font-size: 1;
+                         --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+                         --min-font-size-inv: calc(1 / var(--min-font-size)); }
+  .pdf-page .textLayer :is(span, br) { color: transparent; position: absolute; white-space: pre;
+                                       cursor: text; transform-origin: 0% 0%; user-select: text; }
+  .pdf-page .textLayer > :not(.markedContent),
+  .pdf-page .textLayer .markedContent span:not(.markedContent) {
+    z-index: 1; --font-height: 0;
+    font-size: calc(var(--text-scale-factor) * var(--font-height));
+    --scale-x: 1; --rotate: 0deg;
+    transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv)); }
+  .pdf-page .textLayer .markedContent { display: contents; }
+  .pdf-page .textLayer ::selection { background: rgb(0 0 255 / 0.25); color: transparent; }
+  /* 标注/搜索/证据叠加层（默认透传——不遮挡文字选区；ink 模式接管） */
+  .pdf-overlay { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+  #pdf-viewport.pdf-mode-ink .pdf-overlay { pointer-events: auto; cursor: crosshair; }
+  #pdf-viewport.pdf-mode-highlight .textLayer { cursor: text; }
+  .pdf-annot-highlight { position: absolute; background: rgb(255 214 10 / 0.35);
+                         mix-blend-mode: multiply; border-radius: 2px; }
+  .pdf-annot-note { position: absolute; width: 18px; height: 18px; background: #ffd54f;
+                    border: 1px solid #b8860b; border-radius: 3px 3px 3px 0; cursor: help;
+                    pointer-events: auto; font-size: 11px; line-height: 16px; text-align: center; }
+  .pdf-annot-freetext { position: absolute; font-size: 12px; color: var(--fg);
+                        background: rgb(255 255 255 / 0.85); border: 1px dashed #cfd4dc;
+                        padding: 1px 4px; white-space: pre; }
+  .pdf-annot-ink, .pdf-ink-preview { position: absolute; inset: 0; overflow: visible;
+                                     pointer-events: none; }
+  .pdf-search-hit { position: absolute; background: rgb(255 160 0 / 0.35); border-radius: 2px; }
+  .pdf-search-hit.active { background: rgb(255 100 0 / 0.55); }
+  .pdf-evidence-region { position: absolute; box-shadow: inset 0 0 0 2px #4a7dff;
+                         background: rgb(74 125 255 / 0.15); }
+  .pdf-freetext-input { position: absolute; z-index: 10; border: 1px solid var(--accent);
+                        border-radius: 0; padding: 1px 4px; font: inherit; font-size: 12px;
+                        outline: none; background: var(--bg); pointer-events: auto; }
+  /* ---- Phase 5 §8.5：Canvas 表面视图（canvas_view.ts）——双面板布局
+     （主画布 + AI 端只读镜像），SVG 元素样式/选中态/工具条 ---- */
+  #canvas-panel { display: none; max-width: 1128px; margin: 8px auto 0; padding: 0 16px;
+                  height: calc(100vh - 170px); }
+  #canvas-toolbar { display: flex; align-items: center; gap: 6px; font-size: 13px; height: 32px;
+                   flex-wrap: wrap; }
+  .cv-btn { font: inherit; font-size: 13px; padding: 3px 10px; border: 1px solid var(--border);
+            border-radius: 6px; background: var(--panel); cursor: pointer; }
+  .cv-btn:hover:not(:disabled) { background: var(--panel-hover); }
+  .cv-btn:disabled { opacity: .45; cursor: default; }
+  .cv-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #canvas-status { margin-left: 8px; color: var(--fg-muted); font-size: 12px; min-height: 16px;
+                   word-break: break-all; }
+  #canvas-status.cv-error { color: var(--danger); }
+  #canvas-body { display: flex; gap: 10px; height: calc(100% - 64px); }
+  #canvas-scroll { flex: 1 1 auto; min-width: 0; overflow: auto; position: relative;
+                   border: 1px solid var(--border-strong); background: var(--bg); outline: none; }
+  #canvas-scroll:focus { border-color: var(--accent); }
+  #canvas-svg { display: block; touch-action: none; user-select: none; }
+  #canvas-svg text { font: 12px/1.4 -apple-system, "Segoe UI", sans-serif; fill: var(--fg);
+                     pointer-events: none; }
+  #canvas-svg .node rect { fill: #eef3ff; stroke: #4a7dff; stroke-width: 1.5; }
+  #canvas-svg .node:hover rect { fill: #e2ebff; }
+  #canvas-svg .node.selected rect { stroke: var(--accent); stroke-width: 2.5; }
+  #canvas-svg .node.dragging rect { fill: #ffe9b8; stroke: #b45309; }
+  #canvas-svg .node.edge-source rect { stroke: #b45309; stroke-width: 3; stroke-dasharray: 4 3; }
+  #canvas-svg .edge { stroke: #8895a7; stroke-width: 1.5; }
+  #canvas-svg .edge.dangling { stroke: #d97706; stroke-dasharray: 5 4; }
+  #canvas-svg .group rect { fill: none; stroke: #9aa3af; stroke-dasharray: 6 4; }
+  #canvas-svg .group.selected rect { stroke: #7c3aed; stroke-width: 2; }
+  #canvas-svg .group text { fill: #667; font-size: 11px; }
+  #canvas-ai-panel { flex: 0 0 260px; width: 260px; display: flex; flex-direction: column;
+                    border: 1px solid var(--border-strong); border-radius: 6px; background: var(--canvas-bg);
+                    overflow: hidden; }
+  #canvas-ai-head { padding: 6px 10px; font-size: 12px; color: var(--fg-soft);
+                    border-bottom: 1px solid var(--border-soft); display: flex; align-items: center;
+                    justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+  #canvas-ai-head .cv-btn { font-size: 11px; padding: 2px 8px; }
+  #canvas-ai-svg-wrap { flex: 1 1 auto; min-height: 0; overflow: hidden; background: var(--bg); }
+  #canvas-ai-svg { display: block; width: 100%; height: 100%; }
+  #canvas-edit-input { position: absolute; z-index: 50; box-sizing: border-box;
+                       border: 2px solid var(--accent); border-radius: 0; padding: 2px 4px;
+                       font: inherit; font-size: 12px; outline: none; background: var(--bg); }
+
+  /* ---- #3 批2：设置面板 + 证据面板折叠 ---- */
+  #settings-overlay { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,.38);
+                      display: flex; align-items: center; justify-content: center; }
+  #settings-panel { width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 80px);
+                    overflow: auto; background: var(--bg); color: var(--fg);
+                    border: 1px solid var(--border-strong); border-radius: 12px;
+                    padding: 18px 20px; box-shadow: 0 12px 40px rgba(0,0,0,.25); }
+  #settings-panel .sp-title { margin: 0 0 12px; font-size: 16px; }
+  .sp-form { display: flex; flex-direction: column; gap: 10px; }
+  .sp-row { display: grid; grid-template-columns: 1fr 170px; gap: 8px; align-items: center;
+            font-size: 13px; }
+  .sp-row .sp-name { color: var(--fg-soft); }
+  .sp-row .sp-hint { grid-column: 1 / -1; color: var(--fg-muted); font-size: 11px; margin-top: -6px; }
+  .sp-input { font: inherit; font-size: 13px; padding: 3px 8px; border: 1px solid var(--border);
+              border-radius: 6px; background: var(--bg); color: var(--fg); }
+  .sp-input:focus { outline: 2px solid var(--accent); outline-offset: 0; }
+  .sp-status { margin-top: 10px; font-size: 12px; color: var(--fg-muted); min-height: 1em; }
+  .sp-status.sp-ok { color: #1a7f37; }
+  .sp-status.sp-err { color: var(--danger); }
+  .sp-actions { margin-top: 12px; display: flex; justify-content: flex-end; }
+
+  #evidence-collapse-btn { flex: 0 0 auto; align-self: stretch; width: 20px; margin: 12px 0 0 4px;
+                           border: 1px solid var(--border); border-left: none; border-radius: 0 6px 6px 0;
+                           background: var(--panel); color: var(--fg-muted); cursor: pointer;
+                           font-size: 11px; padding: 0; }
+  #evidence-collapse-btn:hover { background: var(--panel-hover); }
+  #main-row.ev-collapsed #evidence-panel { width: 0; flex-basis: 0; margin-left: 0;
+                                           overflow: hidden; border: none; min-width: 0; }
+</style>
+<script>
+  // #3 主题防闪白：wasm boot 前先以 localStorage 缓存定档（权威 =
+  // CONTRACT §4 appearance.theme——设置变更事件同步写缓存）；
+  // system 态跟随 prefers-color-scheme。
+  (function () {
+    try {
+      var t = localStorage.getItem('mdc-theme') || 'system';
+      var dark = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    } catch (e) { /* 隐私模式等：默认 light */ }
+  })();
+</script>
+</head>
+<body>
+<div id="toolbar">
+  <!-- #3 产品化：三分组（文件/导出/表格）+ 内联 SVG 图标 + title 快捷提示；
+       全部 id/class 与 label-for 关联零变更（DOM 契约面不动）。 -->
+  <span class="tb-group" aria-label="文件组">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm3.5 7.75H8.75V11.5h-1.5V8.75H4.5v-1.5h2.75V4.5h1.5v2.75h2.75v1.5Z"/></svg>
+    <label class="import-btn" for="docx-file" data-i18n-title="toolbar.importDocxTitle" title="导入 Word 文档到编辑器（.docx → 可编辑 Markdown）"><span data-i18n="toolbar.importDocx">import .docx</span></label>
+    <input type="file" id="docx-file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
+    <span id="docx-status"></span>
+    <label class="import-btn" for="xlsx-file" data-i18n-title="toolbar.importXlsxTitle" title="导入 Excel 工作簿到编辑器（.xlsx → 表格块；同时载入「表格」页签）"><span data-i18n="toolbar.importXlsx">import .xlsx</span></label>
+    <input type="file" id="xlsx-file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden />
+    <span id="xlsx-status"></span>
+  </span>
+  <span class="tb-group" aria-label="导出组">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1ZM7.25 4h1.5v4.19l1.97-1.97 1.06 1.06L8 12.06 4.22 8.28l1.06-1.06 1.97 1.97V4Z"/></svg>
+    <button type="button" class="import-btn" id="docx-export-btn" data-i18n-title="toolbar.exportDocxTitle" title="导出 Word 文档（当前文档 → .docx 下载）"><span data-i18n="toolbar.exportDocx">export .docx</span></button>
+    <button type="button" class="import-btn" id="docx-export-options-btn" data-i18n-title="toolbar.exportOptionsTitle" title="导出格式选项（排版/页面几何——G2 格式面）" aria-haspopup="true" aria-expanded="false">⚙</button>
+    <div id="docx-export-options" hidden>
+      <div class="deo-row">
+        <label for="deo-preset" data-i18n="deo.preset">预设</label>
+        <select id="deo-preset">
+          <option value="default" data-i18n="deo.presetDefault">默认（引擎基态）</option>
+          <option value="official-a4" data-i18n="deo.presetOfficialA4">公文 A4（四号·1.5 倍·90pt 边距）</option>
+          <option value="compact" data-i18n="deo.presetCompact">紧凑（五号·单倍·2cm 边距）</option>
+          <option value="large-print" data-i18n="deo.presetLargePrint">大字（三号·2 倍·1 英寸边距）</option>
+          <option value="custom" data-i18n="deo.presetCustom">自定义</option>
+        </select>
+      </div>
+      <div class="deo-row">
+        <label for="deo-size" data-i18n="deo.size">字号</label>
+        <select id="deo-size" disabled>
+          <option value="21" data-i18n="deo.size21">10.5pt（五号）</option>
+          <option value="24" data-i18n="deo.size24">12pt（小四）</option>
+          <option value="28" data-i18n="deo.size28">14pt（四号）</option>
+          <option value="32" data-i18n="deo.size32">16pt（三号）</option>
+        </select>
+        <label for="deo-spacing" data-i18n="deo.spacing">行距</label>
+        <select id="deo-spacing" disabled>
+          <option value="240" data-i18n="deo.spacing240">单倍</option>
+          <option value="360" data-i18n="deo.spacing360">1.5 倍</option>
+          <option value="480" data-i18n="deo.spacing480">2 倍</option>
+        </select>
+      </div>
+      <div class="deo-row">
+        <label for="deo-margin" data-i18n="deo.margin">边距</label>
+        <select id="deo-margin" disabled>
+          <option value="1134" data-i18n="deo.margin1134">2cm（紧凑）</option>
+          <option value="1440" data-i18n="deo.margin1440">1 英寸（标准）</option>
+          <option value="1800" data-i18n="deo.margin1800">90pt（公文）</option>
+        </select>
+      </div>
+      <div class="deo-row">
+        <label for="deo-toc" data-i18n="deo.toc">目录</label>
+        <input type="checkbox" id="deo-toc" data-i18n-title="deo.tocTitle" title="导出时在文档开头插入目录域（Word/LO 打开后按 F9 更新生成；收录标题层级 1-3）" />
+        <label for="deo-anonymize" class="deo-toggle" data-i18n="deo.anonymize">匿名导出</label>
+        <input type="checkbox" id="deo-anonymize" data-i18n-title="deo.anonymizeTitle" title="导出时清零文档元数据（作者/公司/机器名——暗标 G3/R-11）" />
+      </div>
+      <div class="deo-row deo-note"><span id="deo-hint" data-i18n="deo.hint">预设 = 排版 + 页面几何全量应用；自定义可单选字号/行距/边距（其余引擎默认）。</span></div>
+    </div>
+    <span id="docx-export-status"></span>
+    <button type="button" class="import-btn" id="xlsx-export-btn" data-i18n-title="toolbar.exportXlsxTitle" title="导出 Excel 工作簿（表格块 → .xlsx 下载）"><span data-i18n="toolbar.exportXlsx">export .xlsx</span></button>
+    <span id="xlsx-export-status"></span>
+  </span>
+  <span class="tb-group" aria-label="表格组">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M2 2h12v12H2V2Zm1.5 3v7.5h9V5h-9Zm0-1.5h9V3.5h-9V3.5Zm2 3h1.5V10H5.5V6.5Zm3 0H10V10H8.5V6.5Z"/></svg>
+    <label class="import-btn" for="grid-file" data-i18n-title="toolbar.openXlsxGridTitle" title="在「表格」页签打开工作簿（虚拟滚动全表浏览、单元格可编辑；不影响编辑器正文）"><span data-i18n="toolbar.openXlsxGrid">open .xlsx grid</span></label>
+    <input type="file" id="grid-file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden />
+  </span>
+  <span class="tb-spacer"></span>
+  <button type="button" class="import-btn" id="theme-toggle-btn" data-i18n-title="toolbar.themeTitle" title="主题：亮色 / 暗色 / 跟随系统（设置键 appearance.theme）">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1.5A6.5 6.5 0 1 0 14.5 8h-1.6A4.9 4.9 0 1 1 8 3.1V1.5Zm.75 3.75v3.44l2.4 2.4-1.06 1.06-2.84-2.85V5.25h1.5Z"/></svg>
+    <span id="theme-label">theme</span>
+  </button>
+  <button type="button" class="import-btn" id="settings-btn" data-i18n-title="toolbar.settingsTitle" title="设置（CONTRACT §4 设置面）">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M9.1 1.5 9.4 3a5.6 5.6 0 0 1 1.6.93l1.44-.5.9 1.56-1.06 1.08c.07.3.1.6.1.93s-.03.63-.1.93l1.06 1.08-.9 1.56-1.44-.5c-.48.4-1.02.71-1.6.93l-.3 1.5H7.3l-.3-1.5a5.6 5.6 0 0 1-1.6-.93l-1.44.5-.9-1.56 1.06-1.08A5 5 0 0 1 4 8.5c0-.33.03-.63.1-.93L3.04 6.5l.9-1.56 1.44.5c.48-.4 1.02-.71 1.6-.93l.3-1.5h1.82ZM8.2 6a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"/></svg>
+    <span data-i18n="toolbar.settings">settings</span>
+  </button>
+</div>
+<div id="main-row">
+  <div id="evidence-panel"></div>
+  <div id="main-col">
+    <div id="view-tabs">
+      <button type="button" id="tab-doc" class="view-tab active" data-i18n="tab.document">Document</button>
+      <button type="button" id="tab-grid" class="view-tab" data-i18n="tab.grid">Grid</button>
+      <button type="button" id="tab-pdf" class="view-tab" data-i18n="tab.pdf">PDF</button>
+      <button type="button" id="tab-canvas" class="view-tab" data-i18n="tab.canvas">Canvas</button>
+      <button type="button" id="toc-toggle-btn" class="view-tab" data-i18n-title="tab.outlineTitle" title="文档大纲（标题导航跳转）" aria-expanded="false" data-i18n="tab.outline">大纲</button>
+    </div>
+    <div id="toc-panel" hidden>
+      <div id="toc-head" data-i18n="toc.head">大纲 · 标题导航</div>
+      <div id="toc-list"><div class="toc-empty" data-i18n="toc.empty">暂无标题——用 H1-H3 或 # 前缀创建。</div></div>
+    </div>
+    <div id="find-panel" hidden>
+      <div class="fp-row">
+        <input type="text" id="find-input" data-i18n-placeholder="find.placeholder" placeholder="查找…" aria-label="查找文本" />
+        <span id="find-count" data-i18n="find.noMatch">0/0</span>
+        <button type="button" id="find-prev-btn" data-i18n-title="find.prevTitle" title="上一个（Shift+Enter）">↑</button>
+        <button type="button" id="find-next-btn" data-i18n-title="find.nextTitle" title="下一个（Enter）">↓</button>
+      </div>
+      <div class="fp-row">
+        <input type="text" id="replace-input" data-i18n-placeholder="find.replacePlaceholder" placeholder="替换为…" aria-label="替换文本" />
+        <button type="button" id="replace-one-btn" data-i18n-title="find.replaceOneTitle" title="替换当前匹配" data-i18n="find.replaceOne">替换</button>
+        <button type="button" id="replace-all-btn" data-i18n-title="find.replaceAllTitle" title="替换全部匹配" data-i18n="find.replaceAll">全部</button>
+      </div>
+    </div>
+    <div id="format-toolbar" role="toolbar" aria-label="格式工具条">
+      <button type="button" class="ft-b" data-format="bold" data-i18n-title="fmt.boldTitle" title="粗体（Mod-B）">B</button>
+      <button type="button" class="ft-i" data-format="italic" data-i18n-title="fmt.italicTitle" title="斜体（Mod-I）">I</button>
+      <button type="button" class="ft-code" data-format="code" data-i18n-title="fmt.codeTitle" title="行内代码（Mod-E）">code</button>
+      <button type="button" class="ft-del" data-format="del" data-i18n-title="fmt.delTitle" title="删除线（Mod-Shift-X）">S</button>
+      <span class="ft-sep"></span>
+      <button type="button" data-format="h1" data-i18n-title="fmt.h1Title" title="一级标题（Mod-Shift-1）">H1</button>
+      <button type="button" data-format="h2" data-i18n-title="fmt.h2Title" title="二级标题（Mod-Shift-2）">H2</button>
+      <button type="button" data-format="h3" data-i18n-title="fmt.h3Title" title="三级标题（Mod-Shift-3）">H3</button>
+      <button type="button" data-format="para" data-i18n-title="fmt.paraTitle" title="正文（清除前缀，Mod-Shift-0）">¶</button>
+      <span class="ft-sep"></span>
+      <button type="button" data-format="quote" data-i18n-title="fmt.quoteTitle" title="引用块（> 前缀 toggle）">&gt;</button>
+      <button type="button" data-format="ul" data-i18n-title="fmt.ulTitle" title="无序列表（- 前缀 toggle）">•</button>
+      <button type="button" data-format="ol" data-i18n-title="fmt.olTitle" title="有序列表（1. 前缀 toggle）">1.</button>
+    </div>
+    <div id="editor"></div>
+    <div id="status-bar" role="status" aria-label="文档状态">
+      <span class="sb-item" id="sb-counts">0 字符 · 0 词</span>
+      <span class="sb-item" id="sb-blocks">0 块</span>
+      <span class="sb-item" id="sb-cursor">Ln 1, Col 1</span>
+      <span class="sb-item" id="sb-rev">rev 0</span>
+      <span class="sb-item sb-save" id="sb-save" data-i18n-title="sb.savedTitle" title="Ctrl+S 保存（宿主桥接路径 = __md() + save_document）">已保存</span>
+    </div>
+    <div id="grid-panel"></div>
+    <div id="pdf-panel"></div>
+    <div id="canvas-panel"></div>
+  </div>
+</div>
+<pre id="debug" data-i18n="debug.booting">booting…</pre>
+<script type="module" src="./main.js"></script>
+  <div id="help-overlay" hidden>
+    <div id="help-panel" role="dialog" aria-label="快捷键速查">
+      <h3 data-i18n="help.title">快捷键速查</h3>
+      <div class="hp-hint" data-i18n="help.hint">Esc 或点击空白处关闭 · 帮助面板 F1 / Shift+?</div>
+      <table>
+        <tr><td><kbd>Mod</kbd> + <kbd>B</kbd></td><td>粗体（选区包裹 <b>**</b>）</td></tr>
+        <tr><td><kbd>Mod</kbd> + <kbd>I</kbd></td><td>斜体（<i>*</i>）</td></tr>
+        <tr><td><kbd>Mod</kbd> + <kbd>E</kbd></td><td>行内代码（<code>`</code>）</td></tr>
+        <tr><td><kbd>Mod</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd></td><td>删除线（<s>~~</s>）</td></tr>
+        <tr><td><kbd>Mod</kbd> + <kbd>Shift</kbd> + <kbd>1/2/3</kbd></td><td>标题 H1 / H2 / H3</td></tr>
+        <tr><td><kbd>Mod</kbd> + <kbd>Shift</kbd> + <kbd>0</kbd></td><td>回正文（清除块前缀）</td></tr>
+        <tr><td><kbd>Mod</kbd> + <kbd>Z</kbd> / <kbd>Mod</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></td><td>撤销 / 重做</td></tr>
+        <tr><td><kbd>Mod</kbd> + <kbd>F</kbd></td><td>查找替换面板</td></tr>
+        <tr><td><kbd>Enter</kbd> / <kbd>Shift</kbd> + <kbd>Enter</kbd></td><td>查找下一个 / 上一个</td></tr>
+        <tr><td><kbd>Mod</kbd> + <kbd>S</kbd></td><td>保存（宿主桥路径；独立态 = mdc-save 事件）</td></tr>
+        <tr><td><kbd>Mod</kbd> + <kbd>=</kbd> / <kbd>-</kbd> / <kbd>0</kbd></td><td>编辑器字号 放大 / 缩小 / 重置</td></tr>
+        <tr><td><kbd>F1</kbd> / <kbd>Shift</kbd> + <kbd>?</kbd></td><td>本帮助面板</td></tr>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

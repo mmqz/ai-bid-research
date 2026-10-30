@@ -1,0 +1,20 @@
+{
+  "name": "mang-web-ui",
+  "private": true,
+  "version": "0.1.0",
+  "description": "mang 标书工作台前端：VSCode 风格文档工作台（web-ui/mang）+ 旧 mdcore web 资产（src/ 等，仅供组件参考搬运）。",
+  "type": "module",
+  "scripts": {
+    "build": "node mang-build.mjs",
+    "build:legacy": "node build.mjs",
+    "serve": "node scripts/serve.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^6.4.299"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' blob: data: mang:; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: mang:; font-src 'self' data: mang:; worker-src 'self' blob: mang:; connect-src 'self' blob: data: mang:" />
+<title>mang — 标书工作台</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<!--
+  VSCode 风格文档工作台（docs/mang/SPEC-issue42.md）
+  布局：菜单栏 32 / 图标条 48 / 侧栏 260 / Tab 栏 34 / 编辑区 flex / 状态栏 26
+  硬性：整页 100vh，页面本身绝不出现滚动条，只有编辑区（和侧栏列表）内部可滚动。
+-->
+<div id="app" class="app">
+
+  <!-- ① 菜单栏 32px -->
+  <header id="menubar" class="menubar" role="menubar" aria-label="主菜单">
+    <!-- 左上角不放任何标识：菜单直接贴左边缘（规格：标题栏左上角不要多余标识） -->
+    <nav class="menubar-menus" id="menubar-menus">
+      <!-- 菜单按钮由 app.js 渲染 -->
+    </nav>
+    <div class="menubar-spacer"></div>
+    <!-- 窗口按钮：只在桌面壳里渲染（浏览器预览时隐藏） -->
+    <div class="window-controls" id="window-controls" hidden></div>
+  </header>
+
+  <!-- ② 主区：图标条 + 侧栏 + 工作区 -->
+  <div class="body" id="body">
+
+    <!-- 图标条 48px：切换侧栏，不切主视图（role=tablist，每个按钮是 tab） -->
+    <nav class="activitybar" id="activitybar" role="tablist" aria-label="活动栏" aria-orientation="vertical">
+      <!-- 按钮由 app.js 渲染 -->
+    </nav>
+
+    <!-- 侧栏 260px（可折叠，可拖拽调宽） -->
+    <aside class="sidebar" id="sidebar" aria-label="侧栏">
+      <div class="sidebar-header" id="sidebar-header">
+        <!-- 文件夹名（VSCode 式）：点一下换文件夹 -->
+        <button class="sidebar-folder" id="sidebar-workspace" title="切换文件夹 (Ctrl+K Ctrl+O)" aria-label="切换文件夹"></button>
+        <div class="sidebar-actions" id="sidebar-actions"></div>
+      </div>
+      <div class="sidebar-body" id="sidebar-body" data-view="files" tabindex="-1"><!-- 视图内容由 app.js 渲染 --></div>
+      <div class="sidebar-resize" id="sidebar-resize" role="separator" aria-orientation="vertical" tabindex="-1"></div>
+    </aside>
+
+    <!-- 工作区：Tab 栏 34px + 编辑区 flex -->
+    <main class="workbench" id="workbench">
+      <div class="tabbar" id="tabbar" role="tablist" aria-label="打开的文件">
+        <div class="tabs" id="tabs"><!-- Tab 由 app.js 渲染 --></div>
+        <div class="tabbar-actions" id="tabbar-actions">
+          <button class="tab-action" id="btn-tab-overflow" title="更多操作" aria-label="更多操作">
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="3.5" cy="8" r="1.1" fill="currentColor"/><circle cx="8" cy="8" r="1.1" fill="currentColor"/><circle cx="12.5" cy="8" r="1.1" fill="currentColor"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="editor" id="editor">
+        <!-- 空状态（无打开文件） -->
+        <section class="empty" id="empty" aria-label="欢迎页" hidden>
+          <!-- 由 app.js 渲染 -->
+        </section>
+
+        <!-- 视图宿主：每种文件类型的渲染器挂到这里（每个 Tab 一个 pane） -->
+        <div class="panes" id="panes"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ③ 状态栏 26px -->
+  <footer class="statusbar" id="statusbar" role="contentinfo">
+    <div class="status-left" id="status-left"></div>
+    <div class="status-right" id="status-right"></div>
+  </footer>
+</div>
+
+<!-- 浮层：菜单 / 右键菜单 / 提示 / 命令面板 / 模态 -->
+<div class="overlay-root" id="overlay-root"></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<!-- 宿主桥：iframe 模式下由 dist/index.html 提供 window.parent.__mangInternal；独立打开时用模拟层 -->
+<script type="module" src="app.js"></script>
+</body>
+</html>

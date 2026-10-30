@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>阶段1宿主选型 — 原型A基准页（web 候选）</title>
+<style>
+  html, body { margin: 0; height: 100%; font: 13px/1.5 -apple-system, "Segoe UI", sans-serif; color: #222; background: #fff; }
+  #app { display: flex; height: 100%; flex-direction: column; }
+  #tabs { display: flex; gap: 8px; padding: 6px 12px; border-bottom: 1px solid #e2e4e8; background: #fafafa; }
+  #tabs button { padding: 3px 14px; border: 1px solid #cfd4dc; border-radius: 6px; background: #fff; cursor: pointer; font: inherit; }
+  #tabs button.active { background: #e8f0fe; border-color: #7aa7f0; }
+  #main { display: flex; flex: 1; min-height: 0; }
+  #evidence-panel { width: 280px; border-right: 1px solid #e2e4e8; overflow: auto; padding: 8px 10px; }
+  #evidence-panel ul { list-style: none; margin: 0; padding: 0; }
+  #evidence-panel li { padding: 3px 4px; border-bottom: 1px solid #f0f1f3; }
+  .st-verified { color: #16783c; } .st-stale { color: #aa3c1e; } .st-pending { color: #888; }
+  .central { flex: 1; min-width: 0; display: flex; }
+  .panel { flex: 1; min-width: 0; display: none; }
+  .panel.active { display: flex; }
+  #body-panel .cm-editor { flex: 1; }
+  #body-panel .cm-scroller { overflow: auto; }
+  .cm-line.hl { background: #fff0c8; }
+  /* 表格：绝对定位虚拟网格（spacer 撑滚动域） */
+  #table-scroll { flex: 1; overflow: auto; position: relative; background: #fdfdfe; }
+  #table-spacer { position: absolute; top: 0; left: 0; width: 1px; height: 1px; }
+  .tcell { position: absolute; border-right: 1px solid #e8eaed; border-bottom: 1px solid #e8eaed;
+           font: 12px/26px ui-monospace, monospace; padding-left: 6px; box-sizing: border-box;
+           white-space: nowrap; overflow: hidden; }
+  .tcell:nth-child(even) { background: #fafafa; }
+  .tcell.edited { background: #ffebc8; }
+  /* 画布：SVG 场景在滚动容器内 */
+  #canvas-scroll { flex: 1; overflow: auto; position: relative; }
+  #canvas-svg .node rect { fill: #d6e2f5; stroke: #6e82a0; stroke-width: 1; }
+  #canvas-svg .node.hot rect { fill: #ffe082; stroke: #c87814; stroke-width: 2; }
+  #canvas-svg .node text { font: 13px sans-serif; fill: #283; fill: #333; }
+  #canvas-svg .edge { stroke: #b4becd; stroke-width: 1; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="tabs">
+    <button id="tab-body" class="active">正文</button>
+    <button id="tab-table">表格</button>
+    <button id="tab-canvas">画布</button>
+    <span id="status" style="color:#889;align-self:center"></span>
+  </div>
+  <div id="main">
+    <div id="evidence-panel"><ul id="evidence-list"></ul></div>
+    <div class="central">
+      <div id="body-panel" class="panel active"></div>
+      <div id="table-panel" class="panel"><div id="table-scroll"><div id="table-spacer"></div></div></div>
+      <div id="canvas-panel" class="panel"><div id="canvas-scroll"></div></div>
+    </div>
+  </div>
+</div>
+<script type="module" src="./bench.js"></script>
+</body>
+</html>

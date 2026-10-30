@@ -1,0 +1,113 @@
+{
+  "meta": {
+    "gate": "stage 6 ¡ì¾Å.5 concurrent web composition e2e",
+    "dist": "E:\\Code\\ai\\md\\audit\\mdcore\\web\\dist",
+    "port": 8943,
+    "total": 16,
+    "failed": 0
+  },
+  "tests": [
+    {
+      "name": "dual_tab_doc_bidirectional_convergence",
+      "ok": true,
+      "skip": false,
+      "detail": "{\"load\": true, \"ids\": [\"7100011-1\", \"7100011-2\", \"7100011-3\"], \"p2_seen\": true, \"edit\": {\"ok\": true, \"receipt\": {\"outcome\": \"text_replaced\", \"block_id\": \"7100011-2\", \"new_len\": 20, \"undo_depth\": 1, \"undo_cleared\": false}}, \"texts\": [\"Alpha base paragraph.\", \"BETA base paragraph.\", \"Gamma base paragraph.\"]}"
+    },
+    {
+      "name": "concurrent_interleaved_edits",
+      "ok": true,
+      "skip": false,
+      "detail": "{\"texts\": [\"alphaY base paragraph.\", \"BETA base paragraph.\", \"gammaY base paragraph.\"]}"
+    },
+    {
+      "name": "concurrent_same_block_edits",
+      "ok": true,
+      "skip": false,
+      "detail": "{\"p1\": {\"ok\": true, \"receipt\": {\"outcome\": \"text_replaced\", \"block_id\": \"7100011-2\", \"new_len\": 24, \"undo_depth\": 4, \"undo_cleared\": false}}, \"p2\": {\"ok\": true, \"receipt\": {\"outcome\": \"text_replaced\", \"block_id\": \"7100011-2\", \"new_len\": 28, \"undo_depth\": 4, \"undo_cleared\": false}}, \"texts\": [\"alphaY base paragraph.\", \"[P1]BETA base paragraph.[P2]\", \"gammaY base paragraph.\"]}"
+    },
+    {
+      "name": "canvas_cross_page_propagation",
+      "ok": true,
+      "skip": false,
+      "detail": "{\"add\": {\"ok\": true, \"id\": \"7200011-1\", \"outcome\": \"node_added\"}, \"move\": true, \"p2_node\": {\"id\": \"7200011-1\", \"kind\": \"node\", \"x\": 160, \"y\": 140, \"w\": 120, \"h\": 36, \"from\": null, \"to\": null, \"members\": [], \"props\": {\"label\": \"CW-Node\"}}, \"p2_sync\": {\"main\": 1, \"ai\": 1, \"converged\": true, \"wasm\": true}}"
+    },
+    {
+      "name": "doc_expect_guard_rejects_stale_write",
+      "ok": true,
+      "skip": false,
+      "detail": "{\"blk\": {\"id\": 7, \"head\": \"quoted line cw-stale-gua\"}, \"stale\": {\"threw\": true, \"msg\": \"{\\\"Anchor\\\":{\\\"ExpectMismatch\\\":{\\\"block\\\":7}}}\", \"parsed\": {\"Anchor\": {\"ExpectMismatch\": {\"block\": 7}}}, \"rev\": 1, \"mdKept\": true}}"
+    },
+    {
+      "name": "doc_expect_guard_accepts_fresh_write",
+      "ok": true,
+      "skip": false,
+      "detail": "{\"fresh\": {\"ok\": true, \"ret\": {\"revision\": 1}, \"expect\": \"quot\", \"afterHead\": \"FRESHed \", \"markerKept\": true}}"
+    },
+    {
+      "name": "workbench_stale_view_rejects_proposal",
+      "ok": true,
+      "skip": false,
+      "detail": "{\"start\": true, \"ing\": true, \"fresh\": true, \"refresh\": {\"ok\": true, \"degraded\": 1}, \"stale\": {\"ok\": false, \"code\": \"wb_claimed_value_not_in_paragraph\", \"message\": \"claimed value '336.8' does not appear in the claim paragraph\"}, \"after\": {\"active\": true, \"evidence\": 1, \"cw1\": \"stale\"}}"
+    },
+    {
+      "name": "undo_origin_locality",
+      "ok": true,
+      "skip": false,
+      "detail": "{\"loc\": true, \"seen\": true, \"undo\": true, \"conv\": true, \"ai_before\": {\"undo\": 4, \"redo\": 0}, \"ai_after\": {\"undo\": 4, \"redo\": 0}}"
+    },
+    {
+      "name": "undo_redo_roundtrip_both_actors",
+      "ok": true,
+      "skip": false,
+      "detail": "{\"loads\": [true, true], \"dh\": [4, 5, 4], \"da\": [0, 1, 0], \"u\": [true, true], \"rd\": [true, true], \"mid\": [true, true, true], \"back\": [true, true], \"conv\": true}"
+    },
+    {
+      "name": "undo_propagates_cross_page",
+      "ok": true,
+      "skip": false,
+      "detail": "{\"ins\": true, \"p2_saw\": true, \"undo\": true, \"conv\": true, \"gone\": [true, true]}"
+    },
+    {
+      "name": "canvas_undo_redo_depths",
+      "ok": true,
+      "skip": false,
+      "detail": "{\"st0\": {\"objects\": 1, \"nodes\": 1, \"edges\": 0, \"groups\": 0, \"undoDepth\": 2, \"redoDepth\": 0, \"wasm\": true}, \"st1\": {\"objects\": 2, \"nodes\": 2, \"edges\": 0, \"groups\": 0, \"undoDepth\": 3, \"redoDepth\": 0, \"wasm\": true}, \"st2\": {\"objects\": 1, \"nodes\": 1, \"edges\": 0, \"groups\": 0, \"undoDepth\": 2, \"redoDepth\": 1, \"wasm\": true}, \"st3\": {\"objects\": 2, \"nodes\": 2, \"edges\": 0, \"groups\": 0, \"undoDepth\": 3, \"redoD"
+    },
+    {
+      "name": "doc_delete_then_undo_same_identity",
+      "ok": true,
+      "skip": false,
+      "detail": "{\"ins\": true, \"bid\": \"7100011-8\", \"seen_p2\": true, \"rm\": {\"ok\": true, \"receipt\": {\"outcome\": \"block_removed\", \"block_id\": \"7100011-8\", \"undo_depth\": 7, \"undo_cleared\": false}}, \"gone\": true, \"undo\": true, \"back\": {\"p1\": {\"block_id\": \"7100011-8\", \"kind\": \"p\", \"attrs\": {}, \"text\": \"Identity keep 42\", \"marks\": [], \"children\": []}, \"p2\": {\"block_id\": \"7100011-8\", \"kind\": \"p\", \"attrs\": {}, \"text\": \"Ide"
+    },
+    {
+      "name": "canvas_delete_restore_fingerprint",
+      "ok": true,
+      "skip": false,
+      "detail": "{\"add\": {\"ok\": true, \"id\": \"7200011-3\", \"outcome\": \"node_added\"}, \"fp1\": {\"ok\": true, \"fp\": \"fnv64:b9803be3430affd0\"}, \"rm\": {\"ok\": true, \"receipt\": {\"outcome\": \"object_removed\", \"id\": \"7200011-3\", \"undo_depth\": 5, \"undo_cleared\": false}}, \"gone\": true, \"undo\": true, \"back\": {\"id\": \"7200011-3\", \"label\": \"CW-Fingerprint\"}, \"fp2\": {\"ok\": true, \"fp\": \"fnv64:b9803be3430affd0\"}}"
+    },
+    {
+      "name": "cross_page_delete_restore",
+      "ok": true,
+      "skip": false,
+      "detail": "{\"ins\": true, \"bid\": \"7100011-9\", \"p2_saw\": true, \"rm\": {\"ok\": true, \"receipt\": {\"outcome\": \"block_removed\", \"block_id\": \"7100011-9\", \"undo_depth\": 5, \"undo_cleared\": false}}, \"p1_saw_delete\": true, \"p1_undo\": true, \"conv\": true, \"still_gone\": true}"
+    },
+    {
+      "name": "zero_pageerror_all_pages",
+      "ok": true,
+      "skip": false,
+      "detail": "{\"p1\": [], \"p2\": []}"
+    },
+    {
+      "name": "collab_state_consistency",
+      "ok": true,
+      "skip": false,
+      "detail": "{\"p1\": {\"connected\": true, \"slot\": 1, \"docClientId\": 7100011, \"canvasHooked\": true, \"sent\": 31, \"recv\": 7, \"members\": [2], \"errors\": [], \"docBlocks\": 5}, \"p2\": {\"connected\": true, \"slot\": 2, \"docClientId\": 7100021, \"canvasHooked\": true, \"sent\": 7, \"recv\": 29, \"members\": [1], \"errors\": [], \"docBlocks\": 5}}"
+    }
+  ],
+  "summary": {
+    "total": 16,
+    "failed": 0,
+    "pass": true,
+    "failures": []
+  }
+}

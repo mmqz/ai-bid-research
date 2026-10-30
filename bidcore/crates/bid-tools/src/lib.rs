@@ -6,6 +6,7 @@ pub mod check;
 pub mod context;
 pub mod draft;
 pub mod export;
+pub mod format_spec;
 pub mod runner;
 pub mod schema;
 pub mod service;

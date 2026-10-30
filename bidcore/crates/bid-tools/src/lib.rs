@@ -5,6 +5,7 @@ pub mod assembly;
 pub mod check;
 pub mod context;
 pub mod export;
+pub mod format_spec;
 pub mod runner;
 pub mod schema;
 pub mod service;

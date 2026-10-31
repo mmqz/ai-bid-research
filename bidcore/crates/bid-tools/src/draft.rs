@@ -1,4 +1,5 @@
-//! draft.rs —— #59 阶段 1：单章起草的业务半边（draft_response_section）。
+//! draft.rs —— #59 阶段 1：单章起草的业务半边（draft_response_section）
+//!           → #97 B4：生成-自评-改写循环（IterativeDrafter）。
 //!
 //! 分层（与 service.rs / assembly.rs 同族纪律）：
 //! - **输入装配**（[`build_section_input`]）：从 store 取章节配额（target_chars）、
@@ -16,7 +17,10 @@
 //!   的证据号）；未知引用**剔除 + 告警**（不拒稿——契约把阻断留给
 //!   validate 的 unanchored_claims 面而不是 draft 面）；
 //! - **无锚承诺计数**（[`count_unanchored_claims`]）：含承诺词的句子若无
-//!   同句引用 → 计数（契约 §6 stats.unanchored_claims——阻断语义在 validate）。
+//!   同句引用 → 计数（契约 §6 stats.unanchored_claims——阻断语义在 validate）；
+//! - **B4 迭代循环**（[`IterativeDrafter`]）：生成 → B2 自评 + B3 质量检查
+//!   → 达标停 / 未达标注失分项构造改写提示 → 下一轮——最多 `max_rounds`
+//!   轮（硬上限防 LLM 无限循环）；服务面 [`BidService::draft_section_iterative`]。
 //!
 //! 章节内容落两处（单一提交路径同步写，见 service::draft_section）：
 //! `OutlineNode.content`（内存面——MCP 即时读）+ `ChapterAssembler`
@@ -26,7 +30,10 @@ use std::collections::HashSet;
 
 use bid_domain::evidence::{Evidence, EvidenceStatus};
 use bid_domain::outline::SectionStatus;
+use bid_domain::scoring::{derive_scoring_tree, SectionScorer};
 use bid_domain::{DomainStore, Requirement, ToolError};
+
+use crate::quality::{assess_specificity, assess_substance, ProjectContext};
 
 /// 章节起草输入（生成器的全部素材——**不含** store 引用，可序列化可跨进程）。
 #[derive(Debug, Clone, PartialEq)]
@@ -561,4 +568,458 @@ fn advance_project_to_drafting(store: &mut DomainStore) -> Result<(), ToolError>
         store.advance_project_status(*to)?;
     }
     Ok(())
+}
+
+// ---------------------------------------------------------------- B4：迭代起草
+
+/// `max_rounds` 硬上限（issue #97 §七-2「不要让 LLM 调用无限循环」——
+/// 配置错误/目标不可达时的费用与时长兜底；构造时 clamp 到 [1, 8]）。
+pub const MAX_ROUNDS_CAP: usize = 8;
+/// 默认轮数（issue：默认 3——首轮 + 两轮改写的经验平衡点）。
+pub const DEFAULT_MAX_ROUNDS: usize = 3;
+/// 默认目标得分率（优档下沿 0.95 与良档中点 0.825 之间——B2 GradeTier
+/// 的档位语义：0.85 = 「稳定良以上」，是改写性价比的实务折中）。
+pub const DEFAULT_TARGET_RATIO: f64 = 0.85;
+
+/// 循环内章节质量面（B3 维度 + 响应性/无锚——纯内容函数，无 store 依赖）。
+///
+/// 与报告层 [`crate::quality::SectionQuality`] 的分工：SectionQuality 是
+/// store 派生面（ghost REQ/绑定 EV/字数带——报告层在场）；循环内只有
+/// input + 正文，取其可算子面（issue #97 §七-4「不够用就如实报告」的
+/// 对偶面——够用的子面不硬塞 store）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct RoundQuality {
+    /// 针对性（B3 维度 1）。
+    pub specificity: crate::quality::SpecificityScore,
+    /// 实质性（B3 维度 2）。
+    pub substance: crate::quality::SubstanceScore,
+    /// 正文已回应的 REQ（input.requirements 内被 [REQ-*] 引用者）。
+    pub covered_reqs: Vec<String>,
+    /// 未被回应的 REQ。
+    pub uncovered_reqs: Vec<String>,
+    /// 无锚承诺计数（承诺词句内无引用）。
+    pub unanchored_claims: usize,
+}
+
+impl RoundQuality {
+    fn assess(input: &SectionDraftInput, content: &str, project: &ProjectContext) -> Self {
+        let citations = scan_citations(content);
+        let cited: HashSet<&str> = citations.iter().map(|s| &s[..]).collect();
+        let mut covered = Vec::new();
+        let mut uncovered = Vec::new();
+        for r in &input.requirements {
+            if cited.contains(&r.id[..]) {
+                covered.push(r.id.clone());
+            } else {
+                uncovered.push(r.id.clone());
+            }
+        }
+        RoundQuality {
+            specificity: assess_specificity(content, project),
+            substance: assess_substance(content),
+            covered_reqs: covered,
+            uncovered_reqs: uncovered,
+            unanchored_claims: count_unanchored_claims(content),
+        }
+    }
+}
+
+/// 单轮记录（可追溯面——issue：每轮的得分和改进可追溯）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct RoundRecord {
+    /// 轮次（1 起）。
+    pub round: usize,
+    /// 本轮自评得分（B2 estimated）。
+    pub score: f64,
+    /// 本轮满分（B2 max）。
+    pub max: f64,
+    /// 得分率（score/max；max=0 → 0.0）。
+    pub ratio: f64,
+    /// 本轮质量面（B3 + 响应性）。
+    pub quality: RoundQuality,
+    /// 本轮未覆盖/低覆盖评分项（B2 item_scores 覆盖 <60%——下一轮改写
+    /// 提示的目标面；改写提示需要 id 清单而不只是计数，存引用而非摘要）。
+    pub low_coverage_items: Vec<String>,
+    /// 本轮改了什么/要求生成器改什么（给用户的解释——首轮 = 基线说明，
+    /// 改写轮 = 针对上一轮失分项的补强清单摘要）。
+    pub changes: String,
+}
+
+/// 迭代产物（issue #97 §B4 struct + notes 诚实登记扩展）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct IterativeOutcome {
+    /// 最终内容（最优轮——见 [`IterativeDrafter::draft`] 的最优轮保留）。
+    pub content: String,
+    /// 每轮记录（得分/质量/改动——LLM 调用次数 = rounds.len()）。
+    pub rounds: Vec<RoundRecord>,
+    /// 是否达标（某轮 ratio ≥ target 即 true）。
+    pub reached_target: bool,
+    /// 诚实登记：无映射评分项提前停 / 达硬上限未达标 / 末轮非最优被回退。
+    pub notes: Vec<String>,
+}
+
+/// 迭代式起草器（生成 → 自评 → 改写——issue #97 B4）。
+///
+/// 循环逻辑（issue §B4）：
+/// ```text
+/// 第 1 轮：正常生成（原始 instructions）
+///   ↓ B2 自评（score_section）+ B3 质量检查（针对性/实质性/响应性）
+/// 达标（ratio ≥ target）→ 停止
+/// 未达标 → 找出失分项，构造改写提示（build_rewrite_prompt）
+/// 第 2 轮：带着「上一轮的失分项」重新生成（instructions = 改写提示）
+///   ↓ ……最多 max_rounds 轮（硬上限——防 LLM 无限循环）
+/// ```
+///
+/// 设计决策（依据）：
+/// - **target 用得分率（ratio）非绝对分**：章节满分各不相同（10 分项 vs
+///   30 分项），绝对目标无法跨章复用；0.85 的档位语义见
+///   [`DEFAULT_TARGET_RATIO`]；
+/// - **最优轮保留**：改写可能回归（LLM 非单调改进），落库内容取全程
+///   ratio 最高的轮（rounds 全量可追溯——回退时 note 登记）；
+/// - **无评分项映射提前停**：`score_section` 返回 max=0（章节无映射评分
+///   项）时循环没有优化面，首轮后即停（note 登记——不空转烧轮次）；
+/// - **max_rounds 硬 clamp**：构造时 clamp 到 [1, [`MAX_ROUNDS_CAP`]]
+///   ——配置错误（0 / 999）不产生零轮或失控循环。
+pub struct IterativeDrafter<'a> {
+    /// 生成器（mock 或真实 LLM——同 [`SectionGenerator`] 注入位）。
+    pub generator: &'a mut dyn SectionGenerator,
+    /// B2 章节自评器（bid-domain 冻结面——只调用）。
+    pub scorer: &'a SectionScorer,
+    /// B3 针对性的专名锚源（ scorer 的 project_terms 同源）。
+    pub project: &'a ProjectContext,
+    /// 最大轮数（clamp 后——硬上限）。
+    pub max_rounds: usize,
+    /// 目标得分率（0-1）。
+    pub target_ratio: f64,
+}
+
+impl<'a> IterativeDrafter<'a> {
+    /// 构造（`max_rounds` clamp 到 [1, 8]；`target_ratio` clamp 到 [0, 1]）。
+    pub fn new(
+        generator: &'a mut dyn SectionGenerator,
+        scorer: &'a SectionScorer,
+        project: &'a ProjectContext,
+        max_rounds: usize,
+        target_ratio: f64,
+    ) -> Self {
+        IterativeDrafter {
+            generator,
+            scorer,
+            project,
+            max_rounds: max_rounds.clamp(1, MAX_ROUNDS_CAP),
+            target_ratio: target_ratio.clamp(0.0, 1.0),
+        }
+    }
+
+    /// 迭代起草（纯内存循环——落库由调用方/服务面承担）。
+    pub fn draft(&mut self, input: &SectionDraftInput) -> Result<IterativeOutcome, String> {
+        let mut rounds: Vec<RoundRecord> = Vec::new();
+        let mut notes: Vec<String> = Vec::new();
+        let mut reached_target = false;
+        // 最优轮追踪（ratio 最高者——改写回归时保最优）
+        let mut best_ratio = f64::MIN;
+        let mut best_content = String::new();
+        let mut best_round = 0usize;
+
+        for round in 1..=self.max_rounds {
+            // ---- 本轮指令：首轮 = 原始 instructions；改写轮 = 失分项提示
+            let instructions = if round == 1 {
+                input.instructions.clone()
+            } else {
+                Some(build_rewrite_prompt(
+                    self.scorer,
+                    input,
+                    rounds.last().expect("改写轮必有前轮"),
+                    self.target_ratio,
+                    round,
+                ))
+            };
+            let mut round_input = input.clone();
+            round_input.instructions = instructions;
+
+            // ---- 生成（LLM 调用 = 每轮恰一次）
+            let draft = self.generator.generate(&round_input)?;
+
+            // ---- 自评（B2）+ 质量检查（B3）
+            let score = self.scorer.score_section(&input.section_id, &draft.content);
+            let quality = RoundQuality::assess(input, &draft.content, self.project);
+            let ratio = if score.max > 0.0 {
+                (score.estimated / score.max * 1000.0).round() / 1000.0
+            } else {
+                0.0
+            };
+
+            let changes = if round == 1 {
+                format!(
+                    "首轮生成（基线）：自评 {:.2}/{:.2}，针对性 {:.2}、实质性 {:.2}、\
+                     未回应条款 {} 项、无锚承诺 {} 句",
+                    score.estimated, score.max,
+                    quality.specificity.score, quality.substance.score,
+                    quality.uncovered_reqs.len(), quality.unanchored_claims,
+                )
+            } else {
+                let prev = rounds.last().unwrap();
+                format!(
+                    "第 {round} 轮改写：针对第 {} 轮失分项——未覆盖/低覆盖评分项 {} 项、\
+                     空话句占比 {:.0}%、具体参数 {} 处、未回应条款 {} 项、无锚承诺 {} 句\
+                     （得分 {:.2} → {:.2}）",
+                    prev.round,
+                    prev.low_coverage_items.len(),
+                    prev.quality.substance.empty_sentence_ratio * 100.0,
+                    prev.quality.specificity.concrete_params,
+                    prev.quality.uncovered_reqs.len(),
+                    prev.quality.unanchored_claims,
+                    prev.score, score.estimated,
+                )
+            };
+
+            // ---- 最优轮追踪（含并列取先——稳定可重放）
+            if ratio > best_ratio {
+                best_ratio = ratio;
+                best_content = draft.content.clone();
+                best_round = round;
+            }
+
+            let stop_reason: Option<&'static str> = if score.max == 0.0 {
+                Some("NO_SCORING_ITEMS")
+            } else if ratio >= self.target_ratio {
+                reached_target = true;
+                Some("TARGET_REACHED")
+            } else {
+                None
+            };
+            // 本轮低覆盖清单（B2 item_scores 覆盖 <60%——下一轮改写提示的目标面）
+            let low_coverage_items: Vec<String> = score
+                .item_scores
+                .iter()
+                .filter(|it| it.coverage < 0.6)
+                .map(|it| it.item_id.clone())
+                .collect();
+            rounds.push(RoundRecord {
+                round,
+                score: score.estimated,
+                max: score.max,
+                ratio,
+                quality,
+                low_coverage_items,
+                changes,
+            });
+
+            match stop_reason {
+                Some("NO_SCORING_ITEMS") => {
+                    notes.push(format!(
+                        "无映射评分项（section_id={} 的评分项 section 槽位为空）——\
+                         自评无优化面，首轮后停止（不空转轮次）",
+                        input.section_id
+                    ));
+                    break;
+                }
+                Some("TARGET_REACHED") => break,
+                _ => {}
+            }
+        }
+
+        // 硬上限未达标（非提前停路径走满轮数）
+        if !reached_target
+            && rounds.len() == self.max_rounds
+            && rounds.last().map(|r| r.max) != Some(0.0)
+        {
+            notes.push(format!(
+                "达到 max_rounds={} 硬上限仍未达标（最优 {:.2}/{:.2}）——\
+                 剩余失分项见末轮 RoundRecord，人工接手或调目标",
+                self.max_rounds, best_ratio, rounds.iter().map(|r| r.max).sum::<f64>(),
+            ));
+        }
+        // 末轮非最优（改写回归）——保留最优轮并登记
+        if best_round != 0 && best_round != rounds.len() {
+            notes.push(format!(
+                "第 {} 轮为全程最优（ratio {:.3}）——末轮改写回归，保留最优轮内容",
+                best_round, best_ratio
+            ));
+        }
+
+        Ok(IterativeOutcome {
+            content: best_content,
+            rounds,
+            reached_target,
+            notes,
+        })
+    }
+}
+
+/// 改写提示构造（issue §B4「改写提示怎么构造」——明确告诉模型哪里不够）。
+///
+/// 失分项四源（确定性拼装，无 LLM 参与——提示本身可 diff 可重放）：
+/// 1. **未覆盖/低覆盖评分项**（`score.missing_items` + item_scores 覆盖
+///    <60%）——附评分标准原文（scorer.tree.index 的 criteria——生成器
+///    需要知道「写什么」而不只是「缺什么」）；
+/// 2. **空话密度**（`quality.substance`——空话句占比 + 替换要求）；
+/// 3. **针对性缺口**（`quality.specificity`——项目名/招标人名缺失 +
+///    具体参数计数）；
+/// 4. **响应性缺口**（`quality.uncovered_reqs` + `unanchored_claims`）。
+pub fn build_rewrite_prompt(
+    scorer: &SectionScorer,
+    input: &SectionDraftInput,
+    prev: &RoundRecord,
+    target_ratio: f64,
+    round: usize,
+) -> String {
+    let mut v: Vec<String> = Vec::new();
+    v.push(format!(
+        "【第 {round} 轮改写指令】上一轮自评 {:.2}/{:.2}（得分率 {:.1}%），\
+         未达目标 {:.1}%。逐项补强以下失分项：",
+        prev.score, prev.max, prev.ratio * 100.0, target_ratio * 100.0,
+    ));
+
+    // 1. 未覆盖/低覆盖评分项（附标准原文——生成器要知道写什么）
+    let low = prev.low_coverage_items.clone();
+    if !low.is_empty() {
+        v.push("\n1. 未覆盖/低覆盖的评分项（覆盖 <60%，正文未提及评分标准主题词）：".to_string());
+        for id in &low {
+            let criteria = scorer
+                .tree
+                .index
+                .get(id)
+                .map(|it| it.criteria.trim().to_string())
+                .unwrap_or_else(|| "（评分标准原文缺失——见招标文件）".to_string());
+            let max = scorer.tree.index.get(id).and_then(|it| it.max_score);
+            v.push(format!(
+                "   - [{}]（{}分）「{}」——正文须逐条论述该评分标准的主题词",
+                id,
+                max.map(|m| format!("{m:.0}")).unwrap_or_else(|| "?".into()),
+                criteria,
+            ));
+        }
+    }
+
+    // 2. 空话密度（实质性）
+    let st = &prev.quality.substance;
+    v.push(format!(
+        "\n2. 空话密度：空话句占比 {:.0}%、可验证陈述 {} 句——把无具体锚的套话句\
+         （「高度重视/全力以赴/确保万无一失」类）替换为可验证措施（具体数字、\
+         标准、时限、责任主体）。",
+        st.empty_sentence_ratio * 100.0, st.verifiable_claims,
+    ));
+
+    // 3. 针对性缺口
+    let sp = &prev.quality.specificity;
+    let mut spec_gaps: Vec<String> = Vec::new();
+    if !sp.has_project_name {
+        spec_gaps.push(format!("正文未出现项目名「{}」", scorer.project_terms.first().map(String::as_str).unwrap_or("（项目名未知）")));
+    }
+    if sp.concrete_params < 3 {
+        spec_gaps.push(format!("具体参数（数字+单位）仅 {} 处——目标 ≥5 处", sp.concrete_params));
+    }
+    v.push(format!(
+        "\n3. 针对性：{}。写明本项目的具体参数（工程量/工期/人员/设备），\
+         不得使用「XX 项目」占位符。",
+        if spec_gaps.is_empty() { "已达基本线".to_string() } else { spec_gaps.join("；") },
+    ));
+
+    // 4. 响应性缺口（未回应条款 + 无锚承诺）
+    if !prev.quality.uncovered_reqs.is_empty() {
+        v.push(format!(
+            "\n4. 未回应条款（正文无 [REQ-*] 引用）：{}——逐条补回应段落。",
+            prev.quality.uncovered_reqs.join("、"),
+        ));
+    }
+    if prev.quality.unanchored_claims > 0 {
+        v.push(format!(
+            "\n5. 无锚承诺 {} 句（承诺词句内无引用）——补 [REQ-*]/[EV-*] 引用或删承诺词。",
+            prev.quality.unanchored_claims,
+        ));
+    }
+
+    // 收束：可用引用编号白名单（防幻觉——与 llm.rs 的规则面一致）
+    let req_ids: Vec<String> = input.requirements.iter().map(|r| format!("[{}]", r.id)).collect();
+    let ev_ids: Vec<String> = input.evidences.iter().map(|e| format!("[{}]", e.id)).collect();
+    v.push(format!(
+        "\n改写要求：保留原文已覆盖的内容，针对上述失分项逐项补强；引用格式\
+         [REQ-xxxx]/[EV-xxxx]，只准使用以下编号（禁止编造）：REQ {}；EV {}。",
+        req_ids.join("、"),
+        if ev_ids.is_empty() { "（无可用证据——不得编造）".to_string() } else { ev_ids.join("、") },
+    ));
+    v.join("\n")
+}
+
+// ---------------------------------------------------------------- B4：服务集成面
+
+/// 迭代起草的服务产物（DraftOutcome = MCP 契约面；iterative = 循环可追溯面）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct IterativeSectionOutcome {
+    /// 最终稿的提交产物（经 draft_section 既有路径——引用回查/CAS 写入/
+    /// 状态推进/S-2 落盘/checkpoint 全复用）。
+    pub draft: DraftOutcome,
+    /// 循环记录（轮次/得分/改动——LLM 调用次数 = rounds.len()）。
+    pub iterative: IterativeOutcome,
+}
+
+/// 一次性回放生成器（把迭代循环的最优稿经 [`BidService::draft_section`]
+/// 的既有提交路径落库——提交面零复制，两路径保证一致）。
+struct FinalDraft {
+    content: String,
+}
+
+impl SectionGenerator for FinalDraft {
+    fn generate(&mut self, _input: &SectionDraftInput) -> Result<GeneratedDraft, String> {
+        Ok(GeneratedDraft { content: self.content.clone() })
+    }
+}
+
+impl super::service::BidService {
+    /// `draft_section_iterative` 业务半边（B4——生成 → 自评 → 改写循环）。
+    ///
+    /// 与 [`BidService::draft_section`] 的关系：循环在内存中跑（B2 自评 +
+    /// B3 质量检查的纯函数面），**最优稿经 FinalDraft 回放走 draft_section
+    /// 的完整提交路径**——引用回查（防幻觉）、CAS 写入、状态推进、S-2
+    /// 落盘、checkpoint 与单次起草完全一致（提交面零复制）。
+    ///
+    /// scorer/project 从 store 现场派生（评分树 + 项目专名——B2/B3 同源）；
+    /// 循环 notes 并入 DraftOutcome.warnings（MCP 消费面的单一出口）。
+    #[allow(clippy::too_many_arguments)]
+    pub fn draft_section_iterative(
+        &mut self,
+        section_id: &str,
+        requirement_override: Option<&[String]>,
+        evidence_override: Option<&[String]>,
+        instructions: Option<&str>,
+        generator: &mut dyn SectionGenerator,
+        max_rounds: usize,
+        target_ratio: f64,
+    ) -> Result<IterativeSectionOutcome, ToolError> {
+        // ---- 1. 输入装配（与 draft_section 同源——幽灵剔除/失效拒绑）
+        let (input, _warnings) = build_section_input(
+            self.store(), section_id,
+            requirement_override, evidence_override, instructions,
+        )?;
+
+        // ---- 2. scorer + project 从 store 派生（B2 评分树 + B3 专名锚）
+        let project = ProjectContext::from_store(self.store());
+        let scorer = SectionScorer::new(
+            derive_scoring_tree(self.store().requirements()),
+            project.scorer_terms(),
+        );
+
+        // ---- 3. 循环（内存——每轮一次 generator 调用）
+        let mut it = IterativeDrafter::new(generator, &scorer, &project, max_rounds, target_ratio);
+        let iterative = it.draft(&input).map_err(|why| ToolError::EUnprocessable {
+            reason: format!("章节 {section_id} 迭代起草失败: {why}"),
+        })?;
+
+        // ---- 4. 最优稿经既有提交路径落库（FinalDraft 回放——提交面零复制）
+        let mut replay = FinalDraft { content: iterative.content.clone() };
+        let mut draft = self.draft_section(
+            section_id,
+            requirement_override,
+            evidence_override,
+            instructions,
+            &mut replay,
+        )?;
+        // 循环 notes 并入 warnings（MCP 单一出口）
+        for n in &iterative.notes {
+            draft.warnings.push(format!("迭代循环：{n}"));
+        }
+
+        Ok(IterativeSectionOutcome { draft, iterative })
+    }
 }

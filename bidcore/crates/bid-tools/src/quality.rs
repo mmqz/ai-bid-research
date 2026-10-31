@@ -15,6 +15,19 @@
 //!
 //! 纪律：只读诊断（D2 同语义——报告是导数不是源数据），不改稿不落库
 //! 不推状态。
+//!
+//! # B3 质量检查升级（issue #97——针对性/实质性/重复度）
+//!
+//! 既有四面（覆盖/引用/字数/无锚）是**形式合规**面；B3 补**内容质量**面：
+//! - **针对性**（[`assess_specificity`]）：是否照抄模板——项目名/招标人名
+//!   专名锚 + 具体参数（数字+单位）密度 + 套话占比；
+//! - **实质性**（[`assess_substance`]）：是否空话——空话句占比（句含套话
+//!   短语且无具体锚）+ 可验证陈述数；
+//! - **重复度**（[`detect_duplication`]）：跨章节整段复制——句级 Jaccard
+//!   + 包含率两形态。
+//!
+//! 三者均为纯内容函数（零 IO、确定性——同输入同输出），报告层接线见
+//! `check_section_with`/`build_quality_report_with`（与 B2 自评联动）。
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -256,4 +269,281 @@ pub fn write_report(report: &QualityReport, ws: &Path) -> Result<PathBuf, String
     std::fs::write(&tmp, body).map_err(|e| format!("写报告失败: {e}"))?;
     std::fs::rename(&tmp, &path).map_err(|e| format!("报告原子替换失败: {e}"))?;
     Ok(path)
+}
+
+// ---------------------------------------------------------------- B3 共用底表
+
+/// 空话短语表（B3 针对性「套话占比」与实质性「空话句」的共用底表）。
+///
+/// 选表依据（issue #97 §六-3「用真实标书的套话，不要凭感觉」——逐条标注
+/// 出处，可复核）：
+/// - `issue` = issue #97 Lead 初版表原样保留（9 条）；
+/// - `实测` = 本仓真实语料 grep 实测出现（`real-samples/北京水利施工示范
+///   文本2025-LO.docx` + `real-corpus/telecom/parse-input/` 17 件——频次见
+///   PR 描述，如「郑重承诺」在 unicom/songjiang/shanxi 三件合计 16 处）；
+/// - `行业` = 施工组织设计/服务承诺章的通行句式（本仓语料为招标侧、无
+///   投标侧正文锚点——如实标注低置信；检测面要求「句内无具体锚」才计
+///   空话，短语本身不单独定罪，假阳性被锚规则压住）。
+///
+/// 全表条目 ≥4 字（「确保」「圆满」这类单词过于通用，不入表——有锚规则
+/// 也压不住其触发面）。
+pub const EMPTY_PHRASES: &[&str] = &[
+    // ---- issue #97 初版（Lead 给定）----
+    "我公司将秉承",   // issue
+    "本着诚信原则",   // issue
+    "严格按照要求",   // issue（实测：unicom 主文件 1 处）
+    "确保万无一失",   // issue
+    "全力以赴",       // issue
+    "高度重视",       // issue
+    "建立健全",       // issue（实测：示范文本 1 / 电信 2 处）
+    "切实可行",       // issue（实测：示范文本 1 / 灵枢智关 1 处）
+    "严格执行",       // issue（实测：示范文本 2 / 电信 7 处）
+    // ---- 本仓真实语料实测 ----
+    "郑重承诺",       // 实测（电信 17 件中 3 件合计 16 处）
+    "严格按照",       // 实测（示范文本 3 处）
+    // ---- 行业通行句式（低置信——句级无锚才计）----
+    "我司将秉承",     // 行业（与 issue「我公司将秉承」同族的主体变体）
+    "我司高度重视",   // 行业
+    "我公司高度重视", // 行业
+    "精心组织",       // 行业
+    "科学管理",       // 行业
+    "优质高效",       // 行业
+    "圆满完成",       // 行业
+    "圆满履约",       // 行业
+    "自始至终",       // 行业
+    "一流的服务",     // 行业
+    "一流的管理",     // 行业
+    "经验丰富",       // 行业
+    "雄厚的技术",     // 行业
+    "深刻理解",       // 行业
+    "充分理解",       // 行业
+    "积极响应",       // 行业
+    "先进理念",       // 行业
+    "科学合理",       // 行业
+];
+
+/// 具体参数单位表（「数字+单位」形态的计量面）。
+///
+/// B2 `scoring.rs::SPECIFIC_UNITS` 的消费侧扩展（bid-domain 冻结不改）：
+/// 追加标书高频工程/商务单位（吨/张/座/处/米/立方/kW 等），其余条目与
+/// B2 一致——B3 的参数计数口径 ⊇ B2 具体性门槛口径，两侧判定不矛盾。
+const PARAM_UNITS: &[&str] = &[
+    // 与 B2 SPECIFIC_UNITS 一致的基底
+    "万元", "亿", "台", "套", "件", "人", "年", "日历天", "%", "Gb", "GB",
+    "MB", "小时", "分钟", "天", "平方米", "公里", "家",
+    // B3 扩展（工程/商务高频）
+    "平方公里", "立方", "千米", "吨", "张", "座", "处", "名", "万", "元",
+    "米", "平方", "TB", "Tb", "GHz", "MHz", "kW", "个", "台班",
+];
+
+/// 标准编号前缀（可验证陈述的形态之二：ISO9001 / GB/T19001 / JGJ46 …）。
+const STANDARD_PREFIXES: &[&str] = &[
+    "ISO", "GB", "JGJ", "CJJ", "DB", "CQC", "OHSAS", "ITU", "IEC", "IEEE",
+];
+
+/// 句子切分（。；！？与 ASCII 句读 + 换行——B3 三维度共用的最小单元）。
+///
+/// 纯内容函数：切分保序，空段/纯空白段丢弃。
+fn split_sentences(content: &str) -> Vec<&str> {
+    content
+        .split(['。', '；', '！', '？', '!', '?', ';', '\n'])
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+/// 「数字+单位」计数（与 B2 `count_number_unit` 同构——bid-domain 私有面
+/// 冻结，消费侧重实现；数字序列（含小数点）后紧跟单位即计 1）。
+fn count_number_unit(content: &str) -> usize {
+    let chars: Vec<char> = content.chars().collect();
+    let mut n = 0;
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i].is_ascii_digit() {
+            while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.') {
+                i += 1;
+            }
+            while i < chars.len() && chars[i].is_whitespace() {
+                i += 1;
+            }
+            let rest: String = chars[i..].iter().take(4).collect();
+            if PARAM_UNITS.iter().any(|u| rest.starts_with(u)) {
+                n += 1;
+            }
+        } else {
+            i += 1;
+        }
+    }
+    n
+}
+
+/// 句内具体锚：数字+单位 / 标准编号（前缀+数字）/ [REQ-*][EV-*] 引用。
+///
+/// 「有锚的承诺句不是空话」——政府示范文本投标函的「我方承诺投标有效期
+/// 为自投标截止日起 90 天」有数字锚，是功能句不是空话（锚规则压假阳性）。
+fn has_concrete_anchor(sentence: &str) -> bool {
+    if count_number_unit(sentence) > 0 {
+        return true;
+    }
+    // 标准编号：字母前缀紧跟数字（ISO9001 / GB/T19001 的 T 由数字切分吸收）
+    let bytes: Vec<char> = sentence.chars().collect();
+    for p in STANDARD_PREFIXES {
+        let pc: Vec<char> = p.chars().collect();
+        for i in 0..bytes.len().saturating_sub(pc.len() - 1) {
+            if bytes[i..].starts_with(&pc) {
+                // 前缀后紧跟 ASCII 数字（跳过 '/' 与 '-'——GB/T、DB11/T 形态）
+                let mut j = i + pc.len();
+                while j < bytes.len() && (bytes[j] == '/' || bytes[j] == '-') {
+                    j += 1;
+                }
+                if j < bytes.len() && bytes[j].is_ascii_digit() {
+                    return true;
+                }
+            }
+        }
+    }
+    // 引用锚（[REQ-0001] / EV-0002——与 draft::scan_citations 同口径）
+    sentence.contains("REQ-") || sentence.contains("EV-")
+}
+
+/// 空话句判定：句含空话短语 **且** 句内无具体锚。
+fn is_empty_sentence(sentence: &str) -> bool {
+    if !EMPTY_PHRASES.iter().any(|p| sentence.contains(p)) {
+        return false;
+    }
+    !has_concrete_anchor(sentence)
+}
+
+/// 套话占比（空话句字符数 / 全句字符数——无句面 0.0）。
+///
+/// 字符加权（非句数占比）：整段复制的套话句通常更长，字符口径对
+/// 「这章有多少篇幅在说空话」的直觉更诚实。
+fn boilerplate_ratio(content: &str) -> f64 {
+    let sentences = split_sentences(content);
+    let total: usize = sentences.iter().map(|s| s.chars().count()).sum();
+    if total == 0 {
+        return 0.0;
+    }
+    let empty: usize = sentences
+        .iter()
+        .filter(|s| is_empty_sentence(s))
+        .map(|s| s.chars().count())
+        .sum();
+    (empty as f64 / total as f64 * 10_000.0).round() / 10_000.0
+}
+
+// ---------------------------------------------------------------- B3 维度 1：针对性
+
+/// 项目上下文（针对性判定的专名锚词源——issue #97 B3 维度 1）。
+///
+/// 诚实边界：`BidProject` 无「招标人名称」字段（bid-domain 是 B2 成果的
+/// 冻结面——只调用不改），[`ProjectContext::from_store`] 的 `tenderer_name`
+/// 诚实留空，由上层（MCP 壳/用户指令）注入；留空时 [`assess_specificity`]
+/// 按「可用权重归一」处理（不罚未知面）。
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct ProjectContext {
+    /// 项目名称（如「塔里木水库除险加固工程」——BidProject.name）。
+    pub project_name: String,
+    /// 招标人名称（如「某水库管理处」——store 无此字段，调用方注入）。
+    pub tenderer_name: String,
+    /// 其他专名锚（项目编号/标段号——from_store 取 BidProject.code）。
+    pub extra_terms: Vec<String>,
+}
+
+impl ProjectContext {
+    /// 从 store 构造（项目名 + 项目编号——store 里真实存在的专名面；
+    /// 招标人名 store 无源，诚实留空）。
+    pub fn from_store(store: &DomainStore) -> Self {
+        match store.project() {
+            Ok(p) => ProjectContext {
+                project_name: p.name.clone(),
+                tenderer_name: String::new(),
+                extra_terms: if p.code.trim().is_empty() {
+                    Vec::new()
+                } else {
+                    vec![p.code.clone()]
+                },
+            },
+            Err(_) => ProjectContext::default(),
+        }
+    }
+}
+
+/// 针对性评分（0.0-1.0——是否照抄模板的量化面）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SpecificityScore {
+    /// 是否含项目名。
+    pub has_project_name: bool,
+    /// 是否含招标人名称。
+    pub has_tenderer_name: bool,
+    /// 具体参数出现次数（数字+单位）。
+    pub concrete_params: usize,
+    /// 通用套话占比（空话句字符 / 全句字符——0-1）。
+    pub boilerplate_ratio: f64,
+    /// 总分 0-1。
+    pub score: f64,
+}
+
+/// 针对性评估（纯内容函数——同输入同输出）。
+///
+/// 权重（issue #97 初版，两处调整的依据如下）：
+/// - 含项目名 +0.3 / 含招标人名 +0.2 / 具体参数 +0.3 / 套话占比 <20% +0.2；
+/// - **调整①（可用权重归一）**：招标人名（或项目名）未知时，其权重退出
+///   分母——否则任何章节全场封顶 0.8，验收线 0.7 被压到及格边缘，判别力
+///   失真。归一后「未知面」既不奖励也不惩罚；
+/// - **调整②（参数阶梯）**：参数 >5 处满权 0.3、3~5 处半权 0.15、<3 处
+///   零——初版二元开关（>5 才给分）在 4~6 个参数的真实章节上抖动（差 1
+///   个参数 ±0.3 跳变），阶梯平滑且保两端判别力（0 参数 vs 6+ 参数仍全距）；
+/// - 空内容（无句面）→ 全项归零（不白给「无套话」的 0.2——没写字不等于
+///   没抄模板，诚实 0 分）。
+pub fn assess_specificity(section: &str, project: &ProjectContext) -> SpecificityScore {
+    let has_project_name = !project.project_name.trim().is_empty()
+        && section.contains(project.project_name.trim());
+    let has_tenderer_name = !project.tenderer_name.trim().is_empty()
+        && section.contains(project.tenderer_name.trim());
+    let concrete_params = count_number_unit(section);
+    let boilerplate = boilerplate_ratio(section);
+
+    let mut earned = 0.0f64;
+    let mut applicable = 0.0f64;
+    if !project.project_name.trim().is_empty() {
+        applicable += 0.3;
+        if has_project_name {
+            earned += 0.3;
+        }
+    }
+    if !project.tenderer_name.trim().is_empty() {
+        applicable += 0.2;
+        if has_tenderer_name {
+            earned += 0.2;
+        }
+    }
+    applicable += 0.3;
+    earned += if concrete_params > 5 {
+        0.3
+    } else if concrete_params >= 3 {
+        0.15
+    } else {
+        0.0
+    };
+    applicable += 0.2;
+    let has_sentences = !split_sentences(section).is_empty();
+    if has_sentences && boilerplate < 0.20 {
+        earned += 0.2;
+    }
+    // 招标人名/项目名未知 → 权重退出分母（调整①）；空内容 → 诚实 0 分
+    let score = if !has_sentences {
+        0.0
+    } else if applicable > 0.0 {
+        (earned / applicable * 1000.0).round() / 1000.0
+    } else {
+        0.0
+    };
+    SpecificityScore {
+        has_project_name,
+        has_tenderer_name,
+        concrete_params,
+        boilerplate_ratio: boilerplate,
+        score,
+    }
 }

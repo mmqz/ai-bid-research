@@ -120,14 +120,163 @@ impl Default for OutlineSpec {
 /// 叶节点配额下限（防零配额退化——低于此值的章节失去独立调度意义）。
 const MIN_LEAF_CHARS: u32 = 500;
 
-/// 从 REQ 清单推导章节树（纯函数——确定性：按类目首现序 + id 序，无隐藏随机性）。
+/// 兜底组名（章节与主题都推不出的「其他」条款——叶标题退化为条款号区间，
+/// 不再裸「（第N块）」）。
+const OTHER_FALLBACK_GROUP: &str = "其他条款";
+
+// ------------------------------------------------ 其他类语义分组（issue #100 任务 1）
+
+/// 「其他」类条款的主题规则表（关键词 → 主题；命中数最多者优先，并列取
+/// 表序——**具体规则在前，通用规则殿后**）。
 ///
-/// 结构：每个非空类目 → 1 个 level-1 节点；类目内 REQ 按 id 序切块（每块
-/// ≤ max_reqs_per_leaf）→ level-2 叶节点。父节点 requirement_ids = 子并集、
-/// target_chars = 子和（聚合一致性由构造保证，set_outline 复核）。
+/// 依据（真实标书语料口径，非主观编造）：
+/// - `fixtures/synth-tender` 31 条「其他」条款实测分布（e2e 03_requirements.json）：
+///   项目概况（1.1/1.3）/资格声明（1.4.7）/获取（1.5）/开标（1.6/1.7）/
+///   须知总则（3.1.x）/报价（3.4.1）/保证金（3.5.2）/合同授予（3.8.x）/
+///   纪律（3.9.2）/合同条款（6.1-6.4）/格式（7.x）/附件（8.x）/补遗（4 条）；
+/// - `real-corpus` 政采 GT 类目词：补遗变更/项目标识/时间参数/商务参数；
+/// - issue #100 任务 1 starter 表：工期/质量/资质/报价/技术/服务/安全/基本情况。
+const THEME_RULES: &[(&[&str], &str)] = &[
+    (&["项目名称", "项目编号", "采购人", "招标人", "招标代理", "联系方式", "质疑"], "项目基本情况"),
+    (&["工期", "进度", "交付", "完成时间", "日历天", "竣工"], "项目工期要求"),
+    (&["质量标准", "验收", "合格", "质量保证"], "质量标准要求"),
+    (&["资质", "资格", "证书", "许可", "违法记录"], "投标人资格要求"),
+    (&["获取", "购买", "下载", "发售"], "招标文件获取"),
+    (&["投标截止", "开标时间", "递交", "截标", "顺延"], "投标与开标安排"),
+    (&["报价", "价格", "费用", "金额", "预算", "包干", "总价"], "报价要求"),
+    (&["保证金", "保函"], "投标保证金"),
+    (&["适用范围", "资金来源", "总则"], "须知总则"),
+    (&["签订", "签约", "中标通知书", "履约"], "合同授予与签订"),
+    (&["违约", "争议", "付款", "预付款", "结算", "合同价格"], "合同条款响应"),
+    (&["格式", "样例", "签署", "盖章", "装订", "份数"], "投标文件格式"),
+    (&["附件", "图纸", "明细表", "工程量清单"], "附件与图纸说明"),
+    (&["变更", "澄清", "补遗", "答疑", "踏勘", "调整", "更正"], "补遗与澄清响应"),
+    (&["纪律", "监督", "违纪", "投诉"], "纪律与监督"),
+    // —— 通用主题（issue starter 表原文；具体规则未命中时才轮到它们）——
+    (&["技术", "方案", "参数", "规格", "性能"], "技术方案要求"),
+    (&["服务", "售后", "培训", "质保", "响应时间"], "服务与售后要求"),
+    (&["安全", "保密", "防护", "应急"], "安全与保密要求"),
+];
+
+/// 从条款内容推断主题（规则版——issue #100 路线 A，不依赖 LLM）。
+///
+/// 输入面：全部锚点摘录 + 条款号（[`Requirement`] 无正文字段——锚点摘录
+/// 即条款原文）。命中关键词最多的主题胜出；并列取 [`THEME_RULES`] 表序
+/// （具体在前）；零命中 → `None`（调用方走兜底）。
+pub fn infer_theme(reqs: &[&Requirement]) -> Option<String> {
+    let mut best: Option<(usize, &str)> = None;
+    for (keywords, theme) in THEME_RULES {
+        let mut hits = 0usize;
+        for r in reqs {
+            let hay = req_haystack(r);
+            for kw in *keywords {
+                if hay.contains(kw) {
+                    hits += 1;
+                }
+            }
+        }
+        if hits > 0 && best.map(|(h, _)| hits > h).unwrap_or(true) {
+            best = Some((hits, theme));
+        }
+    }
+    best.map(|(_, t)| t.to_string())
+}
+
+/// 主题匹配的文本面（锚点摘录全量 + 条款号拼接——一次构建多次复用）。
+fn req_haystack(r: &Requirement) -> String {
+    let mut s = String::new();
+    for a in &r.anchors {
+        s.push_str(&a.excerpt);
+        s.push(' ');
+    }
+    if let Some(c) = &r.clause_no {
+        s.push_str(c);
+    }
+    s
+}
+
+/// 锚点定位里的招标文件章节（issue #100 路线 B——「第X章 …」段）。
+///
+/// locator 是解析层固化的章节路径（如「第一章 招标公告 > 一、项目概况」），
+/// 按「 > 」分段扫描，首个含「第X章」的段即组名——**招标文件自己的章节名**
+/// 比关键词主题更忠实（验收线「标题与招标文件章节对应」）。补遗等无章节
+/// 结构的锚（「第1页 行6」）返回 `None` → 走 [`infer_theme`]。
+fn chapter_of(r: &Requirement) -> Option<String> {
+    for a in &r.anchors {
+        for seg in a.locator.split(['>', '＞']) {
+            if let Some(title) = chapter_heading(seg.trim()) {
+                return Some(title);
+            }
+        }
+    }
+    None
+}
+
+/// 「第X章」标题段提取（手写扫描——bid-domain 不引 regex，依赖面不加宽）。
+///
+/// 形态：`第` + 章序数（中文/阿拉伯数字，1..=8 位）+ `章` + 章名余文；
+/// 余文截至首个 `/`／`／`／`。`（夹具的「第二章/1.1」形态 → 「第二章」）。
+/// 「第1页」「第2行」等非章序数不误触（后随字符非「章」）。
+fn chapter_heading(seg: &str) -> Option<String> {
+    const CN_NUMERALS: &[char] = &[
+        '一', '二', '三', '四', '五', '六', '七', '八', '九', '十',
+        '百', '千', '零', '〇', '两', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+    ];
+    let cs: Vec<char> = seg.chars().collect();
+    let mut i = 0;
+    while i < cs.len() {
+        if cs[i] != '第' {
+            i += 1;
+            continue;
+        }
+        let mut j = i + 1;
+        while j < cs.len() && CN_NUMERALS.contains(&cs[j]) && j - i <= 8 {
+            j += 1;
+        }
+        if j > i + 1 && j < cs.len() && cs[j] == '章' {
+            let mut end = cs.len();
+            for (k, &c) in cs[j + 1..].iter().enumerate() {
+                if c == '/' || c == '／' || c == '。' {
+                    end = j + 1 + k;
+                    break;
+                }
+            }
+            let title: String = cs[i..end].iter().collect();
+            return Some(title.trim().to_string());
+        }
+        i += 1;
+    }
+    None
+}
+
+/// 兜底组叶标题的条款号区间（chunk 内全部 REQ 都有条款号才可用——
+/// 「其他条款 1.1-1.7」；单条 chunk →「其他条款 4.1」；任一条款号缺失
+/// → `None`（调用方退化到「（第N块）」）。
+fn clause_range_title(chunk: &[&Requirement]) -> Option<String> {
+    let nos: Vec<&str> = chunk
+        .iter()
+        .map(|r| r.clause_no.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+        .collect::<Option<Vec<_>>>()?;
+    let (first, last) = (nos.first()?, nos.last()?);
+    Some(if first == last {
+        format!("{OTHER_FALLBACK_GROUP} {first}")
+    } else {
+        format!("{OTHER_FALLBACK_GROUP} {first}-{last}")
+    })
+}
+
+/// 从 REQ 清单推导章节树（纯函数——确定性：按组首现序 + id 序，无隐藏随机性）。
+///
+/// 结构：每个非空类目 → 1 个 level-1 节点；**「其他」类二次分组**（issue #100
+/// 任务 1：锚点章节 [`chapter_of`] → 关键词主题 [`infer_theme`] → 兜底
+/// 「其他条款」——catch-all 不再平铺成「其他（第N块）」×31）；组内 REQ 按
+/// id 序切块（每块 ≤ max_reqs_per_leaf）→ level-2 叶节点。父节点
+/// requirement_ids = 子并集、target_chars = 子和（聚合一致性由构造保证，
+/// set_outline 复核）。
 ///
 /// 配额：最大余数法（largest remainder）——先按 REQ 数占比取整分配，余量补给
 /// 小数部分最大的叶（并列按文档序），总和恰等于 target（下限保护除外）。
+/// **语义分组只改归组与标题，配额/切块算法不动**（issue #100 验收线）。
 ///
 /// `next_id` 签名器由调用方注入（store 传 `self.next_id`；测试传计数闭包）——
 /// 派生逻辑与 id 序列解耦。
@@ -137,30 +286,58 @@ pub fn derive_outline(
     next_id: &mut dyn FnMut(&str) -> String,
 ) -> Vec<OutlineNode> {
     // 类目分桶（首现序——输入已按 id 序时全确定）
-    let mut category_order: Vec<String> = Vec::new();
     let mut buckets: Vec<(String, Vec<&Requirement>)> = Vec::new();
     for r in reqs {
         match buckets.iter_mut().find(|(c, _)| *c == r.category) {
             Some((_, v)) => v.push(r),
-            None => {
-                category_order.push(r.category.clone());
-                buckets.push((r.category.clone(), vec![r]));
-            }
+            None => buckets.push((r.category.clone(), vec![r])),
         }
     }
     let total_reqs: usize = reqs.len();
     if total_reqs == 0 {
         return vec![];
     }
-    // 叶块清单（先收集再配额——需要全局余数视角）
-    struct LeafDraft { category: String, req_ids: Vec<String> }
+    // 「其他」类二次分组（issue #100 任务 1）：catch-all 类平铺成
+    // 「其他（第N块）」×31 是目录不可读的根因（用户实测）。归组键优先级：
+    //   ① 招标文件章节（锚点 locator 的「第X章」段——路线 B，最忠实）；
+    //   ② 关键词主题（infer_theme——路线 A，补遗等无章节结构者）；
+    //   ③ 兜底「其他条款」（叶标题退化为条款号区间，不再裸「（第N块）」）。
+    // 非其他类目原样通过（本任务只治 catch-all，不动既有类目结构）。
+    let mut groups: Vec<(String, Vec<&Requirement>)> = Vec::new();
+    for (cat, rs) in buckets {
+        if cat != "其他" {
+            groups.push((cat, rs));
+            continue;
+        }
+        for r in rs {
+            let key = chapter_of(r)
+                .or_else(|| infer_theme(std::slice::from_ref(&r)))
+                .unwrap_or_else(|| OTHER_FALLBACK_GROUP.to_string());
+            match groups.iter_mut().find(|(c, _)| *c == key) {
+                Some((_, v)) => v.push(r),
+                None => groups.push((key, vec![r])),
+            }
+        }
+    }
+    // 叶块清单（先收集再配额——需要全局余数视角；标题在此一并定型）
+    struct LeafDraft { group: String, title: String, req_ids: Vec<String> }
     let mut leaves: Vec<LeafDraft> = Vec::new();
-    for (cat, rs) in &buckets {
-        for chunk in rs.chunks(spec.max_reqs_per_leaf.max(1)) {
-            leaves.push(LeafDraft {
-                category: cat.clone(),
-                req_ids: chunk.iter().map(|r| r.id.clone()).collect(),
-            });
+    for (g, rs) in &groups {
+        let chunk_size = spec.max_reqs_per_leaf.max(1);
+        let n_chunks = rs.chunks(chunk_size).count();
+        for (ci, chunk) in rs.chunks(chunk_size).enumerate() {
+            let req_ids: Vec<String> = chunk.iter().map(|r| r.id.clone()).collect();
+            let title = if g == OTHER_FALLBACK_GROUP {
+                // 兜底组：条款号区间（「其他条款 1.1-1.7」）；缺条款号 → （第N块）
+                clause_range_title(chunk)
+                    .unwrap_or_else(|| format!("{g}（第{}块）", ci + 1))
+            } else if n_chunks > 1 {
+                format!("{}（第{}块）", g, ci + 1)
+            } else {
+                // 单叶组：组名即标题（「第一章 招标公告」——无块后缀）
+                g.clone()
+            };
+            leaves.push(LeafDraft { group: g.clone(), title, req_ids });
         }
     }
     // 最大余数法配额
@@ -192,13 +369,13 @@ pub fn derive_outline(
             }
         }
     }
-    // 组树：类目 → level-1，叶 → level-2
+    // 组树：组（类目或语义子组）→ level-1，叶 → level-2
     let mut nodes: Vec<OutlineNode> = Vec::new();
     let mut order: u32 = 0;
-    for (cat, _) in &buckets {
-        let cat_leaves: Vec<usize> = leaves.iter()
+    for (g, _) in &groups {
+        let group_leaves: Vec<usize> = leaves.iter()
             .enumerate()
-            .filter(|(_, l)| &l.category == cat)
+            .filter(|(_, l)| &l.group == g)
             .map(|(i, _)| i)
             .collect();
         let parent_id = next_id("SEC");
@@ -206,7 +383,7 @@ pub fn derive_outline(
         // 聚合面（子并集 / 配额和）
         let mut agg_reqs: Vec<String> = Vec::new();
         let mut agg_chars: u32 = 0;
-        for &li in &cat_leaves {
+        for &li in &group_leaves {
             for rid in &leaves[li].req_ids {
                 if !agg_reqs.contains(rid) {
                     agg_reqs.push(rid.clone());
@@ -217,7 +394,7 @@ pub fn derive_outline(
         nodes.push(OutlineNode {
             id: parent_id.clone(),
             parent_id: None,
-            title: cat.clone(),
+            title: g.clone(),
             level: 1,
             order,
             requirement_ids: agg_reqs,
@@ -227,12 +404,12 @@ pub fn derive_outline(
             content: None,
             content_attempt: 0,
         });
-        for &li in &cat_leaves {
+        for &li in &group_leaves {
             order += 1;
             nodes.push(OutlineNode {
                 id: next_id("SEC"),
                 parent_id: Some(parent_id.clone()),
-                title: format!("{}（第{}块）", cat, cat_leaves.iter().position(|&x| x == li).unwrap() + 1),
+                title: leaves[li].title.clone(),
                 level: 2,
                 order,
                 requirement_ids: leaves[li].req_ids.clone(),
@@ -589,6 +766,227 @@ mod tests {
         assert_eq!(reqs_of(&s1), reqs_of(&s2));
         // 配额和恰等于目标（最大余数法无下限触发时）
         assert_eq!(s1.outline_total_chars(), 100_000, "最大余数法：总和恰等于目标");
+    }
+
+    // ==================== #100 任务 1：其他类语义分组 ====================
+
+    /// 语义分组夹具：带锚点（locator 章节路径 + 摘录）与条款号的 REQ。
+    fn req_with_anchor(
+        id: &str, category: &str, clause_no: Option<&str>, locator: &str, excerpt: &str,
+    ) -> Requirement {
+        Requirement {
+            id: id.into(),
+            category: category.into(),
+            clause_no: clause_no.map(String::from),
+            anchors: vec![crate::Anchor {
+                file: "A".into(),
+                kind: "para".into(),
+                locator: locator.into(),
+                excerpt: excerpt.into(),
+            }],
+            params: std::collections::HashMap::new(),
+            source_file: "A".into(),
+        }
+    }
+
+    /// 计数签名器（derive_outline 的 next_id 注入面）。
+    fn counting_ids() -> impl FnMut(&str) -> String {
+        let mut n = 0u32;
+        move |p| {
+            n += 1;
+            format!("{p}-{n:04}")
+        }
+    }
+
+    /// 章节优先分组（路线 B）：「其他」类按锚点 locator 的「第X章」段归并——
+    /// level-1 标题 = 招标文件自己的章节名（验收线「标题与招标文件章节对应」），
+    /// 目录不再有「其他（第N块）」；配额/覆盖/树不变量全保持。
+    #[test]
+    fn other_category_regroups_by_chapter() {
+        let reqs = vec![
+            req_with_anchor("REQ-0001", "资格条件", Some("1.4.1"),
+                "第一章 招标公告 > 二、投标人资格要求",
+                "1.4.1 投标人须具备独立法人资格"),
+            req_with_anchor("REQ-0002", "其他", Some("1.1"),
+                "第一章 招标公告 > 一、项目概况",
+                "1.1 项目名称：某市第一人民医院智慧病房物联网平台建设项目；项目编号：ZHYY-2026-GK-018"),
+            req_with_anchor("REQ-0003", "其他", Some("1.3"),
+                "第一章 招标公告 > 一、项目概况",
+                "1.3 建设地点：院区内；工期：180 日历天；质量标准：符合验收合格标准"),
+            req_with_anchor("REQ-0004", "其他", Some("3.4.1"),
+                "第三章 投标人须知 > 四、投标报价",
+                "3.4.1 投标报价为一次包干总价，包含货物、安装、调试等全部费用"),
+            req_with_anchor("REQ-0005", "其他", Some("6.1"),
+                "第六章 合同条款及格式（摘要）",
+                "6.1 合同价格形式：固定总价合同，除约定情形外不做调整"),
+        ];
+        let nodes = derive_outline(
+            &reqs,
+            OutlineSpec { target_total_chars: 10_000, max_reqs_per_leaf: 1 },
+            &mut counting_ids(),
+        );
+        // level-1 = 首现序：资格条件（原类目）+ 三个招标文件章节组
+        let l1: Vec<&str> = nodes.iter().filter(|n| n.level == 1).map(|n| n.title.as_str()).collect();
+        assert_eq!(
+            l1,
+            vec!["资格条件", "第一章 招标公告", "第三章 投标人须知", "第六章 合同条款及格式（摘要）"],
+            "其他类按招标文件章节归并，非其他类目原样通过"
+        );
+        // 核心验收：不再有裸「其他（第N块）」
+        assert!(
+            nodes.iter().all(|n| !n.title.starts_with("其他（")),
+            "目录不得再出现「其他（第N块）」——实测 31 块平铺的根因"
+        );
+        // 多叶组带块序，单叶组用组名（无块后缀）
+        let ch1: Vec<&OutlineNode> = nodes.iter().filter(|n| n.title.starts_with("第一章")).collect();
+        assert_eq!(ch1.len(), 3, "1 父 + 2 叶");
+        assert_eq!(ch1[1].title, "第一章 招标公告（第1块）");
+        assert_eq!(ch1[2].title, "第一章 招标公告（第2块）");
+        let ch6_leaves: Vec<&OutlineNode> = nodes.iter()
+            .filter(|n| n.parent_id.is_some() && n.title.starts_with("第六章"))
+            .collect();
+        assert_eq!(ch6_leaves.len(), 1);
+        assert_eq!(ch6_leaves[0].title, "第六章 合同条款及格式（摘要）", "单叶组：组名即标题");
+        // 守恒面：REQ 全覆盖 + 配额和恰等于目标 + 树不变量
+        let bound: std::collections::HashSet<&str> = nodes.iter()
+            .flat_map(|n| n.requirement_ids.iter()).map(|s| &s[..]).collect();
+        assert_eq!(bound.len(), 5, "REQ 全覆盖无遗漏");
+        let total: u64 = nodes.iter().filter(|n| n.parent_id.is_none())
+            .map(|n| u64::from(n.target_chars)).sum();
+        assert_eq!(total, 10_000, "配额算法不动（最大余数法总和恰等于目标）");
+        assert!(validate_outline(&nodes).is_ok(), "树不变量（聚合一致/无孤儿/无环）");
+    }
+
+    /// 主题兜底（路线 A）与条款号区间叶标题：无章节锚的补遗条款按关键词归
+    /// 主题组；章节与主题都推不出 → 兜底「其他条款」，叶标题用条款号区间
+    /// （issue #100「其他条款 1.1-1.7」形态）；条款号缺失才退化到（第N块）。
+    #[test]
+    fn other_category_theme_fallback_and_clause_ranges() {
+        let reqs = vec![
+            // 补遗（无章节锚「第1页 行6」形态）：关键词命中主题
+            req_with_anchor("REQ-0001", "其他", Some("1.1"), "第1页 行6",
+                "原招标文件第四章商务分评分办法调整，奖项分值上限修改"),
+            req_with_anchor("REQ-0002", "其他", Some("5.1"), "第2页 行8",
+                "现场踏勘与答疑安排：踏勘集合时间地点详见补遗说明"),
+            // 开标顺延（主题规则命中「投标与开标安排」——具体规则先于补遗规则）
+            req_with_anchor("REQ-0003", "其他", Some("1.2"), "第1页 行7",
+                "投标截止时间及开标时间相应顺延为 2026-11-30 09:30"),
+            // 无任何信号 → 兜底组（有条款号 → 区间标题）
+            req_with_anchor("REQ-0004", "其他", Some("9.9"), "附录 说明",
+                "本条款无主题信号，仅作兜底归组验证"),
+            req_with_anchor("REQ-0005", "其他", Some("9.10"), "附录 说明",
+                "同上，另一条无信号条款"),
+            // 无信号且无条款号 → 兜底组退化到（第N块）
+            req_with_anchor("REQ-0006", "其他", None, "附录 说明",
+                "无信号且无条款号的兜底条款"),
+        ];
+        let nodes = derive_outline(
+            &reqs,
+            OutlineSpec { target_total_chars: 12_000, max_reqs_per_leaf: 8 },
+            &mut counting_ids(),
+        );
+        let l1: Vec<&str> = nodes.iter().filter(|n| n.level == 1).map(|n| n.title.as_str()).collect();
+        assert_eq!(
+            l1,
+            vec!["补遗与澄清响应", "投标与开标安排", "其他条款"],
+            "无章节锚：主题归组 + 兜底组（首现序）"
+        );
+        // 主题组单叶 → 组名即标题
+        let byd: Vec<&OutlineNode> = nodes.iter()
+            .filter(|n| n.parent_id.is_some() && n.title.starts_with("补遗")).collect();
+        assert_eq!(byd.len(), 1);
+        assert_eq!(byd[0].title, "补遗与澄清响应");
+        assert_eq!(byd[0].requirement_ids.len(), 2, "两条补遗条款归同一主题组");
+        // 兜底组单叶（3 条 ≤ 8/叶）：有条款号的区间形态失效（REQ-0006 缺号）→ （第1块）
+        let fb: Vec<&OutlineNode> = nodes.iter()
+            .filter(|n| n.parent_id.is_some() && n.title.starts_with("其他条款")).collect();
+        assert_eq!(fb.len(), 1);
+        assert_eq!(fb[0].title, "其他条款（第1块）", "混合缺号 chunk 退化为（第N块）");
+        assert_eq!(fb[0].requirement_ids.len(), 3);
+        // 纯条款号 chunk 的区间标题（去掉无号条款再推导）
+        let reqs2: Vec<Requirement> = reqs[..5].to_vec();
+        let nodes2 = derive_outline(
+            &reqs2,
+            OutlineSpec { target_total_chars: 10_000, max_reqs_per_leaf: 8 },
+            &mut counting_ids(),
+        );
+        let fb2: Vec<&OutlineNode> = nodes2.iter()
+            .filter(|n| n.parent_id.is_some() && n.title.starts_with("其他条款")).collect();
+        assert_eq!(fb2.len(), 1);
+        assert_eq!(fb2[0].title, "其他条款 9.9-9.10", "issue #100 兜底形态：条款号区间");
+        // 守恒面
+        let bound: std::collections::HashSet<&str> = nodes.iter()
+            .flat_map(|n| n.requirement_ids.iter()).map(|s| &s[..]).collect();
+        assert_eq!(bound.len(), 6);
+        let total: u64 = nodes.iter().filter(|n| n.parent_id.is_none())
+            .map(|n| u64::from(n.target_chars)).sum();
+        assert_eq!(total, 12_000);
+        assert!(validate_outline(&nodes).is_ok());
+    }
+
+    /// 用户实测形态回归（synth-tender 31 条「其他」）：混合章节/补遗/无信号
+    /// 的大样本——任何节点不得以「其他（」开头；分组确定性可重放。
+    #[test]
+    fn other_category_no_bare_block_titles_at_scale() {
+        let mut reqs: Vec<Requirement> = Vec::new();
+        let mut n = 0;
+        // 24 条带章节锚（3 章 × 8 条——synth 一/三/六章分布的放大）
+        for (chap, cnt) in [("第一章 招标公告", 8), ("第三章 投标人须知", 8), ("第六章 合同条款及格式（摘要）", 8)] {
+            for i in 0..cnt {
+                n += 1;
+                reqs.push(req_with_anchor(
+                    &format!("REQ-{n:04}"), "其他", Some(&format!("{n}.1")),
+                    &format!("{chap} > 一、子节{i}"),
+                    &format!("{n}.1 章节内条款：本条按招标文件该章要求响应"),
+                ));
+            }
+        }
+        // 4 条补遗（无章节锚）
+        for i in 0..4 {
+            n += 1;
+            reqs.push(req_with_anchor(
+                &format!("REQ-{n:04}"), "其他", Some(&format!("1.{i}")), "第1页 行6",
+                &format!("1.{i} 原招标文件相关内容调整，以此补遗为准"),
+            ));
+        }
+        // 3 条无信号（兜底）
+        for i in 0..3 {
+            n += 1;
+            reqs.push(req_with_anchor(
+                &format!("REQ-{n:04}"), "其他", Some(&format!("9.{i}")), "附录 说明",
+                "无主题信号条款",
+            ));
+        }
+        let spec = OutlineSpec { target_total_chars: 62_000, max_reqs_per_leaf: 8 };
+        let nodes = derive_outline(&reqs, spec, &mut counting_ids());
+        // 核心断言：全树无裸「其他（第N块）」
+        assert!(
+            nodes.iter().all(|x| !x.title.starts_with("其他（")),
+            "31 块实测形态：任何节点不得再以「其他（」开头"
+        );
+        let l1: Vec<&str> = nodes.iter().filter(|x| x.level == 1).map(|x| x.title.as_str()).collect();
+        assert_eq!(
+            l1,
+            vec!["第一章 招标公告", "第三章 投标人须知", "第六章 合同条款及格式（摘要）",
+                 "补遗与澄清响应", "其他条款"],
+            "5 个语义组（3 章节 + 1 主题 + 1 兜底）"
+        );
+        // 每章 8 条 = 恰 1 叶 → 组名即标题；兜底 3 条 → 1 叶（区间 9.0-9.2）
+        let leaves: Vec<&str> = nodes.iter().filter(|x| x.parent_id.is_some())
+            .map(|x| x.title.as_str()).collect();
+        assert!(leaves.contains(&"第一章 招标公告"));
+        assert!(leaves.contains(&"其他条款 9.0-9.2"));
+        // 守恒面：31 条全覆盖 + 配额 ±10% + 树不变量 + 确定性
+        let bound: std::collections::HashSet<&str> = nodes.iter()
+            .flat_map(|x| x.requirement_ids.iter()).map(|s| &s[..]).collect();
+        assert_eq!(bound.len(), n as usize, "REQ 全覆盖");
+        let total: u64 = nodes.iter().filter(|x| x.parent_id.is_none())
+            .map(|x| u64::from(x.target_chars)).sum();
+        let dev = (total as f64 - 62_000.0).abs() / 62_000.0;
+        assert!(dev <= 0.10, "配额和 {total} 偏离目标 ±10% 以内");
+        assert!(validate_outline(&nodes).is_ok());
+        let again = derive_outline(&reqs, spec, &mut counting_ids());
+        assert_eq!(nodes, again, "语义分组确定性：同输入双推导全等");
     }
 
     /// GT sections.jsonl 六章节（人工树走 set_outline——全 level-1 平铺也合法）。

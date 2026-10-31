@@ -988,11 +988,17 @@ fn save_version(args: Value) -> ToolResult {
 /// 壳层职责（薄壳纪律）：参数校验 → 项目路由（E_NOTFOUND）→ 状态机裁决
 /// （guard_tool——MatrixReady+，E_STATE）→ 乐观并发（E_CONFLICT）→ 幂等
 /// 前置（(section_id, instructions_hash, content_version) 命中 → 直返首次
-/// 结果）→ 转发 `BidService::draft_section` → 契约 §6 out 组装。
+/// 结果；external 稿另计入 content 指纹）→ 转发 `BidService::draft_section`
+/// → 契约 §6 out 组装。
 ///
-/// 生成器：**mock 确定性生成**（无 API key 的 e2e 面——Lead「无 key 时用
-/// mock，否则 e2e 跑不了」）。真实 AI 面经 `SectionGenerator` trait 注入
-/// （后续独立 PR 接 LLM 通路），本壳不感知生成器差异。
+/// 生成器（#68 阶段 1 + #100 任务 2，四态）：
+/// - `auto`（缺省）：有 api_key → RealGenerator；无 → MockGenerator + 降级告警；
+/// - `real`：无 key → E_UNPROCESSABLE（显式要求真实生成而配置缺失，要响亮）；
+/// - `mock`：强制确定性生成（e2e/复算面——无告警，是显式选择）；
+/// - `external`：正文来自 `content` 参数（外部作者手稿——子代理/人工写好
+///   直注，免中继）；引擎不生成只提交，引用回查/CAS/落盘全走既有路径。
+///   `content` 在场即 external 语义（与 generator=mock/real 显式互斥——两个
+///   生成源打架要响亮拒）。
 fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
     const TOOL: &str = "draft_response_section";
     // ---- 参数校验（契约 §6 in）
@@ -1005,6 +1011,33 @@ fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
     let ev_ids = opt_str_array(&args, "evidence_ids", TOOL)?;
     // #68 阶段 1：生成器选择（auto = 有 key 走真实 LLM，无 key 降级 mock 并告警）
     let generator_mode = opt_generator(&args, "generator", TOOL)?;
+    // #100 任务 2：外部手稿（generator=external 的正文来源）。
+    // 互斥裁决前置到路由/状态机之前（参数面错误零副作用，响亮拒）
+    let external_content = opt_str(&args, "content", TOOL)?;
+    if let Some(c) = &external_content {
+        if c.trim().is_empty() {
+            return Err(ToolError::EUnprocessable {
+                what: format!("{TOOL}: content 不得为空白（外部手稿全文——空稿无提交意义）"),
+            });
+        }
+        if matches!(generator_mode.as_deref(), Some("mock") | Some("real")) {
+            return Err(ToolError::EUnprocessable {
+                what: format!(
+                    "{TOOL}: content（外部手稿）与 generator={} 互斥——外部稿直注请用 \
+                     generator=external（或缺省 content 即 external 语义）",
+                    generator_mode.as_deref().unwrap_or("?"),
+                ),
+            });
+        }
+    }
+    if generator_mode.as_deref() == Some("external") && external_content.is_none() {
+        return Err(ToolError::EUnprocessable {
+            what: format!(
+                "{TOOL}: generator=external 需要 content 参数（外部作者的手稿全文）——\
+                 无手稿请用 auto/mock/real",
+            ),
+        });
+    }
 
     // ---- 项目路由 + 状态机裁决 + 乐观并发
     let proj = svc.store().project().map_err(ToolError::from)?;
@@ -1024,7 +1057,12 @@ fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
     }
 
     // ---- 幂等前置：(section_id, instructions_hash, content_version) 命中 → 直返首次结果
-    let ikey = format!("draft:{section_id}:{}", instructions_hash(instructions.as_deref()));
+    // external 稿的正文是第一输入（同章节同指令不同稿 = 不同请求）——幂等键
+    // 追加 content 指纹；同稿重提仍命中（CAS 同内容 no-op 语义一致）
+    let mut ikey = format!("draft:{section_id}:{}", instructions_hash(instructions.as_deref()));
+    if let Some(c) = &external_content {
+        ikey.push_str(&format!(":ext-{}", content_hash(c)));
+    }
     if let Some(first) = svc.store().idempotent_hit(&ikey).cloned() {
         // 重放不带 project_version 检查面（version 已在上面对账）——直返
         let mut out = first;
@@ -1035,47 +1073,57 @@ fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
     }
 
     // ---- 转发业务（bid-tools service::draft_section——生成/回查/CAS/落盘/推进）
-    // #68 阶段 1：生成器选择面（issue §1.2——auto/real/mock 三态）：
+    // 生成器选择面（#68 阶段 1 issue §1.2 + #100 任务 2——auto/real/mock/external 四态）：
     //   auto  = 有 api_key → RealGenerator；无 → MockGenerator + 降级告警
     //   real  = 无 key → E_UNPROCESSABLE（显式要求真实生成而配置缺失，要响亮）
     //   mock  = 强制确定性生成（e2e/复算面——无告警，是显式选择）
+    //   external = content 手稿直注（引擎不生成只提交——与 mock/real 提交面一致）
     let llm_cfg = bid_tools::llm::LlmConfig::resolve(svc.workspace_dir().as_deref())
         .map_err(|e| ToolError::EUnprocessable {
             what: format!("LLM 配置无效（.mang/llm.json 或 BID_LLM_*）: {e}"),
         })?;
     let mut gen_warnings: Vec<String> = Vec::new();
     let gen_kind;
-    let mut gen: Box<dyn bid_tools::draft::SectionGenerator> = match generator_mode.as_deref() {
-        Some("mock") => {
-            gen_kind = "mock";
-            Box::new(bid_tools::draft::MockGenerator)
-        }
-        Some("real") => match llm_cfg {
-            Some(cfg) => {
-                gen_kind = "real";
-                Box::new(bid_tools::llm::RealGenerator::new(cfg, svc.workspace_dir()))
-            }
-            None => {
-                return Err(ToolError::EUnprocessable {
-                    what: "generator=real 但未配置 api_key（.mang/llm.json 或 BID_LLM_API_KEY）\
-                           ——要么配置 key，要么用 auto/mock".into(),
-                })
-            }
-        },
-        _ => match llm_cfg {
-            Some(cfg) => {
-                gen_kind = "real";
-                Box::new(bid_tools::llm::RealGenerator::new(cfg, svc.workspace_dir()))
-            }
-            None => {
+    let mut gen: Box<dyn bid_tools::draft::SectionGenerator> = if let Some(content) = external_content {
+        gen_kind = "external";
+        gen_warnings.push(
+            "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、\
+             CAS 写入、状态推进、落盘与 mock/real 完全同路径".into(),
+        );
+        Box::new(bid_tools::draft::ExternalGenerator { content })
+    } else {
+        match generator_mode.as_deref() {
+            Some("mock") => {
                 gen_kind = "mock";
-                gen_warnings.push(
-                    "未配置 LLM api_key——降级 mock 生成（内容为确定性模板，非真实 AI）；\
-                     配置 .mang/llm.json 或 BID_LLM_API_KEY 后走真实生成".into(),
-                );
                 Box::new(bid_tools::draft::MockGenerator)
             }
-        },
+            Some("real") => match llm_cfg {
+                Some(cfg) => {
+                    gen_kind = "real";
+                    Box::new(bid_tools::llm::RealGenerator::new(cfg, svc.workspace_dir()))
+                }
+                None => {
+                    return Err(ToolError::EUnprocessable {
+                        what: "generator=real 但未配置 api_key（.mang/llm.json 或 BID_LLM_API_KEY）\
+                               ——要么配置 key，要么用 auto/mock".into(),
+                    })
+                }
+            },
+            _ => match llm_cfg {
+                Some(cfg) => {
+                    gen_kind = "real";
+                    Box::new(bid_tools::llm::RealGenerator::new(cfg, svc.workspace_dir()))
+                }
+                None => {
+                    gen_kind = "mock";
+                    gen_warnings.push(
+                        "未配置 LLM api_key——降级 mock 生成（内容为确定性模板，非真实 AI）；\
+                         配置 .mang/llm.json 或 BID_LLM_API_KEY 后走真实生成".into(),
+                    );
+                    Box::new(bid_tools::draft::MockGenerator)
+                }
+            },
+        }
     };
     let outcome = svc.draft_section(
         &section_id,
@@ -1204,6 +1252,7 @@ fn check_bid_quality(svc: &mut BidService, args: Value) -> ToolResult {
     }))
 }
 
+/// `generator` 参数（#68 阶段 1 + #100 任务 2——缺省 auto；非四态拒）。
 // ---------------------------------------------------------------- #100 任务 3：B1/B2 接线（score_price / score_section / score_document）
 
 /// `score_price` —— 价格分试算 + 最优报价反推（issue #100 §3.1/§3.3）。
@@ -1595,9 +1644,9 @@ fn parse_price_spec(v: &Value, at: &str) -> Result<bid_domain::pricing::PriceSco
 fn opt_generator(v: &Value, key: &str, at: &str) -> Result<Option<String>, ToolError> {
     match opt_str(v, key, at)? {
         None => Ok(None),
-        Some(g) if matches!(g.as_str(), "auto" | "mock" | "real") => Ok(Some(g)),
+        Some(g) if matches!(g.as_str(), "auto" | "mock" | "real" | "external") => Ok(Some(g)),
         Some(g) => Err(ToolError::EUnprocessable {
-            what: format!("{at}: {key} 须为 auto | mock | real（实际: {g}）"),
+            what: format!("{at}: {key} 须为 auto | mock | real | external（实际: {g}）"),
         }),
     }
 }
@@ -1626,10 +1675,16 @@ fn opt_str_array(v: &Value, key: &str, at: &str) -> Result<Option<Vec<String>>, 
 
 /// instructions 的稳定哈希（幂等键素材——sha256 前 16 位十六进制）。
 fn instructions_hash(s: Option<&str>) -> String {
+    content_hash(s.unwrap_or(""))
+}
+
+/// 正文指纹（#100 任务 2——external 稿的幂等键面；与 instructions_hash
+/// 同源同口径：SHA-256 前 8 字节十六进制）。
+fn content_hash(s: &str) -> String {
     use sha2::{Digest, Sha256};
     use std::fmt::Write;
     let mut h = Sha256::new();
-    h.update(s.unwrap_or("").as_bytes());
+    h.update(s.as_bytes());
     let d = h.finalize();
     let mut hex = String::with_capacity(16);
     for b in &d[..8] {

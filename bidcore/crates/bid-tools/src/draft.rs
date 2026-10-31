@@ -481,12 +481,21 @@ impl super::service::BidService {
             reason: format!("checkpoint 落盘失败（内存已变更、磁盘未跟上）: {e}"),
         })?;
 
+        // ---- 8. 无锚承诺告警（#86 摩擦 #11——契约 §6「unanchored_claims>0
+        //      时 warning」的落地面；阻断语义留给 validate 不变）
+        let unanchored_claims = count_unanchored_claims(&content);
+        if unanchored_claims > 0 {
+            warnings.push(format!(
+                "无锚承诺 {unanchored_claims} 句（含承诺词但同句无 [REQ-*]/[EV-*] 引用）——建议补引用或改写；是否阻断由 validate 裁决"
+            ));
+        }
+
         Ok(DraftOutcome {
             section_id: section_id.to_string(),
             attempt,
             chars,
             citations: valid,
-            unanchored_claims: count_unanchored_claims(&content),
+            unanchored_claims,
             uncovered_requirements,
             warnings,
             instructions: instructions.map(str::to_string),

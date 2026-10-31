@@ -1240,13 +1240,14 @@ fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
         .and_then(|p| p.get("dark_bid")).and_then(Value::as_bool).unwrap_or(false);
     let bidder_name = profile.as_ref()
         .and_then(|p| p.get("bidder_name")).and_then(Value::as_str).map(str::to_string);
-    // options：tracked_changes / watermark（阶段 7 面占位——在场即告警未支持）
+    // options：tracked_changes / watermark（阶段 7 面占位——truthy 才告警未支持）
     let mut warnings_pre: Vec<String> = Vec::new();
     if let Some(opts) = args.get("options").filter(|v| v.is_object()) {
         if opts.get("tracked_changes").and_then(Value::as_bool).unwrap_or(false) {
             warnings_pre.push("options.tracked_changes 暂不支持（阶段 7 面）——按普通模式导出".into());
         }
-        if opts.get("watermark").is_some() {
+        // #86 摩擦 #14：仅 truthy 告警（watermark:false 是显式关闭，不该叫）
+        if opts.get("watermark").and_then(Value::as_bool).unwrap_or(false) {
             warnings_pre.push("options.watermark 暂不支持（阶段 7 PDF 通道面）——按无水印导出".into());
         }
     }

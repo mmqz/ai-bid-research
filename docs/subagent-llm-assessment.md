@@ -159,13 +159,13 @@ Claude Desktop 里对引擎一无所知的操作者（禁读源码/测试/其他
 | 7 | EV-id 不从 0001 起（import 自动入账没写） | ✅ 契约 §2 补注 |
 | 8 | register_evidence hint 罐头文案误导 | ✅ 实现改条件式措辞 |
 | 12 | 错误字段名 what vs 契约 message | ✅ 契约以实现为准修订 |
-| 4 | 章节→REQ 归属无正式查询口（靠矩阵反推） | ⬜ 登记后续项（outline 明细只读面候选） |
-| 6 | options.granularity 合法值未枚举 | ⬜ 登记后续项（契约补枚举） |
-| 9 | project_version 步进不透明（+1~+6 不等） | ⬜ 登记后续项（文档说明步进源） |
-| 10 | REVIEWING 状态从未出现（契约与状态机不符） | ⬜ 登记后续项（产品语义裁决） |
-| 11 | unanchored_claims>0 无 warning（契约承诺落空） | ⬜ 登记后续项（K5 相关联动） |
-| 13 | W_FORMAT_BASELINE 文案与事实打架 | ⬜ 登记后续项（文案修订） |
-| 14 | 小噪音（watermark 告警 / BID_DEADLINE_PAST 位置） | ⬜ 登记后续项 |
+| 4 | 章节→REQ 归属无正式查询口（靠矩阵反推） | ✅ #86 已清偿（check_bid_quality sections 补 requirement_ids） |
+| 6 | options.granularity 合法值未枚举 | ✅ #86 已清偿（契约 §3 标注保留位·未实现） |
+| 9 | project_version 步进不透明（+1~+6 不等） | ✅ #86 已清偿（契约 §7 补步进源说明） |
+| 10 | REVIEWING 状态从未出现（契约与状态机不符） | ✅ #86 已清偿（契约对齐：导出时自动补齐的瞬态） |
+| 11 | unanchored_claims>0 无 warning（契约承诺落空） | ✅ #86 已清偿（draft 补 warning） |
+| 13 | W_FORMAT_BASELINE 文案与事实打架 | ✅ #86 已清偿（三形态区分 + 文案如实） |
+| 14 | 小噪音（watermark 告警 / BID_DEADLINE_PAST 位置） | ✅ #86 已清偿（truthy 才告警 + 契约 §1 澄清） |
 
 **正面信号**（外部 Agent 原话归纳）：全部 4 次报错信息可操作、能 self-serve
 恢复；分页/过滤/幂等面无障碍——错误文案质量是本轮最结实的能力面。

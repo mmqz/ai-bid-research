@@ -460,3 +460,52 @@ fn draft_error_codes_are_typed() {
     assert_eq!(err.code(), "E_UNPROCESSABLE");
     assert!(matches!(err, ToolError::EUnprocessable { .. }));
 }
+
+// ---------------------------------------------------------------- 7. 无锚承诺告警（#86 摩擦 #11）
+
+/// 固定正文生成器（测告警面——正文带无锚承诺句 + 有效 REQ 引用保覆盖度）。
+struct UnanchoredBody {
+    title: String,
+}
+
+impl SectionGenerator for UnanchoredBody {
+    fn generate(&mut self, _i: &SectionDraftInput) -> Result<bid_tools::draft::GeneratedDraft, String> {
+        Ok(bid_tools::draft::GeneratedDraft {
+            content: format!(
+                "# {}\n\n针对 [REQ-0001] 我方完全响应。我方承诺按时竣工。\n\n保证安全生产，确保一次验收合格。",
+                self.title
+            ),
+        })
+    }
+}
+
+#[test]
+fn unanchored_claims_positive_emits_warning() {
+    // 契约 §6：「unanchored_claims>0 时 warning」——无锚承诺句（承诺按时竣工/
+    // 保证安全生产/确保…合格）应触发告警；阻断语义留给 validate（这里只验
+    // warning 在场 + 计数一致）
+    let mut svc = svc_matrix_ready("unanchored-warn");
+    let sid = first_leaf(&svc);
+    let title = svc.store().sections().iter().find(|n| n.id == sid).unwrap().title.clone();
+    let out = svc
+        .draft_section(&sid, None, None, None, &mut UnanchoredBody { title })
+        .unwrap();
+    assert!(out.unanchored_claims >= 2, "无锚承诺句计数: {}", out.unanchored_claims);
+    assert!(
+        out.warnings.iter().any(|w| w.contains("无锚承诺")),
+        "warning 应在场（契约 §6 承诺面）: {:?}",
+        out.warnings
+    );
+    // 带锚路径不告警（mock 模板句句带锚——既有断言 unanchored_claims==0 的
+    // 镜像：warnings 不含无锚面）
+    let sid2 = svc.store().sections().iter()
+        .find(|n| n.parent_id.is_some() && n.id != sid)
+        .map(|n| n.id.clone()).unwrap();
+    let out2 = svc.draft_section(&sid2, None, None, None, &mut MockGenerator).unwrap();
+    assert_eq!(out2.unanchored_claims, 0);
+    assert!(
+        !out2.warnings.iter().any(|w| w.contains("无锚承诺")),
+        "零无锚不应告警: {:?}",
+        out2.warnings
+    );
+}

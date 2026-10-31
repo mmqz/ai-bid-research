@@ -390,3 +390,73 @@ fn green_path_ok_true_when_no_blockers() {
     assert_eq!(r["counts"]["blocker"], json!(0));
     assert_eq!(r["project_status"], "VALIDATING");
 }
+
+// ---------------------------------------------------------------- #86 摩擦 #13：W_FORMAT_BASELINE 三形态
+
+/// 夹具变体：从零构建（svc_base 已推 MATRIX_READY，不能再改条款集）——
+/// 在抽取阶段就带上格式条款（excerpt 决定可否提取参数）。
+fn svc_with_format_req(tag: &str, excerpt: &str) -> (BidService, String) {
+    let mut svc = BidService::open(tmp_dir(tag)).unwrap();
+    let pid = ok_result(call(&mut svc, "create_bid_project", json!({
+        "name": "格式基线测试", "bid_deadline": "2026-12-31", "mode": "明标", "external_key": tag,
+    })))["project_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    svc.store_mut()
+        .upsert_file(
+            "A-招标文件.docx", "招标文件", &format!("sha-vf-{tag}"), 10, 1, 50, 0, ParseStatus::Ok, "",
+        )
+        .unwrap();
+    svc.set_requirements(vec![
+        mk_req("REQ-0001", "资格条件", "具备水利水电工程施工总承包贰级资质"),
+        mk_req("REQ-0002", "资格条件", "项目经理具备一级建造师注册证书"),
+        mk_req("REQ-0003", "否决项", "投标文件未经法定代表人签字作否决处理"),
+        mk_req("REQ-0004", "格式要求", excerpt),
+    ])
+    .unwrap();
+    let _ = svc
+        .prepare_outline_and_matrix(OutlineSpec { target_total_chars: 2_000, max_reqs_per_leaf: 8 })
+        .unwrap();
+    (svc, pid)
+}
+
+#[test]
+fn format_baseline_not_warned_when_params_extracted() {
+    // 形态③：格式条款在场且参数提取成功（小四/仿宋/1.5 倍行距）→ 不得报
+    // W_FORMAT_BASELINE（旧实现按「含基线」字样误报「未识别到格式条款」
+    // ——文案与事实打架，#86 摩擦 #13）
+    let (mut svc, pid) = svc_with_format_req(
+        "fmt-hit",
+        "投标文件正文采用仿宋小四号字体，1.5 倍行距，页边距上下各 25mm",
+    );
+    bind_evidence_for(&mut svc, &["REQ-0001", "REQ-0002", "REQ-0003"]);
+    for sid in leaf_ids(&svc) {
+        svc.draft_section(&sid, None, None, None, &mut bid_tools::draft::MockGenerator).unwrap();
+    }
+    let r = validate(&mut svc, &pid);
+    let warnings = r["warnings"].as_array().unwrap();
+    assert!(
+        !warnings.iter().any(|w| w.as_str().unwrap().contains("未发现格式条款")),
+        "提取到参数不应报「未发现格式条款」: {warnings:?}"
+    );
+}
+
+#[test]
+fn format_baseline_warns_with_accurate_text_when_params_not_detected() {
+    // 形态②：格式条款在场但参数提不出 → 告警文案必须如实说「存在格式候选
+    // 条款但未提取到…参数」，不得说「未发现格式条款」
+    let (mut svc, pid) = svc_with_format_req("fmt-miss", "投标文件排版格式应符合本招标文件相关要求");
+    bind_evidence_for(&mut svc, &["REQ-0001", "REQ-0002", "REQ-0003"]);
+    for sid in leaf_ids(&svc) {
+        svc.draft_section(&sid, None, None, None, &mut bid_tools::draft::MockGenerator).unwrap();
+    }
+    let r = validate(&mut svc, &pid);
+    let warnings = r["warnings"].as_array().unwrap();
+    let hit = warnings.iter().find(|w| w.as_str().unwrap().contains("W_FORMAT_BASELINE")
+        || w.as_str().unwrap().contains("工程基线"));
+    assert!(hit.is_some(), "形态②应告警: {warnings:?}");
+    let msg = hit.unwrap().as_str().unwrap();
+    assert!(msg.contains("未提取到"), "文案如实（存在候选但参数未提取）: {msg}");
+    assert!(!msg.contains("未发现格式条款"), "不得误报零候选: {msg}");
+}

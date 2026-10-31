@@ -52,6 +52,10 @@ pub struct SectionQuality {
     /// 正文引用了但不在已知集的编号（幻觉面——draft 时已剔除，>0 即异常）。
     pub unknown_citations: Vec<String>,
     pub unanchored_claims: usize,
+    /// 章节绑定的 REQ 全集（#86 摩擦 #4——章节→REQ 归属的正式查询口：
+    /// 无需从矩阵反推，check_bid_quality 直接给出）。与 covered/uncovered/
+    /// ghost 的并集一致（三者在响应面内互斥分桶）。仅叶章节有效。
+    pub requirement_ids: Vec<String>,
     /// FAILED 章的错误明细（failed.json 边车在场时）。
     pub error: Option<String>,
     /// 需人工处理的判定（FAILED / 有未覆盖 REQ / 幻觉引用残留 / 带外字数）。
@@ -170,6 +174,7 @@ pub fn check_section(store: &DomainStore, node: &OutlineNode) -> SectionQuality 
         uncited_evs,
         unknown_citations,
         unanchored_claims: unanchored,
+        requirement_ids: node.requirement_ids.clone(),
         error: None, // 调用方（build_quality_report）从边车并入
         needs_human,
     }

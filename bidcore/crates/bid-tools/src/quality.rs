@@ -29,10 +29,11 @@
 //! 三者均为纯内容函数（零 IO、确定性——同输入同输出），报告层接线见
 //! `check_section_with`/`build_quality_report_with`（与 B2 自评联动）。
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use bid_domain::outline::{OutlineNode, SectionStatus};
+use bid_domain::scoring::{SectionScore, SectionScorer};
 use bid_domain::DomainStore;
 use serde::{Deserialize, Serialize};
 
@@ -71,8 +72,24 @@ pub struct SectionQuality {
     pub requirement_ids: Vec<String>,
     /// FAILED 章的错误明细（failed.json 边车在场时）。
     pub error: Option<String>,
-    /// 需人工处理的判定（FAILED / 有未覆盖 REQ / 幻觉引用残留 / 带外字数）。
+    /// 需人工处理的判定（FAILED / 有未覆盖 REQ / 幻觉引用残留 / 带外字数
+    /// / 严重跨章重复）。
     pub needs_human: bool,
+    // ---- B3 联动面（issue #97 §与自评的联动：一个章节的检查报告里同时
+    //      有响应性/质量/得分；serde default 兼容旧报告 JSON）----
+    /// 针对性（B3 维度 1——ctx 在场且已起草才评；None = 不评）。
+    #[serde(default)]
+    pub specificity: Option<SpecificityScore>,
+    /// 实质性（B3 维度 2——同上）。
+    #[serde(default)]
+    pub substance: Option<SubstanceScore>,
+    /// B2 自评得分（ctx 在场且已起草才评——"能得几分"面）。
+    #[serde(default)]
+    pub score: Option<SectionScore>,
+    /// 与其他章节的重复对端（章节 id + 相似度——报告级重复检测的章节视图；
+    /// 空表 = 无重复对端）。
+    #[serde(default)]
+    pub dup_with: Vec<(String, f64)>,
 }
 
 /// 项目级质量报告（artifacts/quality-report.json 的落盘形态）。
@@ -82,6 +99,9 @@ pub struct QualityReport {
     pub generated_at: u64,
     pub sections: Vec<SectionQuality>,
     pub summary: QualitySummary,
+    /// 跨章重复检测（B3 维度 3——ctx 在场且已起草章 ≥2 才算；None = 未算）。
+    #[serde(default)]
+    pub duplication: Option<DuplicationReport>,
 }
 
 /// 汇总面。
@@ -98,12 +118,50 @@ pub struct QualitySummary {
     pub unanchored_total: usize,
     /// 需人工处理清单（issue §2.2「最终报告」）。
     pub needs_human: Vec<String>,
+    // ---- B3 联动汇总面（serde default 兼容旧报告 JSON）----
+    /// 针对性均值（已评章节；None = 无可评面）。
+    #[serde(default)]
+    pub avg_specificity: Option<f64>,
+    /// 实质性均值（同上）。
+    #[serde(default)]
+    pub avg_substance: Option<f64>,
+    /// 自评得分率均值（estimated/max，max>0 的已评章节——B2 联动面）。
+    #[serde(default)]
+    pub avg_score_ratio: Option<f64>,
+    /// 严重重复对数（Jaccard > 0.8 ∪ 包含率 > 0.9）。
+    #[serde(default)]
+    pub severe_dup_pairs: usize,
 }
 
 // ---------------------------------------------------------------- 单章检查
 
-/// 单章覆盖度检查（只读——store + 节点；failed 明细由调用方并入）。
+/// 质量检查扩展上下文（B3 三维度 + B2 自评的接线面）。
+///
+/// `None`（旧调用面）= 只做形式合规检查（覆盖/引用/字数/无锚）；
+/// `Some` = 追加内容质量面（针对性/实质性/自评得分）。
+pub struct QualityContext<'a> {
+    /// B2 章节自评器（bid-domain 冻结面——只调用不改）。
+    pub scorer: &'a SectionScorer,
+    /// B3 针对性的专名锚源。
+    pub project: &'a ProjectContext,
+}
+
+/// 单章覆盖度检查（旧调用面——等价 `check_section_with(store, node, None)`）。
 pub fn check_section(store: &DomainStore, node: &OutlineNode) -> SectionQuality {
+    check_section_with(store, node, None)
+}
+
+/// 单章检查（扩展面——issue #97 §与自评的联动：一个章节的检查报告里
+/// 同时有响应性/质量/得分）。
+///
+/// - 未起草章不评质量/得分（None——没写字不判内容，报告不伤噪）；
+/// - `dup_with` 由报告层（[`build_quality_report_with`]）四填——单章无
+///   跨章视野。
+pub fn check_section_with(
+    store: &DomainStore,
+    node: &OutlineNode,
+    ctx: Option<&QualityContext<'_>>,
+) -> SectionQuality {
     let content = node.content.as_deref().unwrap_or("");
     let cited: Vec<String> = scan_citations(content);
 
@@ -173,6 +231,21 @@ pub fn check_section(store: &DomainStore, node: &OutlineNode) -> SectionQuality 
             || !unknown_citations.is_empty()
             || within_band == Some(false)));
 
+    // ---- B3 联动面：ctx 在场且已起草才评（质量/得分）
+    let (specificity, substance, score) = if let Some(c) = ctx {
+        if has_content {
+            (
+                Some(assess_specificity(content, c.project)),
+                Some(assess_substance(content)),
+                Some(c.scorer.score_section(&node.id, content)),
+            )
+        } else {
+            (None, None, None)
+        }
+    } else {
+        (None, None, None)
+    };
+
     SectionQuality {
         section_id: node.id.clone(),
         title: node.title.clone(),
@@ -190,15 +263,39 @@ pub fn check_section(store: &DomainStore, node: &OutlineNode) -> SectionQuality 
         requirement_ids: node.requirement_ids.clone(),
         error: None, // 调用方（build_quality_report）从边车并入
         needs_human,
+        specificity,
+        substance,
+        score,
+        dup_with: Vec::new(), // 报告层回填（单章无跨章视野）
     }
 }
 
 // ---------------------------------------------------------------- 项目报告
 
-/// 全项目质量报告（叶章节按文档序；assembler 在场时并入失败边车明细）。
+/// 全项目质量报告（旧调用面——等价 `build_quality_report_with(store, asm, None)`）。
 pub fn build_quality_report(
     store: &DomainStore,
     asm: Option<&ChapterAssembler>,
+) -> QualityReport {
+    build_quality_report_with(store, asm, None)
+}
+
+/// 全项目质量报告（扩展面——B3 三维度 + B2 自评联动）。
+///
+/// 联动语义（issue #97 §与自评的联动）：
+/// - 逐章 `check_section_with`：响应性 + 质量 + 得分三面并存；
+/// - 跨章重复：已起草叶两两比对 → 报告级 [`DuplicationReport`] + 逐章
+///   `dup_with` 回填（对端 id + 两口径最大相似度）；
+/// - **needs_human 扩展**：严重重复（Jaccard > 0.8 ∪ 包含率 > 0.9）纳入
+///   ——依据：严重重复是**结构性缺陷**（两章整段互拷，删哪段改哪段须
+///   人工裁决）；而低针对性/低实质性是 B4 改写循环的**输入**（自动化可
+///   救），不设人工闸门——两类问题的处置路径不同；
+/// - 汇总：avg_specificity / avg_substance / avg_score_ratio（已评章节
+///   均值——`None` = 无可评面，不伪装 0）+ severe_dup_pairs。
+pub fn build_quality_report_with(
+    store: &DomainStore,
+    asm: Option<&ChapterAssembler>,
+    ctx: Option<&QualityContext<'_>>,
 ) -> QualityReport {
     let failed_map = asm.map(|a| a.failed_records()).unwrap_or_default();
     let parents: HashSet<&str> =
@@ -217,7 +314,7 @@ pub fn build_quality_report(
     let mut needs_human = Vec::new();
     let total = leaves.len();
     for node in &leaves {
-        let mut q = check_section(store, node);
+        let mut q = check_section_with(store, node, ctx);
         if let Some(rec) = failed_map.get(&node.id) {
             q.error = Some(rec.error.clone());
         }
@@ -237,6 +334,98 @@ pub fn build_quality_report(
         }
         sections.push(q);
     }
+
+    // ---- B3 维度 3：跨章重复（ctx 在场且已起草叶 ≥2 才有比对面）
+    let drafted_pairs: Vec<(String, String)> = leaves
+        .iter()
+        .filter(|n| n.content.as_deref().is_some_and(|c| !c.trim().is_empty()))
+        .map(|n| (n.id.clone(), n.content.clone().unwrap_or_default()))
+        .collect();
+    let duplication = if ctx.is_some() && drafted_pairs.len() >= 2 {
+        Some(detect_duplication(&drafted_pairs))
+    } else {
+        None
+    };
+
+    // 逐章回填 dup_with + 严重重复对的 needs_human
+    let severe_count = duplication.as_ref().map_or(0, |d| d.severe);
+    if let Some(d) = &duplication {
+        // 对端 → 最大相似度（Jaccard/包含率两口径取大——单一呈现面）
+        let mut partners: HashMap<&str, HashMap<&str, f64>> = HashMap::new();
+        fn bump<'a>(
+            a: &'a str,
+            b: &'a str,
+            sim: f64,
+            partners: &mut HashMap<&'a str, HashMap<&'a str, f64>>,
+        ) {
+            partners
+                .entry(a)
+                .or_default()
+                .entry(b)
+                .and_modify(|v| {
+                    if sim > *v {
+                        *v = sim;
+                    }
+                })
+                .or_insert(sim);
+        }
+        for (a, b, jac) in &d.pairs {
+            bump(a, b, *jac, &mut partners);
+            bump(b, a, *jac, &mut partners);
+        }
+        for (a, b, cont) in &d.contained {
+            bump(a, b, *cont, &mut partners);
+            bump(b, a, *cont, &mut partners);
+        }
+        // 严重对身份（severe 计数之外的可操作面）：Jaccard > 0.8 或包含率 > 0.9
+        let mut severe_ids: HashSet<&str> = HashSet::new();
+        for (a, b, j) in &d.pairs {
+            if *j > DUP_SEVERE_JACCARD {
+                severe_ids.insert(a);
+                severe_ids.insert(b);
+            }
+        }
+        for (a, b, c) in &d.contained {
+            if *c > DUP_SEVERE_CONTAINMENT {
+                severe_ids.insert(a);
+                severe_ids.insert(b);
+            }
+        }
+        for q in &mut sections {
+            if let Some(p) = partners.get(q.section_id.as_str()) {
+                let mut v: Vec<(String, f64)> = p.iter()
+                    .map(|(id, sim)| ((*id).to_string(), *sim)).collect();
+                v.sort_by(|x, y| y.1.partial_cmp(&x.1).unwrap_or(std::cmp::Ordering::Equal));
+                q.dup_with = v;
+            }
+            if severe_ids.contains(q.section_id.as_str()) {
+                q.needs_human = true;
+                if !needs_human.contains(&q.section_id) {
+                    needs_human.push(q.section_id.clone());
+                }
+            }
+        }
+    }
+
+    // ---- B3/B2 联动汇总（已评章节均值——None = 无可评面）
+    let round4 = |v: f64| (v * 10_000.0).round() / 10_000.0;
+    let avg_specificity = {
+        let v: Vec<f64> = sections.iter().filter_map(|q| q.specificity.as_ref())
+            .map(|s| s.score).collect();
+        (!v.is_empty()).then(|| round4(v.iter().sum::<f64>() / v.len() as f64))
+    };
+    let avg_substance = {
+        let v: Vec<f64> = sections.iter().filter_map(|q| q.substance.as_ref())
+            .map(|s| s.score).collect();
+        (!v.is_empty()).then(|| round4(v.iter().sum::<f64>() / v.len() as f64))
+    };
+    let avg_score_ratio = {
+        let v: Vec<f64> = sections.iter().filter_map(|q| q.score.as_ref())
+            .filter(|s| s.max > 0.0)
+            .map(|s| s.estimated / s.max).collect();
+        (!v.is_empty()).then(|| round4(v.iter().sum::<f64>() / v.len() as f64))
+    };
+
     QualityReport {
         project_id: store.project().map(|p| p.id.clone()).unwrap_or_default(),
         generated_at: std::time::SystemTime::now()
@@ -244,6 +433,7 @@ pub fn build_quality_report(
             .map(|d| d.as_secs())
             .unwrap_or(0),
         sections,
+        duplication,
         summary: QualitySummary {
             total,
             drafted,
@@ -253,6 +443,10 @@ pub fn build_quality_report(
             out_of_band,
             unanchored_total,
             needs_human,
+            avg_specificity,
+            avg_substance,
+            avg_score_ratio,
+            severe_dup_pairs: severe_count,
         },
     }
 }
@@ -461,6 +655,15 @@ impl ProjectContext {
             },
             Err(_) => ProjectContext::default(),
         }
+    }
+
+    /// B2 `SectionScorer` 的项目专名锚词（`project_terms` 构造参数——
+    /// 项目名/招标人/编号全量非空面；B3 与 B2 用同一专名源，两判定的
+    /// 锚词口径一致）。
+    pub fn scorer_terms(&self) -> Vec<String> {
+        let mut v = vec![self.project_name.clone(), self.tenderer_name.clone()];
+        v.extend(self.extra_terms.iter().cloned());
+        v.into_iter().filter(|t| !t.trim().is_empty()).collect()
     }
 }
 

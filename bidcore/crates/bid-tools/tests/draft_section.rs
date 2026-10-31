@@ -72,13 +72,22 @@ fn register_ev(svc: &mut BidService, title: &str, valid_until: Option<&str>) -> 
     eid
 }
 
-/// 造一个「抽取完成 → 建纲 → 建矩阵（MATRIX_READY）」的服务态。
+/// 造一个「抽取完成 → 建纲 → 建矩阵（MATRIX_READY）→ 素材齐备」的服务态。
 /// 3 条 REQ（资格/否决/评分各一）→ 章节树 + 矩阵。
+///
+/// #110 任务 1 后的起草硬前置（readiness 前置闸）：
+/// - 「资格条件」叶标题含资格 → 台账必须有可用资质证据；
+/// - 否决项 REQ 必须在矩阵 RESPONDED（绑证据 + 重建矩阵）——
+///   否则 draft_section 直接 E_UNPROCESSABLE（缺素材拒生成，不是回归）。
 fn svc_matrix_ready(tag: &str) -> BidService {
     let mut svc = BidService::open(tmp_dir(tag)).unwrap();
     svc.create_project("起草测试", "C-DFT", "明标", tag).unwrap();
     svc.store_mut().upsert_file(
         "A-招标文件.docx", "招标文件", "sha-a", 10, 1, 60, 0, ParseStatus::Ok, "",
+    ).unwrap();
+    // 招标包完整性（IncompleteTender 只警告不阻塞——补遗件在场别让警告面进断言）
+    svc.store_mut().upsert_file(
+        "C-补遗文件01.docx", "补遗", "sha-add", 5, 0, 20, 0, ParseStatus::Ok, "",
     ).unwrap();
     svc.set_requirements(vec![
         req("REQ-0001", "资格条件", "投标人须具备水利水电工程施工总承包贰级及以上资质"),
@@ -90,6 +99,12 @@ fn svc_matrix_ready(tag: &str) -> BidService {
         .unwrap();
     assert!(n_sec >= 2, "3 REQ / 每叶 2 条 → 至少 2 节点（父 + 叶），实际 {n_sec}");
     assert!(n_rows >= 3);
+    // 素材面：资质证据 ×1（资格类章节的标题词面）+ 资格/否决 REQ 全绑（矩阵 RESPONDED）
+    let eid = register_ev(&mut svc, "水利水电工程施工总承包贰级资质证书", None);
+    for rid in ["REQ-0001", "REQ-0002"] {
+        svc.store_mut().bind_evidence(&eid, rid, "2026-12-31").unwrap();
+    }
+    let _ = svc.store_mut().build_matrix().unwrap();
     assert_eq!(svc.store().project().unwrap().status, ProjectStatus::MatrixReady);
     svc
 }
@@ -353,11 +368,19 @@ fn draft_section_restarts_from_disk() {
         let mut svc = BidService::open(&dir).unwrap();
         svc.create_project("重启测试", "C-RST", "明标", "restart-key").unwrap();
         svc.store_mut().upsert_file("A.docx", "招标文件", "sha-r", 5, 0, 30, 0, ParseStatus::Ok, "").unwrap();
+        // 补遗件（完整性警告面不进场）
+        svc.store_mut().upsert_file("C-补遗.docx", "补遗", "sha-r-add", 3, 0, 10, 0, ParseStatus::Ok, "").unwrap();
         svc.set_requirements(vec![
             req("REQ-0001", "资格条件", "具备贰级资质"),
             req("REQ-0002", "否决项", "未签字作否决"),
         ]).unwrap();
         svc.prepare_outline_and_matrix(OutlineSpec { target_total_chars: 2_000, max_reqs_per_leaf: 2 }).unwrap();
+        // 素材面（readiness 前置闸：资格叶需资质证据，否决项需矩阵 RESPONDED）
+        let eid = register_ev(&mut svc, "水利水电工程施工总承包贰级资质证书", None);
+        for rid in ["REQ-0001", "REQ-0002"] {
+            svc.store_mut().bind_evidence(&eid, rid, "2026-12-31").unwrap();
+        }
+        let _ = svc.store_mut().build_matrix().unwrap();
         sid = first_leaf(&svc);
         let mut gen = MockGenerator;
         let out = svc.draft_section(&sid, None, None, None, &mut gen).unwrap();

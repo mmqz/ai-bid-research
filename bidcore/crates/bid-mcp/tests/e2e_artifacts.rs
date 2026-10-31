@@ -254,7 +254,8 @@ fn e2e_artifacts_synth_tender() {
         .store()
         .requirements()
         .iter()
-        .filter(|r| r.category == "资格条件" || r.category == "否决项")
+        // #110 任务 1 缺失回报闸：技术参数类也须证据佐证（否则 draft 拒生成）
+        .filter(|r| r.category == "资格条件" || r.category == "否决项" || r.category == "技术参数")
         .map(|r| r.id.clone())
         .collect();
     for rid in &qual_ids {

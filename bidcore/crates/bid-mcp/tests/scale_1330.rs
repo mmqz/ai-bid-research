@@ -145,7 +145,8 @@ fn scale_500k_chars_full_pipeline_under_redlines() {
         subject_name: "投标人".into(), scope: "合成".into(),
     }).unwrap();
     let must: Vec<String> = svc.store().requirements().iter()
-        .filter(|r| matches!(r.category.as_str(), "资格条件" | "否决项"))
+        // #110 任务 1 缺失回报闸：技术参数类也须证据佐证（否则 draft 拒生成）
+        .filter(|r| matches!(r.category.as_str(), "资格条件" | "否决项" | "技术参数"))
         .map(|r| r.id.clone()).collect();
     for rid in &must {
         svc.store_mut().bind_evidence(&eid, rid, "2026-12-31").unwrap();

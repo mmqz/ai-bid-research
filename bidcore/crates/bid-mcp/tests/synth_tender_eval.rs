@@ -372,7 +372,8 @@ fn synth_tender_eval() {
         subject_name: "投标人".into(), scope: "电子与智能化工程".into(),
     }).unwrap();
     let qual_ids: Vec<String> = svc.store().requirements().iter()
-        .filter(|r| r.category == "资格条件" || r.category == "否决项")
+        // #110 任务 1 缺失回报闸：技术参数类也须证据佐证（否则 draft 拒生成）
+        .filter(|r| r.category == "资格条件" || r.category == "否决项" || r.category == "技术参数")
         .map(|r| r.id.clone()).collect();
     assert!(!qual_ids.is_empty(), "⑦ 资格/否决面非空");
     for rid in &qual_ids {

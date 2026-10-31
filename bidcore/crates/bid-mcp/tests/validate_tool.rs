@@ -101,6 +101,43 @@ fn bind_evidence_for(svc: &mut BidService, req_ids: &[&str]) {
     let _ = svc.store_mut().build_matrix().unwrap();
 }
 
+/// 台账面登记一条可用资质（**不绑定**——资格 REQ 的未响应面留给 validate
+/// 规则去报；只为清「资格条件」叶标题词面的 MissingQualification 闸）。
+/// #110 任务 1 后，「零绑定零覆写」的夹具只有配合它才能走到 DRAFTING。
+fn register_qual_ledger_only(svc: &mut BidService) {
+    let _ = svc.store_mut().register_evidence(EvidenceSpec {
+        kind: bid_domain::evidence::EvidenceKind::Qualification,
+        title: "水利水电工程施工总承包贰级资质证书".into(),
+        source_file: "EV-ledger.pdf".into(),
+        source_sha256: "sha-ledger".into(),
+        locator: EngineLocator::DocxParagraph { paragraph_index: 7, text_fingerprint: "fnv64:lg".into() },
+        fingerprint: "fnv64:lg".into(),
+        valid_from: None,
+        valid_until: None,
+        subject_name: "某公司".into(),
+        scope: "水利水电".into(),
+    }).unwrap();
+}
+
+/// 只起草就绪叶（缺失回报闸语义——#110 任务 1）：零绑定零覆写时，含未响应
+/// 否决项的叶拒生成（E_UNPROCESSABLE，闸特性不是回归），保持 Pending——
+/// 「已起草正文 + 否决项未响应」这个废标态从此不可达；未响应面由 validate
+/// 从矩阵报 BLOCKER（导出门把关）。返回就绪叶清单。
+fn draft_ready_leaves(svc: &mut BidService) -> Vec<String> {
+    let leaves = leaf_ids(svc);
+    let mut ready = Vec::new();
+    for sid in &leaves {
+        match svc.draft_section(sid, None, None, None, &mut bid_tools::draft::MockGenerator) {
+            Ok(_) => ready.push(sid.clone()),
+            Err(e) => assert_eq!(
+                e.code(), "E_UNPROCESSABLE",
+                "零绑定时只有含未响应否决项的叶会拒（闸语义）: {e:?}"
+            ),
+        }
+    }
+    ready
+}
+
 /// 校验面调用（scope 参数便捷面）。
 fn validate(svc: &mut BidService, pid: &str) -> Value {
     ok_result(call(svc, "validate_bid_document", json!({ "project_id": pid, "scope": "all" })))
@@ -111,12 +148,13 @@ fn validate(svc: &mut BidService, pid: &str) -> Value {
 #[test]
 fn validate_contract_shape_and_promotes_validating() {
     let (mut svc, pid) = svc_base("shape");
-    // draft 后（DRAFTING）：校验放行——诊断不是门（BLOCKER 是产出不是失败）
-    for sid in leaf_ids(&svc) {
-        svc.draft_section(&sid, None, None, None, &mut bid_tools::draft::MockGenerator).unwrap();
-    }
+    // 缺失回报闸（#110 任务 1）：登记可用资质（不绑——未响应面留给 validate），
+    // 只起草就绪叶；含未响应否决项（REQ-0003）的叶拒生成、保持 Pending
+    register_qual_ledger_only(&mut svc);
+    let ready = draft_ready_leaves(&mut svc);
+    assert!(!ready.is_empty(), "至少资格叶可起草（进 DRAFTING）");
     let r = validate(&mut svc, &pid);
-    assert_eq!(r["ok"], json!(false), "有 BLOCKER 时 ok=false（未响应×3）");
+    assert_eq!(r["ok"], json!(false), "有 BLOCKER 时 ok=false（未响应×3 + 未起草叶）");
     assert!(r["findings"].as_array().unwrap().len() >= 3, "未响应 3 条");
     assert!(r["counts"]["blocker"].as_u64().unwrap() >= 3);
     assert!(r["counts"]["deterministic"].as_u64().unwrap() >= 3);
@@ -164,9 +202,10 @@ fn validate_after_draft_runs_and_reports() {
 #[test]
 fn rule_veto_and_qual_unresponded_are_blockers() {
     let (mut svc, pid) = svc_base("veto-qual");
-    for sid in leaf_ids(&svc) {
-        svc.draft_section(&sid, None, None, None, &mut bid_tools::draft::MockGenerator).unwrap();
-    }
+    // 缺失回报闸（#110 任务 1）：否决叶（REQ-0003 未响应）拒生成保持 Pending；
+    // 资格叶登记台账资质后可起草。未响应面由 validate 从矩阵报 BLOCKER
+    register_qual_ledger_only(&mut svc);
+    let _ = draft_ready_leaves(&mut svc);
     let r = validate(&mut svc, &pid);
     let codes: Vec<&str> = r["findings"].as_array().unwrap().iter()
         .map(|f| f["rule_code"].as_str().unwrap()).collect();
@@ -351,7 +390,8 @@ fn validate_rejects_bad_params_and_routes() {
     assert_eq!(err_code(&reply), "E_UNPROCESSABLE");
     let reply = call(&mut svc, "validate_bid_document", json!({ "project_id": "PRJ-9999" }));
     assert_eq!(err_code(&reply), "E_NOTFOUND");
-    // dark_bid 告警（词表面阶段 7——告知不静默）
+    // dark_bid 告警（词表面阶段 7——告知不静默）——素材面齐备后全叶可起草
+    bind_evidence_for(&mut svc, &["REQ-0001", "REQ-0002", "REQ-0003"]);
     for sid in leaf_ids(&svc) {
         svc.draft_section(&sid, None, None, None, &mut bid_tools::draft::MockGenerator).unwrap();
     }

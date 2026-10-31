@@ -141,9 +141,10 @@ fn e2e_tender_in_docx_out() {
         subject_name: "投标人".into(),
         scope: "电子与智能化工程".into(),
     }).unwrap();
-    // 资格类 REQ 全绑（覆盖否决/资格的必选面——阻断清零）
+    // 资格类 REQ 全绑（覆盖否决/资格的必选面——阻断清零；技术参数类也须
+    // 佐证——#110 任务 1 缺失回报闸，否则 draft 拒生成）
     let qual_ids: Vec<String> = svc.store().requirements().iter()
-        .filter(|r| r.category == "资格条件" || r.category == "否决项")
+        .filter(|r| r.category == "资格条件" || r.category == "否决项" || r.category == "技术参数")
         .map(|r| r.id.clone()).collect();
     assert!(!qual_ids.is_empty(), "⑤ 资格/否决 REQ 非空（抽取面应含）");
     for rid in &qual_ids {

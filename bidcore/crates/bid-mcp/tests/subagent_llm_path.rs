@@ -358,7 +358,8 @@ fn ensure_prepared(svc: &mut BidService, ws: &Path) -> (String, Vec<String>) {
         "建纲后状态（G1 工具面）: {bo:?}"
     );
 
-    // ---- 待绑 REQ 发现（MCP §4 矩阵分页——资格 + 否决，外部 Agent 同款视角）
+    // ---- 待绑 REQ 发现（MCP §4 矩阵分页——资格 + 否决 + 技术参数，外部 Agent 同款视角；
+    // 技术参数也须佐证——#110 任务 1 缺失回报闸，否则 draft 拒生成）
     let mut bind_ids = matrix_reqs(svc, &pid, "qualification");
     let n_qual = bind_ids.len();
     bind_ids.extend(matrix_reqs(svc, &pid, "veto"));
@@ -368,6 +369,7 @@ fn ensure_prepared(svc: &mut BidService, ws: &Path) -> (String, Vec<String>) {
         "否决项并入: {}",
         bind_ids.len() - n_qual
     );
+    bind_ids.extend(matrix_reqs(svc, &pid, "tech_param"));
 
     // ---- 证据登记 + 绑定（MCP §11——G2 工具面）
     let reg = ok_result(call(

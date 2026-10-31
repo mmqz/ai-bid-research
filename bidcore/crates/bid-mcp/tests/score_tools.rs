@@ -82,6 +82,26 @@ fn svc_drafted(tag: &str, draft_all: bool) -> (BidService, String) {
         .prepare_outline_and_matrix(OutlineSpec { target_total_chars: 6_000, max_reqs_per_leaf: 8 })
         .unwrap();
     assert!(n_sec >= 1);
+    // 素材面（#110 任务 1 缺失回报闸）：否决项 REQ-0003 须矩阵响应、技术参数
+    // REQ-0004 须证据佐证——登记 + 绑定 + 重建矩阵，否则 draft 拒生成
+    use bid_domain::evidence::{EvidenceKind, EvidenceSpec};
+    use bid_domain::locator::EngineLocator;
+    let (eid, _) = svc.store_mut().register_evidence(EvidenceSpec {
+        kind: EvidenceKind::Qualification,
+        title: "贰级资质证书".into(),
+        source_file: "EV-score.pdf".into(),
+        source_sha256: "sha-score-ev".into(),
+        locator: EngineLocator::DocxParagraph { paragraph_index: 2, text_fingerprint: "fnv64:sc".into() },
+        fingerprint: "fnv64:sc".into(),
+        valid_from: None,
+        valid_until: None,
+        subject_name: "某公司".into(),
+        scope: "电子与智能化工程".into(),
+    }).unwrap();
+    for rid in ["REQ-0003", "REQ-0004"] {
+        svc.store_mut().bind_evidence(&eid, rid, "2026-12-31").unwrap();
+    }
+    let _ = svc.store_mut().build_matrix().unwrap();
     if draft_all {
         let parents: std::collections::HashSet<String> = svc.store().sections().iter()
             .filter_map(|n| n.parent_id.clone()).collect();

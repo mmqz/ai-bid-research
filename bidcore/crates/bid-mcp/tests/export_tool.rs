@@ -256,13 +256,33 @@ fn export_blocked_by_unresponded_mandatory_rows() {
         mk_req("REQ-0002", "否决项", "未签字作否决"),
     ]).unwrap();
     let _ = svc.prepare_outline_and_matrix(OutlineSpec { target_total_chars: 1_000, max_reqs_per_leaf: 8 }).unwrap();
-    // 先起草（进 DRAFTING——export 的 guard 面），保持零绑定零覆写
+    // 先起草（进 DRAFTING——export 的 guard 面），保持零绑定零覆写。
+    // 缺失回报闸（#110 任务 1）：登记台账资质（不绑）让资格叶可起草；含未响应
+    // 否决项（REQ-0002）的叶拒生成保持 Pending——未响应面仍由导出门逐行列出
+    use bid_domain::evidence::{EvidenceKind, EvidenceSpec};
+    use bid_domain::locator::EngineLocator;
+    let _ = svc.store_mut().register_evidence(EvidenceSpec {
+        kind: EvidenceKind::Qualification,
+        title: "水利水电工程施工总承包贰级资质证书".into(),
+        source_file: "EV-ledger.pdf".into(),
+        source_sha256: "sha-blk-ledger".into(),
+        locator: EngineLocator::DocxParagraph { paragraph_index: 7, text_fingerprint: "fnv64:bl".into() },
+        fingerprint: "fnv64:bl".into(),
+        valid_from: None,
+        valid_until: None,
+        subject_name: "某公司".into(),
+        scope: "水利水电".into(),
+    }).unwrap();
     let parents: std::collections::HashSet<String> = svc.store().sections().iter()
         .filter_map(|n| n.parent_id.clone()).collect();
     let leaves: Vec<String> = svc.store().sections().iter()
         .filter(|n| !parents.contains(&n.id)).map(|n| n.id.clone()).collect();
     for sid in &leaves {
-        svc.draft_section(sid, None, None, None, &mut bid_tools::draft::MockGenerator).unwrap();
+        match svc.draft_section(sid, None, None, None, &mut bid_tools::draft::MockGenerator) {
+            Ok(_) => {}
+            Err(e) => assert_eq!(e.code(), "E_UNPROCESSABLE",
+                "零绑定时只有含未响应否决项的叶会拒（闸语义）: {e:?}"),
+        }
     }
     // 无绑定无覆写：矩阵必选行 NotResponded → 导出必须拒（防废标门）
     let reply = call(&mut svc, "export_bid_document", json!({

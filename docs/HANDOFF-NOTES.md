@@ -12,11 +12,15 @@
 引擎核心能力（已达标）：
   L1 抽取召回 0.9338 / L2 否决分类召回 0.8413 / P 精确率 0.8762
 
-12 个 MCP 工具（全部接线，search_evidence 降级可选除外）：
+MCP 工具面：12 → **17 个**（#80 第三批 G1/G2/G3 补齐——外部 Agent 纯 MCP
+可驱动全链；search_evidence 降级可选除外）：
   ✅ create / import / extract / matrix / list×2 / state / save_version
   ✅ draft_response_section（#60）     ← 单章起草（mock + 引用回查）
   ✅ export_bid_document（#62/#66）    ← docx + PDF + 暗标
   ✅ validate_bid_document（#63）      ← 8 规则防废标
+  ✅ build_outline（#80 三批 G1）      ← 建纲+矩阵首建 → MATRIX_READY
+  ✅ register_evidence / bind_evidence（G2）← 证据登记/批量绑定+矩阵重算
+  ✅ record_review_gate（G3）          ← 三门记审（human: 复审人门）
   ⬜ search_evidence                   ← 降级可选（查表面够用）
 
 端到端（#64）：corpus-A 真件 8 步全链 0.83s——招标文件进成品 docx 出
@@ -24,6 +28,9 @@
 PDF（#66）：298 页 2.7s（LibreOffice headless）
 收官测验（#80 第一批/PR #81）：synth-tender 合成夹具 7 坑 + 95→98 条答案
 收官测验（#80 第二批）：真实生成通路（人肉 LLM 中继）+ e2e 十件套产物落盘
+收官测验（#80 第三批）：子代理 LLM 多章实测——skill 偏移 3/3 零偏移 +
+  MCP 缺口清单（G1 建纲/G2 证据绑定/G3 审批门无 MCP 面）；评估报告
+  docs/subagent-llm-assessment.md（artifacts/e2e-subagent-path/latest/）
 桌面壳：十阶段全完成（#42）+ 大纲面板（#54）+ 公式面（#53）
 ```
 
@@ -36,6 +43,9 @@ PDF（#66）：298 页 2.7s（LibreOffice headless）
   `scripts/e2e_bid/run_real_llm_path.sh` 两相位（capture 抓 prompt → 人写
   正文 → serve 回灌全链）。接真 API 只需 `.mang/llm.json` 配 api_base/
   api_key/model（#80 第二批实测详见 artifacts/e2e-real-path/latest/）；
+  **无上下文子代理作者也已验证**（#80 第三批）：3 章并行派遣（只发实发
+  prompt，零额外指导）全部合规——skill 偏移面首轮通过；评估与 MCP 缺口
+  见 docs/subagent-llm-assessment.md；
 - 图片/表格嵌入导出面未做（PDF 管线承载，无夹具验证）；
 - `search_evidence` 未做（Lead 裁决：标书场景是查表不是检索——素材库
   上来再启）。
@@ -113,6 +123,14 @@ manifest 层（状态推进后的等价判定）。测试要分步断言。
 
 「确保…」出现在无锚填充句 → unanchored_claims 误报。mock 要结构性
 零无锚（该指标留给真 AI 面才有信号）。
+
+### K6 · OCR 页 NonZeroExit 被当数据面降级——环境 C 静默空导入（#80 第三批修）
+
+tesseract 在位而 chi_sim 缺失时，OCR 页报 NonZeroExit 走「诚实降级」，
+扫描件以 0 块【静默导入成功】——内容整档丢失却无失败信号（环境缺失伪装
+成业务行为，issue #9 的变体）。修复：OCR 页失败且零行块 → 解析失败
+（E_PARTIAL）；部分页成功仍降级。**教训：降级路径要区分「有产出的残缺」
+与「零产出的伪装」，后者必须响亮。**
 
 ---
 

@@ -49,6 +49,11 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         "validate_bid_document" => validate_bid_document(svc, args),
         // ---- #68 阶段 2：生成质量覆盖度检查（只读诊断 + 报告落盘）----
         "check_bid_quality" => check_bid_quality(svc, args),
+        // ---- #80 第三批 MCP 补齐（G1/G2/G3——外部 Agent 纯 MCP 驱动全链）----
+        "build_outline" => build_outline(svc, args),
+        "register_evidence" => register_evidence(svc, args),
+        "bind_evidence" => bind_evidence(svc, args),
+        "record_review_gate" => record_review_gate(svc, args),
         // ---- M0 骨架：以下工具待各自里程碑接线 ----
         "search_evidence" => Err(ToolError::unimplemented(name, "M2-b（双通道检索——#59 已降级可选，素材库上来再启）")),
         other => Err(ToolError::ENotFound {
@@ -732,7 +737,8 @@ fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
 
 /// 证据类别过滤值解析（双形态口径——与矩阵 category 过滤一致）：
 /// 机器形态 snake_case（serde 单一真源）或中文展示名（GT 夹具口径）。
-fn parse_evidence_kind(s: &str) -> Result<EvidenceKind, ToolError> {
+/// `at` 是调用方工具名（错误文案定位面——list_evidence / register_evidence 共用）。
+fn parse_evidence_kind(s: &str, at: &str) -> Result<EvidenceKind, ToolError> {
     if let Ok(k) = serde_json::from_value::<EvidenceKind>(Value::String(s.to_string())) {
         return Ok(k);
     }
@@ -747,7 +753,7 @@ fn parse_evidence_kind(s: &str) -> Result<EvidenceKind, ToolError> {
     }
     Err(ToolError::EUnprocessable {
         what: format!(
-            "list_evidence: filters.kind 非法：{s}（合法值：qualification|performance|personnel|certificate|product_doc|solution_module|contract 或对应中文展示名）"
+            "{at}: kind 非法：{s}（合法值：qualification|performance|personnel|certificate|product_doc|solution_module|contract 或对应中文展示名）"
         ),
     })
 }
@@ -783,7 +789,7 @@ fn list_evidence(svc: &mut BidService, args: Value) -> ToolResult {
     let f_kind = filter_str(filters, "kind", "list_evidence")?;
     let f_status = filter_str(filters, "status", "list_evidence")?;
     let kind = match &f_kind {
-        Some(k) => Some(parse_evidence_kind(k)?),
+        Some(k) => Some(parse_evidence_kind(k, "list_evidence")?),
         None => None,
     };
     let status = match &f_status {
@@ -1427,7 +1433,412 @@ fn validate_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
         },
         "sections_checked": report.sections_checked,
         "project_status": svc.store().project().map(|p| p.status.as_str()).unwrap_or("UNKNOWN"),
+        // #80 第三批外部 Agent 实测摩擦 #2：validate 会推进版本（VALIDATING
+        // 转换面），响应必须回传新版本号——否则调用方后续带旧版本号 → E_CONFLICT
+        // （契约 §0「响应统一携带 project_version」的承诺面）。
+        "project_version": svc.store().content_version(),
         "request_id": next_request_id(),
     });
     Ok(out)
+}
+
+// ================================================================ #80 第三批 MCP 补齐（G1/G2/G3——契约 §10/§11/§12）
+
+/// 项目路由 + 状态机裁决 + 乐观并发（三件套——四个新工具共用面）。
+fn route_guard(
+    svc: &BidService,
+    project_id: &str,
+    tool: &str,
+    version: Option<u64>,
+) -> Result<(), ToolError> {
+    let proj = svc.store().project().map_err(ToolError::from)?;
+    if proj.id != project_id {
+        return Err(ToolError::ENotFound {
+            what: format!(
+                "project 不存在：{project_id}（当前服务态项目：{}）",
+                proj.id
+            ),
+        });
+    }
+    svc.store().guard_tool(tool).map_err(ToolError::from)?;
+    svc.store()
+        .check_version(version)
+        .map_err(ToolError::from)?;
+    Ok(())
+}
+
+/// `build_outline` —— 契约 §10（G1：建纲 + 矩阵首建，REQUIREMENTS_EXTRACTED 态）。
+///
+/// 壳层职责：参数校验（spec 可选字段 + 值域）→ 三件套 → 前置（条款面非空）
+/// → 转发 `BidService::prepare_outline_and_matrix`（推导大纲树 + 矩阵首建
+/// 推进 MATRIX_READY + 写后自动落盘）→ 叶/目标字数统计组装。
+///
+/// 幂等面：语义位查重在域层 `set_outline`（推导确定性）；MATRIX_READY+ 重复
+/// 调用被 guard_tool 拒（E_STATE——重建面属「补遗后增量重抽」的后续需求，
+/// 不在首个版本隐式放行）。
+fn build_outline(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "build_outline";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    let target_total_chars = opt_u64(&args, "target_total_chars", TOOL)?;
+    let max_reqs_per_leaf = opt_u64(&args, "max_reqs_per_leaf", TOOL)?;
+    if let Some(t) = target_total_chars {
+        if !(1_000..=5_000_000).contains(&t) {
+            return Err(ToolError::EUnprocessable {
+                what: format!("{TOOL}: target_total_chars 值域 1,000..=5,000,000（收到 {t}）"),
+            });
+        }
+    }
+    if let Some(m) = max_reqs_per_leaf {
+        if !(1..=50).contains(&m) {
+            return Err(ToolError::EUnprocessable {
+                what: format!("{TOOL}: max_reqs_per_leaf 值域 1..=50（收到 {m}）"),
+            });
+        }
+    }
+
+    route_guard(svc, &project_id, TOOL, project_version)?;
+
+    // 前置：条款面非空（空纲无意义——与 build_matrix 同口径）
+    let n_reqs = svc.store().requirements().len();
+    if n_reqs == 0 {
+        return Err(ToolError::EState {
+            what: format!(
+                "{} 态条款集为空——先 extract_requirements",
+                svc.store()
+                    .project()
+                    .map(|p| p.status.as_str())
+                    .unwrap_or("?")
+            ),
+        });
+    }
+
+    let spec = bid_domain::outline::OutlineSpec {
+        target_total_chars: target_total_chars.unwrap_or(20_000).min(u32::MAX as u64) as u32,
+        max_reqs_per_leaf: max_reqs_per_leaf.unwrap_or(8) as usize,
+    };
+    let (n_sections, n_rows, n_blocking) = svc
+        .prepare_outline_and_matrix(spec)
+        .map_err(ToolError::from)?;
+
+    // 叶/目标字数统计（leaf = 不作为任何节点 parent 的节点）
+    let sections = svc.store().sections().to_vec();
+    let parents: std::collections::HashSet<&str> = sections
+        .iter()
+        .filter_map(|n| n.parent_id.as_deref())
+        .collect();
+    let leaves: Vec<&bid_domain::outline::OutlineNode> = sections
+        .iter()
+        .filter(|n| !parents.contains(n.id.as_str()))
+        .collect();
+    let total_target: u64 = leaves.iter().map(|n| n.target_chars as u64).sum();
+
+    Ok(json!({
+        "counts": {
+            "sections": n_sections,
+            "leaves": leaves.len(),
+            "requirements": n_reqs,
+            "total_target_chars": total_target,
+            "matrix_rows": n_rows,
+            "matrix_blocking": n_blocking,
+        },
+        "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
+}
+
+/// 注册入参的可选定位器解析（契约 §11——三种最常用形态的扁平面）。
+///
+/// 缺省（不传 locator）→ `MarkdownBlock { block_id: "mcp-registered:<source_file>" }`
+/// ——诚实标记「经 MCP 登记面、无引擎定位器」（审计面可辨识，不冒充引擎抽取）。
+fn parse_locator_arg(
+    args: &Value,
+    source_file: &str,
+    fingerprint: &str,
+    at: &str,
+) -> Result<bid_domain::locator::EngineLocator, ToolError> {
+    use bid_domain::locator::EngineLocator;
+    let Some(loc) = args.get("locator").filter(|v| !v.is_null()) else {
+        return Ok(EngineLocator::MarkdownBlock {
+            block_id: format!("mcp-registered:{source_file}"),
+            text_fingerprint: fingerprint.to_string(),
+        });
+    };
+    if !loc.is_object() {
+        return Err(ToolError::EUnprocessable {
+            what: format!("{at}: locator 必须为对象 {{ kind, ... }}（收到 {loc}）"),
+        });
+    }
+    let kind = loc["kind"]
+        .as_str()
+        .ok_or_else(|| ToolError::EUnprocessable {
+            what: format!("{at}: locator.kind 必填（docx_paragraph|pdf_page_text|markdown_block）"),
+        })?;
+    let fp = |v: &Value| v.as_str().map(str::to_string).filter(|s| !s.is_empty());
+    match kind {
+        "docx_paragraph" => Ok(EngineLocator::DocxParagraph {
+            paragraph_index: loc["paragraph_index"].as_u64().unwrap_or(0).min(u32::MAX as u64) as u32,
+            text_fingerprint: fp(&loc["text_fingerprint"]).ok_or_else(|| ToolError::EUnprocessable {
+                what: format!("{at}: locator.text_fingerprint 必填（算法前缀:值——如 fnv64:xx）"),
+            })?,
+        }),
+        "pdf_page_text" => Ok(EngineLocator::PdfPageText {
+            page: loc["page"].as_u64().unwrap_or(1).max(1).min(u32::MAX as u64) as u32,
+            text_fingerprint: fp(&loc["text_fingerprint"]).ok_or_else(|| ToolError::EUnprocessable {
+                what: format!("{at}: locator.text_fingerprint 必填（算法前缀:值——如 fnv64:xx）"),
+            })?,
+        }),
+        "markdown_block" => Ok(EngineLocator::MarkdownBlock {
+            block_id: fp(&loc["block_id"]).ok_or_else(|| ToolError::EUnprocessable {
+                what: format!("{at}: locator.block_id 必填"),
+            })?,
+            text_fingerprint: fp(&loc["text_fingerprint"]).ok_or_else(|| ToolError::EUnprocessable {
+                what: format!("{at}: locator.text_fingerprint 必填（算法前缀:值——如 fnv64:xx）"),
+            })?,
+        }),
+        other => Err(ToolError::EUnprocessable {
+            what: format!("{at}: locator.kind 非法：{other}（首版支持 docx_paragraph|pdf_page_text|markdown_block；XLSX/Canvas 面待素材库）"),
+        }),
+    }
+}
+
+/// `register_evidence` —— 契约 §11-A（G2：证据登记，MATRIX_READY+）。
+///
+/// 语义位查重/换版在域层（同 kind+title+subject+scope 的最新非 Superseded
+/// 记录：同指纹 → 幂等重放；异指纹 → 旧记录单向降级 Superseded + 签发新 EV）。
+/// fingerprint 缺省 = `sha256:<source_sha256>`（内容指纹 = 文件身份——调用方
+/// 未给更细粒度时的诚实缺省）。
+fn register_evidence(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "register_evidence";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let kind = parse_evidence_kind(&req_str(&args, "kind", TOOL)?, TOOL)?;
+    let title = req_str(&args, "title", TOOL)?;
+    let source_file = req_str(&args, "source_file", TOOL)?;
+    // 无文件身份不入账（域层 validate_spec 同口径——工具面先拦，文案更定位）
+    let source_sha256 = req_str(&args, "source_sha256", TOOL)?;
+    let subject_name = req_str(&args, "subject_name", TOOL)?;
+    let scope = opt_str(&args, "scope", TOOL)?.unwrap_or_default();
+    let valid_from = opt_str(&args, "valid_from", TOOL)?;
+    let valid_until = opt_str(&args, "valid_until", TOOL)?;
+    let project_version = opt_u64(&args, "project_version", TOOL)?;
+
+    // fingerprint：显式 > sha256:<source_sha256>（裸值补前缀——跨算法可比性）
+    let fingerprint = match opt_str(&args, "fingerprint", TOOL)? {
+        Some(f) => f,
+        None => {
+            let s = source_sha256.trim();
+            if s.contains(':') {
+                s.to_string()
+            } else {
+                format!("sha256:{s}")
+            }
+        }
+    };
+    let locator = parse_locator_arg(&args, &source_file, &fingerprint, TOOL)?;
+
+    route_guard(svc, &project_id, TOOL, project_version)?;
+
+    let spec = bid_domain::evidence::EvidenceSpec {
+        kind,
+        title,
+        source_file,
+        source_sha256,
+        locator,
+        fingerprint,
+        valid_from,
+        valid_until,
+        subject_name,
+        scope,
+    };
+    let (ev_id, deduplicated) = svc.register_evidence(spec).map_err(ToolError::from)?;
+    let status = svc
+        .store()
+        .evidence(&ev_id)
+        .map(|e| e.status.as_str().to_string())
+        .unwrap_or_default();
+
+    Ok(json!({
+        "ev_id": ev_id,
+        "deduplicated": deduplicated,
+        "kind": kind_machine(kind),
+        "status": status,
+        "hint": if deduplicated {
+            "语义位查重命中：同 key 同指纹 → 幂等重放（原 EV-id 直返，不换版）"
+        } else {
+            // #80 第三批外部 Agent 实测摩擦 #8：不得断言旧记录已降级——
+            // 首登与换版在返回面不可分（都是签发新 EV），措辞改为条件式
+            "新 EV 已签发（若为同 key 换版，旧记录已单向降级 SUPERSEDED；全新登记则无旧记录）"
+        },
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
+}
+
+/// `bind_evidence` —— 契约 §11-B（G2：批量绑定 + 矩阵重算，MATRIX_READY+）。
+///
+/// 逐件语义：REQ 不存在 → 逐件 E_NOTFOUND；证据 EXPIRED/SUPERSEDED → 逐件
+/// E_UNPROCESSABLE（R-03 禁绑）；重复绑定 → 幂等重放。部分失败 → E_PARTIAL
+/// （data 携带成功面——与 import_tender_files 同款「错误码不吞成功面」）。
+/// 绑后矩阵重算（行内证据即时可见）。
+fn bind_evidence(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "bind_evidence";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let ev_id = req_str(&args, "ev_id", TOOL)?;
+    let req_ids = opt_str_array(&args, "requirement_ids", TOOL)?.ok_or_else(|| {
+        ToolError::EUnprocessable {
+            what: format!("{TOOL}: requirement_ids 必填（非空数组——批量绑定面）"),
+        }
+    })?;
+    if req_ids.is_empty() {
+        return Err(ToolError::EUnprocessable {
+            what: format!("{TOOL}: requirement_ids 不得为空（空批次无意义）"),
+        });
+    }
+    let bid_open_date = req_str(&args, "bid_open_date", TOOL)?;
+    let project_version = opt_u64(&args, "project_version", TOOL)?;
+
+    route_guard(svc, &project_id, TOOL, project_version)?;
+
+    // 证据在场性前置（批量前单查——错误定位比逐件更清晰）
+    svc.store().evidence(&ev_id).map_err(ToolError::from)?;
+
+    let (bound, replayed, item_errors, rows, blocking) = svc
+        .bind_evidence_batch(&ev_id, &req_ids, &bid_open_date)
+        .map_err(ToolError::from)?;
+
+    let data = json!({
+        "ev_id": ev_id,
+        "bound_new": bound,
+        "replayed": replayed,
+        "requested": req_ids.len(),
+        "matrix": { "rows": rows, "blocking": blocking },
+        "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    });
+    if !item_errors.is_empty() {
+        return Err(ToolError::EPartial {
+            what: format!("{} 条绑定失败（成功 {} 条已落库）", item_errors.len(), bound + replayed),
+            item_errors,
+            hint: Some("逐件核对 item_errors：REQ 不存在 → 核对编号；禁绑 → 证据 EXPIRED/SUPERSEDED（续期请 register_evidence 换新版）".into()),
+            data: Some(data),
+        });
+    }
+    Ok(data)
+}
+
+/// 三门名解析（契约 §12——Gate::as_str 单一真源）。
+fn parse_gate(s: &str, at: &str) -> Result<bid_domain::review::Gate, ToolError> {
+    use bid_domain::review::Gate;
+    match s {
+        "matrix_approval" => Ok(Gate::MatrixApproval),
+        "outline_approval" => Ok(Gate::OutlineApproval),
+        "pre_export_confirm" => Ok(Gate::PreExportConfirm),
+        other => Err(ToolError::EUnprocessable {
+            what: format!("{at}: gate 非法：{other}（合法值：matrix_approval|outline_approval|pre_export_confirm）"),
+        }),
+    }
+}
+
+/// 记审裁决解析（大小写双形态——serde SCREAMING_SNAKE_CASE 单一真源）。
+fn parse_decision(s: &str, at: &str) -> Result<bid_domain::review::Decision, ToolError> {
+    serde_json::from_value::<bid_domain::review::Decision>(Value::String(s.to_uppercase())).map_err(
+        |_| ToolError::EUnprocessable {
+            what: format!("{at}: decision 非法：{s}（合法值：APPROVED|REJECTED）"),
+        },
+    )
+}
+
+/// 记审 findings 解析：`[{ severity, code, message, section_id? }]` →
+/// 域层 `(Severity, code, message, section_id)`。
+fn parse_findings(
+    args: &Value,
+    at: &str,
+) -> Result<Vec<(bid_domain::review::Severity, String, String, Option<String>)>, ToolError> {
+    use bid_domain::review::Severity;
+    let Some(arr) = args.get("findings").filter(|v| !v.is_null()) else {
+        return Ok(vec![]);
+    };
+    let Some(items) = arr.as_array() else {
+        return Err(ToolError::EUnprocessable {
+            what: format!("{at}: findings 必须为数组（收到 {arr}）"),
+        });
+    };
+    let mut out = Vec::with_capacity(items.len());
+    for (i, f) in items.iter().enumerate() {
+        let sev = serde_json::from_value::<Severity>(Value::String(
+            f["severity"].as_str().unwrap_or("").to_uppercase(),
+        ))
+        .map_err(|_| ToolError::EUnprocessable {
+            what: format!("{at}: findings[{i}].severity 非法（合法值：BLOCKER|WARNING|INFO）"),
+        })?;
+        let code = f["code"].as_str().unwrap_or("").trim().to_string();
+        if code.is_empty() {
+            return Err(ToolError::EUnprocessable {
+                what: format!("{at}: findings[{i}].code 必填（规则码——RT 追溯面）"),
+            });
+        }
+        let message = f["message"].as_str().unwrap_or("").trim().to_string();
+        if message.is_empty() {
+            return Err(ToolError::EUnprocessable {
+                what: format!("{at}: findings[{i}].message 必填"),
+            });
+        }
+        out.push((
+            sev,
+            code,
+            message,
+            f["section_id"].as_str().map(str::to_string),
+        ));
+    }
+    Ok(out)
+}
+
+/// `record_review_gate` —— 契约 §12（G3：三门记审，MATRIX_READY+）。
+///
+/// 复审人门（reviewer 须 `human:` 前缀——borrow mdcore ReviewPolicy：AI 操作者
+/// 不得自审自过）、状态门（窗口外拒收）、门序（矩阵先于大纲；导出前门要求
+/// 前两门 Approved）全在域层 `record_review` 裁决——壳层零重实现。
+fn record_review_gate(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "record_review_gate";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let gate = parse_gate(&req_str(&args, "gate", TOOL)?, TOOL)?;
+    let decision = parse_decision(&req_str(&args, "decision", TOOL)?, TOOL)?;
+    let reviewer = req_str(&args, "reviewer", TOOL)?;
+    let findings = parse_findings(&args, TOOL)?;
+    let project_version = opt_u64(&args, "project_version", TOOL)?;
+
+    route_guard(svc, &project_id, TOOL, project_version)?;
+
+    let receipt = svc
+        .record_review_gate(gate, &reviewer, decision, findings)
+        .map_err(ToolError::from)?;
+
+    // 门序进度（同一真源——域层 gate_approved）
+    use bid_domain::review::Gate;
+    let gates_approved: Vec<&str> = [
+        (Gate::MatrixApproval, "matrix_approval"),
+        (Gate::OutlineApproval, "outline_approval"),
+        (Gate::PreExportConfirm, "pre_export_confirm"),
+    ]
+    .iter()
+    .filter(|(g, _)| svc.store().gate_approved(*g))
+    .map(|(_, n)| *n)
+    .collect();
+
+    Ok(json!({
+        "receipt": {
+            "review_id": receipt.review_id,
+            "gate": receipt.gate.as_str(),
+            "decision": receipt.decision.as_str(),
+            "reviewer": reviewer,
+            "finding_ids": receipt.finding_ids,
+            "spawned_rt_ids": receipt.spawned_rt_ids,
+        },
+        "gates_approved": gates_approved,
+        "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
 }

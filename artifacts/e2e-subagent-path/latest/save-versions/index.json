@@ -1,0 +1,29 @@
+{
+  "items": [
+    {
+      "bytes": 3959,
+      "file": "manuscripts/SEC-0008.md",
+      "kind": "ai",
+      "message": "SEC-0008 章节完成——子代理作者撰写（1547 字 / 8 引用 / 偏离 11.1%）",
+      "snapshot": "manuscripts__SEC-0008.md-ac5aa684/20261030-163330-cc24c0.md",
+      "ts": 1793378010650
+    },
+    {
+      "bytes": 4280,
+      "file": "manuscripts/SEC-0009.md",
+      "kind": "ai",
+      "message": "SEC-0009 章节完成——子代理作者撰写（1610 字 / 8 引用 / 偏离 15.7%）",
+      "snapshot": "manuscripts__SEC-0009.md-5a29427d/20261030-163330-e8cc90.md",
+      "ts": 1793378010671
+    },
+    {
+      "bytes": 3971,
+      "file": "manuscripts/SEC-0010.md",
+      "kind": "ai",
+      "message": "SEC-0010 章节完成——子代理作者撰写（1493 字 / 8 引用 / 偏离 7.3%）",
+      "snapshot": "manuscripts__SEC-0010.md-c6342abe/20261030-163330-578e28.md",
+      "ts": 1793378010693
+    }
+  ],
+  "version": 1
+}

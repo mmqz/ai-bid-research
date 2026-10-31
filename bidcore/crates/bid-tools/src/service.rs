@@ -370,6 +370,75 @@ impl BidService {
         Ok((n_sections, n_rows, n_blocking))
     }
 
+    // ------------------------------------------------------------ #80 第三批 MCP 补齐（G2/G3）
+    // 薄壳纪律：工具面（bid-mcp）只做参数校验/状态机裁决/转发；这三段是
+    // 服务层业务半边——域调用 + 写后自动落盘（auto_checkpoint），与既有
+    // 服务方法同款形态。
+
+    /// `register_evidence` 业务半边（G2）：证据登记（语义位查重/换版在域层）。
+    pub fn register_evidence(
+        &mut self,
+        spec: bid_domain::evidence::EvidenceSpec,
+    ) -> Result<(String, bool), ToolError> {
+        let out = self.store.register_evidence(spec)?;
+        self.auto_checkpoint()?;
+        Ok(out)
+    }
+
+    /// `bind_evidence` 业务半边（G2）：逐条绑定（逐件失败收集，不中断批次——
+    /// E_PARTIAL 语义由壳层组装）+ 绑后矩阵重算（行内证据即时可见——绑定
+    /// 不重算会让 get_compliance_matrix 看到陈旧行）。
+    /// 返回 (新增绑定数, 幂等重放数, 逐件错误清单, 矩阵行数, blocking 行数)。
+    #[allow(clippy::type_complexity)]
+    pub fn bind_evidence_batch(
+        &mut self,
+        ev_id: &str,
+        requirement_ids: &[String],
+        bid_open_date: &str,
+    ) -> Result<(usize, usize, Vec<String>, usize, usize), ToolError> {
+        let (mut bound, mut replayed) = (0usize, 0usize);
+        let mut item_errors: Vec<String> = Vec::new();
+        for rid in requirement_ids {
+            match self.store.bind_evidence(ev_id, rid, bid_open_date) {
+                Ok(true) => replayed += 1,
+                Ok(false) => bound += 1,
+                Err(e) => item_errors.push(format!(
+                    "{rid}: {} {}",
+                    e.code(),
+                    match &e {
+                        bid_domain::ToolError::ENotFound { what }
+                        | bid_domain::ToolError::EUnprocessable { reason: what } => what.clone(),
+                        _ => String::new(),
+                    }
+                )),
+            }
+        }
+        let (rows, blocking) = self.store.build_matrix()?;
+        self.auto_checkpoint()?;
+        Ok((bound, replayed, item_errors, rows, blocking))
+    }
+
+    /// `record_review_gate` 业务半边（G3）：三门记审（复审人门/状态门/门序
+    /// 裁决全在域层 record_review）。
+    pub fn record_review_gate(
+        &mut self,
+        gate: bid_domain::review::Gate,
+        reviewer: &str,
+        decision: bid_domain::review::Decision,
+        findings: Vec<(
+            bid_domain::review::Severity,
+            String,
+            String,
+            Option<String>,
+        )>,
+    ) -> Result<bid_domain::review::ReviewReceipt, ToolError> {
+        let receipt =
+            self.store
+                .record_review(gate, reviewer, decision, findings)?;
+        self.auto_checkpoint()?;
+        Ok(receipt)
+    }
+
     /// `import_tender_files` 业务执行（壳已完成参数校验 / 状态机裁决 /
     /// 乐观并发检查——本层只跑管线；T-8：持久化在场时写后自动落盘）。
     pub fn import(&mut self, specs: &[ImportSpec]) -> Result<ImportReport, ToolError> {

@@ -416,3 +416,32 @@ fn export_baseline_fallback_when_no_format_clauses() {
     assert!(styles.contains("仿宋_GB2312"), "基线字体");
     assert!(styles.contains("w:sz w:val=\"24\""), "基线小四（24 半点）");
 }
+
+// ---------------------------------------------------------------- #86 摩擦 #14：watermark 告警降噪
+
+#[test]
+fn export_watermark_false_does_not_warn() {
+    // watermark:false 是显式关闭——不该触发「暂不支持」告警（旧实现按键
+    // 在场即告警，噪音面）；watermark:true 仍应如实告警（未支持面不静默）
+    let (mut svc, pid, _) = svc_drafted("wm-false", false);
+    let r = ok_result(call(&mut svc, "export_bid_document", json!({
+        "project_id": pid, "format": "docx", "output_path": "out/标书-a.docx",
+        "options": { "watermark": false },
+    })));
+    assert!(
+        !r["warnings"].as_array().unwrap().iter().any(|w| w.as_str().unwrap().contains("watermark")),
+        "显式关闭不告警: {}",
+        r["warnings"]
+    );
+
+    let (mut svc2, pid2, _) = svc_drafted("wm-true", false);
+    let r2 = ok_result(call(&mut svc2, "export_bid_document", json!({
+        "project_id": pid2, "format": "docx", "output_path": "out/标书-b.docx",
+        "options": { "watermark": true },
+    })));
+    assert!(
+        r2["warnings"].as_array().unwrap().iter().any(|w| w.as_str().unwrap().contains("watermark")),
+        "开启未支持面仍告警: {}",
+        r2["warnings"]
+    );
+}

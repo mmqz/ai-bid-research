@@ -264,16 +264,27 @@ pub fn validate_document(
         }
     }
 
-    // ---- 规则 5：格式基线告知（Lead「不准硬编码」的降级面——只读复算）
+    // ---- 规则 5：格式基线告知（Lead「不准硬编码」的降级面——只读复算；
+    //      #86 摩擦 #13：区分三种形态——①零候选（真没格式条款）②有候选零
+    //      命中（条款在但参数没提出来）③部分命中（提取到参数，不告警——
+    //      旧实现按「含基线」字样匹配会把 ③ 也误报成「未识别到格式条款」，
+    //      文案与事实打架）
     let (spec, fw) = crate::format_spec::derive_from_requirements(store.requirements());
-    if fw.iter().any(|w| w.contains("基线")) {
+    let zero_candidates = fw.iter().any(|w| w.contains("未发现格式条款"));
+    let candidates_no_params = fw.iter().any(|w| w.contains("可识别"));
+    if zero_candidates || candidates_no_params {
+        let lead_msg = if zero_candidates {
+            "招标文件未发现格式条款（格式要求类 0 条、格式字眼兜底 0 条）"
+        } else {
+            "招标文件存在格式候选条款但未提取到字号/字体/行距/边距参数"
+        };
         findings.push(ValidationFinding {
             rule_code: "W_FORMAT_BASELINE".into(),
             severity: "MINOR",
             section_id: None,
             requirement_id: None,
             message: format!(
-                "招标文件未识别到格式条款——导出将按工程基线（{}/{:.0}pt/{} 倍行距）执行，请人工确认形式评审要求",
+                "{lead_msg}——导出将按工程基线（{}/{:.0}pt/{} 倍行距）执行，请人工确认形式评审要求",
                 spec.global.font.body, spec.global.font.size, spec.global.font.line_height,
             ),
         });

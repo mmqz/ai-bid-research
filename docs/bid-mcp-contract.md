@@ -21,7 +21,10 @@
 in : { name, tender_notice_ref?, bid_deadline, mode(明标|暗标), external_key }
 out: { project_id, status: "DRAFT" }
 幂等: external_key 相同 → 返回已有 project_id（E_PARTIAL 不适用，静默幂等）
-错误: E_CONFLICT（deadline 已过 → 创建即警告 warning=BID_DEADLINE_PAST）
+警告: bid_deadline 已过 → **不报错**，warnings[] 携带文案
+      「BID_DEADLINE_PAST: 投标截止 … 已过（契约 §1：创建即警告，不阻断）」
+      （#86 摩擦 #14 清偿：旧版把 BID_DEADLINE_PAST 写在「错误: E_CONFLICT」
+      条目下，与实现不符——实现一直是 warning 不阻断，契约以实现为准修订）
 状态: → DRAFT
 ```
 
@@ -39,6 +42,8 @@ out: { file_ids:[TF-*], per_file:[{file_id, sha256, pages, tables, chunks, ocr_t
 ## 3. extract_requirements
 ```
 in : { project_id, scope:"all"|file_ids[], options:{granularity, include_scoring_table:true}, project_version }
+     options.granularity：**保留位，当前未实现**（传入被忽略——#86 摩擦 #6 清偿：
+     契约曾提到但无实现，如实标注；未来实现时枚举合法值并在此补记）
 out: { counts:{total, by_category{qualification,veto,scoring,tech_param,commercial,format,other}},
        conflicts:[{a:REQ-*,b:REQ-*,reason}], missing_sequence:[{file_id,expected_clause_nos,found}], warnings[] }
 执行: 确定性先行（条款编号序列解析、表格结构化槽位抽取）→ 模型补全语义归类与陈述规范化；按 dedupe_hash 幂等合并重跑结果
@@ -130,8 +135,18 @@ out: { findings:[{vf_id, kind:DETERMINISTIC|MODEL, rule_code, severity, section_
       页数/字数上限（Word 渲染口径）、必填格式项、签章位存在性、暗标禁字清单扫描、条款引用完整性
   模型（仅产 finding 不改稿）: 表述质量、逻辑连贯、偏离合理化、疑似过度承诺
 状态: → VALIDATING → REVIEWING；BLOCKER 清零（或登记 WAIVED+理由）才可 EXPORT
+      （#86 摩擦 #10 清偿：REVIEWING 是导出时自动补齐的瞬态——单次 export 内部
+      经 Drafting→Validating→Reviewing→ReadyToExport→Exported 逐态补链，
+      不会作为可观察的停泊状态出现在两次调用之间；人工审面是三门
+      record_review_gate（§12），不是项目状态 REVIEWING。若未来需要人工终审
+      停泊位，再启用为可观察状态。）
 出参补充（#80 第三批外部 Agent 实测摩擦 #2）：validate 会推进项目版本（状态转换面），
 响应携带 project_version = 推进后的新值——后续工具调用必须用新值，否则 E_CONFLICT。
+project_version 步进源（#86 摩擦 #9 清偿）：project_version = 内容版本计数器，
+      每一次【内容面落库】+1（set_requirements / set_section_content / 绑定 /
+      状态推进 / 幂等登记等）；一次工具调用内含多步落库 → 步进 +N（N>1 常见，
+      实测 +1~+6）；只读调用零步进。响应携带的 project_version 恒为本次调用
+      完成后的最新值——以此为准传给下一个工具。
 ```
 
 ## 8. export_bid_document
@@ -163,8 +178,8 @@ out: { artifact:{url, sha256, size}, content_version_snapshot, precheck:{blocker
 in : { project_id }
 out: { project_id, summary:{total, drafted, failed, pending, uncovered_req_total, out_of_band,
        unanchored_total}, needs_human:[SEC-*], sections:[{section_id, title, status, chars,
-       target_chars, within_band, covered_reqs, uncovered_reqs, ghost_reqs, cited_evs,
-       uncited_evs, unknown_citations, unanchored_claims, error, needs_human}],
+       target_chars, within_band, requirement_ids, covered_reqs, uncovered_reqs, ghost_reqs,
+       cited_evs, uncited_evs, unknown_citations, unanchored_claims, error, needs_human}],
        artifact:{path, size}|null, warnings[] }
 前置: MATRIX_READY+（起草中即可查进度）；章节树已建
 语义: 只读诊断（D2 同款——报告是导数不是源数据）：
@@ -175,6 +190,9 @@ out: { project_id, summary:{total, drafted, failed, pending, uncovered_req_total
      - FAILED 章错误明细从 S-2 的 failed.json 边车并入（assembler 在场时）；
      - 落盘：{workspace}/artifacts/quality-report.json（workspace 在场；纯内存态
        artifact:null + 告警）。
+     - requirement_ids（#86 摩擦 #4 清偿）：章节绑定的 REQ 全集——章节→REQ
+       归属的正式查询口（无需从矩阵反推）；与 covered/uncovered/ghost 的并集
+       一致（三者在响应面内互斥分桶）。
 状态: 不推状态（只读）
 章节发现面（#80 第三批外部 Agent 实测摩擦 #3，从末尾括号注提升到正文）：
      - 本工具 sections[] **只列叶节点**（可起草面，按 order 排序）——外部 Agent

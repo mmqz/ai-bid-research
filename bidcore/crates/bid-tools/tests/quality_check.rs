@@ -306,3 +306,34 @@ fn report_covers_leaves_only_in_document_order() {
     let all: HashSet<&str> = ids.iter().copied().collect();
     assert!(!all.contains("SEC-TOP"));
 }
+
+// ---------------------------------------------------------------- #86 摩擦 #4：requirement_ids 查询口
+
+#[test]
+fn section_quality_exposes_requirement_ids() {
+    // 章节→REQ 归属的正式查询口：requirement_ids = 章节绑定面全集，
+    // 与 covered/uncovered/ghost 的并集一致（响应面内互斥分桶）
+    let mut s = store_base();
+    let ev1 = bound_ev1(&s);
+    draft_it(&mut s, "SEC-0001", &good_content(&ev1));
+    draft_it(&mut s, "SEC-0002", POOR_CONTENT);
+    for id in ["SEC-0001", "SEC-0002"] {
+        let node = s.sections().iter().find(|n| n.id == id).unwrap().clone();
+        let q = check_section(&s, &node);
+        assert_eq!(
+            q.requirement_ids, node.requirement_ids,
+            "{id} requirement_ids 应为章节绑定面全集"
+        );
+        let mut union = q.covered_reqs.clone();
+        union.extend(q.uncovered_reqs.iter().cloned());
+        union.extend(q.ghost_reqs.iter().cloned());
+        let mut sorted_union = union.clone();
+        sorted_union.sort();
+        let mut sorted_ids = q.requirement_ids.clone();
+        sorted_ids.sort();
+        assert_eq!(
+            sorted_union, sorted_ids,
+            "{id} covered∪uncovered∪ghost 应与 requirement_ids 一致"
+        );
+    }
+}

@@ -227,6 +227,25 @@ impl SectionGenerator for MockGenerator {
     }
 }
 
+/// 外部手稿生成器（issue #100 任务 2——`generator=external` 的落地件）。
+///
+/// 正文来自外部作者（子代理/人工——`draft_response_section` 的 `content`
+/// 参数注入），引擎**不生成只提交**：引用回查（防幻觉）、CAS 写入、状态
+/// 推进、S-2 落盘全走 [`BidService::draft_section`] 既有路径——外部稿与
+/// mock/real 稿的提交面完全一致（无旁路）。与子代理中继通路
+/// （`run_subagent_path.sh`——OpenAI 兼容端点回灌）互补：免中继直注，
+/// 谁都可当「外部作者」。
+pub struct ExternalGenerator {
+    /// 外部手稿全文（一次性回放——generate 逐字返回）。
+    pub content: String,
+}
+
+impl SectionGenerator for ExternalGenerator {
+    fn generate(&mut self, _input: &SectionDraftInput) -> Result<GeneratedDraft, String> {
+        Ok(GeneratedDraft { content: self.content.clone() })
+    }
+}
+
 /// 扩展句池（填充面——按序循环取用，无随机性；句句带引用锚，使填充不
 /// 产生无锚承诺——unanchored_claims 只在真实 AI 面才有信号）。
 const FILLER_SENTENCES: [&str; 8] = [
@@ -954,25 +973,17 @@ pub struct IterativeSectionOutcome {
     pub iterative: IterativeOutcome,
 }
 
-/// 一次性回放生成器（把迭代循环的最优稿经 [`BidService::draft_section`]
-/// 的既有提交路径落库——提交面零复制，两路径保证一致）。
-struct FinalDraft {
-    content: String,
-}
-
-impl SectionGenerator for FinalDraft {
-    fn generate(&mut self, _input: &SectionDraftInput) -> Result<GeneratedDraft, String> {
-        Ok(GeneratedDraft { content: self.content.clone() })
-    }
-}
+/// 一次性回放生成器已收敛为 [`ExternalGenerator`]（pub——B4 迭代循环的
+/// 最优稿回放与 #100 任务 2 的外部手稿注入同一件：把现成全文经
+/// [`BidService::draft_section`] 的既有提交路径落库——提交面零复制）。
 
 impl super::service::BidService {
     /// `draft_section_iterative` 业务半边（B4——生成 → 自评 → 改写循环）。
     ///
     /// 与 [`BidService::draft_section`] 的关系：循环在内存中跑（B2 自评 +
-    /// B3 质量检查的纯函数面），**最优稿经 FinalDraft 回放走 draft_section
-    /// 的完整提交路径**——引用回查（防幻觉）、CAS 写入、状态推进、S-2
-    /// 落盘、checkpoint 与单次起草完全一致（提交面零复制）。
+    /// B3 质量检查的纯函数面），**最优稿经 ExternalGenerator 回放走
+    /// draft_section 的完整提交路径**——引用回查（防幻觉）、CAS 写入、
+    /// 状态推进、S-2 落盘、checkpoint 与单次起草完全一致（提交面零复制）。
     ///
     /// scorer/project 从 store 现场派生（评分树 + 项目专名——B2/B3 同源）；
     /// 循环 notes 并入 DraftOutcome.warnings（MCP 消费面的单一出口）。
@@ -1006,8 +1017,8 @@ impl super::service::BidService {
             reason: format!("章节 {section_id} 迭代起草失败: {why}"),
         })?;
 
-        // ---- 4. 最优稿经既有提交路径落库（FinalDraft 回放——提交面零复制）
-        let mut replay = FinalDraft { content: iterative.content.clone() };
+        // ---- 4. 最优稿经既有提交路径落库（ExternalGenerator 回放——提交面零复制）
+        let mut replay = ExternalGenerator { content: iterative.content.clone() };
         let mut draft = self.draft_section(
             section_id,
             requirement_override,

@@ -617,12 +617,19 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                     // 误伤评审否决条款（3.1.2 下列情形之一的将被否决 /
                     // 3.2.x 低于成本价应当否决——实测 37 条、DOCX L2 -4.9pp）。
                     // 实测面（探针）：corpus-A 4 条评分项全部含 N分形态；
-                    // BJ 语料 37 条被误伤否决条款全部无分值形态；
-                    // 形态+否决并存 0 条——两全无歧义面。
-                    // 注：评分章内无形态、无否决词的行保持章节上下文
-                    // （总监理工程师等术语行不被资格词抢走——最小扰动）。
+                    // BJ 语料 37 条被误伤否决条款全部无分值形态——两全无歧义面。
+                    // #110 任务 3（G4 修复）：分值形态锁加**否决旁路**——
+                    // 「形态+否决处置并存」时否决优先（synth-tender T2b：
+                    // 「4.6 …每项扣 1 分（最多扣 5 分）；出现实质性负偏离的，
+                    // 作否决投标处理」被形态锁吞为评分项）。GT 实证口径一致：
+                    // 真实语料唯一并存条目（「每有一项错误扣1分，最多扣5分，
+                    // 修正后的报价与投标报价偏差大于 5%，按废标处理」）标
+                    // veto true。与 PDF 路径对齐（469 行 veto_hit 分支先于
+                    // 评分分支——PDF 侧本就否决优先，本修复补齐 DOCX 侧）。
+                    // 零扰动面：corpus-A/BJ 实测「形态+否决并存」除 GT 那
+                    // 1 条 true 外为 0——纯增益修复。
                     let ctx_cat = category_for(chapter, subsection);
-                    let cat = if ctx_cat == "评分项" && re_score_shape.is_match(t) {
+                    let cat = if ctx_cat == "评分项" && re_score_shape.is_match(t) && !vl::is_veto(t) {
                         "评分项"
                     } else if vl::is_veto(t) {
                         "否决项"

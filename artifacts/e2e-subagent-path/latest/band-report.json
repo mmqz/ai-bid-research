@@ -1,0 +1,933 @@
+{
+  "chapters": [
+    {
+      "citations": 1,
+      "dev_pct": 12.2,
+      "section_id": "SEC-0008",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7809
+    },
+    {
+      "citations": 1,
+      "dev_pct": 3.8,
+      "section_id": "SEC-0009",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7220
+    },
+    {
+      "citations": 1,
+      "dev_pct": 6.4,
+      "section_id": "SEC-0010",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7401
+    },
+    {
+      "citations": 1,
+      "dev_pct": 14.0,
+      "section_id": "SEC-0011",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7933
+    },
+    {
+      "citations": 1,
+      "dev_pct": 15.4,
+      "section_id": "SEC-0012",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 8030
+    },
+    {
+      "citations": 1,
+      "dev_pct": 6.4,
+      "section_id": "SEC-0013",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7399
+    },
+    {
+      "citations": 1,
+      "dev_pct": 5.1,
+      "section_id": "SEC-0014",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 6600
+    },
+    {
+      "citations": 1,
+      "dev_pct": 5.8,
+      "section_id": "SEC-0015",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7361
+    },
+    {
+      "citations": 1,
+      "dev_pct": 11.4,
+      "section_id": "SEC-0016",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7747
+    },
+    {
+      "citations": 1,
+      "dev_pct": 9.0,
+      "section_id": "SEC-0017",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 6332
+    },
+    {
+      "citations": 1,
+      "dev_pct": 0.5,
+      "section_id": "SEC-0018",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 6995
+    },
+    {
+      "citations": 1,
+      "dev_pct": 3.8,
+      "section_id": "SEC-0019",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7223
+    },
+    {
+      "citations": 1,
+      "dev_pct": 12.4,
+      "section_id": "SEC-0020",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7823
+    },
+    {
+      "citations": 1,
+      "dev_pct": 3.1,
+      "section_id": "SEC-0021",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 6740
+    },
+    {
+      "citations": 1,
+      "dev_pct": 11.5,
+      "section_id": "SEC-0022",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7755
+    },
+    {
+      "citations": 1,
+      "dev_pct": 2.1,
+      "section_id": "SEC-0023",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 6814
+    },
+    {
+      "citations": 1,
+      "dev_pct": 3.6,
+      "section_id": "SEC-0024",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7207
+    },
+    {
+      "citations": 1,
+      "dev_pct": 1.4,
+      "section_id": "SEC-0025",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7057
+    },
+    {
+      "citations": 1,
+      "dev_pct": 11.3,
+      "section_id": "SEC-0026",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7746
+    },
+    {
+      "citations": 1,
+      "dev_pct": 2.2,
+      "section_id": "SEC-0027",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 6803
+    },
+    {
+      "citations": 1,
+      "dev_pct": 4.1,
+      "section_id": "SEC-0028",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7245
+    },
+    {
+      "citations": 1,
+      "dev_pct": 6.2,
+      "section_id": "SEC-0029",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7388
+    },
+    {
+      "citations": 1,
+      "dev_pct": 4.9,
+      "section_id": "SEC-0030",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7300
+    },
+    {
+      "citations": 1,
+      "dev_pct": 4.4,
+      "section_id": "SEC-0031",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7264
+    },
+    {
+      "citations": 1,
+      "dev_pct": 1.8,
+      "section_id": "SEC-0032",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7080
+    },
+    {
+      "citations": 1,
+      "dev_pct": 0.6,
+      "section_id": "SEC-0033",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 6915
+    },
+    {
+      "citations": 1,
+      "dev_pct": 12.4,
+      "section_id": "SEC-0034",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7819
+    },
+    {
+      "citations": 1,
+      "dev_pct": 8.7,
+      "section_id": "SEC-0035",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7563
+    },
+    {
+      "citations": 1,
+      "dev_pct": 14.0,
+      "section_id": "SEC-0036",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7931
+    },
+    {
+      "citations": 1,
+      "dev_pct": 8.3,
+      "section_id": "SEC-0037",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 6378
+    },
+    {
+      "citations": 1,
+      "dev_pct": 9.5,
+      "section_id": "SEC-0038",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7620
+    },
+    {
+      "citations": 2,
+      "dev_pct": 2.2,
+      "section_id": "SEC-0040",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7110
+    },
+    {
+      "citations": 2,
+      "dev_pct": 7.1,
+      "section_id": "SEC-0041",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7452
+    },
+    {
+      "citations": 2,
+      "dev_pct": 3.9,
+      "section_id": "SEC-0042",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7226
+    },
+    {
+      "citations": 2,
+      "dev_pct": 3.0,
+      "section_id": "SEC-0043",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 6747
+    },
+    {
+      "citations": 2,
+      "dev_pct": 5.5,
+      "section_id": "SEC-0044",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7342
+    },
+    {
+      "citations": 2,
+      "dev_pct": 4.9,
+      "section_id": "SEC-0045",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7298
+    },
+    {
+      "citations": 2,
+      "dev_pct": 1.7,
+      "section_id": "SEC-0046",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7072
+    },
+    {
+      "citations": 2,
+      "dev_pct": 1.6,
+      "section_id": "SEC-0047",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7071
+    },
+    {
+      "citations": 2,
+      "dev_pct": 3.6,
+      "section_id": "SEC-0048",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7204
+    },
+    {
+      "citations": 2,
+      "dev_pct": 6.9,
+      "section_id": "SEC-0049",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7436
+    },
+    {
+      "citations": 2,
+      "dev_pct": 3.3,
+      "section_id": "SEC-0050",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7190
+    },
+    {
+      "citations": 2,
+      "dev_pct": 0.7,
+      "section_id": "SEC-0051",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7008
+    },
+    {
+      "citations": 2,
+      "dev_pct": 3.5,
+      "section_id": "SEC-0052",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7202
+    },
+    {
+      "citations": 2,
+      "dev_pct": 4.9,
+      "section_id": "SEC-0053",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7296
+    },
+    {
+      "citations": 2,
+      "dev_pct": 3.0,
+      "section_id": "SEC-0054",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 6747
+    },
+    {
+      "citations": 2,
+      "dev_pct": 1.7,
+      "section_id": "SEC-0055",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7076
+    },
+    {
+      "citations": 2,
+      "dev_pct": 2.4,
+      "section_id": "SEC-0056",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7121
+    },
+    {
+      "citations": 2,
+      "dev_pct": 0.1,
+      "section_id": "SEC-0057",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 6947
+    },
+    {
+      "citations": 2,
+      "dev_pct": 5.5,
+      "section_id": "SEC-0058",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7342
+    },
+    {
+      "citations": 2,
+      "dev_pct": 4.2,
+      "section_id": "SEC-0059",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7252
+    },
+    {
+      "citations": 2,
+      "dev_pct": 2.2,
+      "section_id": "SEC-0060",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7112
+    },
+    {
+      "citations": 2,
+      "dev_pct": 1.2,
+      "section_id": "SEC-0061",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 6871
+    },
+    {
+      "citations": 2,
+      "dev_pct": 8.5,
+      "section_id": "SEC-0062",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7550
+    },
+    {
+      "citations": 2,
+      "dev_pct": 2.7,
+      "section_id": "SEC-0063",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7146
+    },
+    {
+      "citations": 2,
+      "dev_pct": 3.4,
+      "section_id": "SEC-0064",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7193
+    },
+    {
+      "citations": 2,
+      "dev_pct": 4.5,
+      "section_id": "SEC-0065",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7267
+    },
+    {
+      "citations": 2,
+      "dev_pct": 12.8,
+      "section_id": "SEC-0066",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7846
+    },
+    {
+      "citations": 2,
+      "dev_pct": 11.9,
+      "section_id": "SEC-0067",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7785
+    },
+    {
+      "citations": 2,
+      "dev_pct": 4.4,
+      "section_id": "SEC-0068",
+      "target_chars": 6957,
+      "within_band": true,
+      "words": 7266
+    },
+    {
+      "citations": 2,
+      "dev_pct": 2.5,
+      "section_id": "SEC-0069",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7132
+    },
+    {
+      "citations": 2,
+      "dev_pct": 1.0,
+      "section_id": "SEC-0070",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7027
+    },
+    {
+      "citations": 2,
+      "dev_pct": 3.3,
+      "section_id": "SEC-0071",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7189
+    },
+    {
+      "citations": 2,
+      "dev_pct": 9.2,
+      "section_id": "SEC-0072",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7593
+    },
+    {
+      "citations": 2,
+      "dev_pct": 4.2,
+      "section_id": "SEC-0073",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7249
+    },
+    {
+      "citations": 2,
+      "dev_pct": 4.7,
+      "section_id": "SEC-0074",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7285
+    },
+    {
+      "citations": 2,
+      "dev_pct": 5.7,
+      "section_id": "SEC-0075",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7350
+    },
+    {
+      "citations": 2,
+      "dev_pct": 6.9,
+      "section_id": "SEC-0076",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7433
+    },
+    {
+      "citations": 2,
+      "dev_pct": 4.4,
+      "section_id": "SEC-0077",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 6650
+    },
+    {
+      "citations": 2,
+      "dev_pct": 10.2,
+      "section_id": "SEC-0078",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7668
+    },
+    {
+      "citations": 2,
+      "dev_pct": 1.7,
+      "section_id": "SEC-0079",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 6841
+    },
+    {
+      "citations": 2,
+      "dev_pct": 1.3,
+      "section_id": "SEC-0080",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7046
+    },
+    {
+      "citations": 2,
+      "dev_pct": 14.5,
+      "section_id": "SEC-0081",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7968
+    },
+    {
+      "citations": 2,
+      "dev_pct": 1.9,
+      "section_id": "SEC-0082",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7090
+    },
+    {
+      "citations": 2,
+      "dev_pct": 2.3,
+      "section_id": "SEC-0083",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 6793
+    },
+    {
+      "citations": 2,
+      "dev_pct": 4.5,
+      "section_id": "SEC-0084",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7267
+    },
+    {
+      "citations": 2,
+      "dev_pct": 5.8,
+      "section_id": "SEC-0085",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7359
+    },
+    {
+      "citations": 2,
+      "dev_pct": 2.3,
+      "section_id": "SEC-0086",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7116
+    },
+    {
+      "citations": 2,
+      "dev_pct": 15.3,
+      "section_id": "SEC-0087",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 8017
+    },
+    {
+      "citations": 2,
+      "dev_pct": 8.7,
+      "section_id": "SEC-0088",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7560
+    },
+    {
+      "citations": 2,
+      "dev_pct": 13.6,
+      "section_id": "SEC-0089",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7905
+    },
+    {
+      "citations": 2,
+      "dev_pct": 5.1,
+      "section_id": "SEC-0090",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7311
+    },
+    {
+      "citations": 2,
+      "dev_pct": 6.3,
+      "section_id": "SEC-0092",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7391
+    },
+    {
+      "citations": 2,
+      "dev_pct": 6.4,
+      "section_id": "SEC-0093",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7398
+    },
+    {
+      "citations": 2,
+      "dev_pct": 6.0,
+      "section_id": "SEC-0094",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7371
+    },
+    {
+      "citations": 2,
+      "dev_pct": 0.1,
+      "section_id": "SEC-0095",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 6961
+    },
+    {
+      "citations": 2,
+      "dev_pct": 1.0,
+      "section_id": "SEC-0096",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7024
+    },
+    {
+      "citations": 2,
+      "dev_pct": 9.0,
+      "section_id": "SEC-0097",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7582
+    },
+    {
+      "citations": 2,
+      "dev_pct": 7.5,
+      "section_id": "SEC-0098",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7478
+    },
+    {
+      "citations": 2,
+      "dev_pct": 1.2,
+      "section_id": "SEC-0099",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7041
+    },
+    {
+      "citations": 1,
+      "dev_pct": 0.1,
+      "section_id": "SEC-0101",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 6960
+    },
+    {
+      "citations": 1,
+      "dev_pct": 2.1,
+      "section_id": "SEC-0102",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7104
+    },
+    {
+      "citations": 1,
+      "dev_pct": 6.4,
+      "section_id": "SEC-0103",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7400
+    },
+    {
+      "citations": 1,
+      "dev_pct": 6.9,
+      "section_id": "SEC-0104",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 6476
+    },
+    {
+      "citations": 1,
+      "dev_pct": 14.0,
+      "section_id": "SEC-0106",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7927
+    },
+    {
+      "citations": 1,
+      "dev_pct": 7.9,
+      "section_id": "SEC-0107",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7507
+    },
+    {
+      "citations": 1,
+      "dev_pct": 4.0,
+      "section_id": "SEC-0108",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7232
+    },
+    {
+      "citations": 1,
+      "dev_pct": 4.9,
+      "section_id": "SEC-0109",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7298
+    },
+    {
+      "citations": 1,
+      "dev_pct": 7.2,
+      "section_id": "SEC-0110",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 6453
+    },
+    {
+      "citations": 1,
+      "dev_pct": 1.2,
+      "section_id": "SEC-0111",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7037
+    },
+    {
+      "citations": 1,
+      "dev_pct": 0.9,
+      "section_id": "SEC-0113",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 6893
+    },
+    {
+      "citations": 1,
+      "dev_pct": 6.6,
+      "section_id": "SEC-0114",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7416
+    },
+    {
+      "citations": 1,
+      "dev_pct": 5.6,
+      "section_id": "SEC-0115",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7346
+    },
+    {
+      "citations": 1,
+      "dev_pct": 12.9,
+      "section_id": "SEC-0116",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7853
+    },
+    {
+      "citations": 1,
+      "dev_pct": 7.3,
+      "section_id": "SEC-0117",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 6451
+    },
+    {
+      "citations": 1,
+      "dev_pct": 8.1,
+      "section_id": "SEC-0118",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7522
+    },
+    {
+      "citations": 1,
+      "dev_pct": 4.4,
+      "section_id": "SEC-0119",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7260
+    },
+    {
+      "citations": 1,
+      "dev_pct": 9.5,
+      "section_id": "SEC-0120",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7620
+    },
+    {
+      "citations": 1,
+      "dev_pct": 15.3,
+      "section_id": "SEC-0121",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 8017
+    },
+    {
+      "citations": 1,
+      "dev_pct": 9.7,
+      "section_id": "SEC-0122",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7630
+    },
+    {
+      "citations": 1,
+      "dev_pct": 9.5,
+      "section_id": "SEC-0123",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 6294
+    },
+    {
+      "citations": 1,
+      "dev_pct": 7.1,
+      "section_id": "SEC-0124",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7453
+    },
+    {
+      "citations": 1,
+      "dev_pct": 0.6,
+      "section_id": "SEC-0125",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7000
+    },
+    {
+      "citations": 1,
+      "dev_pct": 12.7,
+      "section_id": "SEC-0126",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7836
+    },
+    {
+      "citations": 1,
+      "dev_pct": 2.1,
+      "section_id": "SEC-0127",
+      "target_chars": 6956,
+      "within_band": true,
+      "words": 7099
+    }
+  ],
+  "dev_pct": {
+    "max": 15.4,
+    "mean": 5.8
+  },
+  "n_chapters": 115,
+  "out_of_band": [],
+  "total_target_chars": 800000,
+  "total_words": 835852,
+  "within_band": 115
+}

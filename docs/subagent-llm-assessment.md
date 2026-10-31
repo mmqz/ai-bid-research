@@ -1,8 +1,14 @@
 # 子代理 LLM 实测评估——skill 偏移面 + MCP 能力面（#80 第三批 · 任务 A'）
 
-> 结论先行：**skill 面首轮通过（3/3 合规零偏移），MCP 面不够（3 个服务面缺口，
-> 外部 Agent 纯 MCP 驱动不了全链）**。本文是实测记录，不是推断——所有数字
-> 来自 `artifacts/e2e-subagent-path/latest/`（run 20261030-163329）。
+> 结论先行：**skill 面两轮通过（3 章小型轮 + 115 章/83.6 万字规模轮均零偏移），
+> MCP 面够用（工具面 17 个 + 全链 stdio 驱动 + 规模轮 115 章全链验证）**。
+> 本文是实测记录，不是推断——小型轮数字来自
+> `artifacts/e2e-subagent-path/20261030-163329/`，规模轮数字来自
+> `artifacts/e2e-subagent-path/latest/`（run 20261031-050432，band-report.json）。
+>
+> **Lead 反馈落地（规模轮由来的记录）**：小型轮完成后 Lead 指出「3 章 ~4.6k
+> 字不构成规模检验——即使不用工作流也能写得很快没有偏差，至少应该
+> 50w-100w 字的测试」。规模轮（§七）按此口径重跑：115 章 / 835,852 字。
 
 ---
 
@@ -182,7 +188,7 @@ E 扫描件以 `ocr_required / 0 chunks` **静默导入成功**，内容整档�
 成功但空文本（白扫）不在此列（诚实空）。修复后全仓 `cargo test -p bid-mcp
 -p bid-parse` 绿。
 
-## 六、复现方式
+## 六、小型轮复现方式（3 章形态——缺省旋钮不变）
 
 ```bash
 # 两相位驱动（中继 + 测试 + 归档一体）：
@@ -195,3 +201,98 @@ scripts/e2e_bid/run_subagent_path.sh phase2 /tmp/subagent-ws   # 回灌全链
 
 测试本体：`bidcore/crates/bid-mcp/tests/subagent_llm_path.rs`（CI 默认
 SKIP——需要中继与作者面，与 real_llm_path 同款纪律）。
+
+---
+
+## 七、规模轮：115 章 / 83.6 万字全子代理撰写（Lead 反馈落地）
+
+> **背景**：小型轮（n=3，~4.6k 字）被 Lead 判定样本量不足——「即使不用
+> 工作流也能写得很快没有偏差」。规模轮把体量拉到 **50w-100w 字区间**，
+> 全部章节由无上下文子代理作者撰写、全链 MCP 回灌。
+
+### 7.1 实验配置（规模旋钮——测试新增，缺省值保持 3 章形态不变）
+
+| 旋钮 | 值 | 语义 |
+|---|---|---|
+| `BID_SUBAGENT_TOTAL_CHARS` | 800,000 | 建纲目标总字数（80 万字，落在 50w-100w 区间） |
+| `BID_SUBAGENT_MAX_REQS_PER_LEAF` | 1 | 每叶单条款——115 叶，配额 ~6,957 字/叶（单次补全能力带内） |
+| `BID_SUBAGENT_N_TARGETS` | 0 | 全部叶章都是目标章（无 mock 补齐） |
+| `BID_SUBAGENT_BAND_TOLERANCE` | 0.15 | 字数带外率容差（偏移是评估数据，记录不中断；超容差才 fail） |
+
+章型分布（synth-tender 引擎抽取 115 条）：否决项 51 章 / 其他 31 章 /
+技术参数 15 章 / 资格条件 8 章 / 评分项 6 章 / 格式要求 4 章——
+**六类章型全覆盖**（小型轮「章型同质」局限被消除）。
+
+### 7.2 派遣面（115 个无上下文子代理作者）
+
+- 主代理（总工）分 10 批并行派遣 115 个子代理（每批 ~12 个），传输性
+  框架与小型轮完全一致：只给 prompt 文件路径 + 手稿输出路径 + 隔离纪律，
+  **零内容指导**；
+- 115/115 交付（同模型 glm-5.3，与小型轮同源——模型均匀性受控）；
+- **传输摩擦实录（新发现）**：9/115（7.8%）子代理因沙箱 Write 工具对
+  /tmp 的写入限制，自行改写至 `/home/z/tmp/...` 等镜像路径后报告成功——
+  总工验收时发现并归位。**教训：传输框架的交付路径须在派遣前探测可写性，
+  或工作区应置于无限制路径**（已登记为框架改进项，非 skill 缺陷——9 份
+  手稿内容本身全部合规）。
+
+### 7.3 结果：skill 面 115/115 零偏移（引擎闸门 + 人工检视双面）
+
+| 指标 | 结果 | 备注 |
+|---|---|---|
+| 总字数 | **835,852**（目标 800,000 的 104.5%） | 全部为子代理真实撰写 |
+| 字数带内（±20%） | **115/115，带外率 0.0%**（容差 15% 未触及） | band-report.json |
+| 偏离分布 | 均值 +5.8%，最大 +15.4%；0-5% 59 章 / 5-10% 37 章 / 10-15% 16 章 / 15-20% 3 章 | 全部偏上浮（与小型轮行为模式一致） |
+| 首行格式 `# 标题` | 115/115 全对 | |
+| 引用卫生 | 115/115 引用自身 REQ；否决项/资格条件章合法引用 [EV-0128]（prepare 链登记的资质证书）；**零编造编号** | |
+| 覆盖度 | uncovered=∅ 全章 | 引擎闸门 |
+| 元信息泄漏 | 零（唯一关键词命中为「外网用户无法访问内网」业务语境误报） | 人工检视 |
+| G4 check_bid_quality | 章节发现 115｜out_of_band 0｜needs_human 0 | 总工编排纪律落地 |
+| validate | blocker=0 | 引擎闸门 |
+| 导出 | docx 4,503,331 字节（78.5 万字正文） | file 核验合法 Word |
+| 用量台账 | 115 次调用 | |
+| 重启恢复 | EXPORTED + 115 叶全量在盘 | |
+| serve 相位耗时 | 23.67s（~100ms/章：中继回灌 + 引用回查 + 覆盖度 + save_version） | |
+
+### 7.4 MCP 面：规模下的能力判定
+
+prepare 链在本轮**全部改走 MCP 工具面**（build_outline §10 /
+register_evidence + bind_evidence §11 / record_review_gate ×3 §12——
+矩阵分页发现待绑 REQ 同外部 Agent 视角），起草/校验/导出/save_version
+走真实 stdio 子进程——**115 章规模全链零服务面直调**。加上 G4
+（check_bid_quality）纳入测试编排，小型轮登记的 G4 编排缺口同步闭环。
+
+规模下新增摩擦：无（115 次 draft + 115 次 save_version + 分页矩阵 +
+三门 + 校验 + 导出全链无报错；唯一故障是 §7.2 的沙箱路径问题，属传输
+框架面而非 MCP 面）。
+
+### 7.5 顺带修复：band-report 百分比缩放 bug（测试面，非引擎面）
+
+首轮 serve 后发现 band-report.json 的 dev_pct 字段把百分比值缩小了
+10 倍（`(dev*100).round()/10` 的舍入写法错误——12.9% 被记成 1.3）。
+带内判定与带外清单不受影响（用原始 dev），但报告数字失真。已修复为
+`(dev*1000).round()/10` 并全链重跑验证（本轮数字均为修复后口径）。
+
+### 7.6 规模轮仍未覆盖的（诚实局限更新）
+
+| # | 未覆盖面 | 状态 |
+|---|---|---|
+| 1 | 多条款章节形态（本轮每叶 1 条款；8 条款/叶的 7k+ 字长章未测） | 待下轮（max_reqs_per_leaf 旋钮已就绪） |
+| 2 | 暗标模式（rules_profile=dark_bid 正文禁字面） | 未变 |
+| 3 | 弱模型/异厂商作者 | 未变（两轮均 glm-5.3） |
+| 4 | 修订循环（带外章打回重写→再回灌） | 本轮零带外未触发；机制已具备（fresh ws 重跑） |
+
+### 7.7 规模轮复现方式
+
+```bash
+BID_SUBAGENT_TOTAL_CHARS=800000 BID_SUBAGENT_MAX_REQS_PER_LEAF=1 \
+BID_SUBAGENT_N_TARGETS=0 BID_SUBAGENT_BAND_TOLERANCE=0.15 \
+scripts/e2e_bid/run_subagent_path.sh phase1 /tmp/subagent-ws-scale
+#   → 派遣 115 个子代理作者（手稿落 manuscripts/SEC-XXXX.md）
+BID_SUBAGENT_TOTAL_CHARS=800000 BID_SUBAGENT_MAX_REQS_PER_LEAF=1 \
+BID_SUBAGENT_N_TARGETS=0 BID_SUBAGENT_BAND_TOLERANCE=0.15 \
+scripts/e2e_bid/run_subagent_path.sh phase2 /tmp/subagent-ws-scale
+# 产物：artifacts/e2e-subagent-path/<run-id>/（含 band-report.json）+ latest
+```
+
+测试：`cargo test --workspace` 438 用例全绿（缺省旋钮 = 3 章形态，
+向后兼容；规模旋钮只影响显式设置时的行为）。

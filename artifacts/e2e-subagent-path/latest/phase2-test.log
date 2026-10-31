@@ -7,18 +7,132 @@ warning: function `content_paragraphs` is never used
     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
 
 warning: `bid-tools` (lib) generated 1 warning
-    Finished `test` profile [unoptimized] target(s) in 0.10s
-     Running tests/subagent_llm_path.rs (/tmp/shared-target/debug/deps/subagent_llm_path-8032a7f0d1d0fe12)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running tests/subagent_llm_path.rs (/tmp/shared-target/debug/deps/subagent_llm_path-bbd8229e3e11e1d3)
 
 running 1 test
-test subagent_llm_multi_chapter_path ... [subagent-path] 准备链 5ms｜目标章节 ["SEC-0008", "SEC-0009", "SEC-0010"]｜叶 16 个
-[subagent-path] serve SEC-0008 ✅ 真实链路（1547 字｜引用 8｜偏离 11.1%｜版本 manuscripts__SEC-0008.md-ac5aa684/20261030-163330-cc24c0.md）｜29ms
-[subagent-path] serve SEC-0009 ✅ 真实链路（1610 字｜引用 8｜偏离 15.7%｜版本 manuscripts__SEC-0009.md-5a29427d/20261030-163330-e8cc90.md）｜21ms
-[subagent-path] serve SEC-0010 ✅ 真实链路（1493 字｜引用 8｜偏离 7.3%｜版本 manuscripts__SEC-0010.md-c6342abe/20261030-163330-578e28.md）｜21ms
-[subagent-path] mock 补齐 13 章｜258ms
-[subagent-path] serve 全链 ✅ 导出 /tmp/subagent-ws/out/子代理通路-投标文件-技术标.docx（103781 字节）｜台账 3 次调用｜真实章节 ["SEC-0008", "SEC-0009", "SEC-0010"]
-[subagent-path] 成品中上述 3 章为【子代理作者真实撰写】，其余为 mock 补齐
+test subagent_llm_multi_chapter_path ... [subagent-path] 准备链 7ms｜目标章节 ["SEC-0008", "SEC-0009", "SEC-0010", "SEC-0011", "SEC-0012", "SEC-0013", "SEC-0014", "SEC-0015", "SEC-0016", "SEC-0017", "SEC-0018", "SEC-0019", "SEC-0020", "SEC-0021", "SEC-0022", "SEC-0023", "SEC-0024", "SEC-0025", "SEC-0026", "SEC-0027", "SEC-0028", "SEC-0029", "SEC-0030", "SEC-0031", "SEC-0032", "SEC-0033", "SEC-0034", "SEC-0035", "SEC-0036", "SEC-0037", "SEC-0038", "SEC-0040", "SEC-0041", "SEC-0042", "SEC-0043", "SEC-0044", "SEC-0045", "SEC-0046", "SEC-0047", "SEC-0048", "SEC-0049", "SEC-0050", "SEC-0051", "SEC-0052", "SEC-0053", "SEC-0054", "SEC-0055", "SEC-0056", "SEC-0057", "SEC-0058", "SEC-0059", "SEC-0060", "SEC-0061", "SEC-0062", "SEC-0063", "SEC-0064", "SEC-0065", "SEC-0066", "SEC-0067", "SEC-0068", "SEC-0069", "SEC-0070", "SEC-0071", "SEC-0072", "SEC-0073", "SEC-0074", "SEC-0075", "SEC-0076", "SEC-0077", "SEC-0078", "SEC-0079", "SEC-0080", "SEC-0081", "SEC-0082", "SEC-0083", "SEC-0084", "SEC-0085", "SEC-0086", "SEC-0087", "SEC-0088", "SEC-0089", "SEC-0090", "SEC-0092", "SEC-0093", "SEC-0094", "SEC-0095", "SEC-0096", "SEC-0097", "SEC-0098", "SEC-0099", "SEC-0101", "SEC-0102", "SEC-0103", "SEC-0104", "SEC-0106", "SEC-0107", "SEC-0108", "SEC-0109", "SEC-0110", "SEC-0111", "SEC-0113", "SEC-0114", "SEC-0115", "SEC-0116", "SEC-0117", "SEC-0118", "SEC-0119", "SEC-0120", "SEC-0121", "SEC-0122", "SEC-0123", "SEC-0124", "SEC-0125", "SEC-0126", "SEC-0127"]｜叶 115 个
+[subagent-path] serve SEC-0008 ✅（7809 字｜引用 1｜偏离 12.2%｜版本 manuscripts__SEC-0008.md-ac5aa684/20261031-050746-9b335a.md）｜34ms
+[subagent-path] serve SEC-0009 ✅（7220 字｜引用 1｜偏离 3.8%｜版本 manuscripts__SEC-0009.md-5a29427d/20261031-050746-2d93aa.md）｜25ms
+[subagent-path] serve SEC-0010 ✅（7401 字｜引用 1｜偏离 6.4%｜版本 manuscripts__SEC-0010.md-c6342abe/20261031-050746-ba8212.md）｜26ms
+[subagent-path] serve SEC-0011 ✅（7933 字｜引用 1｜偏离 14.0%｜版本 manuscripts__SEC-0011.md-5aebf6c7/20261031-050746-1c9348.md）｜27ms
+[subagent-path] serve SEC-0012 ✅（8030 字｜引用 1｜偏离 15.4%｜版本 manuscripts__SEC-0012.md-c58416ac/20261031-050746-4f5220.md）｜28ms
+[subagent-path] serve SEC-0013 ✅（7399 字｜引用 1｜偏离 6.4%｜版本 manuscripts__SEC-0013.md-6c05fab6/20261031-050746-f5ab30.md）｜29ms
+[subagent-path] serve SEC-0014 ✅（6600 字｜引用 1｜偏离 5.1%｜版本 manuscripts__SEC-0014.md-8da5aae0/20261031-050746-89820d.md）｜29ms
+[subagent-path] serve SEC-0015 ✅（7361 字｜引用 1｜偏离 5.8%｜版本 manuscripts__SEC-0015.md-088186e8/20261031-050746-76f916.md）｜30ms
+[subagent-path] serve SEC-0016 ✅（7747 字｜引用 1｜偏离 11.4%｜版本 manuscripts__SEC-0016.md-88b6d6ce/20261031-050746-276da3.md）｜30ms
+[subagent-path] serve SEC-0017 ✅（6332 字｜引用 1｜偏离 9.0%｜版本 manuscripts__SEC-0017.md-06f97ad6/20261031-050746-f02f67.md）｜31ms
+[subagent-path] serve SEC-0018 ✅（6995 字｜引用 1｜偏离 0.5%｜版本 manuscripts__SEC-0018.md-28edda7a/20261031-050746-62fd92.md）｜32ms
+[subagent-path] serve SEC-0019 ✅（7223 字｜引用 1｜偏离 3.8%｜版本 manuscripts__SEC-0019.md-a3ca8683/20261031-050746-edfe98.md）｜32ms
+[subagent-path] serve SEC-0020 ✅（7823 字｜引用 1｜偏离 12.4%｜版本 manuscripts__SEC-0020.md-69f2d689/20261031-050746-d7f49b.md）｜34ms
+[subagent-path] serve SEC-0021 ✅（6740 字｜引用 1｜偏离 3.1%｜版本 manuscripts__SEC-0021.md-ebb03a81/20261031-050746-66d8d7.md）｜34ms
+[subagent-path] serve SEC-0022 ✅（7755 字｜引用 1｜偏离 11.5%｜版本 manuscripts__SEC-0022.md-7b0cea78/20261031-050747-dee013.md）｜35ms
+[subagent-path] serve SEC-0023 ✅（6814 字｜引用 1｜偏离 2.1%｜版本 manuscripts__SEC-0023.md-d41e066f/20261031-050747-1a1349.md）｜35ms
+[subagent-path] serve SEC-0024 ✅（7207 字｜引用 1｜偏离 3.6%｜版本 manuscripts__SEC-0024.md-7a41e666/20261031-050747-2f49a9.md）｜36ms
+[subagent-path] serve SEC-0025 ✅（7057 字｜引用 1｜偏离 1.4%｜版本 manuscripts__SEC-0025.md-24ab7a5f/20261031-050747-3b6ccc.md）｜37ms
+[subagent-path] serve SEC-0026 ✅（7746 字｜引用 1｜偏离 11.3%｜版本 manuscripts__SEC-0026.md-ca108a57/20261031-050747-cdacc1.md）｜38ms
+[subagent-path] serve SEC-0027 ✅（6803 字｜引用 1｜偏离 2.2%｜版本 manuscripts__SEC-0027.md-2322664e/20261031-050747-35a937.md）｜38ms
+[subagent-path] serve SEC-0028 ✅（7245 字｜引用 1｜偏离 4.1%｜版本 manuscripts__SEC-0028.md-de20e6cc/20261031-050747-c10086.md）｜39ms
+[subagent-path] serve SEC-0029 ✅（7388 字｜引用 1｜偏离 6.2%｜版本 manuscripts__SEC-0029.md-37320ac2/20261031-050747-5baeee.md）｜45ms
+[subagent-path] serve SEC-0030 ✅（7300 字｜引用 1｜偏离 4.9%｜版本 manuscripts__SEC-0030.md-a7306652/20261031-050747-ee3ae8.md）｜41ms
+[subagent-path] serve SEC-0031 ✅（7264 字｜引用 1｜偏离 4.4%｜版本 manuscripts__SEC-0031.md-25734a5b/20261031-050747-6dbaf2.md）｜41ms
+[subagent-path] serve SEC-0032 ✅（7080 字｜引用 1｜偏离 1.8%｜版本 manuscripts__SEC-0032.md-953d5a63/20261031-050747-e16658.md）｜42ms
+[subagent-path] serve SEC-0033 ✅（6915 字｜引用 1｜偏离 0.6%｜版本 manuscripts__SEC-0033.md-3c2b366d/20261031-050747-db4420.md）｜42ms
+[subagent-path] serve SEC-0034 ✅（7819 字｜引用 1｜偏离 12.4%｜版本 manuscripts__SEC-0034.md-f6350632/20261031-050747-206c97.md）｜45ms
+[subagent-path] serve SEC-0035 ✅（7563 字｜引用 1｜偏离 8.7%｜版本 manuscripts__SEC-0035.md-7477aa3a/20261031-050747-e5dc30.md）｜43ms
+[subagent-path] serve SEC-0036 ✅（7931 字｜引用 1｜偏离 14.0%｜版本 manuscripts__SEC-0036.md-fa4a1a43/20261031-050747-53225c.md）｜45ms
+[subagent-path] serve SEC-0037 ✅（6378 字｜引用 1｜偏离 8.3%｜版本 manuscripts__SEC-0037.md-788cc64b/20261031-050747-727403.md）｜45ms
+[subagent-path] serve SEC-0038 ✅（7620 字｜引用 1｜偏离 9.5%｜版本 manuscripts__SEC-0038.md-5d791697/20261031-050747-faf8d9.md）｜46ms
+[subagent-path] serve SEC-0040 ✅（7110 字｜引用 2｜偏离 2.2%｜版本 manuscripts__SEC-0040.md-4a164a1e/20261031-050747-a37528.md）｜46ms
+[subagent-path] serve SEC-0041 ✅（7452 字｜引用 2｜偏离 7.1%｜版本 manuscripts__SEC-0041.md-f47ea616/20261031-050747-bfe884.md）｜48ms
+[subagent-path] serve SEC-0042 ✅（7226 字｜引用 2｜偏离 3.9%｜版本 manuscripts__SEC-0042.md-4b9f262f/20261031-050747-94c3db.md）｜49ms
+[subagent-path] serve SEC-0043 ✅（6747 字｜引用 2｜偏离 3.0%｜版本 manuscripts__SEC-0043.md-a4b03a26/20261031-050747-04b555.md）｜49ms
+[subagent-path] serve SEC-0044 ✅（7342 字｜引用 2｜偏离 5.5%｜版本 manuscripts__SEC-0044.md-f7abaa3e/20261031-050747-217c5f.md）｜50ms
+[subagent-path] serve SEC-0045 ✅（7298 字｜引用 2｜偏离 4.9%｜版本 manuscripts__SEC-0045.md-a57b4637/20261031-050747-710186.md）｜50ms
+[subagent-path] serve SEC-0046 ✅（7072 字｜引用 2｜偏离 1.7%｜版本 manuscripts__SEC-0046.md-e691964f/20261031-050748-6492e7.md）｜51ms
+[subagent-path] serve SEC-0047 ✅（7071 字｜引用 2｜偏离 1.6%｜版本 manuscripts__SEC-0047.md-684efa47/20261031-050748-37b9a0.md）｜52ms
+[subagent-path] serve SEC-0048 ✅（7204 字｜引用 2｜偏离 3.6%｜版本 manuscripts__SEC-0048.md-e7c89a61/20261031-050748-c1b745.md）｜53ms
+[subagent-path] serve SEC-0049 ✅（7436 字｜引用 2｜偏离 6.9%｜版本 manuscripts__SEC-0049.md-6c7ff659/20261031-050748-b43c69.md）｜52ms
+[subagent-path] serve SEC-0050 ✅（7190 字｜引用 2｜偏离 3.3%｜版本 manuscripts__SEC-0050.md-da722af4/20261031-050748-52688d.md）｜55ms
+[subagent-path] serve SEC-0051 ✅（7008 字｜引用 2｜偏离 0.7%｜版本 manuscripts__SEC-0051.md-300886fb/20261031-050748-739be4.md）｜55ms
+[subagent-path] serve SEC-0052 ✅（7202 字｜引用 2｜偏离 3.5%｜版本 manuscripts__SEC-0052.md-d9c316e2/20261031-050748-788018.md）｜56ms
+[subagent-path] serve SEC-0053 ✅（7296 字｜引用 2｜偏离 4.9%｜版本 manuscripts__SEC-0053.md-80b0faec/20261031-050748-363ea8.md）｜56ms
+[subagent-path] serve SEC-0054 ✅（6747 字｜引用 2｜偏离 3.0%｜版本 manuscripts__SEC-0054.md-eb2e2ad1/20261031-050748-903b90.md）｜57ms
+[subagent-path] serve SEC-0055 ✅（7076 字｜引用 2｜偏离 1.7%｜版本 manuscripts__SEC-0055.md-7f0cf6da/20261031-050748-829e49.md）｜57ms
+[subagent-path] serve SEC-0056 ✅（7121 字｜引用 2｜偏离 2.4%｜版本 manuscripts__SEC-0056.md-3e62d6c2/20261031-050748-7566e7.md）｜59ms
+[subagent-path] serve SEC-0057 ✅（6947 字｜引用 2｜偏离 0.1%｜版本 manuscripts__SEC-0057.md-bd127aca/20261031-050748-5f1e5b.md）｜59ms
+[subagent-path] serve SEC-0058 ✅（7342 字｜引用 2｜偏离 5.5%｜版本 manuscripts__SEC-0058.md-3d98dab0/20261031-050748-173242.md）｜59ms
+[subagent-path] serve SEC-0059 ✅（7252 字｜引用 2｜偏离 4.2%｜版本 manuscripts__SEC-0059.md-b87576b9/20261031-050748-e9c1e0.md）｜60ms
+[subagent-path] serve SEC-0060 ✅（7112 字｜引用 2｜偏离 2.2%｜版本 manuscripts__SEC-0060.md-7b86daea/20261031-050748-9bfda1.md）｜62ms
+[subagent-path] serve SEC-0061 ✅（6871 字｜引用 2｜偏离 1.2%｜版本 manuscripts__SEC-0061.md-e6cf0ee1/20261031-050748-6b4dc8.md）｜62ms
+[subagent-path] serve SEC-0062 ✅（7550 字｜引用 2｜偏离 8.5%｜版本 manuscripts__SEC-0062.md-8ca0ded9/20261031-050748-25aec5.md）｜63ms
+[subagent-path] serve SEC-0063 ✅（7146 字｜引用 2｜偏离 2.7%｜版本 manuscripts__SEC-0063.md-e61efad0/20261031-050749-db4323.md）｜64ms
+[subagent-path] serve SEC-0064 ✅（7193 字｜引用 2｜偏离 3.4%｜版本 manuscripts__SEC-0064.md-291c6b0b/20261031-050749-d3e897.md）｜64ms
+[subagent-path] serve SEC-0065 ✅（7267 字｜引用 2｜偏离 4.5%｜版本 manuscripts__SEC-0065.md-ae408f03/20261031-050749-210ddb.md）｜64ms
+[subagent-path] serve SEC-0066 ✅（7846 字｜引用 2｜偏离 12.8%｜版本 manuscripts__SEC-0066.md-27945ef9/20261031-050749-f58d79.md）｜65ms
+[subagent-path] serve SEC-0067 ✅（7785 字｜引用 2｜偏离 11.9%｜版本 manuscripts__SEC-0067.md-a951baf1/20261031-050749-bdb6e2.md）｜66ms
+[subagent-path] serve SEC-0068 ✅（7266 字｜引用 2｜偏离 4.4%｜版本 manuscripts__SEC-0068.md-c4656aa6/20261031-050749-b03b96.md）｜71ms
+[subagent-path] serve SEC-0069 ✅（7132 字｜引用 2｜偏离 2.5%｜版本 manuscripts__SEC-0069.md-4988be9e/20261031-050749-8cdb05.md）｜68ms
+[subagent-path] serve SEC-0070 ✅（7027 字｜引用 2｜偏离 1.0%｜版本 manuscripts__SEC-0070.md-b8579ab3/20261031-050749-dadbb2.md）｜71ms
+[subagent-path] serve SEC-0071 ✅（7189 字｜引用 2｜偏离 3.3%｜版本 manuscripts__SEC-0071.md-37073ebc/20261031-050749-5e3464.md）｜69ms
+[subagent-path] serve SEC-0072 ✅（7593 字｜引用 2｜偏离 9.2%｜版本 manuscripts__SEC-0072.md-bd466ec5/20261031-050749-9aac08.md）｜69ms
+[subagent-path] serve SEC-0073 ✅（7249 字｜引用 2｜偏离 4.2%｜版本 manuscripts__SEC-0073.md-4dbf3ace/20261031-050749-d0f716.md）｜70ms
+[subagent-path] serve SEC-0074 ✅（7285 字｜引用 2｜偏离 4.7%｜版本 manuscripts__SEC-0074.md-a8755ad6/20261031-050749-6270d0.md）｜70ms
+[subagent-path] serve SEC-0075 ✅（7350 字｜引用 2｜偏离 5.7%｜版本 manuscripts__SEC-0075.md-faa5bedd/20261031-050749-ea9279.md）｜72ms
+[subagent-path] serve SEC-0076 ✅（7433 字｜引用 2｜偏离 6.9%｜版本 manuscripts__SEC-0076.md-57cceee5/20261031-050749-f044bc.md）｜73ms
+[subagent-path] serve SEC-0077 ✅（6650 字｜引用 2｜偏离 4.4%｜版本 manuscripts__SEC-0077.md-febbcaef/20261031-050749-e9c3dc.md）｜75ms
+[subagent-path] serve SEC-0078 ✅（7668 字｜引用 2｜偏离 10.2%｜版本 manuscripts__SEC-0078.md-43bd4a71/20261031-050750-40ecd9.md）｜74ms
+[subagent-path] serve SEC-0079 ✅（6841 字｜引用 2｜偏离 1.7%｜版本 manuscripts__SEC-0079.md-eaab6e7a/20261031-050750-8d1a13.md）｜86ms
+[subagent-path] serve SEC-0080 ✅（7046 字｜引用 2｜偏离 1.3%｜版本 manuscripts__SEC-0080.md-460e2e7e/20261031-050750-b0b9b4.md）｜77ms
+[subagent-path] serve SEC-0081 ✅（7968 字｜引用 2｜偏离 14.5%｜版本 manuscripts__SEC-0081.md-c7cb4a76/20261031-050750-ec278b.md）｜78ms
+[subagent-path] serve SEC-0082 ✅（7090 字｜引用 2｜偏离 1.9%｜版本 manuscripts__SEC-0082.md-5cc61a90/20261031-050750-87f8c9.md）｜77ms
+[subagent-path] serve SEC-0083 ✅（6793 字｜引用 2｜偏离 2.3%｜版本 manuscripts__SEC-0083.md-b5d83e87/20261031-050750-3bc55b.md）｜77ms
+[subagent-path] serve SEC-0084 ✅（7267 字｜引用 2｜偏离 4.5%｜版本 manuscripts__SEC-0084.md-95128e5d/20261031-050750-8d254a.md）｜78ms
+[subagent-path] serve SEC-0085 ✅（7359 字｜引用 2｜偏离 5.8%｜版本 manuscripts__SEC-0085.md-16cfea55/20261031-050750-ffea09.md）｜78ms
+[subagent-path] serve SEC-0086 ✅（7116 字｜引用 2｜偏离 2.3%｜版本 manuscripts__SEC-0086.md-9927aa6f/20261031-050750-d57860.md）｜80ms
+[subagent-path] serve SEC-0087 ✅（8017 字｜引用 2｜偏离 15.3%｜版本 manuscripts__SEC-0087.md-1ae4fe66/20261031-050750-b706fa.md）｜81ms
+[subagent-path] serve SEC-0088 ✅（7560 字｜引用 2｜偏离 8.7%｜版本 manuscripts__SEC-0088.md-f8f09ec2/20261031-050750-9276af.md）｜82ms
+[subagent-path] serve SEC-0089 ✅（7905 字｜引用 2｜偏离 13.6%｜版本 manuscripts__SEC-0089.md-7e13faba/20261031-050750-c3078b.md）｜83ms
+[subagent-path] serve SEC-0090 ✅（7311 字｜引用 2｜偏离 5.1%｜版本 manuscripts__SEC-0090.md-c54b1e49/20261031-050751-5ce623.md）｜81ms
+[subagent-path] serve SEC-0092 ✅（7391 字｜引用 2｜偏离 6.3%｜版本 manuscripts__SEC-0092.md-15198a3a/20261031-050751-5fb0d7.md）｜83ms
+[subagent-path] serve SEC-0093 ✅（7398 字｜引用 2｜偏离 6.4%｜版本 manuscripts__SEC-0093.md-6ab12e41/20261031-050751-e1dc62.md）｜83ms
+[subagent-path] serve SEC-0094 ✅（7371 字｜引用 2｜偏离 6.0%｜版本 manuscripts__SEC-0094.md-88e9de6a/20261031-050751-ca214e.md）｜83ms
+[subagent-path] serve SEC-0095 ✅（6961 字｜引用 2｜偏离 0.1%｜版本 manuscripts__SEC-0095.md-072c7a73/20261031-050751-4a29c4.md）｜85ms
+[subagent-path] serve SEC-0096 ✅（7024 字｜引用 2｜偏离 1.0%｜版本 manuscripts__SEC-0096.md-c6162a5b/20261031-050751-769529.md）｜85ms
+[subagent-path] serve SEC-0097 ✅（7582 字｜引用 2｜偏离 9.0%｜版本 manuscripts__SEC-0097.md-18468e62/20261031-050751-1d8dbc.md）｜87ms
+[subagent-path] serve SEC-0098 ✅（7478 字｜引用 2｜偏离 7.5%｜版本 manuscripts__SEC-0098.md-39e62e8b/20261031-050751-fb6d54.md）｜87ms
+[subagent-path] serve SEC-0099 ✅（7041 字｜引用 2｜偏离 1.2%｜版本 manuscripts__SEC-0099.md-ca5efa94/20261031-050751-335ff5.md）｜87ms
+[subagent-path] serve SEC-0101 ✅（6960 字｜引用 1｜偏离 0.1%｜版本 manuscripts__SEC-0101.md-31297e8b/20261031-050751-0af0f5.md）｜91ms
+[subagent-path] serve SEC-0102 ✅（7104 字｜引用 1｜偏离 2.1%｜版本 manuscripts__SEC-0102.md-a1ccce94/20261031-050751-97b68a.md）｜88ms
+[subagent-path] serve SEC-0103 ✅（7400 字｜引用 1｜偏离 6.4%｜版本 manuscripts__SEC-0103.md-1ca96a9c/20261031-050751-a2a809.md）｜93ms
+[subagent-path] serve SEC-0104 ✅（6476 字｜引用 1｜偏离 6.9%｜版本 manuscripts__SEC-0104.md-2dfc7a63/20261031-050752-ef37ea.md）｜89ms
+[subagent-path] serve SEC-0106 ✅（7927 字｜引用 1｜偏离 14.0%｜版本 manuscripts__SEC-0106.md-dac80e73/20261031-050752-636887.md）｜91ms
+[subagent-path] serve SEC-0107 ✅（7507 字｜引用 1｜偏离 7.9%｜版本 manuscripts__SEC-0107.md-81b5fa7c/20261031-050752-9291fd.md）｜90ms
+[subagent-path] serve SEC-0108 ✅（7232 字｜引用 1｜偏离 4.0%｜版本 manuscripts__SEC-0108.md-3df70ac6/20261031-050752-3e4938.md）｜92ms
+[subagent-path] serve SEC-0109 ✅（7298 字｜引用 1｜偏离 4.9%｜版本 manuscripts__SEC-0109.md-e4e4eed0/20261031-050752-858368.md）｜92ms
+[subagent-path] serve SEC-0110 ✅（6453 字｜引用 1｜偏离 7.2%｜版本 manuscripts__SEC-0110.md-75a90aba/20261031-050752-c7f912.md）｜93ms
+[subagent-path] serve SEC-0111 ✅（7037 字｜引用 1｜偏离 1.2%｜版本 manuscripts__SEC-0111.md-cb542eb0/20261031-050752-f69692.md）｜93ms
+[subagent-path] serve SEC-0113 ✅（6893 字｜引用 1｜偏离 0.9%｜版本 manuscripts__SEC-0113.md-e0ae3a9f/20261031-050752-456a06.md）｜96ms
+[subagent-path] serve SEC-0114 ✅（7416 字｜引用 1｜偏离 6.6%｜版本 manuscripts__SEC-0114.md-aea39a98/20261031-050752-77f3b5.md）｜94ms
+[subagent-path] serve SEC-0115 ✅（7346 字｜引用 1｜偏离 5.6%｜版本 manuscripts__SEC-0115.md-3060ee90/20261031-050752-a28d36.md）｜95ms
+[subagent-path] serve SEC-0116 ✅（7853 字｜引用 1｜偏离 12.9%｜版本 manuscripts__SEC-0116.md-adf47e87/20261031-050753-efc02e.md）｜95ms
+[subagent-path] serve SEC-0117 ✅（6451 字｜引用 1｜偏离 7.3%｜版本 manuscripts__SEC-0117.md-2fb1da7f/20261031-050753-a04465.md）｜97ms
+[subagent-path] serve SEC-0118 ✅（7522 字｜引用 1｜偏离 8.1%｜版本 manuscripts__SEC-0118.md-be9e1afb/20261031-050753-563297.md）｜98ms
+[subagent-path] serve SEC-0119 ✅（7260 字｜引用 1｜偏离 4.4%｜版本 manuscripts__SEC-0119.md-405b3ef3/20261031-050753-bebdab.md）｜100ms
+[subagent-path] serve SEC-0120 ✅（7620 字｜引用 1｜偏离 9.5%｜版本 manuscripts__SEC-0120.md-d2c35eef/20261031-050753-9c3f7f.md）｜99ms
+[subagent-path] serve SEC-0121 ✅（8017 字｜引用 1｜偏离 15.3%｜版本 manuscripts__SEC-0121.md-66a22af8/20261031-050753-41251a.md）｜100ms
+[subagent-path] serve SEC-0122 ✅（7630 字｜引用 1｜偏离 9.7%｜版本 manuscripts__SEC-0122.md-d13a8add/20261031-050753-4fd6ce.md）｜101ms
+[subagent-path] serve SEC-0123 ✅（6294 字｜引用 1｜偏离 9.5%｜版本 manuscripts__SEC-0123.md-4c842ee5/20261031-050753-c12215.md）｜107ms
+[subagent-path] serve SEC-0124 ✅（7453 字｜引用 1｜偏离 7.1%｜版本 manuscripts__SEC-0124.md-6d49df0f/20261031-050753-a3d780.md）｜101ms
+[subagent-path] serve SEC-0125 ✅（7000 字｜引用 1｜偏离 0.6%｜版本 manuscripts__SEC-0125.md-1437bb19/20261031-050753-0e44c8.md）｜105ms
+[subagent-path] serve SEC-0126 ✅（7836 字｜引用 1｜偏离 12.7%｜版本 manuscripts__SEC-0126.md-c1574b00/20261031-050754-acc43f.md）｜104ms
+[subagent-path] serve SEC-0127 ✅（7099 字｜引用 1｜偏离 2.1%｜版本 manuscripts__SEC-0127.md-1388af07/20261031-050754-eb0daa.md）｜104ms
+[subagent-path] 字数带：115/115 带内（带外率 0.0%）｜偏离均值 5.8%、最大 15.4%｜总字数 835852｜分布 → /tmp/subagent-ws-scale3/band-report.json
+[subagent-path] mock 补齐 0 章｜0ms
+[subagent-path] G4 check_bid_quality ✅ 章节发现 115｜带外 0｜needs_human 0
+[subagent-path] serve 全链 ✅ 导出 /tmp/subagent-ws-scale3/out/子代理通路-投标文件-技术标.docx（4503331 字节）｜台账 115 次调用｜真实章节 115 章（其余 mock 0 章）
+[subagent-path] 成品中上述 115 章为【子代理作者真实撰写】共 835852 字
 ok
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 23.67s
 

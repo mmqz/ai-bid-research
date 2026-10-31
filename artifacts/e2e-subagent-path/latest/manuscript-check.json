@@ -2,22 +2,806 @@
  {
   "section_id": "SEC-0008",
   "title": "其他（第1块）",
-  "chars": 1547,
+  "chars": 7809,
   "first_line": "# 其他（第1块）",
   "first_line_format": "ok"
  },
  {
   "section_id": "SEC-0009",
   "title": "其他（第2块）",
-  "chars": 1610,
+  "chars": 7220,
   "first_line": "# 其他（第2块）",
   "first_line_format": "ok"
  },
  {
   "section_id": "SEC-0010",
   "title": "其他（第3块）",
-  "chars": 1493,
+  "chars": 7401,
   "first_line": "# 其他（第3块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0011",
+  "title": "其他（第4块）",
+  "chars": 7933,
+  "first_line": "# 其他（第4块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0012",
+  "title": "其他（第5块）",
+  "chars": 8030,
+  "first_line": "# 其他（第5块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0013",
+  "title": "其他（第6块）",
+  "chars": 7399,
+  "first_line": "# 其他（第6块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0014",
+  "title": "其他（第7块）",
+  "chars": 6600,
+  "first_line": "# 其他（第7块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0015",
+  "title": "其他（第8块）",
+  "chars": 7361,
+  "first_line": "# 其他（第8块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0016",
+  "title": "其他（第9块）",
+  "chars": 7747,
+  "first_line": "# 其他（第9块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0017",
+  "title": "其他（第10块）",
+  "chars": 6332,
+  "first_line": "# 其他（第10块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0018",
+  "title": "其他（第11块）",
+  "chars": 6995,
+  "first_line": "# 其他（第11块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0019",
+  "title": "其他（第12块）",
+  "chars": 7223,
+  "first_line": "# 其他（第12块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0020",
+  "title": "其他（第13块）",
+  "chars": 7823,
+  "first_line": "# 其他（第13块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0021",
+  "title": "其他（第14块）",
+  "chars": 6740,
+  "first_line": "# 其他（第14块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0022",
+  "title": "其他（第15块）",
+  "chars": 7755,
+  "first_line": "# 其他（第15块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0023",
+  "title": "其他（第16块）",
+  "chars": 6814,
+  "first_line": "# 其他（第16块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0024",
+  "title": "其他（第17块）",
+  "chars": 7207,
+  "first_line": "# 其他（第17块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0025",
+  "title": "其他（第18块）",
+  "chars": 7057,
+  "first_line": "# 其他（第18块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0026",
+  "title": "其他（第19块）",
+  "chars": 7746,
+  "first_line": "# 其他（第19块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0027",
+  "title": "其他（第20块）",
+  "chars": 6803,
+  "first_line": "# 其他（第20块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0028",
+  "title": "其他（第21块）",
+  "chars": 7245,
+  "first_line": "# 其他（第21块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0029",
+  "title": "其他（第22块）",
+  "chars": 7388,
+  "first_line": "# 其他（第22块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0030",
+  "title": "其他（第23块）",
+  "chars": 7300,
+  "first_line": "# 其他（第23块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0031",
+  "title": "其他（第24块）",
+  "chars": 7264,
+  "first_line": "# 其他（第24块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0032",
+  "title": "其他（第25块）",
+  "chars": 7080,
+  "first_line": "# 其他（第25块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0033",
+  "title": "其他（第26块）",
+  "chars": 6915,
+  "first_line": "# 其他（第26块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0034",
+  "title": "其他（第27块）",
+  "chars": 7819,
+  "first_line": "# 其他（第27块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0035",
+  "title": "其他（第28块）",
+  "chars": 7563,
+  "first_line": "# 其他（第28块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0036",
+  "title": "其他（第29块）",
+  "chars": 7931,
+  "first_line": "# 其他（第29块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0037",
+  "title": "其他（第30块）",
+  "chars": 6378,
+  "first_line": "# 其他（第30块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0038",
+  "title": "其他（第31块）",
+  "chars": 7620,
+  "first_line": "# 其他（第31块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0040",
+  "title": "否决项（第1块）",
+  "chars": 7110,
+  "first_line": "# 否决项（第1块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0041",
+  "title": "否决项（第2块）",
+  "chars": 7452,
+  "first_line": "# 否决项（第2块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0042",
+  "title": "否决项（第3块）",
+  "chars": 7226,
+  "first_line": "# 否决项（第3块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0043",
+  "title": "否决项（第4块）",
+  "chars": 6747,
+  "first_line": "# 否决项（第4块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0044",
+  "title": "否决项（第5块）",
+  "chars": 7342,
+  "first_line": "# 否决项（第5块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0045",
+  "title": "否决项（第6块）",
+  "chars": 7298,
+  "first_line": "# 否决项（第6块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0046",
+  "title": "否决项（第7块）",
+  "chars": 7072,
+  "first_line": "# 否决项（第7块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0047",
+  "title": "否决项（第8块）",
+  "chars": 7071,
+  "first_line": "# 否决项（第8块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0048",
+  "title": "否决项（第9块）",
+  "chars": 7204,
+  "first_line": "# 否决项（第9块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0049",
+  "title": "否决项（第10块）",
+  "chars": 7436,
+  "first_line": "# 否决项（第10块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0050",
+  "title": "否决项（第11块）",
+  "chars": 7190,
+  "first_line": "# 否决项（第11块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0051",
+  "title": "否决项（第12块）",
+  "chars": 7008,
+  "first_line": "# 否决项（第12块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0052",
+  "title": "否决项（第13块）",
+  "chars": 7202,
+  "first_line": "# 否决项（第13块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0053",
+  "title": "否决项（第14块）",
+  "chars": 7296,
+  "first_line": "# 否决项（第14块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0054",
+  "title": "否决项（第15块）",
+  "chars": 6747,
+  "first_line": "# 否决项（第15块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0055",
+  "title": "否决项（第16块）",
+  "chars": 7076,
+  "first_line": "# 否决项（第16块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0056",
+  "title": "否决项（第17块）",
+  "chars": 7121,
+  "first_line": "# 否决项（第17块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0057",
+  "title": "否决项（第18块）",
+  "chars": 6947,
+  "first_line": "# 否决项（第18块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0058",
+  "title": "否决项（第19块）",
+  "chars": 7342,
+  "first_line": "# 否决项（第19块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0059",
+  "title": "否决项（第20块）",
+  "chars": 7252,
+  "first_line": "# 否决项（第20块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0060",
+  "title": "否决项（第21块）",
+  "chars": 7112,
+  "first_line": "# 否决项（第21块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0061",
+  "title": "否决项（第22块）",
+  "chars": 6871,
+  "first_line": "# 否决项（第22块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0062",
+  "title": "否决项（第23块）",
+  "chars": 7550,
+  "first_line": "# 否决项（第23块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0063",
+  "title": "否决项（第24块）",
+  "chars": 7146,
+  "first_line": "# 否决项（第24块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0064",
+  "title": "否决项（第25块）",
+  "chars": 7193,
+  "first_line": "# 否决项（第25块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0065",
+  "title": "否决项（第26块）",
+  "chars": 7267,
+  "first_line": "# 否决项（第26块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0066",
+  "title": "否决项（第27块）",
+  "chars": 7846,
+  "first_line": "# 否决项（第27块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0067",
+  "title": "否决项（第28块）",
+  "chars": 7785,
+  "first_line": "# 否决项（第28块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0068",
+  "title": "否决项（第29块）",
+  "chars": 7266,
+  "first_line": "# 否决项（第29块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0069",
+  "title": "否决项（第30块）",
+  "chars": 7132,
+  "first_line": "# 否决项（第30块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0070",
+  "title": "否决项（第31块）",
+  "chars": 7027,
+  "first_line": "# 否决项（第31块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0071",
+  "title": "否决项（第32块）",
+  "chars": 7189,
+  "first_line": "# 否决项（第32块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0072",
+  "title": "否决项（第33块）",
+  "chars": 7593,
+  "first_line": "# 否决项（第33块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0073",
+  "title": "否决项（第34块）",
+  "chars": 7249,
+  "first_line": "# 否决项（第34块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0074",
+  "title": "否决项（第35块）",
+  "chars": 7285,
+  "first_line": "# 否决项（第35块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0075",
+  "title": "否决项（第36块）",
+  "chars": 7350,
+  "first_line": "# 否决项（第36块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0076",
+  "title": "否决项（第37块）",
+  "chars": 7433,
+  "first_line": "# 否决项（第37块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0077",
+  "title": "否决项（第38块）",
+  "chars": 6650,
+  "first_line": "# 否决项（第38块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0078",
+  "title": "否决项（第39块）",
+  "chars": 7668,
+  "first_line": "# 否决项（第39块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0079",
+  "title": "否决项（第40块）",
+  "chars": 6841,
+  "first_line": "# 否决项（第40块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0080",
+  "title": "否决项（第41块）",
+  "chars": 7046,
+  "first_line": "# 否决项（第41块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0081",
+  "title": "否决项（第42块）",
+  "chars": 7968,
+  "first_line": "# 否决项（第42块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0082",
+  "title": "否决项（第43块）",
+  "chars": 7090,
+  "first_line": "# 否决项（第43块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0083",
+  "title": "否决项（第44块）",
+  "chars": 6793,
+  "first_line": "# 否决项（第44块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0084",
+  "title": "否决项（第45块）",
+  "chars": 7267,
+  "first_line": "# 否决项（第45块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0085",
+  "title": "否决项（第46块）",
+  "chars": 7359,
+  "first_line": "# 否决项（第46块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0086",
+  "title": "否决项（第47块）",
+  "chars": 7116,
+  "first_line": "# 否决项（第47块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0087",
+  "title": "否决项（第48块）",
+  "chars": 8017,
+  "first_line": "# 否决项（第48块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0088",
+  "title": "否决项（第49块）",
+  "chars": 7560,
+  "first_line": "# 否决项（第49块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0089",
+  "title": "否决项（第50块）",
+  "chars": 7905,
+  "first_line": "# 否决项（第50块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0090",
+  "title": "否决项（第51块）",
+  "chars": 7311,
+  "first_line": "# 否决项（第51块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0092",
+  "title": "资格条件（第1块）",
+  "chars": 7391,
+  "first_line": "# 资格条件（第1块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0093",
+  "title": "资格条件（第2块）",
+  "chars": 7398,
+  "first_line": "# 资格条件（第2块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0094",
+  "title": "资格条件（第3块）",
+  "chars": 7371,
+  "first_line": "# 资格条件（第3块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0095",
+  "title": "资格条件（第4块）",
+  "chars": 6961,
+  "first_line": "# 资格条件（第4块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0096",
+  "title": "资格条件（第5块）",
+  "chars": 7024,
+  "first_line": "# 资格条件（第5块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0097",
+  "title": "资格条件（第6块）",
+  "chars": 7582,
+  "first_line": "# 资格条件（第6块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0098",
+  "title": "资格条件（第7块）",
+  "chars": 7478,
+  "first_line": "# 资格条件（第7块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0099",
+  "title": "资格条件（第8块）",
+  "chars": 7041,
+  "first_line": "# 资格条件（第8块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0101",
+  "title": "格式要求（第1块）",
+  "chars": 6960,
+  "first_line": "# 格式要求（第1块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0102",
+  "title": "格式要求（第2块）",
+  "chars": 7104,
+  "first_line": "# 格式要求（第2块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0103",
+  "title": "格式要求（第3块）",
+  "chars": 7400,
+  "first_line": "# 格式要求（第3块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0104",
+  "title": "格式要求（第4块）",
+  "chars": 6476,
+  "first_line": "# 格式要求（第4块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0106",
+  "title": "评分项（第1块）",
+  "chars": 7927,
+  "first_line": "# 评分项（第1块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0107",
+  "title": "评分项（第2块）",
+  "chars": 7507,
+  "first_line": "# 评分项（第2块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0108",
+  "title": "评分项（第3块）",
+  "chars": 7232,
+  "first_line": "# 评分项（第3块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0109",
+  "title": "评分项（第4块）",
+  "chars": 7298,
+  "first_line": "# 评分项（第4块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0110",
+  "title": "评分项（第5块）",
+  "chars": 6453,
+  "first_line": "# 评分项（第5块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0111",
+  "title": "评分项（第6块）",
+  "chars": 7037,
+  "first_line": "# 评分项（第6块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0113",
+  "title": "技术参数（第1块）",
+  "chars": 6893,
+  "first_line": "# 技术参数（第1块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0114",
+  "title": "技术参数（第2块）",
+  "chars": 7416,
+  "first_line": "# 技术参数（第2块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0115",
+  "title": "技术参数（第3块）",
+  "chars": 7346,
+  "first_line": "# 技术参数（第3块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0116",
+  "title": "技术参数（第4块）",
+  "chars": 7853,
+  "first_line": "# 技术参数（第4块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0117",
+  "title": "技术参数（第5块）",
+  "chars": 6451,
+  "first_line": "# 技术参数（第5块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0118",
+  "title": "技术参数（第6块）",
+  "chars": 7522,
+  "first_line": "# 技术参数（第6块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0119",
+  "title": "技术参数（第7块）",
+  "chars": 7260,
+  "first_line": "# 技术参数（第7块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0120",
+  "title": "技术参数（第8块）",
+  "chars": 7620,
+  "first_line": "# 技术参数（第8块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0121",
+  "title": "技术参数（第9块）",
+  "chars": 8017,
+  "first_line": "# 技术参数（第9块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0122",
+  "title": "技术参数（第10块）",
+  "chars": 7630,
+  "first_line": "# 技术参数（第10块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0123",
+  "title": "技术参数（第11块）",
+  "chars": 6294,
+  "first_line": "# 技术参数（第11块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0124",
+  "title": "技术参数（第12块）",
+  "chars": 7453,
+  "first_line": "# 技术参数（第12块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0125",
+  "title": "技术参数（第13块）",
+  "chars": 7000,
+  "first_line": "# 技术参数（第13块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0126",
+  "title": "技术参数（第14块）",
+  "chars": 7836,
+  "first_line": "# 技术参数（第14块）",
+  "first_line_format": "ok"
+ },
+ {
+  "section_id": "SEC-0127",
+  "title": "技术参数（第15块）",
+  "chars": 7099,
+  "first_line": "# 技术参数（第15块）",
   "first_line_format": "ok"
  }
 ]

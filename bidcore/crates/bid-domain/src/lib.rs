@@ -40,6 +40,10 @@
 //! V3-5 扩展（issue #11 批次 v3——单章调度输入面）：
 //! - [`budget`]：S-7 上下文预算与证据裁剪（溢出四阶梯 + 约束区永不截断 +
 //!   `truncated_evidence` 标记 + 确定性 token 估算——「单章输入 ≤ 8k」的裁决面）。
+//!
+//! B1 扩展（issue #84 B1 / P0——价格分，从零到一）：
+//! - [`pricing`]：价格分引擎（基准价五方法 + 偏离扣分 + `score`/`optimal_price`
+//!   ——「报 X 万得几分 / 报多少分最高」的裁决面）。
 
 pub mod assignment;
 pub mod budget;
@@ -52,6 +56,7 @@ pub mod locator;
 pub mod matrix;
 pub mod outline;
 pub mod param;
+pub mod pricing;
 pub mod review;
 pub mod scoring;
 

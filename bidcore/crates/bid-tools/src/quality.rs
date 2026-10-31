@@ -597,3 +597,122 @@ pub fn assess_substance(section: &str) -> SubstanceScore {
         score,
     }
 }
+
+// ---------------------------------------------------------------- B3 维度 3：重复度
+
+/// 重复对的报告收录下限（Jaccard/包含率低于此的对不进报告——无行动价值）。
+pub const DUP_REPORT_FLOOR: f64 = 0.3;
+/// 严重重复线（句级 Jaccard > 此值——issue #97 初版 0.8，原样保留）。
+pub const DUP_SEVERE_JACCARD: f64 = 0.8;
+/// 整段复制线（包含率 > 此值 = 严重）。
+///
+/// Jaccard 的盲区：B 章 20 句全部出自 A 章 40 句（B 是 A 的子集）时
+/// Jaccard = 20/40 = 0.5（被长度差稀释，低于 0.8 漏报），包含率 =
+/// 20/20 = 1.0 如实暴露「B 章整段抄自 A 章」。两形态并报（依据见
+/// [`detect_duplication`]）。
+pub const DUP_SEVERE_CONTAINMENT: f64 = 0.9;
+/// 句子入集最短长度（字符）——更短的是结构性短语（标题/编号行），不是
+/// 内容句；两章共享短短语不构成「重复」。
+const DUP_MIN_SENTENCE_CHARS: usize = 6;
+
+/// 跨章节重复检测报告（issue #97 B3 维度 3）。
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct DuplicationReport {
+    /// 章节两两之间的相似度（句级 Jaccard——降序，只收 ≥ 0.3 的对）。
+    pub pairs: Vec<(String, String, f64)>,
+    /// 整段复制面（containment = |A∩B| / min(|A|,|B|)——降序，只收
+    /// ≥ 0.3 的对）：B 章内容大面积出自 A 章的形态，Jaccard 因两章长度
+    /// 差被稀释，此面补盲。
+    pub contained: Vec<(String, String, f64)>,
+    /// 严重重复对数（Jaccard > 0.8 ∪ 包含率 > 0.9——issue 验收「故意
+    /// 复制一段，检测出 >0.8」的判定面）。
+    pub severe: usize,
+}
+
+/// 枚举标记正则（整段复制后**重新编号**是最常见的改动——剥前导标记让
+/// 「1. 我方承诺…」与「（一）我方承诺…」归一为同一句）。
+fn enumeration_marker_regex() -> &'static regex::Regex {
+    static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    RE.get_or_init(|| {
+        regex::Regex::new(concat!(
+            r"^[\s]*",
+            r"(?:\d{1,3}[.、）)]|[（(]\d{1,3}[)）]|[（(][一二三四五六七八九十]{1,3}[)）]",
+            r"|[①-⑳]|[一二三四五六七八九十]{1,3}[、.．])",
+            r"[\s]*",
+        ))
+        .expect("枚举标记正则是常量——编译不会失败")
+    })
+}
+
+/// 句子入集形态：剥前导枚举标记 + 去全部空白（排版重排不影响内容句的
+/// 同一性——「混凝土 1.2 万立方米」与「混凝土1.2万立方米」是同一句）。
+/// 过短（<6 字）返回 None（结构性短语不入集）。
+fn normalize_sentence(sentence: &str) -> Option<String> {
+    let stripped = enumeration_marker_regex().replace(sentence, "");
+    let compact: String = stripped.chars().filter(|c| !c.is_whitespace()).collect();
+    if compact.chars().count() < DUP_MIN_SENTENCE_CHARS {
+        None
+    } else {
+        Some(compact)
+    }
+}
+
+/// 章节的句子集合（归一化 + 章内去重——句集语义，重复检测的计量单位）。
+fn sentence_set(content: &str) -> HashSet<String> {
+    split_sentences(content)
+        .iter()
+        .filter_map(|s| normalize_sentence(s))
+        .collect()
+}
+
+/// 重复检测（纯内容函数——章节 (id, 正文) 序列的两两比对）。
+///
+/// 算法（issue #97 §B3 维度 3「不要用复杂算法」——句级集合比对）：
+/// 1. 每章切句 → 归一化（剥枚举标记/去空白/滤短句）→ 集合；
+/// 2. 两两 Jaccard = |A∩B| / |A∪B|（issue 指定口径）；
+/// 3. 附加包含率 containment = |A∩B| / min(|A|,|B|)——标书场景「整段
+///    复制」的常见形态是**子集复制**（B 章的每句都来自 A 章，但 A 章更长），
+///    纯 Jaccard 会被长度差稀释漏报（见 [`DUP_SEVERE_CONTAINMENT`] 的
+///    数值例），两形态并报才是对「重复」的诚实覆盖；
+/// 4. 严重 = Jaccard > 0.8 ∪ containment > 0.9；报告只收 ≥ 0.3 的对
+///    （更低的对没有行动价值——全对收录只会淹没报告）。
+pub fn detect_duplication(sections: &[(String, String)]) -> DuplicationReport {
+    let sets: Vec<(&str, HashSet<String>)> = sections
+        .iter()
+        .map(|(id, content)| (id.as_str(), sentence_set(content)))
+        .collect();
+    let mut pairs: Vec<(String, String, f64)> = Vec::new();
+    let mut contained: Vec<(String, String, f64)> = Vec::new();
+    let mut severe = 0usize;
+    for i in 0..sets.len() {
+        for j in (i + 1)..sets.len() {
+            let (id_a, a) = &sets[i];
+            let (id_b, b) = &sets[j];
+            let inter = a.intersection(b).count();
+            if inter == 0 {
+                continue;
+            }
+            let union = a.len() + b.len() - inter;
+            let jaccard = inter as f64 / union as f64;
+            let containment = inter as f64 / a.len().min(b.len()) as f64;
+            if jaccard > DUP_SEVERE_JACCARD || containment > DUP_SEVERE_CONTAINMENT {
+                severe += 1;
+            }
+            let round4 = |v: f64| (v * 10_000.0).round() / 10_000.0;
+            if jaccard >= DUP_REPORT_FLOOR {
+                pairs.push((id_a.to_string(), id_b.to_string(), round4(jaccard)));
+            }
+            if containment >= DUP_REPORT_FLOOR {
+                contained.push((id_a.to_string(), id_b.to_string(), round4(containment)));
+            }
+        }
+    }
+    let desc = |x: &(String, String, f64), y: &(String, String, f64)| {
+        y.2.partial_cmp(&x.2)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| x.0.cmp(&y.0).then_with(|| x.1.cmp(&y.1)))
+    };
+    pairs.sort_by(desc);
+    contained.sort_by(desc);
+    DuplicationReport { pairs, contained, severe }
+}

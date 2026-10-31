@@ -913,8 +913,8 @@
       "will_extract": true
     },
     {
-      "actual_category": "评分项",
-      "category_diff": true,
+      "actual_category": "否决项",
+      "category_diff": false,
       "engine_category": "评分项",
       "excerpt_key": "出现实质性负偏离的，作否决投标处理",
       "expect_occurrences": 1,
@@ -922,7 +922,7 @@
       "ideal_category": "否决项",
       "matched": 1,
       "note": "G4：评标办法章内含「1 分」分值形态→分值形态锁抢先判评分项，否决处置被吞",
-      "prediction_ok": true,
+      "prediction_ok": false,
       "source_file": "A-招标文件.docx",
       "syn_id": "SYN-A-055",
       "trap": "T2b",
@@ -1789,13 +1789,13 @@
     }
   ],
   "summary": {
-    "category_diff": 7,
+    "category_diff": 6,
     "engine_reqs": 115,
     "expected_entries": 98,
     "extras_count": 31,
     "hit": 81,
     "miss": 17,
     "occurrence_diff": 1,
-    "prediction_ok": 97
+    "prediction_ok": 96
   }
 }

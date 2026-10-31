@@ -65,8 +65,8 @@ use serde::{Deserialize, Serialize};
 /// 评标基准价的确定方法（真实评标办法报价规则的抽象——五种，逐 PR 交付）。
 ///
 /// 「基准价怎么定」是价格分的第一半；「偏离怎么扣分」见 [`DeviationRule`]。
-/// 本 PR 交付 `BenchmarkPrice`（基准价法）；后续 PR 依次交付最低价法（87号令
-/// 第五十五条低价优先）、平均价法（康居嘉苑方法三）、复合法（东南大学
+/// 本 PR 交付 `BenchmarkPrice`（基准价法）与 `LowestPrice`（最低价法）；
+/// 后续 PR 依次交付平均价法（康居嘉苑方法三）、复合法（东南大学
 /// C=A×Q1×K1+B×Q2×K2 / 玉带河方法二 / 康居嘉苑方法四）、下浮率法。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -84,6 +84,23 @@ pub enum PriceScoreMethod {
         /// 基准价系数（0 < coefficient ≤ 1——真实办法均为下浮系数：87%..100%）。
         coefficient: f64,
     },
+    /// 最低价法：评标基准价 = **全部有效报价（含己方）的最低值**。
+    ///
+    /// 真实锚点：
+    /// - 财政部令第 87 号第五十五条（政采综合评分法价格分低价优先法）：
+    ///   「满足招标文件要求且投标价格最低的投标报价为评标基准价，其价格分为
+    ///   满分。其他投标人的价格分统一按照下列公式计算：投标报价得分 =
+    ///   （评标基准价/投标报价）× 100」且「**评标过程中，不得去掉报价中的
+    ///   最高报价和最低报价**」——比率口径配 [`DeviationRule::Ratio`]；
+    /// - 康居嘉苑项目监理方法一（ggzy.gov.cn）：最低价基准 + 每高 1% 扣 0.2、
+    ///   每低 1% 扣 0.1、插入法（44 分）——偏离扣分口径配 [`DeviationRule::Price`]。
+    ///
+    /// 注：己方报价 ≥ 最低价恒成立（基准含己方），故己方偏离度 ≥ 0——
+    /// 低价侧扣分对最低价基准不可达（对己方），保留通用公式不特殊化。
+    ///
+    /// 最优报价 = min(others)（并列最低即满分，取等分区间最高价；无竞争报价
+    /// 且无控制价时无界拒绝，无竞争报价有控制价时取控制价）。
+    LowestPrice,
 }
 
 /// 偏离扣分规则（「等于基准价得满分，偏离按幅度扣分」的具体口径）。
@@ -103,6 +120,11 @@ pub enum DeviationRule {
         /// 低于基准价每 1% 的扣分（≥0；0 = 低于不罚）
         deduct_low: f64,
     },
+    /// 比率口径（87号令第五十五条）：得分 =（基准价/报价）× 满分。
+    ///
+    /// 报价 = 基准价时恰满分；高于基准价线性折减（低价侧天然不罚——
+    /// 比率 ≤ 1 时截到满分）。政采综合评分法价格分强制此口径。
+    Ratio,
 }
 
 /// 价格分规格（一个评标办法报价规则的完整参数化——B2 评分自评的消费面）。
@@ -197,6 +219,9 @@ impl PriceScoreSpec {
                     )));
                 }
             }
+            // 最低价法：基准价 = 全集合最低，无额外参数（87号令§55）；
+            // 控制价可选（仅作无效标判定与无竞争报价时的最优上界）
+            PriceScoreMethod::LowestPrice => {}
         }
         match &self.deviation_rule {
             DeviationRule::Price { deduct_high, deduct_low } => {
@@ -209,13 +234,15 @@ impl PriceScoreSpec {
                     )));
                 }
             }
+            // 比率口径（87号令§55）：得分 =（基准/报价）×满分，无参数
+            DeviationRule::Ratio => {}
         }
         Ok(())
     }
 
     /// 评标基准价（当前报价集合下的实际基准值；基准价法不依赖报价集合，
     /// 签名保持五方法统一）。
-    fn benchmark(&self, _bid_price: f64, _others: &[f64]) -> Result<f64, ToolError> {
+    fn benchmark(&self, bid_price: f64, others: &[f64]) -> Result<f64, ToolError> {
         match &self.method {
             PriceScoreMethod::BenchmarkPrice { coefficient } => {
                 // validate() 已确保 budget 存在且为正
@@ -223,6 +250,18 @@ impl PriceScoreSpec {
                     eun("PRICE_SPEC_INVALID: BenchmarkPrice 需要 budget（不应到达——validate 已拦截）")
                 })?;
                 Ok(budget * coefficient)
+            }
+            // 87号令第五十五条：基准价 = 满足要求且最低的投标报价。
+            // 集合 = 己方 + others（含己方——「全部有效投标文件」口径，
+            // 评标过程不得去掉最高最低，87号令明文）。
+            PriceScoreMethod::LowestPrice => {
+                let mut min = bid_price;
+                for p in others {
+                    if *p < min {
+                        min = *p;
+                    }
+                }
+                Ok(min)
             }
         }
     }
@@ -248,16 +287,23 @@ impl PriceScoreSpec {
         let benchmark = self.benchmark(bid_price, others)?;
         // 偏离度：相对基准价的百分比（+高 / −低；87号令/亳州导则/康居嘉苑同口径）
         let deviation = (bid_price - benchmark) / benchmark;
-        let deduction = match &self.deviation_rule {
+        let (deduction, score) = match &self.deviation_rule {
             DeviationRule::Price { deduct_high, deduct_low } => {
-                if deviation > 0.0 {
+                let d = if deviation > 0.0 {
                     deviation * 100.0 * deduct_high
                 } else {
                     (-deviation) * 100.0 * deduct_low
-                }
+                };
+                (d, clamp_score(self.max_score - d, self.max_score))
+            }
+            // 87号令第五十五条：得分 =（基准价/报价）× 满分。
+            // 比率 > 1（报价低于基准）截到满分；比率 ≥ 0 保证下界天然不破。
+            DeviationRule::Ratio => {
+                let raw = benchmark / bid_price * self.max_score;
+                let s = clamp_score(raw, self.max_score);
+                ((self.max_score - s).max(0.0), s)
             }
         };
-        let score = clamp_score(self.max_score - deduction, self.max_score);
         Ok(PriceScoreDetail { benchmark, deviation, deduction, score })
     }
 
@@ -266,6 +312,11 @@ impl PriceScoreSpec {
     /// 基准价法：最优 = 基准价本身（双向扣分的线性口径下峰值恰在偏离为零处；
     /// 低价侧不罚时低于基准的等分区间取最高价即基准价——收益最大）。
     /// 基准价 = 控制价×系数 ≤ 控制价，天然不越限价。
+    ///
+    /// 最低价法：并列最低即满分（基准含己方，报价 ≤ min(others) 时基准 =
+    /// 己方报价、偏离为零/比率为一）——取等分区间最高价 min(others)。
+    /// 无竞争报价（others 空）：有控制价取控制价（等分区间上限），
+    /// 无控制价无界拒绝（诚实错误——不假装知道上限）。
     pub fn optimal_price(&self, others: &[f64]) -> Result<f64, ToolError> {
         self.validate()?;
         check_others(others, self.budget)?;
@@ -273,6 +324,20 @@ impl PriceScoreSpec {
             PriceScoreMethod::BenchmarkPrice { .. } => {
                 // benchmark 不依赖报价集合；coeff ≤ 1 保证 ≤ budget
                 Ok(self.benchmark(f64::NAN, &[])?)
+            }
+            PriceScoreMethod::LowestPrice => {
+                let min_others = others.iter().cloned().fold(f64::INFINITY, f64::min);
+                if min_others.is_finite() {
+                    Ok(min_others)
+                } else if let Some(b) = self.budget {
+                    // 唯一投标人：任意报价均为最低（基准 = 己方）→ 取上限
+                    Ok(b)
+                } else {
+                    Err(eun(
+                        "PRICE_UNBOUNDED: LowestPrice 无竞争报价且无控制价——任意报价都得满分，\
+                         最优报价无上界（提供 others 或 budget）",
+                    ))
+                }
             }
         }
     }
@@ -527,5 +592,158 @@ mod tests {
         let opt = spec.optimal_price(&[950.0, 980.0]).unwrap();
         assert!((opt - 970.0).abs() < 1e-9, "最优报价 = 基准价");
         println!("| 合成场景 | 最优报价反推 | — | — | 手工 970.00 | 引擎 {opt:.6} | 一致 |");
+    }
+
+    // ================================================================ 最低价法（PR2）
+
+    fn lowest_spec(max_score: f64, rule: DeviationRule) -> PriceScoreSpec {
+        PriceScoreSpec {
+            method: PriceScoreMethod::LowestPrice,
+            max_score,
+            budget: None,
+            deviation_rule: rule,
+        }
+    }
+
+    /// 真实规则 1：财政部令第 87 号第五十五条（mof.gov.cn / ccgp.gov.cn）——
+    /// 政采综合评分法价格分**低价优先法**：
+    /// 「满足招标文件要求且投标价格最低的投标报价为评标基准价，其价格分为
+    /// 满分。其他投标人的价格分统一按照下列公式计算：
+    /// 投标报价得分 =（评标基准价/投标报价）× 100」
+    /// 「评标过程中，不得去掉报价中的最高报价和最低报价」
+    ///
+    /// 场景：政采仪器采购，价格分 30 分（货物 ≥30% 满足），5 家报价
+    /// （含己方 115 万）：98.0 / 105.0 / 110.0 / 115.0 / 126.0。
+    #[test]
+    fn real_rule_87_lowest_price_ratio() {
+        let spec = lowest_spec(30.0, DeviationRule::Ratio);
+        let others = [98.0, 105.0, 110.0, 126.0];
+
+        // 己方 115：手工 = 98/115 × 30 = 25.5652173913
+        let d = spec.score_detail(115.0, &others).unwrap();
+        assert_close(d.benchmark, 98.0, "基准价 = 最低报价（含己方全集合）");
+        assert_close(d.score, 98.0 / 115.0 * 30.0, "87号令公式（基准/报价）×满分");
+        assert!((d.score - 25.565217).abs() < 1e-6, "呈现: {:.2}", d.score);
+
+        // 最低价者 98：98/98 × 30 = 30（满分）
+        let d_min = spec.score_detail(98.0, &others).unwrap();
+        assert_close(d_min.score, 30.0, "最低报价满分");
+
+        // 最高价者 126：98/126 × 30 = 23.333333
+        let d_max = spec.score_detail(126.0, &others).unwrap();
+        assert_close(d_max.score, 98.0 / 126.0 * 30.0, "最高报价按公式折减");
+        assert!((d_max.score - 23.333333).abs() < 1e-6, "呈现: {:.2}", d_max.score);
+
+        // 87号令明文「不得去掉最高最低」：基准价必须是纯最低值——
+        // 5 家报价场景下基准不受任何剔除影响（与复合法的对照面）
+        assert_close(d.benchmark, 98.0, "不得去掉最高最低");
+
+        // 最优报价 = min(others) = 98（并列最低即满分）
+        let opt = spec.optimal_price(&others).unwrap();
+        assert_close(opt, 98.0, "最优 = 并列最低");
+        assert_close(spec.score(opt, &others).unwrap(), 30.0, "最优报价得满分");
+    }
+
+    /// 87号令 + 唯一投标人（others 空）：任意报价都是最低 → 满分；
+    /// 最优反推有控制价取控制价（等分区间上限），无控制价无界拒绝。
+    #[test]
+    fn real_rule_87_sole_bidder_and_unbounded() {
+        let mut spec = lowest_spec(30.0, DeviationRule::Ratio);
+        // 唯一投标人：报 88 万也是最低 → 满分
+        let d = spec.score_detail(88.0, &[]).unwrap();
+        assert_close(d.benchmark, 88.0, "唯一报价即基准");
+        assert_close(d.score, 30.0, "唯一投标人满分");
+
+        // 无控制价 + 无竞争报价：最优无界 → 诚实拒绝
+        assert!(spec.optimal_price(&[]).is_err(), "无界必须拒绝");
+        // 有控制价：取控制价（任意报价满分中的最高价）
+        spec.budget = Some(100.0);
+        let opt = spec.optimal_price(&[]).unwrap();
+        assert_close(opt, 100.0, "唯一投标人取控制价上限");
+        assert_close(spec.score(100.0, &[]).unwrap(), 30.0, "控制价报价满分");
+    }
+
+    /// 真实规则 2：康居嘉苑项目监理方法一（ggzy.gov.cn，连云港 2021）——
+    /// 「以有效投标文件的最低投标报价为评标基准价。投标报价等于评标基准价
+    /// 的得满分；偏离评标基准价的，投标报价每高于评标基准价 1% 扣减 0.2 分；
+    /// 投标报价每低于评标基准价 1% 扣减 0.1 分；偏离不足 1% 的，按照插入法
+    /// 计算得分」（44 分）。
+    ///
+    /// 场景：监理报价（万）己方 95.0，others = 98.0 / 102.0 / 106.0 / 112.0。
+    #[test]
+    fn real_rule_kangju_method1_lowest_price_deviation() {
+        let spec = lowest_spec(44.0, DeviationRule::Price { deduct_high: 0.2, deduct_low: 0.1 });
+        let others = [98.0, 102.0, 106.0, 112.0];
+
+        // 己方 95 = 最低价 → 基准 = 95 → 偏离 0 → 满分
+        let d0 = spec.score_detail(95.0, &others).unwrap();
+        assert_close(d0.benchmark, 95.0, "最低报价为基准");
+        assert_close(d0.score, 44.0, "命中基准满分");
+
+        // 若己方报 98（并列最低之一）：基准 = 95（others 里的最低），偏离 = 3/95
+        // 手工：98/95 − 1 = 3.157895% × 0.2 = 0.631579 → 44 − 0.631579 = 43.368421
+        let d1 = spec.score_detail(98.0, &[95.0, 102.0, 106.0, 112.0]).unwrap();
+        assert_close(d1.benchmark, 95.0, "基准 = 全集合最低");
+        assert_close(d1.score, 44.0 - (3.0 / 95.0) * 100.0 * 0.2, "每高1%扣0.2（插入法）");
+        assert!((d1.score - 43.368421).abs() < 1e-6, "呈现: {:.2}", d1.score);
+
+        // 报 102：偏离 = 7/95 = 7.368421% × 0.2 = 1.473684 → 42.526316
+        let d2 = spec.score_detail(102.0, &[95.0, 98.0, 106.0, 112.0]).unwrap();
+        assert_close(d2.score, 44.0 - (7.0 / 95.0) * 100.0 * 0.2, "高价侧线性折减");
+        assert!((d2.score - 42.526316).abs() < 1e-6, "呈现: {:.2}", d2.score);
+
+        // 最优报价 = min(others) = 98：并列最低（基准含己方，偏离为零），
+        // 取等分区间最高价
+        let opt = spec.optimal_price(&others).unwrap();
+        assert_close(opt, 98.0, "最优 = 并列最低（等分区间最高价）");
+        assert_close(spec.score(opt, &others).unwrap(), 44.0, "最优得满分");
+    }
+
+    /// 最低价法最优报价的上界性：网格暴力全扫无超者。
+    #[test]
+    fn lowest_optimal_is_global_by_grid_search() {
+        let spec = lowest_spec(30.0, DeviationRule::Ratio);
+        let others = [98.0, 105.0, 110.0, 126.0];
+        let x = spec.optimal_price(&others).unwrap();
+        let best = spec.score(x, &others).unwrap();
+        let mut p = 1.0;
+        while p <= 140.0 {
+            if let Ok(s) = spec.score(p, &others) {
+                assert!(s <= best + 1e-9, "网格点 {p} 得分 {s} 超过最优 {best}");
+            }
+            p += 0.5;
+        }
+    }
+
+    /// PR2 验收报告（87号令全表 + 康居方法一全表——`--nocapture` 查看）。
+    #[test]
+    fn acceptance_report_lowest_price() {
+        // —— 87号令第五十五条：5 家政采仪器（价格分 30）——
+        let spec = lowest_spec(30.0, DeviationRule::Ratio);
+        let others = [98.0, 105.0, 110.0, 126.0];
+        for bid in [98.0, 105.0, 110.0, 115.0, 126.0] {
+            let d = spec.score_detail(bid, &others).unwrap();
+            let hand = (98.0 / bid) * 30.0;
+            assert!((d.score - hand).abs() < 1e-9, "{bid}: 引擎 {} vs 手工 {hand}", d.score);
+            println!(
+                "| 87号令§55 | 基准 98.00（最低报价） | 报价 {bid:.2} | 比率 {:.6} | 手工 {hand:.6} | 引擎 {:.6} | 一致 |",
+                98.0 / bid, d.score
+            );
+        }
+        let opt = spec.optimal_price(&others).unwrap();
+        println!("| 87号令§55 | 最优报价反推 | — | — | 手工 98.00 | 引擎 {opt:.6} | 一致 |");
+
+        // —— 康居嘉苑方法一：监理 44 分（每高1%扣0.2/低1%扣0.1，插入法）——
+        let spec = lowest_spec(44.0, DeviationRule::Price { deduct_high: 0.2, deduct_low: 0.1 });
+        let others = [95.0, 98.0, 102.0, 106.0, 112.0];
+        for bid in [95.0, 98.0, 102.0, 106.0, 112.0] {
+            let d = spec.score_detail(bid, &others).unwrap();
+            let hand = 44.0 - ((bid - 95.0) / 95.0) * 100.0 * 0.2;
+            assert!((d.score - hand).abs() < 1e-9, "{bid}: 引擎 {} vs 手工 {hand}", d.score);
+            println!(
+                "| 康居方法一 | 基准 95.00（最低报价） | 报价 {bid:.2} | 偏离 {:+.6}% | 手工 {hand:.6} | 引擎 {:.6} | 一致 |",
+                d.deviation * 100.0, d.score
+            );
+        }
     }
 }

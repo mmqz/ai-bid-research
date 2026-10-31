@@ -50,6 +50,12 @@ fn svc_ready(tag: &str) -> (BidService, String, String) {
         "A-招标文件.docx", "招标文件", "sha-shell", 10, 1, 50, 0,
         bid_domain::ParseStatus::Ok, "",
     ).unwrap(); // FILES_IMPORTED（状态门：抽取的前置）
+    // 补遗件（#110 任务 1 后 readiness 的 IncompleteTender 只警告不阻塞——
+    // 在场则警告面不进「零告警」断言）
+    svc.store_mut().upsert_file(
+        "C-补遗文件01.docx", "补遗", "sha-shell-add", 5, 0, 20, 0,
+        bid_domain::ParseStatus::Ok, "",
+    ).unwrap();
     svc.set_requirements(vec![
         mk_req("REQ-0001", "资格条件", "投标人须具备水利水电工程施工总承包贰级及以上资质"),
         mk_req("REQ-0002", "否决项", "投标文件未经法定代表人签字的作否决处理"),
@@ -59,6 +65,26 @@ fn svc_ready(tag: &str) -> (BidService, String, String) {
         .prepare_outline_and_matrix(OutlineSpec { target_total_chars: 3_000, max_reqs_per_leaf: 2 })
         .unwrap();
     assert!(n_sec >= 2);
+    // 素材面（#110 任务 1 缺失回报闸）：「资格条件」叶标题触发词面 → 台账须有
+    // 可用资质；否决项 REQ-0002 须矩阵响应（绑定 + 重建）——否则 draft 拒生成
+    use bid_domain::evidence::{EvidenceKind, EvidenceSpec};
+    use bid_domain::locator::EngineLocator;
+    let (eid, _) = svc.store_mut().register_evidence(EvidenceSpec {
+        kind: EvidenceKind::Qualification,
+        title: "水利水电工程施工总承包贰级资质证书".into(),
+        source_file: "EV-shell.pdf".into(),
+        source_sha256: "sha-shell-ev".into(),
+        locator: EngineLocator::DocxParagraph { paragraph_index: 3, text_fingerprint: "fnv64:se".into() },
+        fingerprint: "fnv64:se".into(),
+        valid_from: None,
+        valid_until: None,
+        subject_name: "某建设工程有限公司".into(),
+        scope: "水利水电工程施工".into(),
+    }).unwrap();
+    for rid in ["REQ-0001", "REQ-0002"] {
+        svc.store_mut().bind_evidence(&eid, rid, "2026-12-31").unwrap();
+    }
+    let _ = svc.store_mut().build_matrix().unwrap();
     // 取首个叶章节
     let parents: std::collections::HashSet<&str> = svc.store().sections().iter()
         .filter_map(|n| n.parent_id.as_deref()).collect();

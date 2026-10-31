@@ -70,6 +70,26 @@ fn svc_drafted(tag: &str, ws: Option<&std::path::Path>) -> (BidService, String, 
     let (_, _, _) = svc
         .prepare_outline_and_matrix(OutlineSpec { target_total_chars: 400, max_reqs_per_leaf: 2 })
         .unwrap();
+    // 素材面（#110 任务 1 缺失回报闸）：两 REQ 均为技术参数类——须有可用证据
+    // 佐证（绑产品文档类证据 + 重建矩阵），否则 draft 拒生成
+    use bid_domain::evidence::{EvidenceKind, EvidenceSpec};
+    use bid_domain::locator::EngineLocator;
+    let (eid, _) = svc.store_mut().register_evidence(EvidenceSpec {
+        kind: EvidenceKind::ProductDoc,
+        title: "设备检测报告".into(),
+        source_file: "EV-tech.pdf".into(),
+        source_sha256: "sha-q-tech".into(),
+        locator: EngineLocator::DocxParagraph { paragraph_index: 5, text_fingerprint: "fnv64:qt".into() },
+        fingerprint: "fnv64:qt".into(),
+        valid_from: None,
+        valid_until: None,
+        subject_name: "某公司".into(),
+        scope: "设备参数佐证".into(),
+    }).unwrap();
+    for rid in ["REQ-0001", "REQ-0002"] {
+        svc.store_mut().bind_evidence(&eid, rid, "2026-12-31").unwrap();
+    }
+    let _ = svc.store_mut().build_matrix().unwrap();
     let parents: std::collections::HashSet<&str> = svc.store().sections().iter()
         .filter_map(|n| n.parent_id.as_deref()).collect();
     let leaf = svc.store().sections().iter()

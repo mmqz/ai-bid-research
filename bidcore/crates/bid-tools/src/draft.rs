@@ -1,7 +1,16 @@
 //! draft.rs —— #59 阶段 1：单章起草的业务半边（draft_response_section）
-//!           → #97 B4：生成-自评-改写循环（IterativeDrafter）。
+//!           → #97 B4：生成-自评-改写循环（IterativeDrafter）
+//!           → #110 任务 1：缺失回报接线（readiness 前置闸）。
 //!
 //! 分层（与 service.rs / assembly.rs 同族纪律）：
+//! - **缺失回报前置闸**（#110 任务 1）：`draft_section` /
+//!   `draft_section_iterative` 在装配后先过 [`crate::readiness::
+//!   check_draft_readiness`]——五种素材型 Blocker（无要求/缺资质/缺业绩/
+//!   缺技术证据/否决项未响应）**拒生成**（E_UNPROCESSABLE + 人类可读理由），
+//!   IncompleteTender 等只 warning 不阻塞（并入 warnings + 经
+//!   [`with_missing_report`] 注入生成指令，让生成器留【待补充】占位而不是
+//!   编造）。Lead 原话：「缺失回报，如果缺失这个内容却还硬做只会做错」——
+//!   没有业绩证据硬写 = LLM 编造 = 废标；
 //! - **输入装配**（[`build_section_input`]）：从 store 取章节配额（target_chars）、
 //!   章节绑定的 REQ、矩阵绑定的证据，组装 [`SectionDraftInput`]——幽灵 REQ
 //!   剔除并告警（不拒稿——抽取层 id 漂移是常态）、EXPIRED/SUPERSEDED 证据
@@ -34,6 +43,7 @@ use bid_domain::scoring::{derive_scoring_tree, SectionScorer};
 use bid_domain::{DomainStore, Requirement, ToolError};
 
 use crate::quality::{assess_specificity, assess_substance, ProjectContext};
+use crate::readiness::DraftReadiness;
 
 /// 章节起草输入（生成器的全部素材——**不含** store 引用，可序列化可跨进程）。
 #[derive(Debug, Clone, PartialEq)]
@@ -416,6 +426,39 @@ pub fn count_unanchored_claims(content: &str) -> usize {
 
 // ---------------------------------------------------------------- 服务集成面
 
+/// 缺失回报注入起草指令（#110 任务 1 第 2 步——「缺失素材 → 生成占位符」）。
+///
+/// 五种素材型 Blocker 已在前置闸拒生成，能走到生成这一步的 readiness
+/// warning 是「不阻塞但起草时必须知晓」的面（如招标包缺补遗/澄清、幽灵
+/// 条款）——把它们并入 `instructions`，并要求生成器在正文对应位置留显式
+/// 占位符（[`crate::placeholder`] 语法）而不是编造。真实 LLM 面 prompt 的
+/// 「起草指令」字段会原样携带；零 warning 时指令原样返回（不添噪声）。
+///
+/// 注意措辞：说明文字**不得**含全角引号「」或完整的占位字面量——前者会
+/// 被改写提示的失分项提取面（`build_rewrite_prompt` 的 「…」 引用）误吞，
+/// 后者会被 `scan_placeholders` 当成正文残留占位。
+fn with_missing_report(instructions: Option<&str>, readiness: &DraftReadiness) -> Option<String> {
+    if readiness.warnings.is_empty() {
+        return instructions.map(str::to_string);
+    }
+    let mut out = instructions.map(str::to_string).unwrap_or_default();
+    if !out.trim().is_empty() {
+        out.push_str("\n\n");
+    }
+    let list: Vec<String> = readiness
+        .warnings
+        .iter()
+        .enumerate()
+        .map(|(i, w)| format!("{}. {w}", i + 1))
+        .collect();
+    out.push_str(&format!(
+        "缺失回报：以下素材或信息当前不完整——正文对应位置必须留显式占位符\
+         （全角方括号括起，开头写 待补充 或 待确认 加冒号，再接所缺内容），不得编造：\n{}",
+        list.join("\n")
+    ));
+    Some(out)
+}
+
 impl super::service::BidService {
     /// `draft_response_section` 业务半边（MCP 壳完成参数校验/路由/状态机
     /// 裁决后调用；生成器注入——mock 或未来 AI 面）。
@@ -441,10 +484,32 @@ impl super::service::BidService {
         generator: &mut dyn SectionGenerator,
     ) -> Result<DraftOutcome, ToolError> {
         // ---- 1. 输入装配（含 E_NOTFOUND / 失效拒绑 / 幽灵剔除）
-        let (input, mut warnings) = build_section_input(
+        let (mut input, mut warnings) = build_section_input(
             self.store(), section_id,
             requirement_override, evidence_override, instructions,
         )?;
+
+        // ---- 1.5 缺失回报前置闸（#110 任务 1——readiness 六种 Blocker）
+        //
+        // 没有素材就别写：NoRequirements / MissingQualification /
+        // MissingPerformance / MissingTechEvidence / UncoveredVetoItem 五种
+        // 阻塞 → E_UNPROCESSABLE，理由走 [`DraftReadiness::to_message`]（人类
+        // 可读，不泄漏枚举名）；IncompleteTender 等只 warning 不阻塞——并入
+        // warnings（消费面单一出口）+ 经 [`with_missing_report`] 注入生成指令
+        // （正文留【待补充】占位而不是编造）。
+        //
+        // 闸在 build_section_input **之后**：未知章节（E_NOTFOUND）、结构节点
+        // 与空响应面（E_UNPROCESSABLE 的既有分工）错误码语义不回归。
+        let readiness = crate::readiness::check_draft_readiness(self.store(), section_id);
+        if !readiness.ready {
+            return Err(ToolError::EUnprocessable {
+                reason: format!("章节 {section_id} {}", readiness.to_message()),
+            });
+        }
+        for w in &readiness.warnings {
+            warnings.push(format!("缺失回报（不阻塞）：{w}"));
+        }
+        input.instructions = with_missing_report(input.instructions.as_deref(), &readiness);
 
         // ---- 2. 生成
         let draft = generator.generate(&input).map_err(|why| ToolError::EUnprocessable {
@@ -999,10 +1064,27 @@ impl super::service::BidService {
         target_ratio: f64,
     ) -> Result<IterativeSectionOutcome, ToolError> {
         // ---- 1. 输入装配（与 draft_section 同源——幽灵剔除/失效拒绑）
-        let (input, _warnings) = build_section_input(
+        let (mut input, _warnings) = build_section_input(
             self.store(), section_id,
             requirement_override, evidence_override, instructions,
         )?;
+
+        // ---- 1.5 缺失回报前置闸（先于 LLM 循环——阻塞章节一轮都不烧）
+        //
+        // 与 draft_section 同判据：五种素材型 Blocker → E_UNPROCESSABLE
+        // （人类可读理由）。闸必须开在循环**之前**：B4 的循环每轮恰一次
+        // generator 调用，等回放提交时才拒 = 白烧 max_rounds 轮编造。
+        // readiness 的 warning 面（IncompleteTender 等）经
+        // [`with_missing_report`] 注入循环输入——首轮起生成器就知道该留
+        // 【待补充】占位；warnings 本身经回放的 draft_section 并入
+        // DraftOutcome.warnings（单一出口，不重复计）。
+        let readiness = crate::readiness::check_draft_readiness(self.store(), section_id);
+        if !readiness.ready {
+            return Err(ToolError::EUnprocessable {
+                reason: format!("章节 {section_id} {}", readiness.to_message()),
+            });
+        }
+        input.instructions = with_missing_report(input.instructions.as_deref(), &readiness);
 
         // ---- 2. scorer + project 从 store 派生（B2 评分树 + B3 专名锚）
         let project = ProjectContext::from_store(self.store());

@@ -133,7 +133,8 @@ fn mcp_only_full_pipeline_drives_to_export() {
         "资格/否决未绑——blocking 应 >0: {bo:?}"
     );
 
-    // ---- ⑤ 矩阵分页发现待绑 REQ（资格 + 否决——外部 Agent 视角）
+    // ---- ⑤ 矩阵分页发现待绑 REQ（资格 + 否决 + 技术参数——外部 Agent 视角；
+    // 技术参数也须佐证——#110 任务 1 缺失回报闸，否则 draft 拒生成）
     let mut bind_ids = matrix_reqs(&mut svc, &pid, "qualification");
     let n_qual = bind_ids.len();
     bind_ids.extend(matrix_reqs(&mut svc, &pid, "veto"));
@@ -143,6 +144,7 @@ fn mcp_only_full_pipeline_drives_to_export() {
         "否决项并入: {}",
         bind_ids.len() - n_qual
     );
+    bind_ids.extend(matrix_reqs(&mut svc, &pid, "tech_param"));
 
     // ---- ⑥ register_evidence（G2）+ 语义位幂等重放
     let reg_args = json!({

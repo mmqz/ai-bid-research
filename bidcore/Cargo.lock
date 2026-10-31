@@ -231,6 +231,7 @@ version = "0.1.0"
 dependencies = [
  "bid-domain",
  "bid-engine",
+ "flate2",
  "hex",
  "libc",
  "regex",

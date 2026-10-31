@@ -14,13 +14,15 @@ fn call(tool: &str, args: serde_json::Value) -> bid_mcp::ToolReply {
 }
 
 #[test]
-fn tool_names_are_the_contract_seventeen() {
+fn tool_names_are_the_contract_twenty() {
     // V3-5（S-4）：8+1+2 = 11；#42 阶段 10 增 save_version = 12；
     // #68 阶段 2 增 check_bid_quality = 13；
     // #80 第三批 MCP 补齐增 4（build_outline / register_evidence /
     // bind_evidence / record_review_gate）= 17（G1/G2/G3——外部 Agent
-    // 纯 MCP 驱动全链）
-    assert_eq!(TOOL_NAMES.len(), 17, "工具面必须恰为 17 个（13 + G1/G2/G3 补齐 4）");
+    // 纯 MCP 驱动全链）；
+    // #100 任务 3 增 3（score_price / score_section / score_document）
+    // = 20（B1 价格分 + B2 自评的 MCP 接线——「能得几分、该报多少价」）
+    assert_eq!(TOOL_NAMES.len(), 20, "工具面必须恰为 20 个（17 + #100 任务 3 评分三件）");
     for name in TOOL_NAMES {
         assert!(!name.is_empty());
     }
@@ -95,10 +97,10 @@ fn json_roundtrip_failure_is_typed() {
 }
 
 #[test]
-fn tools_schema_lists_all_seventeen() {
+fn tools_schema_lists_all_twenty() {
     let v = bid_mcp::tools_schema();
     let arr = v["tools"].as_array().unwrap();
-    assert_eq!(arr.len(), 17);
+    assert_eq!(arr.len(), 20);
     let implemented: Vec<&str> = arr
         .iter()
         .filter(|t| t["implemented"] == true)
@@ -108,7 +110,8 @@ fn tools_schema_lists_all_seventeen() {
     // #59 阶段 1+2：draft_response_section / export_bid_document；
     // #68 阶段 2：check_bid_quality；
     // + get_bid_project_state（TOOL_NAMES 声明序）——工具落地时本清单同步
-    // 收缩，防骨架与实现脱钩
+    // 收缩，防骨架与实现脱钩；
+    // #100 任务 3：score_price / score_section / score_document（B1/B2 接线）
     assert_eq!(
         implemented,
         vec![
@@ -127,6 +130,13 @@ fn tools_schema_lists_all_seventeen() {
             "register_evidence",
             "bind_evidence",
             "record_review_gate",
+            "score_price",
+            "score_section",
+            "score_document",
         ]
     );
+    // 描述面：新工具不得是 unknown（describe 遗漏即挂）
+    for t in arr.iter().filter(|t| t["name"].as_str().unwrap().starts_with("score_")) {
+        assert_ne!(t["description"], "unknown", "score_* 描述必须在场: {t}");
+    }
 }

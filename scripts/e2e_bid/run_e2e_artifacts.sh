@@ -6,9 +6,9 @@
 #
 # Rust 内核：bidcore/crates/bid-mcp/tests/e2e_artifacts.rs
 # 载体：fixtures/synth-tender（仓库自带——CI 可跑；真 LLM 面见 run_real_llm_path.sh）
-# 产物：artifacts/e2e/<run-id>/ 十件套 + latest 刷新
+# 产物：artifacts/e2e/<run-id>/ 十一件套 + latest 刷新（#100 任务 3 增 11_self-score.json 整本自评）
 #       01 项目 / 02 导入 / 03 条款 / 04 目录 / 05 drafts/ / 06 format-spec /
-#       07 docx / 08 pdf（soffice 软门）/ 09 校验 / 10 报告（耗时/字数/警告）
+#       07 docx / 08 pdf（soffice 软门）/ 09 校验 / 11 自评（B2 接线）/ 10 报告（耗时/字数/警告）
 set -euo pipefail
 export PATH="$HOME/.cargo/bin:$PATH"
 cd "$(dirname "$0")/../.."
@@ -23,6 +23,6 @@ cargo test --manifest-path bidcore/Cargo.toml -p bid-mcp --test e2e_artifacts "$
 
 echo "=============================================================="
 echo " e2e 全链产物通过 ✅"
-echo "  - 最新产物：artifacts/e2e/latest/10_report.md"
+echo "  - 最新产物：artifacts/e2e/latest/10_report.md（整本自评见 11_self-score.json）"
 echo "  - 真实 LLM 通路（人肉）：scripts/e2e_bid/run_real_llm_path.sh"
 echo "=============================================================="

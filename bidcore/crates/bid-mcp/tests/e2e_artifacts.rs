@@ -387,7 +387,31 @@ fn e2e_artifacts_synth_tender() {
     };
     tim.mark("09_导出(docx+pdf)", &t);
 
-    // ---- ⑩ 产物落盘（10 件套 + latest 刷新 + 10_report.md）
+    // ---- ⑨.5 整本自评（#100 任务 3.2——B2 接线：e2e 跑完自动调 score_document，
+    //      产出 11_self-score.json；无报价 → price=null（issue：「没报价就不算」））
+    let t = Instant::now();
+    let self_score = ok_result(call(&mut svc, "score_document", json!({
+        "project_id": &pid,
+    })));
+    // 自评产物形状断言（接线验收线：能回答「这份标书能得几分」）
+    assert!(self_score["technical"].as_f64().is_some(), "technical 必须在座");
+    assert!(self_score["price"].is_null(), "无报价 → price null（不伪装 0）");
+    assert!(self_score["target"].as_f64().unwrap_or(0.0) > 0.0, "target（诚实满分）必须 > 0——synth 评分项分值已在场");
+    let by_item = self_score["by_item"].as_array().unwrap();
+    assert!(!by_item.is_empty(), "by_item 逐项明细非空（大纲联结生效——评分项映射到章节）");
+    assert!(by_item.iter().any(|i| i["tier"].as_str().unwrap_or("").contains("价格分")), "价格项在场（f(报价) 标记）");
+    // 报价决策演练（#100 §3.3——synth 4.1 口径：平均价法下浮 5%、满分 30、比率。
+    //      样本竞争报价为测试数据，不入 11 产物——11 是真自评，价格样本留在测试内）
+    let price_advice = ok_result(call(&mut svc, "score_price", json!({
+        "method": "average", "coefficient": 0.95, "max_score": 30, "deviation": "ratio",
+        "others": [1_600_000.0, 1_580_000.0, 1_560_000.0],
+    })));
+    assert!(price_advice["optimal_price"].as_f64().is_some(), "最优报价反推在场");
+    assert!(price_advice["expected_score_at_optimal"].as_f64().is_some());
+    assert!(price_advice["analysis"].as_str().unwrap_or("").contains("平均价法"), "analysis 人读面在场");
+    tim.mark("11_自评(score_document+score_price)", &t);
+
+    // ---- ⑩ 产物落盘（11 件套 + latest 刷新 + 10_report.md）
     let t = Instant::now();
     write_json(&art.join("01_project.json"), &proj_created);
     write_json(&art.join("02_imported.json"), &imported);
@@ -429,6 +453,7 @@ fn e2e_artifacts_synth_tender() {
         write_json(&art.join("08_export.pdf.json"), &pdf_note);
     }
     write_json(&art.join("09_validation.json"), &validation);
+    write_json(&art.join("11_self-score.json"), &self_score);
 
     // 10_report.md —— 耗时/字数/警告（人读总结）
     let mut rep = String::new();
@@ -497,6 +522,7 @@ fn e2e_artifacts_synth_tender() {
         }
     ));
     rep.push_str("| 09 | 09_validation.json | 合规校验 |\n");
+    rep.push_str("| 11 | 11_self-score.json | 整本自评（B2 接线：技术/商务/价格/逐项明细；无报价 → price=null） |\n");
     rep.push_str("| 10 | 10_report.md | 本报告 |\n");
     std::fs::write(art.join("10_report.md"), rep).unwrap();
     tim.mark("10_产物落盘", &t);

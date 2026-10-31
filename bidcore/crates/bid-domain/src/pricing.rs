@@ -65,8 +65,8 @@ use serde::{Deserialize, Serialize};
 /// 评标基准价的确定方法（真实评标办法报价规则的抽象——五种，逐 PR 交付）。
 ///
 /// 「基准价怎么定」是价格分的第一半；「偏离怎么扣分」见 [`DeviationRule`]。
-/// 本 PR 交付 `BenchmarkPrice`（基准价法）与 `LowestPrice`（最低价法）；
-/// 后续 PR 依次交付平均价法（康居嘉苑方法三）、复合法（东南大学
+/// 已交付：`BenchmarkPrice`（基准价法）/ `LowestPrice`（最低价法）/
+/// `AveragePrice`（平均价法）；待交付：复合法（东南大学
 /// C=A×Q1×K1+B×Q2×K2 / 玉带河方法二 / 康居嘉苑方法四）、下浮率法。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -101,6 +101,30 @@ pub enum PriceScoreMethod {
     /// 最优报价 = min(others)（并列最低即满分，取等分区间最高价；无竞争报价
     /// 且无控制价时无界拒绝，无竞争报价有控制价时取控制价）。
     LowestPrice,
+    /// 平均价法：评标基准价 = **全部有效报价（含己方）算术平均** × `coefficient`。
+    ///
+    /// 真实锚点：
+    /// - 康居嘉苑项目监理方法三（ggzy.gov.cn，连云港 2021）：「以有效投标文件
+    ///   的投标报价算术平均值为 A，评标基准价 = A×K」，K∈{95%,96%,97%,98%}
+    ///   开标抽取；每高 1% 扣 0.2、每低 1% 扣 0.1，插入法（44 分）；
+    /// - 亳州市评标办法适用导则 2026（ggzy.bozhou.gov.cn）农业农村类
+    ///   综合评估法（合理低价）：「评标价平均值×系数 C 为评标基准价」，
+    ///   C∈{0.980,0.985,0.990,0.995,1.000}；F−偏差率×100×E1（高于）/
+    ///   F+偏差率×100×E2（低于），E1≥2×E2，负分按 0。
+    ///
+    /// 注：康居方法三的按家数剔除（7≤n<10 去 1 高 1 低、n≥10 去 2 高 2 低）
+    /// 属复合法的剔除面（PR4 交付）——本方法为纯平均（对应办法中 n<7 或
+    /// 剔除数为 0 的形态）。
+    ///
+    /// 最优报价（闭式解）：`x* = coefficient × S / (n − coefficient)`，
+    /// S = Σothers，n = 全部家数（含己方）——解 `x = c·(S+x)/n` 的不动点，
+    /// 命中基准价（偏离为零/比率为一）；超出控制价时夹到控制价。
+    /// 唯一投标人（n=1）：得分与报价无关（c<1 恒偏高 (1−c)/c；c=1 恒满分）
+    /// → 有控制价取控制价，无控制价无界拒绝。
+    AveragePrice {
+        /// 平均值系数（0 < coefficient ≤ 1——真实办法均为下浮系数）。
+        coefficient: f64,
+    },
 }
 
 /// 偏离扣分规则（「等于基准价得满分，偏离按幅度扣分」的具体口径）。
@@ -222,6 +246,14 @@ impl PriceScoreSpec {
             // 最低价法：基准价 = 全集合最低，无额外参数（87号令§55）；
             // 控制价可选（仅作无效标判定与无竞争报价时的最优上界）
             PriceScoreMethod::LowestPrice => {}
+            PriceScoreMethod::AveragePrice { coefficient } => {
+                if !coefficient.is_finite() || *coefficient <= 0.0 || *coefficient > 1.0 {
+                    return Err(eun(format!(
+                        "PRICE_SPEC_INVALID: AveragePrice.coefficient 须在 (0,1]\
+                         （真实办法均为下浮系数，如康居方法三 K∈95%..98%/亳州 C∈98%..100%），got {coefficient}"
+                    )));
+                }
+            }
         }
         match &self.deviation_rule {
             DeviationRule::Price { deduct_high, deduct_low } => {
@@ -262,6 +294,13 @@ impl PriceScoreSpec {
                     }
                 }
                 Ok(min)
+            }
+            // 平均价法：A = 全部有效报价（含己方）算术平均，基准 = A × coefficient
+            // （康居方法三 / 亳州农业农村「平均值×系数 C」同构）
+            PriceScoreMethod::AveragePrice { coefficient } => {
+                let n = (others.len() + 1) as f64;
+                let sum: f64 = others.iter().sum::<f64>() + bid_price;
+                Ok(sum / n * coefficient)
             }
         }
     }
@@ -338,6 +377,31 @@ impl PriceScoreSpec {
                          最优报价无上界（提供 others 或 budget）",
                     ))
                 }
+            }
+            // 平均价法闭式解：x* = c·S/(n−c)（解 x = c·(S+x)/n 的不动点）。
+            // 对 Price（含不对称/低价不罚）与 Ratio 口径同为最优：
+            // - Price：峰值在偏离为零处（x* 恰命中基准价）；
+            // - Ratio：x ≤ x* 时基准 ≥ 报价 → 比率 ≥ 1 截满分，x* 为等分区间最高价。
+            PriceScoreMethod::AveragePrice { coefficient } => {
+                if others.is_empty() {
+                    // 唯一投标人：得分与报价无关（c<1 恒偏高 (1−c)/c；c=1 恒满分）
+                    if let Some(b) = self.budget {
+                        return Ok(b);
+                    }
+                    return Err(eun(
+                        "PRICE_UNBOUNDED: AveragePrice 无竞争报价且无控制价——得分与报价无关，\
+                         最优报价无上界（提供 others 或 budget）",
+                    ));
+                }
+                let s: f64 = others.iter().sum();
+                let n = (others.len() + 1) as f64;
+                let x = coefficient * s / (n - coefficient);
+                // 不变量（c ≤ 1）：x* ≤ c·m·M/(m+1−c) ≤ M = max(others) ≤ 控制价
+                //   ——闭式解永不超过最高竞争报价，无越限价风险；min 为防御性保护
+                Ok(match self.budget {
+                    Some(b) if x > b => b,
+                    _ => x,
+                })
             }
         }
     }
@@ -745,5 +809,205 @@ mod tests {
                 d.deviation * 100.0, d.score
             );
         }
+    }
+
+    // ================================================================ 平均价法（PR3）
+
+    fn average_spec(coefficient: f64, max_score: f64, budget: Option<f64>,
+                    deduct_high: f64, deduct_low: f64) -> PriceScoreSpec {
+        PriceScoreSpec {
+            method: PriceScoreMethod::AveragePrice { coefficient },
+            max_score,
+            budget,
+            deviation_rule: DeviationRule::Price { deduct_high, deduct_low },
+        }
+    }
+
+    /// 真实规则 3：康居嘉苑项目监理方法三（ggzy.gov.cn，连云港 2021）——
+    /// 「以有效投标文件的投标报价算术平均值为 A，评标基准价 = A×K。
+    /// K 值的抽取范围为 95%、96%、97%、98%」「投标报价等于评标基准价的得满分；
+    /// 偏离评标基准价的，投标报价每高于评标基准价 1% 扣减 0.2 分；投标报价
+    /// 每低于评标基准价 1% 扣减 0.1 分；偏离不足 1% 的，按照插入法计算得分」
+    /// （44 分；5 家 < 7 家不剔除——纯平均形态）。
+    ///
+    /// 场景：监理报价（万）5 家（含己方 108）：95 / 100 / 105 / 108 / 115，
+    /// K = 96%，最高限价 120 万。
+    #[test]
+    fn real_rule_kangju_method3_average_price() {
+        let spec = average_spec(0.96, 44.0, Some(120.0), 0.2, 0.1);
+        let others = [95.0, 100.0, 105.0, 115.0];
+
+        // 手工：A = (95+100+105+108+115)/5 = 523/5 = 104.6
+        //       基准 = 104.6×0.96 = 100.416
+        let d = spec.score_detail(108.0, &others).unwrap();
+        assert_close(d.benchmark, (95.0 + 100.0 + 105.0 + 108.0 + 115.0) / 5.0 * 0.96, "A×K");
+        assert!((d.benchmark - 100.416).abs() < 1e-9, "基准 = 100.416");
+
+        // 手工：己方 108 偏高 7.584 → 7.584/100.416 = 7.552581% × 0.2 = 1.510516
+        //       → 44 − 1.510516 = 42.489484
+        assert_close(d.deviation, 7.584 / 100.416, "偏离度");
+        assert_close(d.score, 44.0 - (7.584 / 100.416) * 100.0 * 0.2, "高价侧扣分");
+        assert!((d.score - 42.489484).abs() < 1e-5, "呈现: {:.2}", d.score);
+
+        // 低价侧（不对称罚轻）：报价 95 偏低 5.416 → 5.393563% × 0.1
+        //       → 44 − 0.539356 = 43.460644
+        let d_low = spec.score_detail(95.0, &[100.0, 105.0, 108.0, 115.0]).unwrap();
+        assert!((d_low.benchmark - 100.416).abs() < 1e-9, "同集合同基准");
+        assert_close(d_low.score, 44.0 - (5.416 / 100.416) * 100.0 * 0.1, "低价侧扣分");
+        assert!((d_low.score - 43.460644).abs() < 1e-5, "呈现: {:.2}", d_low.score);
+
+        // 最优报价闭式解：x* = 0.96×415/(5−0.96) = 398.4/4.04 = 98.613861
+        let opt = spec.optimal_price(&others).unwrap();
+        assert_close(opt, 0.96 * 415.0 / 4.04, "闭式解 x* = cS/(n−c)");
+        assert!((opt - 98.613861).abs() < 1e-6, "呈现: {opt:.2}");
+        // 命中验证：最优报价处基准 = 自身 → 偏离 0 → 满分
+        let d_opt = spec.score_detail(opt, &others).unwrap();
+        assert_close(d_opt.deviation, 0.0, "最优报价偏离为零");
+        assert_close(d_opt.score, 44.0, "最优报价得满分");
+        assert!(opt <= 120.0, "最优 ≤ 控制价");
+    }
+
+    /// 真实规则 4：亳州市评标办法适用导则 2026 年版（ggzy.bozhou.gov.cn）
+    /// 农业农村类综合评估法（合理低价）——
+    /// 「将评标价平均值乘以评标基准价系数 C 作为评标基准价」（C=0.985 形态）
+    /// 「偏差率 = 100%×(投标人评标价−评标基准价)/评标基准价」
+    /// 「评标价 > 基准价：得分 = F − 偏差率×100×E1；评标价 ≤ 基准价：得分 =
+    /// F + 偏差率×100×E2（E1≥2×E2）」「当投标报价得分为负时，均按 0 分计算」
+    ///
+    /// 场景：F=60，E1=1.5，E2=0.75，C=0.985，4 家（含己方 1000）：
+    /// 980 / 995 / 1000 / 1010。
+    #[test]
+    fn real_rule_bozhou_agri_average_price() {
+        let spec = average_spec(0.985, 60.0, None, 1.5, 0.75);
+        let others = [980.0, 995.0, 1010.0];
+
+        // 手工：平均 = 3985/4 = 996.25；基准 = 996.25×0.985 = 981.30625
+        let d = spec.score_detail(1000.0, &others).unwrap();
+        assert_close(d.benchmark, 996.25 * 0.985, "平均值×C");
+        assert!((d.benchmark - 981.30625).abs() < 1e-9, "基准 = 981.30625");
+
+        // 手工：己方 1000 偏高 18.69375 → 18.69375/981.30625 = 1.904986% × 1.5
+        //       → 60 − 2.857480 = 57.142520
+        assert_close(d.score, 60.0 - (18.69375 / 981.30625) * 100.0 * 1.5, "亳州 E1 高价侧");
+        assert!((d.score - 57.142520).abs() < 1e-5, "呈现: {:.2}", d.score);
+
+        // 低价侧：报价 980 偏低 1.30625 → 0.133118% × 0.75 → 60 − 0.099838
+        let d_low = spec.score_detail(980.0, &[995.0, 1000.0, 1010.0]).unwrap();
+        assert_close(d_low.score, 60.0 - (1.30625 / 981.30625) * 100.0 * 0.75, "亳州 E2 低价侧");
+
+        // 最优报价：x* = 0.985×2985/(4−0.985) = 2940.225/3.015 = 975.199005
+        let opt = spec.optimal_price(&others).unwrap();
+        assert_close(opt, 2940.225 / 3.015, "闭式解");
+        let d_opt = spec.score_detail(opt, &others).unwrap();
+        assert_close(d_opt.deviation, 0.0, "最优报价偏离为零");
+        assert_close(d_opt.score, 60.0, "最优报价得满分");
+    }
+
+    /// 平均价法 + 比率口径（真实组合形态：平均基准×比率得分）——
+    /// x ≤ x* 时基准 ≥ 报价 → 比率 ≥ 1 截满分；x* 为等分区间最高价。
+    #[test]
+    fn average_price_with_ratio_rule() {
+        let mut spec = average_spec(0.96, 44.0, Some(120.0), 0.2, 0.1);
+        spec.deviation_rule = DeviationRule::Ratio;
+        let others = [95.0, 100.0, 105.0, 115.0];
+        let x_star = 0.96 * 415.0 / 4.04; // 98.613861
+
+        // 低于 x*：基准 > 报价 → 比率 > 1 → 截满分
+        let below = spec.score_detail(90.0, &others).unwrap();
+        assert_close(below.score, 44.0, "低于不动点截满分");
+        // 恰在 x*：比率 = 1 → 满分
+        let hit = spec.score_detail(x_star, &others).unwrap();
+        assert_close(hit.score, 44.0, "不动点满分");
+        assert_close(hit.benchmark, x_star, "基准 = 报价（不动点）");
+        // 高于 x*：比率 < 1 → 折减（基准/报价 × 44）
+        let above = spec.score_detail(108.0, &others).unwrap();
+        assert_close(above.score, 100.416 / 108.0 * 44.0, "高于不动点按比率折减");
+
+        // 最优报价同闭式解（等分区间最高价）
+        let opt = spec.optimal_price(&others).unwrap();
+        assert!((opt - x_star).abs() < 1e-9, "Ratio 口径最优 = 不动点");
+    }
+
+    /// 平均价法校验与边界：系数越界拒绝；唯一投标人取控制价/无界拒绝；
+    /// 闭式解超控制价时夹到控制价（受限最优）。
+    #[test]
+    fn average_price_validation_and_edges() {
+        // 系数越界
+        let mut spec = average_spec(1.2, 44.0, None, 0.2, 0.1);
+        assert!(spec.score(100.0, &[95.0]).is_err(), "coefficient>1 拒绝");
+        spec = average_spec(0.0, 44.0, None, 0.2, 0.1);
+        assert!(spec.score(100.0, &[95.0]).is_err(), "coefficient=0 拒绝");
+
+        // 唯一投标人：得分与报价无关 → 有控制价取控制价；无控制价无界拒绝
+        let spec2 = average_spec(0.96, 44.0, Some(120.0), 0.2, 0.1);
+        assert_close(spec2.optimal_price(&[]).unwrap(), 120.0, "唯一投标人取控制价");
+        let d = spec2.score_detail(50.0, &[]).unwrap();
+        let d2 = spec2.score_detail(110.0, &[]).unwrap();
+        assert_close(d.score, d2.score, "唯一投标人得分与报价无关");
+        let spec3 = average_spec(0.96, 44.0, None, 0.2, 0.1);
+        assert!(spec3.optimal_price(&[]).is_err(), "无界拒绝");
+
+        // 不变量（c ≤ 1 时恒成立）：x* = cS/(n−c) ≤ max(others) ≤ 控制价
+        //   ——证明：x* ≤ c·m·M/(m+1−c)，与 M 比较即 c(m+1) ≤ m+1 ⟺ c ≤ 1。
+        //   即闭式解永不超过最高竞争报价，无越限价风险；min() 仅作防御性保护。
+        // 手工：x* = 0.96×294/(4−0.96) = 282.24/3.04 = 92.842 ≤ max(others)=99
+        let spec4 = average_spec(0.96, 44.0, Some(100.0), 0.2, 0.1);
+        let opt = spec4.optimal_price(&[99.0, 98.0, 97.0]).unwrap();
+        assert_close(opt, 282.24 / 3.04, "闭式解");
+        assert!(opt <= 99.0, "x* ≤ max(others) 不变量");
+        assert!(opt <= 100.0, "x* ≤ 控制价");
+        // 最优性验证：网格上界（0.25 步长全扫无超者）
+        let best = spec4.score(opt, &[99.0, 98.0, 97.0]).unwrap();
+        let mut p = 1.0;
+        while p <= 100.0 {
+            if let Ok(s) = spec4.score(p, &[99.0, 98.0, 97.0]) {
+                assert!(s <= best + 1e-9, "网格点 {p} 得分 {s} 超过最优 {best}");
+            }
+            p += 0.25;
+        }
+    }
+
+    /// PR3 验收报告（康居方法三 + 亳州农业农村全表——`--nocapture` 查看）。
+    #[test]
+    fn acceptance_report_average_price() {
+        // —— 康居方法三：K=96%，5 家监理（44 分，高0.2/低0.1）——
+        let spec = average_spec(0.96, 44.0, Some(120.0), 0.2, 0.1);
+        let all = [95.0, 100.0, 105.0, 108.0, 115.0];
+        let avg = all.iter().sum::<f64>() / 5.0; // 104.6
+        let bench = avg * 0.96; // 100.416
+        for bid in all {
+            let others: Vec<f64> = all.iter().cloned().filter(|p| *p != bid).collect();
+            let d = spec.score_detail(bid, &others).unwrap();
+            let hand = 44.0 - ((bid - bench) / bench).abs() * 100.0
+                * if bid > bench { 0.2 } else { 0.1 };
+            assert!((d.score - hand).abs() < 1e-9, "{bid}: 引擎 {} vs 手工 {hand}", d.score);
+            println!(
+                "| 康居方法三 | 基准 {:.3}（=A{}×0.96） | 报价 {bid:.2} | 偏离 {:+.6}% | 手工 {hand:.6} | 引擎 {:.6} | 一致 |",
+                bench, avg, d.deviation * 100.0, d.score
+            );
+        }
+        let opt = spec.optimal_price(&[95.0, 100.0, 105.0, 115.0]).unwrap();
+        assert!((opt - 98.613861).abs() < 1e-5, "最优反推呈现: {opt:.2}");
+        println!("| 康居方法三 | 最优报价反推 x*=cS/(n−c) | — | — | 手工 98.613861 | 引擎 {opt:.6} | 一致 |");
+
+        // —— 亳州农业农村：C=0.985，F=60，E1=1.5/E2=0.75，4 家 ——
+        let spec = average_spec(0.985, 60.0, None, 1.5, 0.75);
+        let all = [980.0, 995.0, 1000.0, 1010.0];
+        let avg = all.iter().sum::<f64>() / 4.0; // 996.25
+        let bench = avg * 0.985; // 981.30625
+        for bid in all {
+            let others: Vec<f64> = all.iter().cloned().filter(|p| *p != bid).collect();
+            let d = spec.score_detail(bid, &others).unwrap();
+            let hand = 60.0 - ((bid - bench) / bench).abs() * 100.0
+                * if bid > bench { 1.5 } else { 0.75 };
+            assert!((d.score - hand).abs() < 1e-9, "{bid}: 引擎 {} vs 手工 {hand}", d.score);
+            println!(
+                "| 亳州农业农村 | 基准 {:.5}（=A{}×0.985） | 报价 {bid:.2} | 偏离 {:+.6}% | 手工 {hand:.6} | 引擎 {:.6} | 一致 |",
+                bench, avg, d.deviation * 100.0, d.score
+            );
+        }
+        let opt = spec.optimal_price(&[980.0, 995.0, 1010.0]).unwrap();
+        assert!((opt - 975.199005).abs() < 1e-5, "最优反推呈现: {opt:.2}");
+        println!("| 亳州农业农村 | 最优报价反推 x*=cS/(n−c) | — | — | 手工 975.199005 | 引擎 {opt:.6} | 一致 |");
     }
 }

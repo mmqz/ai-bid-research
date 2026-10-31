@@ -608,11 +608,22 @@ fn parse_blocks(content: &str) -> Vec<Block> {
             return;
         }
         let rows: Vec<Vec<String>> = table_lines.iter().map(|l| split_table_row(l)).collect();
-        // 分隔行剔除：第 2 行是分隔形态 → 表头+数据；否则整个按普通段落回退
-        if rows.len() >= 2 && table_lines.iter().all(|l| l.starts_with('|')) && rows.len() >= 2
-            && table_lines[1].chars().all(|c| matches!(c, '|' | '-' | ':' | ' '))
-            && table_lines[1].contains('-')
-        {
+        // 分隔行剔除：第 2 行是分隔形态 → 表头+数据；否则整个按普通段落回退。
+        //
+        // #103 B：判定必须**只认分隔行字符**（`| - : 空白`）。早先的全行
+        // 字符白名单会被红标单元格里的 `{`/`r`/`:` 破坏——单元格文本若
+        // 恰好含冒号（如「时间：7:30」）或红标标记，整张表就退化成段落。
+        // 逐格判定（去掉竖线与空白后只允许 `-`/`:`）语义更准：真分隔行
+        // 为「---」「:---:」形态，任何含正文的格都过不去。
+        let is_separator_row = |cells: &[String]| {
+            !cells.is_empty()
+                && cells.iter().all(|c| {
+                    let core: String = c.chars().filter(|ch| *ch != ' ' && *ch != '|').collect();
+                    !core.is_empty() && core.chars().all(|ch| ch == '-' || ch == ':')
+                        && core.contains('-')
+                })
+        };
+        if rows.len() >= 2 && table_lines.iter().all(|l| l.starts_with('|')) && is_separator_row(&rows[1]) {
             blocks.push(Block::Table { rows: rows.into_iter().enumerate()
                 .filter(|(i, _)| *i != 1).map(|(_, r)| r).collect() });
         } else {
@@ -682,12 +693,40 @@ fn strip_heading(line: &str) -> Option<String> {
 }
 
 /// 表格行切单元格（剥首尾竖线 → `|` 切分 → 逐格 trim）。
+///
+/// #103 子任务 B：支持 GFM 的 `\|` 转义——被反斜杠转义的竖线是**单元格
+/// 内容**不是分隔符，切分后去掉转义反斜杠还原原文。不处理转义会怎样：
+/// 设备型号「DN100|PN16」会被切成两格（整行错位），而 [crate::tables]
+/// 的 `BidTable::to_markdown` 正是显式转义后再交给本函数。
+///
+/// 红标标记（`{{r:文本}}`）不需要任何特殊处理——它的定界符是 `:`，与
+/// 列分隔符 `|` 正交（这正是不用 `{{r|…}}` 的原因，见 [crate::tables]。
 fn split_table_row(line: &str) -> Vec<String> {
     let inner = line.strip_prefix('|').unwrap_or(line);
     let inner = inner.strip_suffix('|').unwrap_or(inner);
-    inner.split('|').map(|c| c.trim().to_string()).collect()
+    let mut cells: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    let mut chars = inner.chars();
+    while let Some(ch) = chars.next() {
+        match ch {
+            '\\' => match chars.next() {
+                Some(next) if next == '|' => cur.push('|'),
+                Some(next) => {
+                    cur.push('\\');
+                    cur.push(next);
+                }
+                None => cur.push('\\'),
+            },
+            '|' => {
+                cells.push(cur.trim().to_string());
+                cur.clear();
+            }
+            c => cur.push(c),
+        }
+    }
+    cells.push(cur.trim().to_string());
+    cells
 }
-
 /// 图片目标解析（EV-id → 证据源文件；路径 → 相对 workspace 或绝对）。
 fn resolve_image_target(evidences: &[Evidence], ws: &Path, target: &str) -> PathBuf {
     if let Some(ev) = evidences.iter().find(|e| e.id == target) {
@@ -737,7 +776,24 @@ fn build_pic(bytes: &[u8], target: &str) -> Result<Pic, ExportError> {
     Ok(Pic::new_with_dimensions(png, mw, mh))
 }
 
-/// md 表格行集 → docx Table（表头加粗；暗标脱敏逐格应用）。
+/// 红标 run 的颜色（纯红——负偏离/废标级风险项的唯一色彩语义）。
+///
+/// #103 子任务 B：标书的「颜色」只有一种用法——把**不满足招标要求**的
+/// 单元格戳出来。多一种颜色就多一种解释，评标现场不需要配色方案。
+const RED_RUN_COLOR: &str = "FF0000";
+
+/// md 表格行集 → docx Table（表头加粗；暗标脱敏逐格应用；红标标记渲染）。
+///
+/// #103 子任务 B：单元格内的 `{{r|文本}}` 行内标记（[crate::tables] 的
+/// [`RED_MARK_OPEN`] 语法）渲染为**红色 run**——技术参数偏离表用它把负
+/// 偏离整行标红。标记之外的文本原样渲染（无标记的单元格与既有版同输出）。
+///
+/// 为什么走行内标记而不是给 build_table 加一个「第 N 行标红」参数：表格
+/// 数据从 markdown 来（[crate::tables::BidTable::to_markdown]），导出层
+/// 只认识 md 文本；把表达力放进文本里，markdown 就仍然自足（纯文本阅读
+/// 时可读、可 diff、可诊断），导出层只负责渲染。
+///
+/// [`RED_MARK_OPEN`]: crate::tables::RED_MARK_OPEN
 fn build_table(rows: Vec<Vec<String>>, opts: &ExportOptions<'_>) -> Table {
     let doc_rows: Vec<TableRow> = rows
         .into_iter()
@@ -746,12 +802,19 @@ fn build_table(rows: Vec<Vec<String>>, opts: &ExportOptions<'_>) -> Table {
             let doc_cells: Vec<TableCell> = cells
                 .into_iter()
                 .map(|c| {
-                    let text = opts.scrub(&c);
-                    let mut run = Run::new().add_text(text.as_str());
-                    if i == 0 {
-                        run = run.bold(); // 表头行加粗（无样式表依赖的稳妥面）
+                    let mut para = Paragraph::new();
+                    for (text, is_red) in split_red_marks(&c) {
+                        let text = opts.scrub(&text);
+                        let mut run = Run::new().add_text(text.as_str());
+                        if i == 0 {
+                            run = run.bold(); // 表头行加粗（无样式表依赖的稳妥面）
+                        }
+                        if is_red {
+                            run = run.color(RED_RUN_COLOR);
+                        }
+                        para = para.add_run(run);
                     }
-                    TableCell::new().add_paragraph(Paragraph::new().add_run(run))
+                    TableCell::new().add_paragraph(para)
                 })
                 .collect();
             TableRow::new(doc_cells)
@@ -760,6 +823,37 @@ fn build_table(rows: Vec<Vec<String>>, opts: &ExportOptions<'_>) -> Table {
     Table::new(doc_rows)
 }
 
+/// 单元格文本按红标标记切段 → [(文本, 是否红色)]。
+///
+/// 语法：`前缀{{r:红色段}}后缀` → [("前缀", false), ("红色段", true),
+/// ("后缀", false)]。无标记 → 单段 [("原文", false)]；空串 → 空 vec
+/// （调用方补空 run——docx 单元格必须有段落）。
+///
+/// 容错纪律：未闭合的 `{{r:` **按普通文本处理**——半截标记是数据错误，
+/// 静默吞掉后半格文本比原样显示标记更糟。
+fn split_red_marks(cell: &str) -> Vec<(String, bool)> {
+    let open = crate::tables::RED_MARK_OPEN;
+    let close = crate::tables::RED_MARK_CLOSE;
+    let mut segments: Vec<(String, bool)> = Vec::new();
+    let mut rest = cell;
+    while let Some(start) = rest.find(open) {
+        let after = &rest[start + open.len()..];
+        let Some(end) = after.find(close) else { break }; // 未闭合：整体按普通文本
+        let (head, red_text) = (&rest[..start], &after[..end]);
+        if !head.is_empty() {
+            segments.push((head.to_string(), false));
+        }
+        segments.push((red_text.to_string(), true));
+        rest = &after[end + close.len()..];
+    }
+    if !rest.is_empty() {
+        segments.push((rest.to_string(), false));
+    }
+    if segments.is_empty() && !cell.is_empty() {
+        segments.push((cell.to_string(), false));
+    }
+    segments
+}
 /// `out` + ".tmp" 的同目录兄弟路径（纯后缀追加——不猜调用方的扩展名形态）。
 fn sibling_tmp(out: &Path) -> PathBuf {
     let mut s = out.as_os_str().to_os_string();
@@ -832,6 +926,38 @@ mod tests {
             s.contains(r#"TOC \o &quot;1-3&quot; \h \u"#),
             "TOC 域指令必须是规格原文（TOC \\o \"1-3\" \\h \\u，XML 引号转义形态）: {s}"
         );
+    }
+
+    /// #103 B：红标标记切段（markdown 层 → run 段）——标红渲染的前置面。
+    #[test]
+    fn split_red_marks_segments_cell() {
+        assert_eq!(
+            split_red_marks("{{r:2年}}"),
+            vec![("2年".to_string(), true)],
+            "整格标红 → 单段红色"
+        );
+        assert_eq!(
+            split_red_marks("前缀{{r:红}}后缀"),
+            vec![
+                ("前缀".to_string(), false),
+                ("红".to_string(), true),
+                ("后缀".to_string(), false)
+            ],
+            "混合格 → 三段"
+        );
+        assert_eq!(split_red_marks("纯文本"), vec![("纯文本".to_string(), false)]);
+        assert_eq!(split_red_marks(""), Vec::new());
+        // 未闭合：按普通文本（不吞内容）
+        assert_eq!(split_red_marks("{{r:半截"), vec![("{{r:半截".to_string(), false)]);
+    }
+
+    /// #103 B：md 表格行 → 单元格切分（红标标记不被列分隔符误伤）。
+    #[test]
+    fn table_row_split_keeps_red_marks_whole() {
+        let cells = split_table_row("| {{r:2}} | {{r:负偏离}} |");
+        assert_eq!(cells, vec!["{{r:2}}".to_string(), "{{r:负偏离}}".to_string()]);
+        // GFM 转义竖线仍是内容
+        assert_eq!(split_table_row("| a\\|b | c |"), vec!["a|b".to_string(), "c".to_string()]);
     }
 
     /// 文档序全序化：兄弟按 order、父先于子；孤儿（父引用不存在）→ 显式拒。

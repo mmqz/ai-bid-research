@@ -6,16 +6,18 @@
 //!
 //! 域抽象（对齐真实评标办法的报价规则，非学术泛化）：
 //! - [`PriceScoreMethod`]：**评标基准价怎么定**（基准价法/最低价法/平均价法/
-//!   复合法/下浮率法五种——issue #84 B1 范围，逐 PR 交付，本 PR 落基准价法）；
+//!   复合法/下浮率法五种——issue #84 B1 范围，五个 PR 全量交付；
+//!   复合法的退化等价把基准价法/平均价法统一进来）；
 //! - [`DeviationRule`]：**偏离基准价怎么扣分**（每高 1% 扣 E1、每低 1% 扣 E2、
-//!   不足 1% 插入法即线性内插——亳州导则 E1/E2、康居嘉苑监理 0.2/0.1 同构；
-//!   高价侧扣分通常更重）；
+//!   不足 1% 插入法即线性内插——亳州导则 E1/E2、康居嘉苑监理 0.2/0.1 同构，
+//!   高价侧扣分通常更重；另含 87号令比率口径与下浮率百分点口径）；
 //! - [`PriceScoreSpec`]：方法 + 满分 + 控制价 + 偏离规则的组合规格。
 //!
 //! 两个核心 API（issue #84 B1 验收面）：
 //! - [`PriceScoreSpec::score`]：给定报价 + 其他有效报价 → 价格分；
 //! - [`PriceScoreSpec::optimal_price`]：其他有效报价给定 → 反推最优报价
-//!   （基准价法最优 = 命中基准价，偏离为零即满分）。
+//!   （各方法均有闭式解/候选集精确解——基准价法命中基准、最低价法并列
+//!   最低、平均/下浮率命中不动点、复合法候选集取优）。
 //!
 //! 真实规则锚点（可查证原文，验收对照用）：
 //! - 财政部令第 87 号《政府采购货物和服务招标投标管理办法》第五十五条
@@ -39,11 +41,11 @@
 //!   （低于），**E1≥2×E2**，得分为负按 0 计；房建市政类
 //!   `J=(A×20%+B×35%+C×45%)×K`，其中 `A = 最高投标限价×(100%−下浮率N)`。
 //!
-//! 本 PR（基准价法）的验收口径说明：纯「控制价×系数」端到端评标办法未在
-//! 本次调研中取得可引用原文（该形态实务中多作为复合公式的**控制价分量**
-//! 出现——东南大学 B×K2 / 玉带河 B×K2 / 亳州 A=限价×(1−N)），故验收采用
-//! **分量级真实对照**（三例）+ **合成场景**（测试内显式标注「合成」）+
-//! 后续 PR 的退化等价（复合法 budget_weight=1 退化为基准价法）。
+//! 验收口径：issue 要求「3 个真实评标办法手工算 vs 引擎算一致」——实际交付
+//! **8 套真实规则全表对照**（上述锚点）。纯「控制价×系数」端到端办法未取得
+//! 可引用原文（实务中多作为复合公式的控制价分量出现），故基准价法/下浮率法
+//! 采用分量级真实对照 + 合成场景（测试内显式标注「合成」）+ 退化等价
+//! （复合法 budget_weight=1 ≡ 基准价法，测试锁定）。
 //!
 //! 纪律（对齐仓内既定口径）：
 //! - **有效报价前置**：`others` 必须是已通过有效性筛选的报价（超控制价 =
@@ -62,11 +64,11 @@ use crate::ToolError;
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------- 类型面
-/// 评标基准价的确定方法（真实评标办法报价规则的抽象——五种，逐 PR 交付）。
+/// 评标基准价的确定方法（真实评标办法报价规则的抽象——五种，B1 全量交付）。
 ///
 /// 「基准价怎么定」是价格分的第一半；「偏离怎么扣分」见 [`DeviationRule`]。
-/// 已交付：`BenchmarkPrice`（基准价法）/ `LowestPrice`（最低价法）/
-/// `AveragePrice`（平均价法）/ `Composite`（复合法）；待交付：下浮率法。
+/// 五种全部落地：`BenchmarkPrice`（基准价法）/ `LowestPrice`（最低价法）/
+/// `AveragePrice`（平均价法）/ `Composite`（复合法）/ `DiscountRate`（下浮率法）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PriceScoreMethod {
@@ -162,6 +164,38 @@ pub enum PriceScoreMethod {
         /// 平均价侧系数 K1（0 < c ≤ 1，如康居方法四 1.0/东南大学 0.97）
         avg_coefficient: f64,
     },
+    /// 下浮率法：报价按**下浮率**计分——下浮率 =（控制价 − 报价）/ 控制价，
+    /// 得分按报价下浮率与基准下浮率的偏离（百分点）扣分（配 [`DeviationRule::Rate`]）。
+    ///
+    /// 真实锚点：
+    /// - 东南大学修缮（ccgp.gov.cn 更正公告 2026-08-21）的优惠率定义原文：
+    ///   「清单内优惠率 = (1 − 报价/最高限价) × 100%」——即本方法下浮率的
+    ///   真实计算式（报价 1050/限价 1200 → 12.5%）；
+    /// - 亳州导则 2026（ggzy.bozhou.gov.cn）房建市政的 A 分量：
+    ///   `A = 最高投标限价×(100% − 下浮率 N)`，N∈{1.5%,…,4.5%}——
+    ///   `Fixed(N)` 形态的等效基准价 = 限价×(1−N)（与基准价法分量一致）；
+    /// - 浙江 EPC/全过程咨询实务的「中标下浮率」报价口径（兰溪陈军美术馆
+    ///   EPC 招标文件 §9.12：结算按中标下浮率下浮——下浮率是合同口径）。
+    ///
+    /// 与平均价法的分母差异（非同一方法，测试锁定）：FieldAverage 基准的
+    /// 偏离以**控制价**为分母（百分点），平均价法以**基准价**为分母（百分比）。
+    ///
+    /// 最优报价：Fixed(r) → 控制价×(1−r)；FieldAverage → mean(others)
+    /// （解 rate = 均值的闭式解，恰命中基准下浮率）。控制价必需。
+    DiscountRate {
+        /// 基准下浮率来源（给定 / 全场平均）
+        base: DiscountBase,
+    },
+}
+
+/// 下浮率基准的来源（真实办法两种形态）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum DiscountBase {
+    /// 招标文件直接给定基准下浮率（0.08 = 下浮 8%；0 = 基准价即控制价）
+    Fixed(f64),
+    /// 全部有效报价（含己方）下浮率的算术平均值（竞争场自适应形态）
+    FieldAverage,
 }
 
 /// 偏离扣分规则（「等于基准价得满分，偏离按幅度扣分」的具体口径）。
@@ -186,6 +220,12 @@ pub enum DeviationRule {
     /// 报价 = 基准价时恰满分；高于基准价线性折减（低价侧天然不罚——
     /// 比率 ≤ 1 时截到满分）。政采综合评分法价格分强制此口径。
     Ratio,
+    /// 下浮率口径：每偏离基准下浮率 1 个百分点扣 `deduct` 分（仅配
+    /// [`PriceScoreMethod::DiscountRate`]——偏离度量是百分点不是价格百分比）。
+    Rate {
+        /// 每偏离 1 个百分点（pp）的扣分（≥0）
+        deduct: f64,
+    },
 }
 
 /// 价格分规格（一个评标办法报价规则的完整参数化——B2 评分自评的消费面）。
@@ -315,6 +355,34 @@ impl PriceScoreSpec {
                 // 注：剔除数与报价家数的适配（剔除后至少剩 1 家）在 benchmark
                 // 计算时校验——validate 时不知道报价集合大小
             }
+            PriceScoreMethod::DiscountRate { base } => {
+                // 下浮率必须相对控制价（分母无值则率无定义）
+                if self.budget.is_none() {
+                    return Err(eun(
+                        "PRICE_SPEC_INVALID: DiscountRate 需要 budget（控制价）——下浮率 =（控制价−报价）/控制价，无控制价无分母",
+                    ));
+                }
+                if let DiscountBase::Fixed(r) = base {
+                    if !r.is_finite() || *r < 0.0 || *r >= 1.0 {
+                        return Err(eun(format!(
+                            "PRICE_SPEC_INVALID: DiscountRate.Fixed 基准下浮率须在 [0,1)（0.08 = 下浮 8%），got {r}"
+                        )));
+                    }
+                }
+            }
+        }
+        // 方法 × 偏离规则适配矩阵：下浮率法 ⇔ Rate；价格口径方法 ⇔ Price/Ratio
+        let is_rate = matches!(self.deviation_rule, DeviationRule::Rate { .. });
+        let is_discount = matches!(self.method, PriceScoreMethod::DiscountRate { .. });
+        if is_discount && !is_rate {
+            return Err(eun(
+                "PRICE_SPEC_INVALID: DiscountRate 须配 DeviationRule::Rate（下浮率按百分点计分）——Price/Ratio 是价格百分比/比率口径",
+            ));
+        }
+        if !is_discount && is_rate {
+            return Err(eun(
+                "PRICE_SPEC_INVALID: DeviationRule::Rate 仅配 DiscountRate（百分点度量只对下浮率有定义）",
+            ));
         }
         match &self.deviation_rule {
             DeviationRule::Price { deduct_high, deduct_low } => {
@@ -324,6 +392,13 @@ impl PriceScoreSpec {
                     return Err(eun(format!(
                         "PRICE_SPEC_INVALID: Price 扣分须 ≥0（deduct_high={deduct_high}, \
                          deduct_low={deduct_low}）"
+                    )));
+                }
+            }
+            DeviationRule::Rate { deduct } => {
+                if !deduct.is_finite() || *deduct < 0.0 {
+                    return Err(eun(format!(
+                        "PRICE_SPEC_INVALID: Rate 扣分须 ≥0（每百分点），got {deduct}"
                     )));
                 }
             }
@@ -388,6 +463,21 @@ impl PriceScoreSpec {
                 };
                 Ok(a * avg_coefficient * (1.0 - budget_weight) + budget_part)
             }
+            // 下浮率法的等效基准价（价格口径呈现：控制价×(1−基准下浮率)）。
+            // FieldAverage 的等效基准恰为全集合均值。
+            PriceScoreMethod::DiscountRate { base } => {
+                let b = self.budget.ok_or_else(|| {
+                    eun("PRICE_SPEC_INVALID: DiscountRate 需要 budget（不应到达——validate 已拦截）")
+                })?;
+                let n = (others.len() + 1) as f64;
+                let base_rate = match base {
+                    DiscountBase::Fixed(r) => *r,
+                    DiscountBase::FieldAverage => {
+                        1.0 - (others.iter().sum::<f64>() + bid_price) / (n * b)
+                    }
+                };
+                Ok(b * (1.0 - base_rate))
+            }
         }
     }
 
@@ -401,6 +491,9 @@ impl PriceScoreSpec {
 
     /// 评分明细（基准价/偏离度/扣分/最终分——「手工算 vs 引擎算」对照的
     /// 引擎侧中间量，MCP 审计面同款消费）。
+    ///
+    /// 下浮率法的明细口径：`benchmark` = 等效基准价（控制价×(1−基准下浮率)），
+    /// `deviation` = 下浮率差（rate − base，×100 为百分点，+为下浮更多）。
     pub fn score_detail(
         &self,
         bid_price: f64,
@@ -409,6 +502,37 @@ impl PriceScoreSpec {
         self.validate()?;
         check_price(bid_price, self.budget, "己方")?;
         check_others(others, self.budget)?;
+
+        // ---- 下浮率口径（DiscountRate ⇔ Rate，validate 已保证适配）----
+        if let PriceScoreMethod::DiscountRate { base } = &self.method {
+            let deduct = match &self.deviation_rule {
+                DeviationRule::Rate { deduct } => *deduct,
+                _ => return Err(eun("内部不一致：DiscountRate 未配 Rate（不应到达——validate 已拦截）")),
+            };
+            let b = self.budget.ok_or_else(|| {
+                eun("PRICE_SPEC_INVALID: DiscountRate 需要 budget（不应到达——validate 已拦截）")
+            })?;
+            // 东南大学优惠率同式：清单内优惠率 = (1 − 报价/最高限价) × 100%
+            let rate = (b - bid_price) / b;
+            let n = (others.len() + 1) as f64;
+            let base_rate = match base {
+                DiscountBase::Fixed(r) => *r,
+                DiscountBase::FieldAverage => {
+                    1.0 - (others.iter().sum::<f64>() + bid_price) / (n * b)
+                }
+            };
+            let deviation = rate - base_rate; // + = 下浮更多（报价更低）
+            let deduction = deviation.abs() * 100.0 * deduct;
+            let score = clamp_score(self.max_score - deduction, self.max_score);
+            return Ok(PriceScoreDetail {
+                benchmark: b * (1.0 - base_rate), // 等效基准价
+                deviation,
+                deduction,
+                score,
+            });
+        }
+
+        // ---- 价格口径（Price / Ratio）----
         let benchmark = self.benchmark(bid_price, others)?;
         // 偏离度：相对基准价的百分比（+高 / −低；87号令/亳州导则/康居嘉苑同口径）
         let deviation = (bid_price - benchmark) / benchmark;
@@ -427,6 +551,10 @@ impl PriceScoreSpec {
                 let raw = benchmark / bid_price * self.max_score;
                 let s = clamp_score(raw, self.max_score);
                 ((self.max_score - s).max(0.0), s)
+            }
+            // 下浮率口径在方法分支早返——到达此处说明内部不一致
+            DeviationRule::Rate { .. } => {
+                return Err(eun("内部不一致：Rate 未配 DiscountRate（不应到达——validate 已拦截）"));
             }
         };
         Ok(PriceScoreDetail { benchmark, deviation, deduction, score })
@@ -566,6 +694,26 @@ impl PriceScoreSpec {
                     eun("PRICE_UNBOUNDED: Composite 无可用候选（无竞争报价且无控制价）——\
                          提供预算或竞争报价")
                 })
+            }
+            // 下浮率法：Fixed(r) → 控制价×(1−r)；FieldAverage → mean(others)
+            // （解 rate_own = 均值：1−x/B = 1−(S+x)/(nB) ⟹ x = S/(n−1)）。
+            // 不变量：mean(others) ≤ max(others) ≤ 控制价。
+            PriceScoreMethod::DiscountRate { base } => {
+                let b = self.budget.ok_or_else(|| {
+                    eun("PRICE_SPEC_INVALID: DiscountRate 需要 budget（不应到达——validate 已拦截）")
+                })?;
+                match base {
+                    DiscountBase::Fixed(r) => Ok(b * (1.0 - r)),
+                    DiscountBase::FieldAverage => {
+                        if others.is_empty() {
+                            // 唯一投标人：基准 = 己方下浮率 → 恒偏离零 → 任意报价满分
+                            // ——有控制价取控制价，无控制价已在 validate 拒绝
+                            return Ok(b);
+                        }
+                        let mean = others.iter().sum::<f64>() / others.len() as f64;
+                        Ok(mean)
+                    }
+                }
             }
         }
     }
@@ -1521,5 +1669,219 @@ mod tests {
         let opt = spec.optimal_price(&[2000.0, 2050.0, 2100.0, 2180.0, 2230.0, 2450.0]).unwrap();
         assert!((opt - 2102.661744).abs() < 1e-5, "最优反推呈现: {opt:.2}");
         println!("| 玉带河方法二 | 最优报价反推（带内不动点） | — | — | 手工 2102.661744 | 引擎 {opt:.6} | 一致 |");
+    }
+
+    // ================================================================ 下浮率法（PR5，B1 收口）
+
+    fn discount_spec(base: DiscountBase, max_score: f64, budget: f64, deduct: f64) -> PriceScoreSpec {
+        PriceScoreSpec {
+            method: PriceScoreMethod::DiscountRate { base },
+            max_score,
+            budget: Some(budget),
+            deviation_rule: DeviationRule::Rate { deduct },
+        }
+    }
+
+    /// 真实定义对照 1/2：东南大学修缮（ccgp.gov.cn 更正公告 2026-08-21）——
+    /// 「清单内优惠率 = (1 − 报价/最高限价) × 100%」——即本引擎下浮率的
+    /// 真实计算式。报价 1050 / 最高限价 1200 → 优惠率 12.5%。
+    ///
+    /// 以 Fixed(10%) 基准 + 每偏离 1pp 扣 2 分验证：
+    /// 下浮率 12.5% − 基准 10% = +2.5pp → 扣 5 分。
+    #[test]
+    fn real_def_seu_discount_rate_formula() {
+        let spec = discount_spec(DiscountBase::Fixed(0.10), 40.0, 1200.0, 2.0);
+        let d = spec.score_detail(1050.0, &[1000.0, 1100.0]).unwrap();
+        // 手工：优惠率 = (1 − 1050/1200) = 0.125（东南大学原文公式）
+        let rate_hand = 1.0 - 1050.0 / 1200.0;
+        // 引擎偏离 = 下浮率 − 基准 = 0.125 − 0.10 = +0.025（2.5pp）
+        assert_close(d.deviation, rate_hand - 0.10, "下浮率偏离（东南大学优惠率公式）");
+        assert!((d.deviation - 0.025).abs() < 1e-12, "偏离 = +2.5pp");
+        // 手工：40 − 2.5×2 = 35
+        assert_close(d.score, 40.0 - 2.5 * 2.0, "每 pp 扣 2 分");
+        // 等效基准价 = 1200×(1−10%) = 1080
+        assert_close(d.benchmark, 1080.0, "等效基准价");
+    }
+
+    /// 真实定义对照 2/2：亳州导则 2026（ggzy.bozhou.gov.cn）房建市政的
+    /// A 分量——`A = 最高投标限价×(100%−下浮率 N)`，N∈{1.5%,…,4.5%}。
+    /// `Fixed(N)` 形态的等效基准价 = 限价×(1−N)，与 PR1 基准价法分量一致
+    /// （跨方法一致性：同为 4850）。
+    #[test]
+    fn real_def_bozhou_a_component_via_discount() {
+        let spec = discount_spec(DiscountBase::Fixed(0.03), 65.0, 5000.0, 1.0);
+        let d = spec.score_detail(4850.0, &[4700.0, 4900.0]).unwrap();
+        // 手工：A = 5000×(1−3%) = 4850
+        assert_close(d.benchmark, 5000.0 * 0.97, "等效基准价 = 亳州 A 分量");
+        assert!((d.benchmark - 4850.0).abs() < 1e-9, "与基准价法分量一致（4850）");
+        // 命中基准下浮率（报价 4850 → 下浮 3%）→ 偏离 0 → 满分
+        assert_close(d.deviation, 0.0, "命中基准下浮率");
+        assert_close(d.score, 65.0, "满分");
+    }
+
+    /// 合成场景（显式标注——非真实办法引用，验证引擎数学面）：
+    /// 基准下浮率 8%、每偏离 1pp 扣 2 分、满分 40、控制价 1000。
+    #[test]
+    fn synthetic_discount_rate_full_table() {
+        let spec = discount_spec(DiscountBase::Fixed(0.08), 40.0, 1000.0, 2.0);
+        // (a) 报价 920 → 下浮 8% → 命中 → 40
+        let a = spec.score_detail(920.0, &[900.0, 940.0]).unwrap();
+        assert_close(a.deviation, 0.0, "命中基准下浮率");
+        assert_close(a.score, 40.0, "满分");
+        // (b) 报价 900 → 下浮 10% → +2pp → 40 − 4 = 36
+        let b = spec.score_detail(900.0, &[920.0, 940.0]).unwrap();
+        assert_close(b.score, 40.0 - 2.0 * 2.0, "下浮过多扣分");
+        // (c) 报价 950 → 下浮 5% → −3pp → 40 − 6 = 34
+        let c = spec.score_detail(950.0, &[900.0, 920.0]).unwrap();
+        assert_close(c.score, 40.0 - 3.0 * 2.0, "下浮不足扣分");
+        // (d) 报价 100（下浮 90%）→ −82pp → 扣 164 → 负分夹 0
+        let d = spec.score_detail(100.0, &[900.0, 920.0]).unwrap();
+        assert_close(d.score, 0.0, "负分下界夹 0");
+        // 最优报价 = 1000×(1−8%) = 920（Fixed 闭式解）
+        let opt = spec.optimal_price(&[900.0, 940.0]).unwrap();
+        assert_close(opt, 920.0, "Fixed 闭式解");
+        assert_close(spec.score(opt, &[900.0, 940.0]).unwrap(), 40.0, "最优得满分");
+    }
+
+    /// FieldAverage（全场下浮率均值基准）：基准 = 全部有效报价（含己方）
+    /// 下浮率的算术平均；最优报价闭式解 = mean(others)。
+    ///
+    /// 场景：控制价 1000，others = 940/910/880（下浮 6%/9%/12%），己方 900（10%）：
+    /// 基准下浮率 = (6+9+12+10)/4 = 9.25% → 偏离 +0.75pp。
+    #[test]
+    fn discount_rate_field_average() {
+        let spec = discount_spec(DiscountBase::FieldAverage, 50.0, 1000.0, 2.5);
+        let others = [940.0, 910.0, 880.0];
+
+        let d = spec.score_detail(900.0, &others).unwrap();
+        // 手工：基准 = 9.25%，己方 10% → +0.75pp → 50 − 1.875 = 48.125
+        let base_hand = (0.06 + 0.09 + 0.12 + 0.10) / 4.0;
+        assert_close(d.deviation, 0.10 - base_hand, "偏离 = 己方率 − 均值率");
+        assert_close(d.score, 50.0 - 0.75 * 2.5, "按 pp 扣分");
+        // 等效基准价 = 1000×(1−9.25%) = 907.5
+        assert_close(d.benchmark, 907.5, "等效基准价 = 全集均值");
+
+        // 最优报价闭式解 = mean(others) = 910 → 下浮 9% = 均值 → 偏离 0
+        let opt = spec.optimal_price(&others).unwrap();
+        assert_close(opt, 910.0, "闭式解 = mean(others)");
+        let d_opt = spec.score_detail(opt, &others).unwrap();
+        assert_close(d_opt.deviation, 0.0, "最优报价偏离为零");
+        assert_close(d_opt.score, 50.0, "最优得满分");
+
+        // 网格暴力上界：0.5 步长全扫 [1,1000]
+        let best = spec.score(opt, &others).unwrap();
+        let mut p = 1.0;
+        while p <= 1000.0 {
+            if let Ok(s) = spec.score(p, &others) {
+                assert!(s <= best + 1e-9, "网格点 {p} 得分 {s} 超过最优 {best}");
+            }
+            p += 0.5;
+        }
+
+        // 唯一投标人：基准 = 己方率 → 恒零偏离 → 取控制价
+        let opt_sole = spec.optimal_price(&[]).unwrap();
+        assert_close(opt_sole, 1000.0, "唯一投标人取控制价");
+        assert_close(spec.score(1000.0, &[]).unwrap(), 50.0, "任意报价满分");
+    }
+
+    /// 分母差异锁定（与平均价法非同一方法）：FieldAverage 下浮率偏离以
+    /// **控制价**为分母，平均价法以**基准价**为分母——同场景两法得分不同。
+    #[test]
+    fn discount_rate_denominator_differs_from_average_price() {
+        let others = [940.0, 910.0, 880.0];
+        // 下浮率法：基准率 9.25%（等效基准价 907.5），己方 900 → 偏离 0.75pp
+        let disc = discount_spec(DiscountBase::FieldAverage, 50.0, 1000.0, 2.5);
+        let d = disc.score_detail(900.0, &others).unwrap();
+        // 平均价法：基准 = 均值 907.5，己方 900 → 偏离 = −7.5/907.5 = −0.826446%
+        let avg = PriceScoreSpec {
+            method: PriceScoreMethod::AveragePrice { coefficient: 1.0 },
+            max_score: 50.0,
+            budget: Some(1000.0),
+            deviation_rule: DeviationRule::Price { deduct_high: 250.0, deduct_low: 250.0 },
+        };
+        let a = avg.score_detail(900.0, &others).unwrap();
+        // 等效基准价相同（907.5），但偏离度量不同：0.75pp vs 0.826446%（价格口径）
+        assert_close(d.benchmark, a.benchmark, "等效基准价相同");
+        assert!((d.deviation * 100.0 - 0.75).abs() < 1e-9, "下浮率口径 0.75pp");
+        assert!((a.deviation * 100.0 + 7.5 / 907.5 * 100.0).abs() < 1e-9, "价格口径 0.826446%");
+        // 扣分系数对齐（250 分/价格% ≡ 2.5 分/pp × 1000/907.5 换算）后得分仍不同
+        // ——分母差异是结构性的（控制价 vs 基准价）
+        assert!(
+            (d.deviation * 100.0).abs() - (a.deviation * 100.0).abs() != 0.0,
+            "两口径偏离数值不同（分母差异）"
+        );
+    }
+
+    /// 下浮率法校验：无控制价 / 基准率越界 / 规则错配（双向）。
+    #[test]
+    fn discount_rate_validation() {
+        // 无控制价
+        let mut spec = discount_spec(DiscountBase::Fixed(0.08), 40.0, 1000.0, 2.0);
+        spec.budget = None;
+        assert!(spec.score(920.0, &[]).is_err(), "无控制价拒绝（分母无值）");
+        // Fixed 越界：≥1（基准价 ≤0 无意义）/ 负
+        spec = discount_spec(DiscountBase::Fixed(1.0), 40.0, 1000.0, 2.0);
+        assert!(spec.score(920.0, &[]).is_err(), "基准率 ≥1 拒绝");
+        spec = discount_spec(DiscountBase::Fixed(-0.05), 40.0, 1000.0, 2.0);
+        assert!(spec.score(920.0, &[]).is_err(), "负基准率拒绝");
+        // Rate 扣分为负
+        spec = discount_spec(DiscountBase::Fixed(0.08), 40.0, 1000.0, -1.0);
+        assert!(spec.score(920.0, &[]).is_err(), "负扣分拒绝");
+        // 规则错配：DiscountRate + Price
+        spec = PriceScoreSpec {
+            method: PriceScoreMethod::DiscountRate { base: DiscountBase::Fixed(0.08) },
+            max_score: 40.0,
+            budget: Some(1000.0),
+            deviation_rule: DeviationRule::Price { deduct_high: 1.0, deduct_low: 1.0 },
+        };
+        assert!(spec.score(920.0, &[]).is_err(), "DiscountRate+Price 拒绝");
+        // 反向错配：AveragePrice + Rate
+        spec = PriceScoreSpec {
+            method: PriceScoreMethod::AveragePrice { coefficient: 0.96 },
+            max_score: 44.0,
+            budget: Some(1200.0),
+            deviation_rule: DeviationRule::Rate { deduct: 2.0 },
+        };
+        assert!(spec.score(1080.0, &[950.0]).is_err(), "AveragePrice+Rate 拒绝");
+    }
+
+    /// PR5 验收报告（真实定义对照 + 合成全表 + FieldAverage——`--nocapture` 查看）。
+    #[test]
+    fn acceptance_report_discount_rate() {
+        // —— 东南大学优惠率定义（真实原文公式）：(1 − 报价/限价)×100% ——
+        let spec = discount_spec(DiscountBase::Fixed(0.10), 40.0, 1200.0, 2.0);
+        let cases: [(f64, f64); 4] =
+            [(1050.0, 0.125), (1080.0, 0.10), (1140.0, 0.05), (900.0, 0.25)];
+        for (bid, rate) in cases {
+            let d = spec.score_detail(bid, &[1000.0, 1100.0]).unwrap();
+            let hand = 40.0 - ((rate - 0.10) * 100.0).abs() * 2.0;
+            assert!((d.score - hand).abs() < 1e-9, "{bid}: 引擎 {} vs 手工 {hand}", d.score);
+            println!(
+                "| 东南大学优惠率式 | 基准下浮 10.00%（基准价 1080.00） | 报价 {bid:.2} | 下浮率 {:+.6}%（偏离 {:+.3}pp） | 手工 {hand:.6} | 引擎 {:.6} | 一致 |",
+                rate * 100.0, (rate - 0.10) * 100.0, d.score
+            );
+        }
+        let opt = spec.optimal_price(&[1000.0, 1100.0]).unwrap();
+        assert!((opt - 1080.0).abs() < 1e-9, "最优反推 = 限价×(1−基准率)");
+        println!("| 东南大学优惠率式 | 最优报价反推 | — | — | 手工 1080.00 | 引擎 {opt:.6} | 一致 |");
+
+        // —— FieldAverage：全场均值基准（控制价 1000，4 家）——
+        let spec = discount_spec(DiscountBase::FieldAverage, 50.0, 1000.0, 2.5);
+        let all = [880.0, 900.0, 910.0, 940.0]; // 下浮 12%/10%/9%/6% → 均值 9.25%
+        for bid in all {
+            let others: Vec<f64> = all.iter().cloned().filter(|p| *p != bid).collect();
+            let d = spec.score_detail(bid, &others).unwrap();
+            let rate = 1.0 - bid / 1000.0;
+            let base = 1.0 - (others.iter().sum::<f64>() + bid) / 4.0 / 1000.0;
+            let hand = 50.0 - ((rate - base) * 100.0).abs() * 2.5;
+            assert!((d.score - hand).abs() < 1e-9, "{bid}: 引擎 {} vs 手工 {hand}", d.score);
+            println!(
+                "| FieldAverage | 基准下浮 9.250%（等效基准价 907.50） | 报价 {bid:.2} | 下浮率 {:+.6}%（偏离 {:+.3}pp） | 手工 {hand:.6} | 引擎 {:.6} | 一致 |",
+                rate * 100.0, (rate - base) * 100.0, d.score
+            );
+        }
+        let opt = spec.optimal_price(&[880.0, 910.0, 940.0]).unwrap();
+        assert!((opt - 910.0).abs() < 1e-9, "最优反推 = mean(others)");
+        println!("| FieldAverage | 最优报价反推（闭式解 mean(others)） | — | — | 手工 910.00 | 引擎 {opt:.6} | 一致 |");
     }
 }

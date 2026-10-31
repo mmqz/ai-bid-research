@@ -66,8 +66,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// 「基准价怎么定」是价格分的第一半；「偏离怎么扣分」见 [`DeviationRule`]。
 /// 已交付：`BenchmarkPrice`（基准价法）/ `LowestPrice`（最低价法）/
-/// `AveragePrice`（平均价法）；待交付：复合法（东南大学
-/// C=A×Q1×K1+B×Q2×K2 / 玉带河方法二 / 康居嘉苑方法四）、下浮率法。
+/// `AveragePrice`（平均价法）/ `Composite`（复合法）；待交付：下浮率法。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PriceScoreMethod {
@@ -124,6 +123,44 @@ pub enum PriceScoreMethod {
     AveragePrice {
         /// 平均值系数（0 < coefficient ≤ 1——真实办法均为下浮系数）。
         coefficient: f64,
+    },
+    /// 复合法：剔除后平均价 A 与控制价 B 的加权复合（真实工程评标的主流形态）——
+    /// `基准价 = A × avg_coefficient × (1 − budget_weight)
+    ///          + 控制价 × budget_coefficient × budget_weight`。
+    ///
+    /// 真实锚点（四套可查证原文，全部为本方法的参数化实例）：
+    /// - **东南大学修缮**（ccgp.gov.cn 更正公告 2026-08-21）：
+    ///   `C = A×Q1×K1 + B×Q2×K2`，K1∈{96%,97%,98%}、K2=95%、Q1∈{40%,50%,60%}，
+    ///   7≤n<10 去 1 高 1 低 / n≥10 去 2 高 2 低，基准命中得 69 分（满分 70），
+    ///   每高 1% 扣 0.9 / 每低 1% 扣 0.6，内插法；
+    /// - **玉带河 EPC 方法二**（ggzy.gov.cn）：`A×K1×Q1 + B×K2×Q2`，
+    ///   园林绿化工程 K2=90%，控制价 2480 万；
+    /// - **玉带河 EPC 方法一**（同上）：`A×K`（budget_weight=0 退化），
+    ///   4-6 家只剔最高（trim_high=1/trim_low=0），每低 1% 扣 0.5/每高 1% 扣 1.0；
+    /// - **康居嘉苑监理方法四**（ggzy.gov.cn）：`A×Q1 + B×Q2`，
+    ///   Q1∈{10%,…,30%}（两侧系数均为 1），每高 1% 扣 0.2/每低 1% 扣 0.1（44 分）。
+    ///
+    /// 退化等价（测试锁定）：budget_weight=1 ⟺ [`PriceScoreMethod::BenchmarkPrice`]；
+    /// budget_weight=0 且不剔除 ⟺ [`PriceScoreMethod::AveragePrice`]。
+    ///
+    /// 最优报价：分段线性峰值的**候选集精确求解**——三类不动点（带内闭式解 /
+    /// 高位剔除区常量基准 / 低位剔除区常量基准）、全部竞争报价（分段边界）
+    /// 与控制价上限，逐候选评分取最优（同分取高价）。基准价（x）随分段连续，
+    /// 峰值必在不动点或分段边界——候选集完备，无需数值逼近。
+    ///
+    /// 注：按家数动态定剔除数（如「n≥7 去 20% 四舍五入」）是规则文本→参数
+    /// 的解析职责（bid-parse 层），本引擎消费确定的剔除数。
+    Composite {
+        /// 剔除最高报价的家数（0 = 不剔高）
+        trim_high: usize,
+        /// 剔除最低报价的家数（0 = 不剔低）
+        trim_low: usize,
+        /// 控制价权重 Q2 ∈ [0,1]（0 = 纯均价，1 = 纯控制价——即基准价法）
+        budget_weight: f64,
+        /// 控制价侧系数 K2（0 < c ≤ 1，如玉带河园林绿化 0.90/东南大学 0.95）
+        budget_coefficient: f64,
+        /// 平均价侧系数 K1（0 < c ≤ 1，如康居方法四 1.0/东南大学 0.97）
+        avg_coefficient: f64,
     },
 }
 
@@ -254,6 +291,30 @@ impl PriceScoreSpec {
                     )));
                 }
             }
+            PriceScoreMethod::Composite { budget_weight, budget_coefficient,
+                                          avg_coefficient, .. } => {
+                if *budget_weight > 0.0 && self.budget.is_none() {
+                    return Err(eun(
+                        "PRICE_SPEC_INVALID: Composite.budget_weight > 0 需要 budget（控制价）——\
+                         复合公式的控制价分量无值可用",
+                    ));
+                }
+                if !budget_weight.is_finite() || *budget_weight < 0.0 || *budget_weight > 1.0 {
+                    return Err(eun(format!(
+                        "PRICE_SPEC_INVALID: Composite.budget_weight 须在 [0,1]（Q2 权重），got {budget_weight}"
+                    )));
+                }
+                for (name, c) in [("budget_coefficient", budget_coefficient),
+                                  ("avg_coefficient", avg_coefficient)] {
+                    if !c.is_finite() || *c <= 0.0 || *c > 1.0 {
+                        return Err(eun(format!(
+                            "PRICE_SPEC_INVALID: Composite.{name} 须在 (0,1]（下浮系数），got {c}"
+                        )));
+                    }
+                }
+                // 注：剔除数与报价家数的适配（剔除后至少剩 1 家）在 benchmark
+                // 计算时校验——validate 时不知道报价集合大小
+            }
         }
         match &self.deviation_rule {
             DeviationRule::Price { deduct_high, deduct_low } => {
@@ -301,6 +362,31 @@ impl PriceScoreSpec {
                 let n = (others.len() + 1) as f64;
                 let sum: f64 = others.iter().sum::<f64>() + bid_price;
                 Ok(sum / n * coefficient)
+            }
+            // 复合法：剔高剔低后平均 A 与控制价 B 的加权复合
+            //   基准 = A × avg_coefficient × (1 − budget_weight)
+            //        + B × budget_coefficient × budget_weight
+            PriceScoreMethod::Composite { trim_high, trim_low, budget_weight,
+                                          budget_coefficient, avg_coefficient } => {
+                let mut all: Vec<f64> = others.to_vec();
+                all.push(bid_price);
+                all.sort_by(|a, b| a.partial_cmp(b).expect("价格已校验为有限正数"));
+                let n = all.len();
+                // 剔除后至少剩 1 家（否则基准无定义——诚实错误而非除零）
+                if n <= trim_high + trim_low {
+                    return Err(eun(format!(
+                        "PRICE_SPEC_INVALID: Composite 剔除数超过报价家数（{n} 家剔最高 {trim_high} + 最低 {trim_low}）——剔除后无剩余报价，基准无定义"
+                    )));
+                }
+                let kept = n - trim_high - trim_low;
+                let sum: f64 = all[*trim_low..n - trim_high].iter().sum();
+                let a = sum / kept as f64;
+                let budget_part = if *budget_weight > 0.0 {
+                    self.budget.unwrap_or(0.0) * budget_coefficient * budget_weight
+                } else {
+                    0.0
+                };
+                Ok(a * avg_coefficient * (1.0 - budget_weight) + budget_part)
             }
         }
     }
@@ -401,6 +487,84 @@ impl PriceScoreSpec {
                 Ok(match self.budget {
                     Some(b) if x > b => b,
                     _ => x,
+                })
+            }
+            // 复合法：分段线性峰值的候选集精确求解。
+            //
+            // 得分函数在 x 的每个「名次段」内是仿射基准下的分段线性函数，且
+            // 基准价（x）随名次段连续（边界处剔出/剔入的互换保持集合值不变），
+            // 故峰值必落在：不动点（x = 基准（x））或分段边界（某竞争报价）或
+            // 控制价夹取——三类不动点 + 全部竞争报价 + 控制价构成完备候选集：
+            //   ① 带内不动点：x 不被剔除时，被保留的竞争报价固定为
+            //      os[trim_low..m−trim_high]，闭式解
+            //      x_in = [a·S_k + b·k1] / (k1 − a)，k1 = 保留家数（含己方）；
+            //   ② 高位剔除区不动点：x 为最高且被剔（trim_high ≥ 1）时基准为
+            //      常量 B_top（保留竞争报价多保一家顶部），x = B_top；
+            //   ③ 低位剔除区不动点：对称地 x = B_bot；
+            //   ④ 全部竞争报价（分段边界）与控制价（上限夹取）。
+            // 逐候选评分取最优，同分取高价（收益最大）——无数值逼近，确定性。
+            PriceScoreMethod::Composite { trim_high, trim_low, budget_weight,
+                                          budget_coefficient, avg_coefficient } => {
+                let m = others.len();
+                if m < trim_high + trim_low {
+                    return Err(eun(format!(
+                        "PRICE_SPEC_INVALID: Composite 剔除数超过报价家数（{} 家剔 {}/{}）",
+                        m + 1, trim_high, trim_low
+                    )));
+                }
+                let mut os: Vec<f64> = others.to_vec();
+                os.sort_by(|a, b| a.partial_cmp(b).expect("价格已校验为有限正数"));
+                let a = avg_coefficient * (1.0 - budget_weight);   // 平均价侧系数×权重
+                let b = if *budget_weight > 0.0 {                    // 控制价侧常量分量
+                    self.budget.unwrap_or(0.0) * budget_coefficient * budget_weight
+                } else {
+                    0.0
+                };
+                let k1 = (m + 1 - trim_high - trim_low) as f64;     // 保留家数（含己方）
+                // ① 带内不动点（被保留竞争报价固定：os[trim_low..m−trim_high]）
+                let s_k: f64 = os[*trim_low..m - trim_high].iter().sum();
+                let mut cands: Vec<f64> = Vec::with_capacity(m + 5);
+                if k1 - a != 0.0 {
+                    cands.push((a * s_k + b * k1) / (k1 - a));
+                }
+                // ②/③ 高/低位剔除区常量基准（x 被剔时基准与 x 无关，不动点即常量）
+                if *trim_high > 0 {
+                    let s_top: f64 = os[*trim_low..m - trim_high + 1].iter().sum();
+                    cands.push(a * s_top / k1 + b);
+                }
+                if *trim_low > 0 {
+                    let s_bot: f64 = os[*trim_low - 1..m - trim_high].iter().sum();
+                    cands.push(a * s_bot / k1 + b);
+                }
+                // ④ 分段边界（全部竞争报价）与控制价上限
+                cands.extend_from_slice(&os);
+                if let Some(budget) = self.budget {
+                    cands.push(budget);
+                }
+                // 过滤 + 逐候选评分，argmax（同分取高价）
+                let mut best: Option<(f64, f64)> = None; // (score, price)
+                for p in cands {
+                    if !p.is_finite() || p <= 0.0 {
+                        continue;
+                    }
+                    if let Some(budget) = self.budget {
+                        if p > budget {
+                            continue;
+                        }
+                    }
+                    let s = self.score(p, others)?;
+                    let take = match best {
+                        None => true,
+                        // 同分（容差内）取高价——收益最大
+                        Some((bs, bp)) => s > bs + 1e-12 || (s > bs - 1e-12 && p > bp),
+                    };
+                    if take {
+                        best = Some((s, p));
+                    }
+                }
+                best.map(|(_, p)| p).ok_or_else(|| {
+                    eun("PRICE_UNBOUNDED: Composite 无可用候选（无竞争报价且无控制价）——\
+                         提供预算或竞争报价")
                 })
             }
         }
@@ -1009,5 +1173,353 @@ mod tests {
         let opt = spec.optimal_price(&[980.0, 995.0, 1010.0]).unwrap();
         assert!((opt - 975.199005).abs() < 1e-5, "最优反推呈现: {opt:.2}");
         println!("| 亳州农业农村 | 最优报价反推 x*=cS/(n−c) | — | — | 手工 975.199005 | 引擎 {opt:.6} | 一致 |");
+    }
+
+    // ================================================================ 复合法（PR4）
+
+    #[allow(clippy::too_many_arguments)]
+    fn composite_spec(trim_high: usize, trim_low: usize, budget_weight: f64,
+                      budget_coefficient: f64, avg_coefficient: f64,
+                      max_score: f64, budget: Option<f64>,
+                      deduct_high: f64, deduct_low: f64) -> PriceScoreSpec {
+        PriceScoreSpec {
+            method: PriceScoreMethod::Composite { trim_high, trim_low, budget_weight,
+                                                  budget_coefficient, avg_coefficient },
+            max_score,
+            budget,
+            deviation_rule: DeviationRule::Price { deduct_high, deduct_low },
+        }
+    }
+
+    /// 真实规则 5：康居嘉苑项目监理方法四（ggzy.gov.cn，连云港 2021，本项目选定）——
+    /// 「以有效投标文件的投标报价算术平均值为 A，最高投标限价为 B，则：
+    /// 评标基准价 = A×Q1 + B×Q2。Q2=1−Q1，Q1 的取值范围为 10%,15%,20%,25%,30%」
+    /// 「计算算术平均值 A 时，若 7≤有效投标文件<10 家时，应去掉其中的一个最高价
+    /// 和一个最低价；若有效投标文件≥10 家，应去掉其中的两个最高价和两个最低价」
+    /// 「投标报价等于评标基准价的得满分；每高于 1% 扣减 0.2 分；每低于 1% 扣减
+    /// 0.1 分；偏离不足 1% 的，按照插入法计算得分」（44 分，B=120 万）。
+    ///
+    /// 场景：8 家（7≤n<10 → 去 1 高 1 低），Q1=20%（开标抽中），
+    /// others = 92/96.5/99/101/103.5/106/118，己方 100。
+    #[test]
+    fn real_rule_kangju_method4_composite() {
+        let spec = composite_spec(1, 1, 0.8, 1.0, 1.0, 44.0, Some(120.0), 0.2, 0.1);
+        let others = [92.0, 96.5, 99.0, 101.0, 103.5, 106.0, 118.0];
+
+        // 手工：全 8 家排序 92,96.5,99,100,101,103.5,106,118 → 去 1 高(118)+1 低(92)
+        //       A = (96.5+99+100+101+103.5+106)/6 = 606/6 = 101
+        //       基准 = 101×0.2 + 120×0.8 = 20.2 + 96 = 116.2
+        let d = spec.score_detail(100.0, &others).unwrap();
+        assert!((d.benchmark - 116.2).abs() < 1e-9, "基准 = 116.2，got {}", d.benchmark);
+
+        // 手工：己方 100 偏低 16.2 → 16.2/116.2 = 13.941481% × 0.1
+        //       → 44 − 1.394148 = 42.605852
+        assert_close(d.deviation, -16.2 / 116.2, "偏离度");
+        assert_close(d.score, 44.0 - (16.2 / 116.2) * 100.0 * 0.1, "低价侧扣分");
+        assert!((d.score - 42.605852).abs() < 1e-5, "呈现: {:.2}", d.score);
+
+        // 最优报价（带内不动点，手工）：
+        //   保留竞争报价 = 96.5+99+101+103.5+106 = 506（S_k），保留家数 k1 = 6
+        //   a = 1×(1−0.8) = 0.2，b = 1×0.8×120 = 96
+        //   x* = (0.2×506 + 96×6)/(6−0.2) = (101.2+576)/5.8 = 677.2/5.8 = 116.758621
+        let opt = spec.optimal_price(&others).unwrap();
+        assert_close(opt, 677.2 / 5.8, "带内不动点闭式解");
+        assert!((opt - 116.758621).abs() < 1e-5, "呈现: {opt:.2}");
+        // 命中验证：最优报价处基准 = 自身 → 满分
+        let d_opt = spec.score_detail(opt, &others).unwrap();
+        assert_close(d_opt.deviation, 0.0, "最优报价偏离为零");
+        assert_close(d_opt.score, 44.0, "最优报价得满分");
+        assert!(opt <= 120.0, "最优 ≤ 控制价");
+    }
+
+    /// 真实规则 6：东南大学四牌楼校区热工实验室修缮改造一期
+    /// （ccgp.gov.cn 更正公告 2026-08-21，现版报价分 70 分、基准命中得 69 分）——
+    /// 「以有效投标文件的报价算术平均值为 A（若 ≥7 家，去掉一个最高价和一个
+    /// 最低价后取算术平均值为 A）。最高限价为 B；评标基准价为 C；
+    /// C = A*Q1*K1 + B*Q2*K2（K1∈{96%,97%,98%}，K2=95%，Q1∈{40%,50%,60%}，
+    /// Q2=1−Q1）。等于评标基准价 C 的为最高分(69分)…投标价每高于基准价 1% 的
+    /// 扣 0.9 分，低于基准价 1% 的扣 0.6 分，不足 1% 的按内插法计算
+    /// （小数点后保留两位）」
+    ///
+    /// 场景：8 家（去 1 高 1 低），K1=97%、K2=95%、Q1=50%，B=1200 万，
+    /// others = 980/1010/1035/1060/1090/1120/1160，己方 1050。
+    #[test]
+    fn real_rule_seu_full_composite() {
+        let spec = composite_spec(1, 1, 0.5, 0.95, 0.97, 69.0, Some(1200.0), 0.9, 0.6);
+        let others = [980.0, 1010.0, 1035.0, 1060.0, 1090.0, 1120.0, 1160.0];
+
+        // 手工：A = (1010+1035+1050+1060+1090+1120)/6 = 6365/6，
+        //       C = A×0.485 + 570 = 514.504167 + 570 = 1084.504167
+        let bench = (6365.0 / 6.0) * 0.485 + 570.0;
+        let d = spec.score_detail(1050.0, &others).unwrap();
+        assert!((d.benchmark - bench).abs() < 1e-9, "C = 1084.504167，got {}", d.benchmark);
+
+        // 手工：己方 1050 偏低 34.504167 → 3.181565% × 0.6 → 69 − 1.908939 = 67.091061
+        assert_close(d.score, 69.0 - ((1050.0 - bench) / bench).abs() * 100.0 * 0.6, "低价侧 0.6 扣分");
+        assert!((d.score - 67.091061).abs() < 1e-4, "呈现: {:.2}", d.score);
+
+        // 最优报价（带内不动点，手工）：
+        //   S_k = 1010+1035+1060+1090+1120 = 5315，k1 = 6
+        //   a = 0.97×0.5 = 0.485，b = 0.95×0.5×1200 = 570
+        //   x* = (0.485×5315 + 570×6)/(6−0.485) = (2577.775+3420)/5.515
+        //      = 5997.775/5.515 = 1087.538531
+        let opt = spec.optimal_price(&others).unwrap();
+        assert_close(opt, 5997.775 / 5.515, "带内不动点闭式解");
+        assert!((opt - 1087.538531).abs() < 1e-5, "呈现: {opt:.2}");
+        let d_opt = spec.score_detail(opt, &others).unwrap();
+        assert_close(d_opt.score, 69.0, "最优报价得最高分 69");
+        assert_close(d_opt.deviation, 0.0, "最优报价偏离为零");
+    }
+
+    /// 真实规则 7：玉带河景观提升工程 EPC 方法一（ggzy.gov.cn，连云港 2021）——
+    /// 「以有效投标文件…的评标价算术平均值为 A（当有效投标文件 4-6 家时，
+    /// 剔除最高报价（最高报价相同的均剔除）后进行算术平均）。评标基准价 = A×K，
+    /// K 值…随机抽取…取值范围为 95%、96%、97%、98%」「评标价等于评标基准价的
+    /// 得满分，评标价相对评标基准价每低 1% 扣 0.5 分，每高 1% 扣 1.0 分；
+    /// 偏离不足 1% 的，按照插入法计算得分」（报价评审 84 分）。
+    ///
+    /// 场景：5 家（4-6 家 → 只剔最高 1 家），K=97%，
+    /// others = 2000/2150/2250/2400，己方 2100。
+    #[test]
+    fn real_rule_yudaihe_method1_composite() {
+        // budget_weight=0（无控制价分量），trim_high=1/trim_low=0（4-6 家只剔最高）
+        let spec = composite_spec(1, 0, 0.0, 1.0, 0.97, 84.0, None, 1.0, 0.5);
+        let others = [2000.0, 2150.0, 2250.0, 2400.0];
+
+        // 手工：排序 2000,2100,2150,2250,2400 → 剔最高(2400)
+        //       A = (2000+2100+2150+2250)/4 = 8500/4 = 2125
+        //       基准 = 2125×0.97 = 2061.25
+        let d = spec.score_detail(2100.0, &others).unwrap();
+        assert!((d.benchmark - 2061.25).abs() < 1e-9, "基准 = 2061.25，got {}", d.benchmark);
+
+        // 手工：己方 2100 偏高 38.75 → 38.75/2061.25 = 1.879879% × 1.0
+        //       → 84 − 1.879879 = 82.120121
+        assert_close(d.score, 84.0 - (38.75 / 2061.25) * 100.0 * 1.0, "高价侧 1.0 扣分");
+        assert!((d.score - 82.120073).abs() < 1e-4, "呈现: {:.2}", d.score);
+
+        // 低价侧（不对称罚半）：报价 2000 偏低 61.25 → 61.25/2061.25 = 2.971498%
+        //       × 0.5 → 84 − 1.485749 = 82.514251
+        let d_low = spec.score_detail(2000.0, &[2100.0, 2150.0, 2250.0, 2400.0]).unwrap();
+        assert!((d_low.benchmark - 2061.25).abs() < 1e-9, "同集合同基准");
+        assert_close(d_low.score, 84.0 - (61.25 / 2061.25) * 100.0 * 0.5, "低价侧 0.5 扣分");
+        assert!((d_low.score - 82.514251).abs() < 1e-4, "呈现: {:.2}", d_low.score);
+
+        // 最优报价（带内不动点，手工）：
+        //   S_k = 2000+2150+2250 = 6400（剔 2400），k1 = 4，a = 0.97，b = 0
+        //   x* = 0.97×6400/(4−0.97) = 6208/3.03 = 2048.844884
+        let opt = spec.optimal_price(&others).unwrap();
+        assert_close(opt, 6208.0 / 3.03, "带内不动点闭式解");
+        assert!((opt - 2048.844884).abs() < 1e-5, "呈现: {opt:.2}");
+        let d_opt = spec.score_detail(opt, &others).unwrap();
+        assert_close(d_opt.deviation, 0.0, "最优报价偏离为零");
+        assert_close(d_opt.score, 84.0, "最优报价得满分");
+    }
+
+    /// 真实规则 8：玉带河景观提升工程 EPC 方法二（ggzy.gov.cn）——
+    /// 「评标基准价 = A×K1×Q1 + B×K2×Q2（Q2=1−Q1，Q1∈{65%,70%,75%,80%,85%}，
+    /// K1∈{95%,96%,97%,98%}；本工程（园林绿化）K2 值取为 90%）」；
+    /// A 的剔除同方法一（≥7 家去掉最高和最低 20% 四舍五入取整——7 家去 1+1）；
+    /// 扣分同方法一（每低 1% 扣 0.5/每高 1% 扣 1.0，插入法）。
+    /// 招标控制价 B = 2480 万。
+    ///
+    /// 场景：7 家（20%×7=1.4 → 四舍五入去 1 高 1 低），K1=96%、Q1=70%、K2=90%，
+    /// others = 2000/2050/2100/2180/2230/2450，己方 2150。
+    #[test]
+    fn real_rule_yudaihe_method2_composite() {
+        let spec = composite_spec(1, 1, 0.3, 0.90, 0.96, 84.0, Some(2480.0), 1.0, 0.5);
+        let others = [2000.0, 2050.0, 2100.0, 2180.0, 2230.0, 2450.0];
+
+        // 手工：排序 2000,2050,2100,2150,2180,2230,2450 → 去 1 高(2450)+1 低(2000)
+        //       A = (2050+2100+2150+2180+2230)/5 = 10710/5 = 2142
+        //       基准 = 2142×0.96×0.7 + 2480×0.90×0.3
+        //            = 1439.424 + 669.6 = 2109.024
+        let d = spec.score_detail(2150.0, &others).unwrap();
+        assert!((d.benchmark - 2109.024).abs() < 1e-9, "基准 = 2109.024，got {}", d.benchmark);
+
+        // 手工：己方 2150 偏高 40.976 → 40.976/2109.024 = 1.942888% × 1.0
+        //       → 84 − 1.942888 = 82.057112
+        assert_close(d.score, 84.0 - (40.976 / 2109.024) * 100.0 * 1.0, "高价侧 1.0 扣分");
+        assert!((d.score - 82.057112).abs() < 1e-4, "呈现: {:.2}", d.score);
+
+        // 最优报价（带内不动点，手工）：
+        //   S_k = 2050+2100+2180+2230 = 8560，k1 = 5
+        //   a = 0.96×0.7 = 0.672，b = 0.90×0.3×2480 = 669.6
+        //   x* = (0.672×8560 + 669.6×5)/(5−0.672) = (5752.32+3348)/4.328
+        //      = 9100.32/4.328 = 2102.661744
+        let opt = spec.optimal_price(&others).unwrap();
+        assert_close(opt, 9100.32 / 4.328, "带内不动点闭式解");
+        assert!((opt - 2102.661744).abs() < 1e-5, "呈现: {opt:.2}");
+        let d_opt = spec.score_detail(opt, &others).unwrap();
+        assert_close(d_opt.deviation, 0.0, "最优报价偏离为零");
+        assert_close(d_opt.score, 84.0, "最优报价得满分");
+    }
+
+    /// PR1 承诺的退化等价：Composite{budget_weight=1} ≡ BenchmarkPrice；
+    /// Composite{budget_weight=0, 不剔除} ≡ AveragePrice。
+    #[test]
+    fn composite_degenerates_to_benchmark_and_average() {
+        let others = [950.0, 980.0, 1010.0];
+        // budget_weight=1 → 纯控制价分量 ≡ 基准价法（系数 0.95）
+        let comp_b = composite_spec(0, 0, 1.0, 0.95, 0.97, 69.0, Some(1200.0), 0.9, 0.6);
+        let bench = PriceScoreSpec {
+            method: PriceScoreMethod::BenchmarkPrice { coefficient: 0.95 },
+            max_score: 69.0,
+            budget: Some(1200.0),
+            deviation_rule: DeviationRule::Price { deduct_high: 0.9, deduct_low: 0.6 },
+        };
+        for bid in [1000.0, 1100.0, 1140.0] {
+            let a = comp_b.score_detail(bid, &others).unwrap();
+            let b = bench.score_detail(bid, &others).unwrap();
+            assert_close(a.score, b.score, "退化等价（基准价法）{bid}");
+            assert_close(a.benchmark, b.benchmark, "基准等价");
+        }
+        assert_close(comp_b.optimal_price(&others).unwrap(),
+                     bench.optimal_price(&others).unwrap(), "最优等价");
+
+        // budget_weight=0 且不剔除 → 纯平均 ≡ 平均价法（系数 0.96）
+        let comp_a = composite_spec(0, 0, 0.0, 0.95, 0.96, 44.0, Some(1200.0), 0.2, 0.1);
+        let avg = PriceScoreSpec {
+            method: PriceScoreMethod::AveragePrice { coefficient: 0.96 },
+            max_score: 44.0,
+            budget: Some(1200.0),
+            deviation_rule: DeviationRule::Price { deduct_high: 0.2, deduct_low: 0.1 },
+        };
+        for bid in [950.0, 1000.0, 1080.0] {
+            let a = comp_a.score_detail(bid, &others).unwrap();
+            let b = avg.score_detail(bid, &others).unwrap();
+            assert_close(a.score, b.score, "退化等价（平均价法）{bid}");
+        }
+        assert_close(comp_a.optimal_price(&others).unwrap(),
+                     avg.optimal_price(&others).unwrap(), "最优等价");
+    }
+
+    /// 高位剔除区精确求解：控制价分量占主导时，带内不动点越出分段边界——
+    /// 真实峰值在「己方被剔、基准为常量」区的不动点 x = 常量基准本身。
+    ///
+    /// 场景（合成，验证候选集完备性）：others = 100/110/120，剔 1+1，
+    /// budget_weight=0.8、两侧系数 1.0、控制价 1000：
+    ///   己方 > 120 时被剔高 → 保留 others 的 110,120 → 基准 = (110+120)/2×0.2+800 = 823
+    ///   峰值 = 823（常量基准的不动点——偏离为零即满分）
+    #[test]
+    fn composite_high_trim_region_exact_optimum() {
+        let spec = composite_spec(1, 1, 0.8, 1.0, 1.0, 60.0, Some(1000.0), 0.9, 0.6);
+        let others = [100.0, 110.0, 120.0];
+
+        let opt = spec.optimal_price(&others).unwrap();
+        // 带内不动点 = (0.2×110 + 800×2)/(2−0.2) = 1620/1.8 = 900（越界候选，应被更优者击败）
+        // 高位剔除区常量 = 0.2×(110+120)/2 + 800 = 23 + 800 = 823（真峰值）
+        assert!((opt - 823.0).abs() < 1e-9, "高位剔除区不动点 823，got {opt}");
+        let d = spec.score_detail(opt, &others).unwrap();
+        assert_close(d.deviation, 0.0, "峰值偏离为零");
+        assert_close(d.score, 60.0, "峰值满分");
+
+        // 网格暴力上界：0.5 步长全扫 [1,1000] 无超者（候选集精确性的独立验证）
+        let best = spec.score(opt, &others).unwrap();
+        let mut p = 1.0;
+        while p <= 1000.0 {
+            if let Ok(s) = spec.score(p, &others) {
+                assert!(s <= best + 1e-9, "网格点 {p} 得分 {s} 超过最优 {best}");
+            }
+            p += 0.5;
+        }
+    }
+
+    /// 复合法校验与边界：权重/系数越界、无控制价但有权重、剔除数超家数。
+    #[test]
+    fn composite_validation_and_edges() {
+        // budget_weight > 0 但无控制价
+        let mut spec = composite_spec(1, 1, 0.5, 0.95, 0.97, 69.0, None, 0.9, 0.6);
+        assert!(spec.score(1050.0, &[980.0, 1160.0]).is_err(), "有权重无控制价拒绝");
+        // 权重越界
+        spec = composite_spec(1, 1, 1.5, 0.95, 0.97, 69.0, Some(1200.0), 0.9, 0.6);
+        assert!(spec.score(1050.0, &[980.0, 1160.0]).is_err(), "权重>1 拒绝");
+        spec = composite_spec(1, 1, -0.1, 0.95, 0.97, 69.0, Some(1200.0), 0.9, 0.6);
+        assert!(spec.score(1050.0, &[980.0, 1160.0]).is_err(), "权重<0 拒绝");
+        // 系数越界
+        spec = composite_spec(1, 1, 0.5, 1.2, 0.97, 69.0, Some(1200.0), 0.9, 0.6);
+        assert!(spec.score(1050.0, &[980.0, 1160.0]).is_err(), "budget_coefficient>1 拒绝");
+        spec = composite_spec(1, 1, 0.5, 0.95, 0.0, 69.0, Some(1200.0), 0.9, 0.6);
+        assert!(spec.score(1050.0, &[980.0, 1160.0]).is_err(), "avg_coefficient=0 拒绝");
+        // 剔除数超家数：3 家剔 2+2
+        spec = composite_spec(2, 2, 0.0, 1.0, 0.97, 84.0, None, 1.0, 0.5);
+        assert!(spec.score(2100.0, &[2000.0, 2400.0]).is_err(), "剔除后无剩余拒绝");
+        assert!(spec.optimal_price(&[2000.0, 2400.0]).is_err(), "最优面同口径拒绝");
+    }
+
+    /// PR4 验收报告（四套真实规则——`--nocapture` 查看）。
+    #[test]
+    fn acceptance_report_composite() {
+        // —— 康居方法四：8 家去 1+1，Q1=20%，B=120，44 分（高0.2/低0.1）——
+        let spec = composite_spec(1, 1, 0.8, 1.0, 1.0, 44.0, Some(120.0), 0.2, 0.1);
+        let all = [92.0, 96.5, 99.0, 100.0, 101.0, 103.5, 106.0, 118.0];
+        for bid in all {
+            let others: Vec<f64> = all.iter().cloned().filter(|p| *p != bid).collect();
+            let d = spec.score_detail(bid, &others).unwrap();
+            let hand = 44.0 - ((bid - 116.2) / 116.2).abs() * 100.0
+                * if bid > 116.2 { 0.2 } else { 0.1 };
+            assert!((d.score - hand).abs() < 1e-9, "{bid}: 引擎 {} vs 手工 {hand}", d.score);
+            println!(
+                "| 康居方法四 | 基准 116.200（=A101×0.2+B120×0.8） | 报价 {bid:.2} | 偏离 {:+.6}% | 手工 {hand:.6} | 引擎 {:.6} | 一致 |",
+                d.deviation * 100.0, d.score
+            );
+        }
+        let opt = spec.optimal_price(&[92.0, 96.5, 99.0, 101.0, 103.5, 106.0, 118.0]).unwrap();
+        assert!((opt - 116.758621).abs() < 1e-5, "最优反推呈现: {opt:.2}");
+        println!("| 康居方法四 | 最优报价反推（带内不动点） | — | — | 手工 116.758621 | 引擎 {opt:.6} | 一致 |");
+
+        // —— 东南大学：8 家去 1+1，K1=97%/K2=95%/Q1=50%，B=1200，69 分（高0.9/低0.6）——
+        let spec = composite_spec(1, 1, 0.5, 0.95, 0.97, 69.0, Some(1200.0), 0.9, 0.6);
+        let all = [980.0, 1010.0, 1035.0, 1050.0, 1060.0, 1090.0, 1120.0, 1160.0];
+        for bid in all {
+            let others: Vec<f64> = all.iter().cloned().filter(|p| *p != bid).collect();
+            let d = spec.score_detail(bid, &others).unwrap();
+            let bench = (6365.0 / 6.0) * 0.485 + 570.0;
+            let hand = 69.0 - ((bid - bench) / bench).abs() * 100.0
+                * if bid > bench { 0.9 } else { 0.6 };
+            assert!((d.score - hand).abs() < 1e-9, "{bid}: 引擎 {} vs 手工 {hand}", d.score);
+            println!(
+                "| 东南大学 | 基准 1084.504167（=A×0.485+B×0.475） | 报价 {bid:.2} | 偏离 {:+.6}% | 手工 {hand:.6} | 引擎 {:.6} | 一致 |",
+                d.deviation * 100.0, d.score
+            );
+        }
+        let opt = spec.optimal_price(&[980.0, 1010.0, 1035.0, 1060.0, 1090.0, 1120.0, 1160.0]).unwrap();
+        assert!((opt - 1087.538531).abs() < 1e-5, "最优反推呈现: {opt:.2}");
+        println!("| 东南大学 | 最优报价反推（带内不动点） | — | — | 手工 1087.538531 | 引擎 {opt:.6} | 一致 |");
+
+        // —— 玉带河方法一：5 家只剔最高，K=97%，84 分（高1.0/低0.5）——
+        let spec = composite_spec(1, 0, 0.0, 1.0, 0.97, 84.0, None, 1.0, 0.5);
+        let all = [2000.0, 2100.0, 2150.0, 2250.0, 2400.0];
+        for bid in all {
+            let others: Vec<f64> = all.iter().cloned().filter(|p| *p != bid).collect();
+            let d = spec.score_detail(bid, &others).unwrap();
+            let hand = 84.0 - ((bid - 2061.25) / 2061.25).abs() * 100.0
+                * if bid > 2061.25 { 1.0 } else { 0.5 };
+            assert!((d.score - hand).abs() < 1e-9, "{bid}: 引擎 {} vs 手工 {hand}", d.score);
+            println!(
+                "| 玉带河方法一 | 基准 2061.250（=A2125×0.97） | 报价 {bid:.2} | 偏离 {:+.6}% | 手工 {hand:.6} | 引擎 {:.6} | 一致 |",
+                d.deviation * 100.0, d.score
+            );
+        }
+        let opt = spec.optimal_price(&[2000.0, 2150.0, 2250.0, 2400.0]).unwrap();
+        assert!((opt - 2048.844884).abs() < 1e-5, "最优反推呈现: {opt:.2}");
+        println!("| 玉带河方法一 | 最优报价反推（带内不动点） | — | — | 手工 2048.844884 | 引擎 {opt:.6} | 一致 |");
+
+        // —— 玉带河方法二：7 家去 1+1，K1=96%/Q1=70%/K2=90%，B=2480，84 分 ——
+        let spec = composite_spec(1, 1, 0.3, 0.90, 0.96, 84.0, Some(2480.0), 1.0, 0.5);
+        let all = [2000.0, 2050.0, 2100.0, 2150.0, 2180.0, 2230.0, 2450.0];
+        for bid in all {
+            let others: Vec<f64> = all.iter().cloned().filter(|p| *p != bid).collect();
+            let d = spec.score_detail(bid, &others).unwrap();
+            let hand = 84.0 - ((bid - 2109.024) / 2109.024).abs() * 100.0
+                * if bid > 2109.024 { 1.0 } else { 0.5 };
+            assert!((d.score - hand).abs() < 1e-9, "{bid}: 引擎 {} vs 手工 {hand}", d.score);
+            println!(
+                "| 玉带河方法二 | 基准 2109.024（=A2142×0.672+B×0.27） | 报价 {bid:.2} | 偏离 {:+.6}% | 手工 {hand:.6} | 引擎 {:.6} | 一致 |",
+                d.deviation * 100.0, d.score
+            );
+        }
+        let opt = spec.optimal_price(&[2000.0, 2050.0, 2100.0, 2180.0, 2230.0, 2450.0]).unwrap();
+        assert!((opt - 2102.661744).abs() < 1e-5, "最优反推呈现: {opt:.2}");
+        println!("| 玉带河方法二 | 最优报价反推（带内不动点） | — | — | 手工 2102.661744 | 引擎 {opt:.6} | 一致 |");
     }
 }

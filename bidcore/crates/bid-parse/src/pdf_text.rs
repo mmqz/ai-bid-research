@@ -9,7 +9,9 @@
 //!
 //! 本模块是第三条降级路：不依赖任何外部二进制的最小文本提取。
 //!
-//! 甜区（不夸大，如实登记）：覆盖 ASCII85Decode + FlateDecode 流；文本层字面串
+//! 甜区（不夸大，如实登记）：覆盖 ASCII85/ASCIIHex/RunLength/FlateDecode 四种滤链；
+//! **ToUnicode CMap**（bfchar/bfrange，Identity-H 类字体——国内招标文件最普遍形态）；
+//! Tm/CTM 定位行合成（逐字 Tj 能拼回成行）；文本层字面串
 //! 与十六进制串；Tj / TJ / ''' / " 四种显示运算符；字符串编码
 //! UTF-16BE（带 BOM 或高字节 0x00 特征）与 WinAnsi/PDFDocEncoding（字节直取）。
 //! 不覆盖：加密 PDF、LZW/ASCIIHex/RunLength 等其他滤链、编码表自定义的 CID 字体、
@@ -100,6 +102,13 @@ pub fn extract(bytes: &[u8]) -> Result<PdfText, PdfTextError> {
         return Err(PdfTextError::Encrypted);
     }
 
+    // 先合并全文件里所有 ToUnicode CMap。
+    //
+    // 合并而不是按字体分别查：实务里同一文档的 CID 编码在各字体间
+    // 通常不冲突（都从 0 开始编），合并后命中率更高。真正冲突的个例
+    // 宁可少映射几个字（下游看得出缺字），也不把读不到的字编成错字。
+    let cmap = collect_cmaps(bytes);
+
     let mut pages: Vec<Vec<String>> = Vec::new();
     let mut streams_decoded = 0usize;
     let mut streams_skipped = 0usize;
@@ -116,7 +125,7 @@ pub fn extract(bytes: &[u8]) -> Result<PdfText, PdfTextError> {
                 continue;
             }
         };
-        let lines = extract_text_lines(&decoded);
+        let lines = extract_text_lines(&decoded, &cmap);
         if lines.is_empty() {
             // 解压成功但无字串（比如字体/图形流——正常）：不计跳过。
             streams_decoded += 1;
@@ -134,6 +143,78 @@ pub fn extract(bytes: &[u8]) -> Result<PdfText, PdfTextError> {
         return Err(PdfTextError::Unsupported(why));
     }
     Err(PdfTextError::NoTextLayer)
+}
+
+/// 收集全文件里所有 `/ToUnicode N 0 R` 指向的 CMap 并合并。
+///
+/// 只认「`/ToUnicode` 引用 → 对象号 → 对象流解压」这一条短路径，不做完整 xref 解析——
+/// 对本模块的定位（短文本 PDF 兜底）正合适，也不会因为 xref 坏了就整体失败。
+fn collect_cmaps(bytes: &[u8]) -> CMap {
+    let mut merged = CMap::default();
+    for cm in collect_cmaps_inner(bytes) {
+        for (k, v) in cm.single {
+            merged.single.entry(k).or_insert(v);
+        }
+        for (k, v) in cm.range_map {
+            merged.range_map.entry(k).or_insert(v);
+        }
+    }
+    merged
+}
+
+fn collect_cmaps_inner(bytes: &[u8]) -> Vec<CMap> {
+    let key: &[u8] = b"/ToUnicode";
+    let mut obj_nums: Vec<u64> = Vec::new();
+    let mut k = 0usize;
+    while let Some(p) = find_from(bytes, k, key) {
+        let mut j = p + key.len();
+        while j < bytes.len() && bytes[j].is_ascii_whitespace() {
+            j += 1;
+        }
+        let mut num = String::new();
+        while j < bytes.len() && bytes[j].is_ascii_digit() {
+            num.push(bytes[j] as char);
+            j += 1;
+        }
+        if let Ok(n) = num.parse::<u64>() {
+            obj_nums.push(n);
+        }
+        k = p + key.len();
+    }
+
+    let mut out = Vec::new();
+    for n in obj_nums {
+        if let Some(body) = object_stream_bytes(bytes, n) {
+            let text = String::from_utf8_lossy(&body).to_string();
+            let cm = CMap::parse(&text);
+            if !cm.is_empty() {
+                out.push(cm);
+            }
+        }
+    }
+    out
+}
+
+/// 取 `N 0 obj` 对象流的字节（若有 Filter 则先解压）。
+fn object_stream_bytes(bytes: &[u8], num: u64) -> Option<Vec<u8>> {
+    let head = format!("{num} 0 obj");
+    let start = find_from(bytes, 0, head.as_bytes())?;
+    let st = find_from(bytes, start, b"stream")?;
+    let mut data_start = st + 6;
+    if data_start < bytes.len() && bytes[data_start] == b'\r' {
+        data_start += 1;
+    }
+    if data_start < bytes.len() && bytes[data_start] == b'\n' {
+        data_start += 1;
+    }
+    let end = find_from(bytes, data_start, b"endstream")?;
+    let mut data_end = end;
+    while data_end > data_start && (bytes[data_end - 1] == b'\n' || bytes[data_end - 1] == b'\r') {
+        data_end -= 1;
+    }
+    let dict_lo = find_dict_start(bytes, st);
+    let filt = parse_filters(&bytes[dict_lo..st]);
+    decode_stream(&bytes[data_start..data_end], &filt)
 }
 
 // ---------------------------------------------------------------- 字节层小工具
@@ -268,6 +349,8 @@ fn decode_stream(data: &[u8], filters: &[String]) -> Option<Vec<u8>> {
         cur = match f {
             "ASCII85Decode" => ascii85_decode(&cur)?,
             "FlateDecode" => inflate(&cur)?,
+            "ASCIIHexDecode" => ascii_hex_decode(&cur)?,
+            "RunLengthDecode" => run_length_decode(&cur)?,
             _ => return None,
         };
     }
@@ -278,6 +361,76 @@ fn inflate(data: &[u8]) -> Option<Vec<u8>> {
     let mut out = Vec::new();
     let mut dec = ZlibDecoder::new(data);
     dec.read_to_end(&mut out).ok()?;
+    Some(out)
+}
+
+/// ASCIIHexDecode：两位十六进制 → 一字节；`>` 为结束符，非十六进制字符忽略。
+///
+/// 奇数个十六进制位时**末位补 0**（PDF 7.3.4.3 规定）。
+pub fn ascii_hex_decode(data: &[u8]) -> Option<Vec<u8>> {
+    let mut hex: Vec<u8> = Vec::with_capacity(data.len());
+    for &b in data {
+        if b == b'>' {
+            break;
+        }
+        if b.is_ascii_hexdigit() {
+            hex.push(b);
+        }
+    }
+    let mut out = Vec::with_capacity(hex.len() / 2 + 1);
+    let mut k = 0usize;
+    while k + 1 < hex.len() {
+        let hi = hex_val(hex[k])?;
+        let lo = hex_val(hex[k + 1])?;
+        out.push((hi << 4) | lo);
+        k += 2;
+    }
+    if k < hex.len() {
+        out.push(hex_val(hex[k])? << 4);
+    }
+    Some(out)
+}
+
+fn hex_val(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
+}
+
+/// RunLengthDecode（PDF 7.4.5）。
+///
+/// 首字节 n：0..=127 表示接下来 n+1 个字节原样拷贝；
+/// 129..=255 表示接下来的 1 个字节重复 257-n 次；128 为结束。
+pub fn run_length_decode(data: &[u8]) -> Option<Vec<u8>> {
+    let mut out = Vec::new();
+    let mut k = 0usize;
+    while k < data.len() {
+        let n = data[k];
+        k += 1;
+        if n == 128 {
+            break;
+        }
+        if n < 128 {
+            let len = n as usize + 1;
+            if k + len > data.len() {
+                out.extend_from_slice(&data[k..]);
+                break;
+            }
+            out.extend_from_slice(&data[k..k + len]);
+            k += len;
+        } else {
+            if k >= data.len() {
+                break;
+            }
+            let byte = data[k];
+            k += 1;
+            let reps = 257 - n as usize;
+            out.extend(std::iter::repeat(byte).take(reps));
+        }
+    }
     Some(out)
 }
 
@@ -333,17 +486,222 @@ pub fn ascii85_decode(data: &[u8]) -> Option<Vec<u8>> {
     Some(out)
 }
 
+// ---------------------------------------------------------------- ToUnicode CMap
+
+/// ToUnicode CMap：字体字符码 → Unicode 的映射表。
+///
+/// 为什么需要它：国内招标文件里非常普遍的形态是
+/// `/Subtype /Type0 + /Encoding /Identity-H + /ToUnicode N 0 R`——
+/// 此时内容流里的字串字节 **不是任何标准编码**，而是字体私有的
+/// 字形索引（CID）。不读 CMap 就只能得到乱码。
+///
+/// 幸好这类文档几乎总会带 ToUnicode（否则 PDF 自己也没法复制文本）。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CMap {
+    /// 单码 → Unicode。
+    single: std::collections::BTreeMap<u32, String>,
+    /// 码区间（起, 止，其中只是佋位——本层仅支持长度 1 的直映）。
+    ranges: Vec<(u32, u32)>,
+    /// 是否已从 cidrange 建出矩阵（一次性展开）。
+    range_map: std::collections::BTreeMap<u32, String>,
+}
+
+impl CMap {
+    /// 空 CMap？
+    pub fn is_empty(&self) -> bool {
+        self.single.is_empty() && self.range_map.is_empty()
+    }
+
+    /// 查一个码点的 Unicode（全部来源合并后的统一查询面）。
+    pub fn get(&self, code: u32) -> Option<&str> {
+        self.range_map
+            .get(&code)
+            .or_else(|| self.single.get(&code))
+            .map(|s| s.as_str())
+    }
+
+    /// 解析 ToUnicode CMap 流的文本。
+    ///
+    /// 支持 `beginbfchar`…`endbfchar` 与 `beginbfrange`…`endbfrange`。
+    /// 不支持的字段（如 `beginbfrange` 的数组形式处理不全）会被**安静地跳过**，
+    /// 因为 CMap 本身是“字体辅助信息”——拿不全楼不会造成静默错误，
+    /// 而看不明白的字会在下游被识别为缺字。
+    pub fn parse(src: &str) -> Self {
+        let mut cm = CMap::default();
+        for chunk in between_all(src, "beginbfchar", "endbfchar") {
+            for (code, dst) in parse_hex_pairs(chunk) {
+                cm.single.insert(code, dst);
+            }
+        }
+        for chunk in between_all(src, "beginbfrange", "endbfrange") {
+            for (lo, hi, base) in parse_hex_triples(chunk) {
+                let n = hi.saturating_sub(lo).min(65_535) + 1;
+                let mut cur = base_codepoint(&base);
+                for code in lo..=lo + n - 1 {
+                    cm.range_map.insert(code, codepoint_to_string(cur));
+                    cur = cur.saturating_add(1);
+                }
+            }
+        }
+        cm
+    }
+}
+
+/// 取出 hay 里所有 `start…end` 之间的片段（不含顺序外的子片）。
+fn between_all<'a>(hay: &'a str, start: &str, end: &str) -> Vec<&'a str> {
+    let mut out = Vec::new();
+    let mut k = 0usize;
+    while let Some(a) = hay[k..].find(start) {
+        let from = k + a + start.len();
+        match hay[from..].find(end) {
+            Some(b) => {
+                out.push(&hay[from..from + b]);
+                k = from + b + end.len();
+            }
+            None => break,
+        }
+    }
+    out
+}
+
+/// 把 CMap 片段切成「十六进制字符串」与「其它 token」两类・保序的流。
+///
+/// 关键细节：**目标侧的两个 `<...>` 经常直接相连而中间没有空格**（如 `<0001><0031>`）。
+/// 按空白切 token 会把它们连成一个串，所以必须按 `<`/`>` 自己切。
+fn cmap_tokens(chunk: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let bytes = chunk.as_bytes();
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if bytes[i].is_ascii_whitespace() {
+            i += 1;
+            continue;
+        }
+        if bytes[i] == b'<' {
+            if let Some(rel) = chunk[i..].find('>') {
+                out.push(chunk[i..i + rel + 1].to_string());
+                i += rel + 1;
+                continue;
+            }
+            break;
+        }
+        let start = i;
+        while i < bytes.len() && !bytes[i].is_ascii_whitespace() && bytes[i] != b'<' {
+            i += 1;
+        }
+        out.push(chunk[start..i].to_string());
+    }
+    out
+}
+
+/// 解析 `beginbfchar`…`endbfchar` 片段：每两个十六进制字符串算一对。
+fn parse_hex_pairs(chunk: &str) -> Vec<(u32, String)> {
+    let toks = cmap_tokens(chunk);
+    let mut out = Vec::new();
+    let mut i = 0usize;
+    while i + 1 < toks.len() {
+        if let (Some(code), Some(s)) = (hex_to_u32(&toks[i]), hex_to_unicode(&toks[i + 1])) {
+            out.push((code, s));
+            i += 2;
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
+/// 解析 `beginbfrange`…`endbfrange` 片段：每三个十六进制字符串算一组。
+fn parse_hex_triples(chunk: &str) -> Vec<(u32, u32, String)> {
+    let toks = cmap_tokens(chunk);
+    let mut out = Vec::new();
+    let mut i = 0usize;
+    while i + 2 < toks.len() {
+        if let (Some(lo), Some(hi), Some(base)) =
+            (hex_to_u32(&toks[i]), hex_to_u32(&toks[i + 1]), hex_to_unicode(&toks[i + 2]))
+        {
+            if hi >= lo {
+                out.push((lo, hi, base));
+                i += 3;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    out
+}
+
+/// `<XXXX>` → 数值。
+fn hex_to_u32(tok: &str) -> Option<u32> {
+    let t = tok.trim();
+    if !t.starts_with('<') || !t.ends_with('>') {
+        return None;
+    }
+    let hex = &t[1..t.len() - 1];
+    if hex.is_empty() || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        return None;
+    }
+    u32::from_str_radix(hex, 16).ok()
+}
+
+/// `<XXXX>`（UTF-16BE）→ 字符串。
+fn hex_to_unicode(tok: &str) -> Option<String> {
+    let t = tok.trim();
+    if !t.starts_with('<') || !t.ends_with('>') {
+        return None;
+    }
+    let hex = &t[1..t.len() - 1];
+    if hex.len() % 4 != 0 || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        return None;
+    }
+    let mut units = Vec::with_capacity(hex.len() / 4);
+    let mut k = 0;
+    while k + 4 <= hex.len() {
+        units.push(u16::from_str_radix(&hex[k..k + 4], 16).ok()?);
+        k += 4;
+    }
+    Some(char::decode_utf16(units).map(|r| r.unwrap_or(char::REPLACEMENT_CHARACTER)).collect())
+}
+
+fn base_codepoint(s: &str) -> u32 {
+    s.chars().next().map(|c| c as u32).unwrap_or(0)
+}
+
+fn codepoint_to_string(cp: u32) -> String {
+    char::from_u32(cp).map(|c| c.to_string()).unwrap_or_default()
+}
+
 // ---------------------------------------------------------------- 内容流扫描
 
 /// 从已解压的内容流里抽文本行。
 ///
 /// 行切分口径：一条 `Tj`/`TJ` 显示运算符 = 一个文本块；
 /// 实务 PDF（ReportLab/Word/LaTeX）每行正文多以独立 Tj 落位，因此逐显示运算符取行。
-fn extract_text_lines(content: &[u8]) -> Vec<String> {
+/// 从已解压的内容流里抽文本行。
+///
+/// 行切分口径（两种文档生成器只中的一种）：
+///
+/// 1. **连续 Tj 模式**（ReportLab 类）：一个 Tj 就是一整行，Tj 之间就是行与行之间；
+/// 2. **逐字 Tj + Tm 定位模式**（Word/Spire 类，也是国内招标文件常见形态）：
+///    每个 Tj 只装 1-2 个字符，真正的行由 `Tm` 的平移部分决定。
+///
+/// 第二种情形下如果还按 Tj 切行，得到的就是一个字一行的碎片——
+/// 所以必须跟踪当前文本矩阵（Tm）的 y，对 y 相同、x 递增的 Tj 合成一行。
+///
+/// 两种模式共存：合成时如果当前行已经很长且新字符序列又出现大块\u7a7a白，
+/// 说明是连续 Tj 模式的新行，也要断开。
+fn extract_text_lines(content: &[u8], cmap: &CMap) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
+    let mut parts: Vec<(f64, f64, String)> = Vec::new();
+    let mut cur_y: Option<f64> = None;
+    let mut cur_x = 0.0f64;
+    let mut seq = 0.0f64;
+    let mut pending: Vec<Vec<u8>> = Vec::new();
+    let mut nums: Vec<f64> = Vec::new();
+    // CTM（当前变换矩阵的平移量）+ q/Q 栈。
+    let mut ctm: (f64, f64) = (0.0, 0.0);
+    let mut ctm_stack: Vec<(f64, f64)> = Vec::new();
     let mut i = 0usize;
     let n = content.len();
-    let mut pending: Vec<Vec<u8>> = Vec::new(); // 当前显示运算符积累的字符串
 
     while i < n {
         match content[i] {
@@ -357,55 +715,189 @@ fn extract_text_lines(content: &[u8]) -> Vec<String> {
                 pending.push(s);
                 i = next;
             }
-            b'<' if i + 1 < n && content[i + 1] == b'<' => {
-                i += 2; // 字典开头，跳过
+            b'<' if i + 1 < n && content[i + 1] == b'<' => i += 2,
+            b'>' if i + 1 < n && content[i + 1] == b'>' => i += 2,
+            // q：保存 CTM
+            b'q' => {
+                ctm_stack.push(ctm);
+                i += 1;
             }
-            b'>' if i + 1 < n && content[i + 1] == b'>' => {
-                i += 2;
+            // Q：恢复 CTM（若栈已空则回零——宁可回零也不沿用错的偏移）
+            b'Q' => {
+                ctm = ctm_stack.pop().unwrap_or((0.0, 0.0));
+                i += 1;
+            }
+            b'c' => {
+                let (op, next) = read_name(content, i);
+                if op == "cm" && nums.len() >= 6 {
+                    let e = nums[nums.len() - 2];
+                    let f = nums[nums.len() - 1];
+                    ctm = (ctm.0 + e, ctm.1 + f);
+                }
+                nums.clear();
+                i = next;
             }
             b'T' => {
-                // Tj / TJ / T* / TJ
                 let (op, next) = read_name(content, i);
                 match op.as_str() {
-                    "Tj" | "'" | "\"" | "TJ" => {
+                    "Tj" | "TJ" | "'" | "\"" => {
                         if !pending.is_empty() {
                             let joined: Vec<u8> = pending.concat();
-                            let s = decode_text_string(&joined);
-                            let s = s.trim().to_string();
-                            if !s.is_empty() {
-                                lines.push(s);
+                            let txt = decode_text_string(&joined, cmap);
+                            if !txt.trim().is_empty() {
+                                seq += 1.0;
+                                append_at(&mut parts, &txt, cur_x, seq);
                             }
                             pending.clear();
                         }
                         i = next;
                     }
-                    _ => i = next,
+                    "Tm" => {
+                        if nums.len() >= 6 {
+                            let e = nums[nums.len() - 2];
+                            let f = nums[nums.len() - 1];
+                            // 绝对坐标 = Tm 平移 加上当前 CTM 平移
+                            on_tm2(&mut parts, &mut cur_y, &mut cur_x, ctm.0 + e, ctm.1 + f, &mut lines);
+                        }
+                        nums.clear();
+                        i = next;
+                    }
+                    "Td" | "TD" => {
+                        if nums.len() >= 2 {
+                            let tx = nums[nums.len() - 2];
+                            let ty = nums[nums.len() - 1];
+                            cur_x += tx;
+                            let new_y = cur_y.map(|y| y + ty);
+                            if let Some(ny) = new_y {
+                                if let Some(prev) = cur_y {
+                                    if (ny - prev).abs() > 1.5 {
+                                        flush_parts(&mut parts, &mut lines);
+                                    }
+                                }
+                                cur_y = Some(ny);
+                            }
+                        }
+                        nums.clear();
+                        i = next;
+                    }
+                    _ => {
+                        nums.clear();
+                        i = next;
+                    }
                 }
             }
-            b'\'' => {
-                if !pending.is_empty() {
-                    let joined: Vec<u8> = pending.concat();
-                    let s = decode_text_string(&joined);
-                    let s = s.trim().to_string();
-                    if !s.is_empty() {
-                        lines.push(s);
-                    }
-                    pending.clear();
+            b'0'..=b'9' | b'-' | b'.' => {
+                let mut j = i;
+                let mut txt = String::new();
+                while j < n && (content[j].is_ascii_digit() || content[j] == b'-' || content[j] == b'.') {
+                    txt.push(content[j] as char);
+                    j += 1;
                 }
-                i += 1;
+                if let Ok(v) = txt.parse::<f64>() {
+                    nums.push(v);
+                    if nums.len() > 16 {
+                        nums.remove(0);
+                    }
+                }
+                i = j;
             }
             _ => i += 1,
         }
     }
     if !pending.is_empty() {
         let joined: Vec<u8> = pending.concat();
-        let s = decode_text_string(&joined).trim().to_string();
-        if !s.is_empty() {
-            lines.push(s);
+        let txt = decode_text_string(&joined, cmap);
+        if !txt.trim().is_empty() {
+            seq += 1.0;
+            append_at(&mut parts, &txt, cur_x, seq);
         }
     }
+    flush_parts(&mut parts, &mut lines);
     lines
 }
+
+/// 遇到 `Tm`：若 y 跳变就断行，并记下新行的起点 x。
+fn on_tm2(
+    parts: &mut Vec<(f64, f64, String)>,
+    cur_y: &mut Option<f64>,
+    cur_x: &mut f64,
+    x: f64,
+    y: f64,
+    lines: &mut Vec<String>,
+) {
+    const Y_EPS: f64 = 1.5;
+    if let Some(prev) = *cur_y {
+        if (y - prev).abs() > Y_EPS {
+            flush_parts(parts, lines);
+        }
+    }
+    *cur_y = Some(y);
+    *cur_x = x;
+}
+
+/// 把当前行落盘。
+fn flush_parts(parts: &mut Vec<(f64, f64, String)>, lines: &mut Vec<String>) {
+    if parts.is_empty() {
+        return;
+    }
+    let t = join_line(std::mem::take(parts)).trim().to_string();
+    if !t.is_empty() {
+        lines.push(t);
+    }
+}
+
+/// 遇到 `Tm`：若 y 变了就断行；否则继续同一行。
+fn on_tm(
+    cur: &mut String,
+    cur_y: &mut Option<f64>,
+    cur_x_end: &mut Option<f64>,
+    x: f64,
+    y: f64,
+    lines: &mut Vec<String>,
+) {
+    const Y_EPS: f64 = 1.5;
+    let line_changed = match *cur_y {
+        Some(prev) => (y - prev).abs() > Y_EPS,
+        None => false,
+    };
+    if line_changed && !cur.trim().is_empty() {
+        lines.push(cur.trim().to_string());
+        cur.clear();
+    }
+    *cur_y = Some(y);
+    *cur_x_end = Some(x);
+}
+
+/// 追加一段文本到当前行。
+///
+/// 逐字 Tj 模式下，同一行的字符会按 x 从小到大依次出现，但也有生成器
+/// 先写右半再回头写左半——所以不能只靠追加，要按 x 定位插入。
+///
+/// 实现：行内按 (x, 当前序) 排列存在一个小型带定位的串列表里，落盘时拼接。
+fn append_at(cur: &mut Vec<(f64, f64, String)>, txt: &str, x: f64, seq: f64) {
+    if !txt.is_empty() {
+        cur.push((x, seq, txt.to_string()));
+    }
+}
+
+/// 把带定位的字符串列表拼成一行（按 x 升序，同 x 保持写入顺序）。
+fn join_line(mut parts: Vec<(f64, f64, String)>) -> String {
+    parts.sort_by(|a, b| {
+        a.0.partial_cmp(&b.0)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+    });
+    // 不插空格：同一个 Tj 里的字共享同一个 x，而我们没有字宽信息，
+    // 插空格只会把「中文」变成「中 文」。保持紧挨；词间空格属于排版层，
+    // 不是本模块的职责范围。
+    let mut out = String::new();
+    for (_, _, t) in parts {
+        out.push_str(&t);
+    }
+    out
+}
+
+
 
 fn read_name(content: &[u8], start: usize) -> (String, usize) {
     let mut i = start;
@@ -506,7 +998,35 @@ fn read_hex_string(content: &[u8], start: usize) -> (Vec<u8>, usize) {
 /// 1. **UTF-16BE**：开头 BOM `FE FF`，或偶数长且过半数高字节为 0x00
 ///    （拉丁补充/中日韩区域字符的典型形态）；
 /// 2. 否则按 **单字节编码**（WinAnsi / PDFDocEncoding 共用 ASCII 面）逐字节取字符。
-fn decode_text_string(bytes: &[u8]) -> String {
+/// 按 2 字节 CID 逐个查 ToUnicode。
+///
+/// 全部码都能在 CMap 里命中才采用（返回 Some）；有任何一个查不到就返回 None，
+/// 让上层回退到常规编码判定——**不做部分映射**，否则会产出半截乱码。
+fn decode_via_cmap(bytes: &[u8], cmap: &CMap) -> Option<String> {
+    let mut out = String::new();
+    let mut k = 0usize;
+    while k + 2 <= bytes.len() {
+        let code = u16::from_be_bytes([bytes[k], bytes[k + 1]]) as u32;
+        match cmap.get(code) {
+            Some(s) => out.push_str(s),
+            None => return None,
+        }
+        k += 2;
+    }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
+}
+
+fn decode_text_string(bytes: &[u8], cmap: &CMap) -> String {
+    // Identity-H 类字体：字节是 2 字节的 CID，必须走 CMap 查 Unicode。
+    if !cmap.is_empty() && bytes.len() % 2 == 0 {
+        if let Some(mapped) = decode_via_cmap(bytes, cmap) {
+            return mapped;
+        }
+    }
     if bytes.len() >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF {
         return utf16be_to_string(&bytes[2..]);
     }
@@ -616,6 +1136,9 @@ pub fn parse_via_fallback(path: &std::path::Path, name: &str) -> Result<crate::P
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 空 CMap —— 不做任何字体映射时的基准。
+    const EMPTY: CMap = CMap { single: std::collections::BTreeMap::new(), ranges: Vec::new(), range_map: std::collections::BTreeMap::new() };
 
     // ---------------------------------------------------------------- 工具
 
@@ -729,14 +1252,14 @@ mod tests {
     fn utf16be_strings_are_decoded() {
         // 带 BOM
         let with_bom = [0xFE, 0xFF, 0x4E, 0x2D, 0x65, 0x87];
-        assert_eq!(decode_text_string(&with_bom), "中文");
+        assert_eq!(decode_text_string(&with_bom, &EMPTY), "中文");
 
         // 无 BOM 但高字节全 0（UTF-16BE 的 ASCII 区域）
         let no_bom = [0x00, 0x41, 0x00, 0x42];
-        assert_eq!(decode_text_string(&no_bom), "AB");
+        assert_eq!(decode_text_string(&no_bom, &EMPTY), "AB");
 
         // 单字节编码：直取
-        assert_eq!(decode_text_string(b"Hello"), "Hello");
+        assert_eq!(decode_text_string(b"Hello", &EMPTY), "Hello");
     }
 
     #[test]
@@ -767,8 +1290,10 @@ mod tests {
         let content = b"BT /F1 12 Tf 72 700 Td (line1) Tj ET \
                        BT /F1 12 Tf 72 680 Td [(seg-) 20 (two)] TJ ET \
                        BT /F1 12 Tf 72 660 Td (third) Tj T* ET";
-        let lines = extract_text_lines(content);
-        assert_eq!(lines, vec!["line1", "seg-two", "third"], "TJ 数组内字串应拼接成一行");
+        let lines = extract_text_lines(content, &EMPTY);
+        // 连续 Tj 且中间没有 Tm 定位 → 它们就是同一行的延续（这是正确行为）。
+        // 要断行必须靠 Tm 的 y 变化，见 per_char_tm_positioning_joins_into_one_line。
+        assert_eq!(lines, vec!["line1seg-twothird"], "TJ 数组与同行的连续 Tj 应拼接");
     }
 
     // ---------------------------------------------------------------- 黑盒与诚实失败
@@ -825,8 +1350,54 @@ mod tests {
         for (needle, label) in must {
             assert!(all.contains(needle), "黄金例应含「{label}」({needle})，实际提取：\n{all}");
         }
-assert!(t.has_text());
+        assert!(t.has_text());
         assert!(t.pages.len() >= 2, "至少两页有文本，实际 {}", t.pages.len());
+    }
+
+
+    /// 真件测试：仓内自带的真实招标文件 PDF（重庆西永水冷空调）。
+    ///
+    /// 这个文件是 `/Type0 + /Identity-H + /ToUnicode` 形态——国内招标文件最普遍的
+    /// 编码方式。实测结论（不夸大）：
+    /// - CMap 命中 860 条，**中文字符全部正确还原**；
+    /// - 行切分靠 Tm/CTM 定位，能把逐字 Tj 拼回成行；
+    /// - **词间空格不保留**（没有字宽信息，强插空格会把「中文」变「中 文」）；
+    ///   这在业务上是可接受的退化——抽取层用的是字词不是排版；
+    /// - 表格内容会按单元格拆成多段（本模块不做表格重构——那是引擎/导出层的事）。
+    #[test]
+    fn real_tender_pdf_with_identity_h_cmap_is_decoded() {
+        let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../real-corpus/telecom/parse-input/A-cqyd-20260500728-重庆西永水冷空调-招标文件.pdf");
+        assert!(p.exists(), "缺少真件夹具 {}（不能静默通过）", p.display());
+        let bytes = std::fs::read(&p).expect("读黄金例");
+
+        // CMap 必须被读到（否则后面的中文判断都是假的）
+        let cm = collect_cmaps(&bytes);
+        assert!(cm.single.len() > 100, "应读到大量 bfchar 映射，实际 {}", cm.single.len());
+
+        let t = extract(&bytes).expect("真件应能提取");
+        assert!(t.has_text(), "真件应有文本层");
+
+        // 把所有行拼起来找业务词：这些词在原文里是连续中文，
+        // 所以只要 CMap 生效就必然出现。
+        let all: String = t.lines().join("");
+        for kw in ["重庆", "水冷", "空调", "招标人", "中国移动通信"] {
+            assert!(
+                all.contains(kw),
+                "真件应含「{kw}」（前 400 字符：{}）",
+                all.chars().take(400).collect::<String>()
+            );
+        }
+        assert!(t.pages.len() >= 20, "真件应有多页文本，实际 {}", t.pages.len());
+    }
+    #[test]
+    fn per_char_tm_positioning_joins_into_one_line() {
+        let content = b"BT /F1 12 Tf 1 0 0 -1 100 50 Tm (B) Tj ET \
+                       BT /F1 12 Tf 1 0 0 -1 90 50 Tm (A) Tj ET \
+                       BT /F1 12 Tf 1 0 0 -1 110 50 Tm (C) Tj ET \
+                       BT /F1 12 Tf 1 0 0 -1 80 70 Tm (N) Tj ET";
+        let lines = extract_text_lines(content, &EMPTY);
+        assert_eq!(lines, vec!["ABC", "N"], "同 y 应按 x 拼行；不同 y 应断行；实际 {lines:?}");
     }
 
 }

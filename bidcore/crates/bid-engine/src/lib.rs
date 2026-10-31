@@ -1,4 +1,5 @@
-//! bid-engine —— 引擎适配层**唯一接触面**（issue #2 §B3 预演 · T1 批）
+//! bid-engine —— 引擎适配层**唯一接触面**（issue #2 §B3 预演 · T1 批；
+//! #110 任务 2：rev 提级 aa0c859d + pagination/style 接线）。
 //!
 //! **本 crate 在 T1 阶段只定义、不实现**：trait / 镜像类型 / 映射函数签名。
 //! B3（适配层接通）将：
@@ -20,24 +21,61 @@
 //! - [`types`]：引擎公开形状的标书面镜像（EngineDoc/EngineBook/EnginePdf）
 //! - [`reader`]：引擎读取 trait（B3 唯一实现点）
 //! - [`mapping`]：EngineX → `bid_parse::ParsedFile` 字段级映射签名
+//! - [`pages`]：分页预估门面（#110 任务 2——页数限制软预警）
+//! - [`styles`]：样式模板门面（#110 任务 2——固定格式件格式跟模板走）
 //!
 //! 字段级映射规则与「缺失时怎么办」处置：`docs/engine-bid-mapping.md`（单一真源）。
+//!
+//! # 引擎能力账本（aa0c859d 面——#110 任务 2 如实登记）
+//!
+//! ## 已接（本 PR）
+//!
+//! | 能力 | 引擎模块 | 接线面 | 用例 |
+//! |---|---|---|---|
+//! | pagination 分页预估 | `mdcore::pagination` | [`pages`] | 投标文件页数限制——导出前软预警（误差带自报，三态裁决） |
+//! | style 样式模板 | `mdc_office_io::style` | [`styles`] | 固定格式件格式跟模板 docx 走（docDefaults + basedOn 链 + 主题色） |
+//!
+//! ## 可用未接（引擎已交付，标书侧无消费点/消费点冻结——各登记理由）
+//!
+//! | 能力 | 引擎模块 | 未接理由（如实） |
+//! |---|---|---|
+//! | fingerprint 内容指纹 | `mdcore::fingerprint` | 标书侧文件级指纹用 sha256（`lib.rs` 门面自算——映射表 §1 末行）；**块级**指纹的去重消费点（B3 查重）已用 B3 交付的自有实现（`quality.rs`），切引擎块指纹 = 口径变更，须差分重跑后独立 PR |
+//! | word_count 字数口径 | `mdcore::word_count` | 标书侧字数口径在 quota/字数限制面（bid-tools）；工作范围限 bid-engine，接线在下一轮（pages 已同 rev 依赖 mdcore，切入口零成本） |
+//! | numbering 多级编号 | `mdc_office_io::numbering` | 消费点 = 条款编号（导出链——`export.rs` 在 bid-tables 冻结面）；读面已验证可接（`read_docx_numbering`），解冻后跟 styles 同模式接 |
+//! | docx_edit 外科编辑 | `mdc_office_io::docx_edit` | 标书侧无「改已有 docx」用例（起草链 = 生成新文档）；预留：业主提供底稿在位的场景出现时接 |
+//! | evidence 证据台账 | `mdc-evidence` 包 | 标书侧证据模型在 `bid-domain::Requirement`/台账（已交付）；引擎 sidecar 是文档级证据（定位器/复算/审核三态），与标书证据台账语义面不同——接=双台账，须先定归并语义（登记待定，不默接） |
+//! | formula 公式引擎 | `mdc-formula` 包 | 标书侧无 xlsx 公式计算用例（B1 价格分是规则计算非公式重算）；预留：报价表公式校验场景出现时接 |
+//! | pdf organize 页面组织 | `mdc_pdf::organize` | 消费点 = 标书合并/装订预处理（导出后处理链）；当前导出链单文件产出，无合并用例 |
+//! | pdf annotate 标注写回 | `mdc_pdf::annotation` | 消费点 = 评标反馈回写；评标侧（bid-grade）当前无标注回写用例 |
+//! | pdf links/layers | `mdc_pdf::{links,layers}` | 读面辅助能力；标书解析不消费链接目标/图层开关 |
+//! | pdf ocr 扫描件识别 | `mdc_pdf::ocr` | 扫描件补遗链是标书侧保留面（tesseract 通道已交付——映射表 §pdf 处置列）；切引擎 OCR = 换实现 + 差分，独立 PR 定夺 |
+//!
+//! 登记纪律：接 = 有真实用例 + 消费点在可改范围；未接 = 理由写透（不用「后续再说」糊弄）——引擎能力不接不丢分，接了没消费点才是负债。
 
 pub mod mapping;
+pub mod pages;
 pub mod reader;
+pub mod styles;
 pub mod types;
 
 pub use mapping::{docx_to_parsed_file, pdf_to_parsed_file, xlsx_to_parsed_file, FileMeta};
+pub use pages::{
+    bid_baseline_params, check_page_limit, estimate_pages, params_from_geometry, BidPageEstimate,
+    PageLimitVerdict,
+};
 pub use reader::{EngineReader, MdcoreReader};
+pub use styles::{EngineStyleFormat, StyleTemplate};
 pub use types::{
     EngineBlock, EngineBlockSource, EngineBook, EngineDoc, EngineError, EngineHeaderFooter,
-    EngineHeaderFooterVariant, EngineImage, EngineParagraph, EnginePdf, EngineSheet,
-    EngineTable, EngineWarning,
+    EngineHeaderFooterVariant, EngineImage, EngineParagraph, EnginePdf, EngineSheet, EngineTable,
+    EngineWarning,
 };
 
 /// 引擎钉住 rev（与 Cargo.toml git 依赖一致——parse_summary 溯源口径）。
 /// 升级走独立 PR（`chore(dep): bump mdcore`）并重跑基线差分（issue #2 §3.1）。
-pub const MDCORE_REV: &str = "3204342d9a5ee33400aba2b17dad29696e2f0bb8";
+/// #110 任务 2：3204342d → aa0c859d（87 提交——消费面公开 API 零破坏，
+/// 差分验证见 PR 描述）。
+pub const MDCORE_REV: &str = "aa0c859d956597992c2d93e9055e2f0beca017c3";
 
 /// 门面：读文件 → 引擎解析 → 映射为 `ParsedFile`（B5 import 接线入口，docx 通道）。
 ///
@@ -75,9 +113,8 @@ fn parse_office_via_engine(
     path: &std::path::Path,
     f: impl FnOnce(&MdcoreReader, &[u8], &FileMeta) -> Result<bid_parse::ParsedFile, EngineError>,
 ) -> Result<bid_parse::ParsedFile, EngineError> {
-    let bytes = std::fs::read(path).map_err(|e| {
-        EngineError::EngineFailed(format!("读取 {} 失败: {e}", path.display()))
-    })?;
+    let bytes = std::fs::read(path)
+        .map_err(|e| EngineError::EngineFailed(format!("读取 {} 失败: {e}", path.display())))?;
     let sha = {
         use sha2::{Digest, Sha256};
         let mut h = Sha256::new();

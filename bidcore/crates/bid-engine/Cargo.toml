@@ -3,7 +3,7 @@ name = "bid-engine"
 version = "0.1.0"
 edition = "2021"
 license = "Proprietary"
-description = "issue #2 · B3：引擎适配层唯一接触面——mdc-office-io 固定 rev 接入 + EngineReader 实装 + 字段级映射"
+description = "issue #2 · B3：引擎适配层唯一接触面——mdc-office-io 固定 rev 接入 + EngineReader 实装 + 字段级映射；#110 任务 2：rev 提级 aa0c859d + pagination/style 能力接线"
 
 # B3 边界（issue #2 §B3 + issue #11 主线）：
 # - 本 crate 是标书仓**唯一**引擎接触面（issue #2 §1 约束 1）；
@@ -16,19 +16,27 @@ description = "issue #2 · B3：引擎适配层唯一接触面——mdc-office-i
 bid-parse = { path = "../bid-parse" }
 
 # ── mdcore 引擎接入（B3 主线 · issue #11 验收：cargo tree -p bid-engine 必须见 mdc-office-io）──
-# rev = mdcore main @ 3204342d9a5ee33400aba2b17dad29696e2f0bb8（issue #11 指令 bump——一次到位）：
-#   继承 2d014445 全部 B3 前置修复（#17/#18/#19 修订批注文本框 + A1 标题四链 + A2 域剥离 +
-#   P2-1 BlockSource 扩面），新增：
-#   #39 DOCX 嵌套表格递归提取（0dff36a——内层表沿文档序独立成块 + TableData::nested 标记，
-#     B3-3 报告 347 条 NESTED-TABLE 缺口的引擎侧修复，差分重跑验证）
-#   #42 xlsx 双通路 Grid 联动（5f55ca8）/ #43 契约 v1.6（943a05b）/ #45 PDF ink 颜色（d3d2edb）
-# 语义变化注意：嵌套表不再静默丢弃——内层表独立成块（nested=true），块流会比旧 rev
-#   多出若干块（差分归 EXPECTED_DIFF 或直接归零——旧实现本就含这些内容）。
+# rev = mdcore main @ aa0c859d956597992c2d93e9055e2f0beca017c3（#110 任务 2 指令 bump，
+#   旧 rev 3204342d → 本 rev 共 87 提交）。bid-engine 消费面（docx.rs / io.rs / pdf
+#   protocol+worker）**公开 API 零破坏**（签名逐一 diff 验证：docx 读写函数族、io 读门、
+#   Command::ExtractText 面全部不变）；新增能力面（本 PR 接线消费）：
+#   · office-io style.rs（#103 S1-t1：StyleTree + basedOn 链 + 主题色——样式模板读取）
+#   · mdcore pagination.rs（issue #29 N-5：分页预估 v2——40 万字档 LO 实测误差
+#     缺省 +2.7% / 中文标书档 -1.1%，模型自报误差带）
+#   其余新面（docx_edit / numbering / mdc-formula / pdf organize·annotate·links·
+#   layers·ocr）见 lib.rs 能力账本——可用未接，各有登记理由。
+# 语义变化注意（引擎侧修复，读面输出可能微变）：pdf outline 首个顶层书签不再丢失
+#   （#68 批 4 正路径修复——bid 侧 ExtractText 不消费 outline，无影响）；门 3 对
+#   pretty-printed XML 的误拒修复（E3）——此前被拒的合法件现在能读（差分归
+#   EXPECTED_DIFF，方向 = 覆盖面扩大）。
 # 私有仓凭据：本机 ~/.gitconfig insteadOf 注入（PAT 不入仓、不入 CI 日志——issue #2 §3.1）。
-mdc-office-io = { git = "https://github.com/mmqz/mdcore", rev = "3204342d9a5ee33400aba2b17dad29696e2f0bb8", package = "mdc-office-io" }
+mdc-office-io = { git = "https://github.com/mmqz/mdcore", rev = "aa0c859d956597992c2d93e9055e2f0beca017c3", package = "mdc-office-io" }
+# #110 任务 2：mdcore 核心包（pagination 分页预估 + word_count 口径面）——与 office-io
+# 同 rev 钉住（单源纪律：两包不同 rev = 跨包语义漂移面）。
+mdcore = { git = "https://github.com/mmqz/mdcore", rev = "aa0c859d956597992c2d93e9055e2f0beca017c3", package = "mdcore" }
 # B3-5：pdf 文本通道（engine-pdfium 特性——pdfium 动态库 env MDC_PDFIUM_LIB 或编译期候选；
 # 无 pdfium 环境走 SKIP 语义，测试不伪装失败——issue #9 口径）
-mdc-pdf = { git = "https://github.com/mmqz/mdcore", rev = "3204342d9a5ee33400aba2b17dad29696e2f0bb8", package = "mdc-pdf", features = ["engine-pdfium"] }
+mdc-pdf = { git = "https://github.com/mmqz/mdcore", rev = "aa0c859d956597992c2d93e9055e2f0beca017c3", package = "mdc-pdf", features = ["engine-pdfium"] }
 sha2 = "0.10"
 hex = "0.4"
 # calamine 0.36 与引擎 mdc-office-io 同版（Data/Range/Dimensions 类型面——读侧零语义，仅字段搬运）
@@ -38,3 +46,6 @@ bid-domain = { path = "../bid-domain" }
 
 [dev-dependencies]
 serde_json = "1"
+# #110 任务 2 styles 接线测试：测试内构建受控 docx 样式模板（Stored 压缩——
+# 零特性面）。版本已在依赖图（bid-tools dev-dep 4.6.1 锁内）——不新增三方。
+zip = "4"

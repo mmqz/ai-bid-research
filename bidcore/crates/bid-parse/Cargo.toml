@@ -12,6 +12,10 @@ hex = { workspace = true }
 regex = { workspace = true }
 unicode-normalization = { workspace = true }
 libc = { workspace = true }
+# 补遗降级路（pdf_text.rs）：纯 Rust PDF 流解压需 FlateDecode。
+# flate2 已在工作区依赖图内（编码前核对 Cargo.lock 1.1.10——
+# 多个 crate 已包含），此处提为直接依赖零新增。
+flate2 = "1"
 
 # B4（issue #11 任务 3）：zip / quick-xml / calamine / memchr 已删——docx/xlsx
 # 解析收敛到引擎（mdc-office-io），本 crate 不再持有 OOXML 解析栈。

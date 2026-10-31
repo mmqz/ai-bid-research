@@ -8,6 +8,11 @@
 //! - PDF 文本层：poppler `pdftotext -layout`（外部引擎适配器，版本由部署清单钉住）+
 //!   PDF 扫描层：`pdftoppm` 渲染 → tesseract chi_sim（OCR 分档）——`parse_file`
 //!   的 pdf 臂与回退路径（pdfium 引擎优先，映射表 §3）；
+//! - **pdf_text.rs（纯 Rust 兜底——第三条降级路）**：pdfium 与 poppler 都不可用时，
+//!   用零外部二进制的最小 PDF 文本提取器兜底（补遗/澄清函/更正公告这类
+//!   短文本 PDF 是甜区）。实测背景：两条路全断时补遗会**静默丢失**，而补遗里的
+//!   新控制价/新截止时间没进抽取面时校验仍然 blocker=0——「不知道补遗存在」
+//!   与「补遗没问题」是两种完全不同的状态。兜底也失败时**两条原因都报出来**；
 //! - guard.rs：pdf 字节门 / 子进程治理（T-04）/ 流式哈希；
 //! - extract.rs：条款抽取业务规则（消费 locator 字符串，与解析器解耦）。
 //!
@@ -25,6 +30,7 @@ pub mod env_preflight;
 pub mod extract;
 pub mod guard;
 pub mod pdf;
+pub mod pdf_text;
 pub mod veto_lexicon;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -102,7 +108,24 @@ pub fn parse_file(path: &Path, name: &str) -> Result<ParsedFile, String> {
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
     match ext.as_str() {
         "pdf" => {
-            let mut pf = pdf::parse(path).map_err(|e| format!("pdf 解析失败 {name}: {e}"))?;
+            // 第三条降级路（pdf_text 纯 Rust 兜底）。
+            //
+            // 实测背景：未装 pdfium 且未装 poppler 的环境里，首选路（pdfium）
+            // 与回退路（pdftotext）全断——补遗文件会静默丢失，后续抽取全部基于
+            // 旧文件且校验仍然 blocker=0。此处先走原链路，两条都失败时用纯 Rust
+            // 提取兜底（甜区：短文本 PDF——补遗/澄清函/更正公告正好在此）。
+            // 兜底也失败→ 仍然明说失败（两条原因都报出来），绝不静默降级。
+            let mut pf = match pdf::parse(path) {
+                Ok(pf) => pf,
+                Err(chain_err) => match pdf_text::parse_via_fallback(path, name) {
+                    Ok(pf) => pf,
+                    Err(fb_err) => {
+                        return Err(format!(
+                            "pdf 解析失败 {name}: {chain_err}；纯 Rust 兜底也失败：{fb_err}"
+                        ))
+                    }
+                },
+            };
             pf.name = name.to_string();
             pf.sha256 = sha256;
             Ok(pf)

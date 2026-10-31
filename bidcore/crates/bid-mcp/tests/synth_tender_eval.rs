@@ -175,7 +175,29 @@ fn synth_tender_eval() {
     if pdf_env_ok {
         assert_eq!(err1, None, "② A/B/C/E 批应全成功: {totals:?}");
     } else {
-        assert_eq!(err1.as_deref(), Some("E_PARTIAL"), "② 环境缺失时 C/E 走 E_PARTIAL（软门）: {totals:?}");
+        // 环境缺 poppler 时，以前这一批必然 E_PARTIAL。
+        //
+        // 但 pdf_text 纯 Rust 兜底进来之后，**文本层 PDF 已能不依赖外部工具解析**：
+        // C-补遗（文本层）不再失败，E-扫描件（无文本层）仍需 OCR → 仍会失败。
+        // 所以断言从「整批必须 E_PARTIAL」改为「**按文件**判」：该成功的成功、
+        // 该失败的失败——这比原来更严格（原来只看整批结果，现在逐件验证）。
+        let failed: Vec<&str> = import["per_file"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter(|f| f["parse_status"] == "failed")
+                    .filter_map(|f| f["filename"].as_str())
+                    .collect()
+            })
+            .unwrap_or_default();
+        assert!(
+            !failed.contains(&"C-补遗文件.pdf"),
+            "② 含补遗在内的文本层 PDF 必须靠纯 Rust 兜底解决，不可失败（目前失败件: {failed:?}）"
+        );
+        assert!(
+            err1.is_none(),
+            "② 文本层件（A/B/C）都应成功，不应报 E_PARTIAL；实际 {err1:?} / {totals:?}"
+        );
     }
     let (import_d, err2) = import_batch(&mut svc, &pid, &files[4..]); // D 单独
     assert_eq!(err2.as_deref(), Some("E_PARTIAL"), "② D 件应 E_PARTIAL（fail-closed 拒绝非办公扩展名）");

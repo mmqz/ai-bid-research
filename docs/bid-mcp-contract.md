@@ -350,3 +350,61 @@ out: { receipt:{ review_id, gate, decision, reviewer, finding_ids, spawned_rt_id
 > build_outline → register/bind → 三门 → check_bid_quality（**章节发现面**——
 > sections 只列叶，get_bid_project_state 不回章节清单）→ draft → validate → export。
 > 验收：`tests/mcp_scaffold_tools.rs`（零服务面直调全链 + 错误路径）。
+
+## 13. score_price（#100 任务 3 · B1 价格分接线——纯计算器）
+
+```
+in : { method?:"benchmark"|"lowest"|"average"（缺省 average）| 完整对象
+       （{"BENCHMARK_PRICE":{"coefficient":..}} / {"COMPOSITE":{..}} /
+        {"DISCOUNT_RATE":{"base":{"FIXED":0.04}}}——复合法/下浮率法全参数面）,
+       coefficient?（benchmark 缺省 1.0 / average 缺省 0.95）,
+       max_score?（缺省 30）, budget?（控制价——benchmark 必需）,
+       deviation?:"ratio"（缺省，87号令第五十五条口径）|"price"（需 deduct_high/deduct_low）
+       |"rate"（需 deduct）| 完整对象,
+       bid_price?（缺省 = 纯推荐模式）, others?:[$]（竞争报价） }
+out: { spec:{method,max_score,budget,deviation_rule}, bid_price, others,
+       score?, detail?{benchmark,deviation,deduction,score},
+       optimal_price?, expected_score_at_optimal?, analysis（人读——方法口径+最优+试算）,
+       warnings[], request_id }
+语义: B1 PriceScoreSpec 只调用不改（五方法/比率与价格扣分/闭式最优全在引擎）。
+      bid_price 与 optimal 可同场（「这么报得几分 + 最优该报多少」一次回答）；
+      others 为空时基准价按己方单家口径（analysis 提示）；纯推荐模式推荐不出
+      （竞争报价不足/方法无界）→ E_UNPROCESSABLE 响亮透传，试算在场则降级告警。
+状态: 无（纯计算器——不路由项目不走状态机；无项目也能算）
+错误: E_UNPROCESSABLE（method/deviation 形态非法；缺 deduct 参数；B1 validate 拒——
+      如 benchmark 缺控制价、报价超控制价）
+```
+
+## 14. score_section（#100 任务 3 · B2 章节自评）
+
+```
+in : { project_id, section_id, project_version? }
+out: { project_id, section_id, section_title, chars, estimated, max,
+       covered_items:[REQ-*], missing_items:[REQ-*], rationale（逐项可追溯）,
+       item_scores:[{item_id,estimated,max,tier,coverage,is_objective,rationale}], request_id }
+语义: B2 SectionScorer 只调用不改（四维规则判定——覆盖度/字数/证据/具体性）。
+      评分项 section 映射：REQ params.section 优先，缺省按大纲绑定关系联结
+      （REQ 所在叶——确定性兜底，无 LLM）；价格类叶跳过内容自评（价格分 =
+      f(报价)，由 score_price 计算）；结构节点（有子）与未起草叶 → E_UNPROCESSABLE。
+状态: MATRIX_READY+（只读诊断——与 check_bid_quality 同窗口）
+错误: E_NOTFOUND（section 不存在）；E_UNPROCESSABLE（未起草/结构节点）；E_STATE（无章节树）
+```
+
+## 15. score_document（#100 任务 3 · B2 整本自评——「这份标书能得几分」）
+
+```
+in : { project_id, project_version?,
+       bid_price?（缺省 = 不计价——「没报价就不算」，price 出 null 而非 0）,
+       others?:[$], method?/coefficient?/max_score?/budget?/deviation?（价格口径，
+       仅 bid_price 在场时消费——参数面同 §13 score_price） }
+out: { project_id, technical, price（null | 数值）, commercial（null | 数值）, total,
+       target（诚实满分 = 非硬门可达叶 max 合计——含价格项与未映射项，不因没写缩分母）,
+       gap = target − total, by_item:[{item_id,criteria,max,estimated,tier,coverage,section_id}],
+       breakdown:[SectionScore…（逐章节）], notes[]（UNMAPPED/SECTION_MISSING/NO_PRICE_INPUT
+       诚实登记）, price_input（价格口径 echo | null）, sections_scored, request_id }
+语义: B2 score_document 三段聚合（技术 = 主观叶估分和；商务 = 客观叶；价格 = B1
+      实算）+ by_item 全量逐项（未覆盖 estimated=0 如实呈现）。e2e 十一件套的
+      11_self-score.json 即本工具产物（scripts/e2e_bid/run_e2e_artifacts.sh）。
+状态: MATRIX_READY+（只读诊断）
+错误: E_UNPROCESSABLE（价格口径非法）；E_STATE（无章节树）
+```

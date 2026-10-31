@@ -129,6 +129,9 @@ fn describe(name: &str) -> &'static str {
         "register_evidence" => "证据登记（G2——语义位查重/换版；MATRIX_READY+）",
         "bind_evidence" => "证据批量绑定 + 矩阵重算（G2——EXPIRED 禁绑；MATRIX_READY+）",
         "record_review_gate" => "三门记审（G3——matrix/outline/pre_export；reviewer 须 human: 前缀）",
+        "score_price" => "价格分试算 + 最优报价反推（#100 任务 3——纯计算器，B1 五方法只调用不改）",
+        "score_section" => "章节自评（#100 任务 3——四维规则判定；大纲联结补 section 映射）",
+        "score_document" => "整本自评（#100 任务 3——技术/商务/价格三段 + by_item 逐项；没报价 → price null）",
         _ => "unknown",
     }
 }
@@ -151,5 +154,8 @@ fn is_implemented(name: &str) -> bool {
             | "register_evidence"
             | "bind_evidence"
             | "record_review_gate"
+            | "score_price"
+            | "score_section"
+            | "score_document"
     )
 }

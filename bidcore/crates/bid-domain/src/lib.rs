@@ -153,18 +153,23 @@ impl ProjectStatus {
             MatrixReady | EvidenceBound => &["get_compliance_matrix", "search_evidence",
                 "get_bid_project_state", "draft_response_section", "check_bid_quality",
                 // #80 第三批 MCP 补齐 G2/G3：证据登记绑定 + 审批门（P4 面）
-                "register_evidence", "bind_evidence", "record_review_gate"],
+                "register_evidence", "bind_evidence", "record_review_gate",
+                // #100 任务 3：B2 自评接线（只读诊断——与 check_bid_quality 同窗口）
+                "score_section", "score_document"],
             Drafting => &["get_compliance_matrix", "search_evidence",
                 "get_bid_project_state", "draft_response_section", "validate_bid_document",
                 "export_bid_document", "check_bid_quality",
                 // G3：PreExportConfirm 门在 Drafting+ 窗口内
-                "record_review_gate"],
+                "record_review_gate",
+                "score_section", "score_document"],
             Validating | Reviewing | ReadyToExport => &["get_compliance_matrix", "search_evidence",
                 "get_bid_project_state", "validate_bid_document", "export_bid_document",
-                "check_bid_quality", "record_review_gate"],
+                "check_bid_quality", "record_review_gate",
+                "score_section", "score_document"],
             Exported => &["get_compliance_matrix", "search_evidence",
                 "get_bid_project_state", "export_bid_document", "check_bid_quality",
-                "record_review_gate"],
+                "record_review_gate",
+                "score_section", "score_document"],
         }
     }
 

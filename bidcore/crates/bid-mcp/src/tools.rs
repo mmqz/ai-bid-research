@@ -54,6 +54,12 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         "register_evidence" => register_evidence(svc, args),
         "bind_evidence" => bind_evidence(svc, args),
         "record_review_gate" => record_review_gate(svc, args),
+        // ---- #100 任务 3：B1/B2 接线（能得几分、该报多少价）----
+        // score_price 是纯计算器（无 project 路由/状态门——报价推演面）；
+        // score_section / score_document 走既有 route_guard（只读诊断）。
+        "score_price" => score_price(svc, args),
+        "score_section" => score_section(svc, args),
+        "score_document" => score_document(svc, args),
         // ---- M0 骨架：以下工具待各自里程碑接线 ----
         "search_evidence" => Err(ToolError::unimplemented(name, "M2-b（双通道检索——#59 已降级可选，素材库上来再启）")),
         other => Err(ToolError::ENotFound {
@@ -94,6 +100,35 @@ fn opt_u64(v: &Value, key: &str, at: &str) -> Result<Option<u64>, ToolError> {
             what: format!("{at}: {key} 须为非负整数"),
         }),
         Some(_) => Err(ToolError::EUnprocessable { what: format!("{at}: {key} 须为非负整数") }),
+    }
+}
+
+/// 可选数值参数（#100 任务 3——score_price/score_document 的报价与规格面）。
+fn opt_f64(v: &Value, key: &str, at: &str) -> Result<Option<f64>, ToolError> {
+    match v.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Number(n)) => n.as_f64().map(Some).ok_or_else(|| ToolError::EUnprocessable {
+            what: format!("{at}: {key} 须为数值"),
+        }),
+        Some(_) => Err(ToolError::EUnprocessable { what: format!("{at}: {key} 须为数值") }),
+    }
+}
+
+/// 可选数值数组（others 竞争报价清单——逐元素校验，含非数值即拒）。
+fn opt_f64_array(v: &Value, key: &str, at: &str) -> Result<Option<Vec<f64>>, ToolError> {
+    match v.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Array(a)) => a
+            .iter()
+            .enumerate()
+            .map(|(i, x)| {
+                x.as_f64().ok_or_else(|| ToolError::EUnprocessable {
+                    what: format!("{at}: {key}[{i}] 须为数值"),
+                })
+            })
+            .collect::<Result<Vec<f64>, _>>()
+            .map(Some),
+        Some(_) => Err(ToolError::EUnprocessable { what: format!("{at}: {key} 须为数值数组") }),
     }
 }
 
@@ -1218,6 +1253,394 @@ fn check_bid_quality(svc: &mut BidService, args: Value) -> ToolResult {
 }
 
 /// `generator` 参数（#68 阶段 1 + #100 任务 2——缺省 auto；非四态拒）。
+// ---------------------------------------------------------------- #100 任务 3：B1/B2 接线（score_price / score_section / score_document）
+
+/// `score_price` —— 价格分试算 + 最优报价反推（issue #100 §3.1/§3.3）。
+///
+/// 纯计算器：无 project 路由/状态门（报价决策的推演面——投不投、报多少，
+/// 发生在起草之前也成立）。B1 [`bid_domain::pricing::PriceScoreSpec`] 只调用不改。
+///
+/// 参数面：
+/// - `method`：字符串糖 `benchmark` | `lowest` | `average`（缺省 average——
+///   synth 4.1 口径）或完整 serde 对象（`{"COMPOSITE":{…}}` /
+///   `{"DISCOUNT_RATE":{"base":{"FIXED":0.04}}}`——复合法/下浮率法全参数面）；
+/// - `coefficient`（benchmark/average 的下浮系数；缺省 1.0/0.95）、
+///   `max_score`（缺省 30）、`budget`（控制价——benchmark 必需，B1 validate 裁决）；
+/// - `deviation`：`ratio`（缺省——87 号令第五十五条口径）| `price`（需
+///   `deduct_high`/`deduct_low`）| `rate`（需 `deduct`）或完整对象；
+/// - `bid_price`（缺省 = 纯推荐模式）+ `others`（竞争报价——基准价计算面）。
+///
+/// out：试算面（score/detail）+ 推荐面（optimal_price/expected_score_at_optimal）
+/// + 人读 analysis；两者可同场（「这么报得几分 + 最优该报多少」一次回答）。
+fn score_price(_svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "score_price";
+    let spec = parse_price_spec(&args, TOOL)?;
+    // 规格合法性（单一真源——B1 引擎的 validate 面，壳层不重复裁决逻辑）
+    spec.validate().map_err(ToolError::from)?;
+    let bid_price = opt_f64(&args, "bid_price", TOOL)?;
+    let others = opt_f64_array(&args, "others", TOOL)?.unwrap_or_default();
+
+    // ---- 试算面（bid_price 在场——「这么报价能得几分」）
+    let detail = match bid_price {
+        Some(p) => Some(spec.score_detail(p, &others).map_err(ToolError::from)?),
+        None => None,
+    };
+    // ---- 推荐面（optimal_price——「该报多少价」；竞争报价不足/方法无界时
+    //      B1 拒绝：纯推荐模式响亮透传，试算在场则降级为告警——半答案优于没答案）
+    let mut warnings: Vec<String> = Vec::new();
+    let (optimal, at_optimal): (Option<f64>, Option<f64>) = match spec.optimal_price(&others) {
+        Ok(op) => {
+            let sc = spec.score(op, &others).map_err(ToolError::from)?;
+            (Some(op), Some(sc))
+        }
+        Err(e) => {
+            if bid_price.is_none() {
+                return Err(ToolError::from(e));
+            }
+            warnings.push(format!("最优报价反推失败（{e:?}）——竞争报价不足或方法无界，试算结果仍有效"));
+            (None, None)
+        }
+    };
+
+    // ---- 人读分析（确定性拼装——方法口径 + 最优 + 当前试算）
+    use bid_domain::pricing::{DiscountBase, PriceScoreMethod};
+    let method_desc = match &spec.method {
+        PriceScoreMethod::BenchmarkPrice { coefficient } =>
+            format!("基准价法：评标基准价 = 控制价 × {coefficient}"),
+        PriceScoreMethod::LowestPrice =>
+            "最低价法：评标基准价 = 全部有效报价（含己方）的最低值".to_string(),
+        PriceScoreMethod::AveragePrice { coefficient } =>
+            format!("平均价法：评标基准价 = 有效报价（含己方）算术平均 × {coefficient}"),
+        PriceScoreMethod::Composite { trim_high, trim_low, budget_weight, .. } =>
+            format!("复合法：剔高 {trim_high}/剔低 {trim_low} 后均价与控制价按 {budget_weight} 加权"),
+        PriceScoreMethod::DiscountRate { base } => match base {
+            DiscountBase::Fixed(r) =>
+                format!("下浮率法：基准下浮率固定 {r}（下浮率 =（控制价−报价）/控制价）"),
+            DiscountBase::FieldAverage =>
+                "下浮率法：基准下浮率 = 全场有效报价的平均下浮率".to_string(),
+        },
+    };
+    let mut analysis = format!("评标办法：{method_desc}；价格分满分 {} 分。", spec.max_score);
+    if let (Some(op), Some(sc)) = (optimal, at_optimal) {
+        analysis.push_str(&format!(
+            "最优报价 {op:.2}（期望得分 {sc:.2}/{}，命中基准价）。",
+            spec.max_score
+        ));
+    }
+    if let Some(d) = &detail {
+        analysis.push_str(&format!(
+            "当前报价（bid_price={:.2}）：基准价 {:.2}，偏离 {:+.2}%，扣 {:.2} 分，得分 {:.2}。",
+            bid_price.unwrap_or(0.0), d.benchmark, d.deviation * 100.0, d.deduction, d.score
+        ));
+    }
+    if others.is_empty() {
+        analysis.push_str(
+            "提示：未提供 others（竞争报价）——基准价按己方单家口径计算，实际以开标全场为准。",
+        );
+    }
+
+    Ok(json!({
+        "spec": {
+            "method": serde_json::to_value(&spec.method).unwrap_or(Value::Null),
+            "max_score": spec.max_score,
+            "budget": spec.budget,
+            "deviation_rule": serde_json::to_value(&spec.deviation_rule).unwrap_or(Value::Null),
+        },
+        "bid_price": bid_price,
+        "others": others,
+        "score": detail.as_ref().map(|d| d.score),
+        "detail": detail,
+        "optimal_price": optimal,
+        "expected_score_at_optimal": at_optimal,
+        "analysis": analysis,
+        "warnings": warnings,
+        "request_id": next_request_id(),
+    }))
+}
+
+/// `score_section` —— 章节自评（issue #100 §3.1——「这一章能得几分」）。
+///
+/// 壳层职责：参数校验 → route_guard（只读诊断，MatrixReady+ 窗口）→ 前置
+/// （章节在场 + 已起草——无正文的自评是空转）→ B2 [`SectionScorer`] 只调用
+/// 不改 → out 组装（item_scores 逐项明细 + rationale 可追溯面）。
+fn score_section(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "score_section";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let section_id = req_str(&args, "section_id", TOOL)?;
+    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    route_guard(svc, &project_id, TOOL, project_version)?;
+    // 前置：章节在场 + 已起草
+    let node = svc.store().sections().iter().find(|n| n.id == section_id).cloned()
+        .ok_or_else(|| ToolError::ENotFound {
+            what: format!("section {section_id} 不存在（先 build_outline）"),
+        })?;
+    let content = node.content.clone().ok_or_else(|| {
+        let has_child = svc.store().sections().iter()
+            .any(|n| n.parent_id.as_deref() == Some(section_id.as_str()));
+        ToolError::EUnprocessable {
+            what: if has_child {
+                format!(
+                    "{section_id} 是结构节点（有子）——正文只住叶，请对叶章节自评"
+                )
+            } else {
+                format!("section {section_id} 未起草——先 draft_response_section（无正文的自评无意义）")
+            },
+        }
+    })?;
+    let (scorer, _items) = build_scorer(svc.store());
+    let s = scorer.score_section(&section_id, &content);
+    Ok(json!({
+        "project_id": project_id,
+        "section_id": s.section_id,
+        "section_title": node.title,
+        "chars": content.chars().filter(|c| !c.is_whitespace()).count(),
+        "estimated": s.estimated,
+        "max": s.max,
+        "covered_items": s.covered_items,
+        "missing_items": s.missing_items,
+        "rationale": s.rationale,
+        "item_scores": s.item_scores,
+        "request_id": next_request_id(),
+    }))
+}
+
+/// `score_document` —— 整本自评（issue #100 §3.2——「这份标书能得几分」）。
+///
+/// 聚合面（B2 `score_document` 的三段口径）：技术（主观叶）/ 商务（客观叶）/
+/// 价格（`bid_price` 在场才计——**没报价就不算**，price 出 null 而非 0）。
+/// `target` = 非硬门可达叶的满分合计（诚实满分——含价格项与未映射项，
+/// 不因「没写」而缩小分母）；`gap` = target − total；`by_item` 为全量
+/// 逐项明细（未覆盖项 estimated=0 如实呈现）。
+fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "score_document";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    route_guard(svc, &project_id, TOOL, project_version)?;
+    // 前置：章节树在场（与 check_bid_quality 同口径）
+    if svc.store().sections().is_empty() {
+        return Err(ToolError::EState {
+            what: format!(
+                "{} 态无章节树——先 build_outline 再自评",
+                svc.store().project().map(|p| p.status.as_str()).unwrap_or("?")
+            ),
+        });
+    }
+    // 已起草叶 → (section_id, content)（正文只住叶——与 assemble/export 同口径）
+    let parents: std::collections::HashSet<&str> = svc.store().sections().iter()
+        .filter_map(|n| n.parent_id.as_deref()).collect();
+    let sections: Vec<(String, String)> = svc.store().sections().iter()
+        .filter(|n| !parents.contains(n.id.as_str()))
+        .filter_map(|n| n.content.clone().map(|c| (n.id.clone(), c)))
+        .collect();
+    // 价格面（bid_price 缺省 = 不计价——价格参数仅在报价在场时消费）
+    let bid_price = opt_f64(&args, "bid_price", TOOL)?;
+    let others = opt_f64_array(&args, "others", TOOL)?.unwrap_or_default();
+    let mut spec_echo = Value::Null;
+    let spec_opt = match bid_price {
+        Some(_) => {
+            let spec = parse_price_spec(&args, TOOL)?;
+            spec.validate().map_err(ToolError::from)?;
+            spec_echo = json!({
+                "method": serde_json::to_value(&spec.method).unwrap_or(Value::Null),
+                "max_score": spec.max_score,
+                "budget": spec.budget,
+                "deviation_rule": serde_json::to_value(&spec.deviation_rule).unwrap_or(Value::Null),
+            });
+            Some(spec)
+        }
+        None => None,
+    };
+    let price_input = spec_opt.as_ref().map(|spec| bid_domain::scoring::PriceInput {
+        spec,
+        bid_price: bid_price.unwrap_or(0.0),
+        others,
+    });
+    let (scorer, items) = build_scorer(svc.store());
+    let doc = scorer.score_document(&sections, price_input);
+    // ---- by_item + target：全量非硬门可达叶（叶 = 未被任何项引用为 parent）
+    let parent_ids: std::collections::HashSet<&str> = items.iter()
+        .filter_map(|i| i.parent_id.as_deref()).collect();
+    let mut by_item: Vec<Value> = Vec::new();
+    let mut target = 0.0f64;
+    for it in items.iter()
+        .filter(|i| !i.is_hard_gate && !parent_ids.contains(i.requirement_id.as_str()))
+    {
+        let max = it.max_score.unwrap_or(0.0);
+        target += max;
+        if is_price_item_mirror(it) {
+            // 价格类叶：内容自评无意义（价格分 = f(报价)）——estimated 取 B1 实算值
+            by_item.push(json!({
+                "item_id": it.requirement_id,
+                "criteria": it.criteria,
+                "max": max,
+                "estimated": doc.price,
+                "tier": "价格分（f(报价)——score_price/B1 计算）",
+                "coverage": Value::Null,
+                "section_id": it.section_id,
+            }));
+            continue;
+        }
+        let est = doc.breakdown.iter()
+            .flat_map(|s| s.item_scores.iter())
+            .find(|isc| isc.item_id == it.requirement_id);
+        by_item.push(json!({
+            "item_id": it.requirement_id,
+            "criteria": it.criteria,
+            "max": max,
+            "estimated": est.map(|e| e.estimated).unwrap_or(0.0),
+            "tier": est.map(|e| e.tier.label()).unwrap_or("未覆盖"),
+            "coverage": est.map(|e| e.coverage).unwrap_or(0.0),
+            "section_id": it.section_id,
+        }));
+    }
+    let gap = ((target - doc.total) * 100.0).round() / 100.0;
+    Ok(json!({
+        "project_id": project_id,
+        "technical": doc.technical,
+        // 没报价就不算（issue §3.2：price null 而非伪装 0）
+        "price": if bid_price.is_some() { json!(doc.price) } else { json!(null) },
+        "commercial": doc.commercial,
+        "total": doc.total,
+        "target": (target * 100.0).round() / 100.0,
+        "gap": gap,
+        "by_item": by_item,
+        "breakdown": doc.breakdown,
+        "notes": doc.notes,
+        "price_input": spec_echo,
+        "sections_scored": sections.len(),
+        "request_id": next_request_id(),
+    }))
+}
+
+/// 评分树 + 大纲联结（#100 任务 3 的接线件）：评分项 REQ 的 `params.section`
+/// 缺省时按大纲绑定关系补映射（REQ 所在**叶**章节——正文只住叶，与导出
+/// 面同口径）。解析层未填 section 槽位是常态（synth/real 均如此），不联结
+/// 则自评恒 UNMAPPED——按「条款被响应的章节」联结是确定性兜底（无 LLM），
+/// 显式 params.section 优先（解析层/人工映射不被覆盖）。
+///
+/// 返回 (scorer, 联结后首现序 items)——items 供 by_item/target 的全量
+/// 逃代（derive_scoring_items 首现序，确定性；HashMap 索引无序不可逃代）。
+fn build_scorer(
+    store: &bid_domain::DomainStore,
+) -> (
+    bid_domain::scoring::SectionScorer,
+    Vec<bid_domain::scoring::ScoringItem>,
+) {
+    let parents: std::collections::HashSet<&str> = store.sections().iter()
+        .filter_map(|n| n.parent_id.as_deref()).collect();
+    let mut leaf_of: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+    for n in store.sections() {
+        if !parents.contains(n.id.as_str()) {
+            for rid in &n.requirement_ids {
+                leaf_of.insert(rid.as_str(), n.id.as_str());
+            }
+        }
+    }
+    let mut reqs = store.requirements().to_vec();
+    for r in &mut reqs {
+        if r.category == "评分项" && r.params.get("section").is_none() {
+            if let Some(sec) = leaf_of.get(r.id.as_str()) {
+                r.params.insert("section".into(), serde_json::json!(sec));
+            }
+        }
+    }
+    // 项目专名锚（B3 ProjectContext 同源——具体性判定的锚词面）
+    let terms = bid_tools::quality::ProjectContext::from_store(store).scorer_terms();
+    let items = bid_domain::scoring::derive_scoring_items(&reqs);
+    let tree = bid_domain::scoring::derive_scoring_tree(&reqs);
+    (bid_domain::scoring::SectionScorer::new(tree, terms), items)
+}
+
+/// 价格类评分项判定（`bid_domain::scoring::is_price_item` 的镜像——该函数
+/// 未 pub；关键词面同步自同一真源，两处修改必须一起）。
+fn is_price_item_mirror(it: &bid_domain::scoring::ScoringItem) -> bool {
+    let c = &it.criteria;
+    c.contains("价格分") || c.contains("投标报价") || c.contains("下浮率") || c.contains("基准价")
+}
+
+/// 价格分规格解析（score_price / score_document 共用——字符串糖 + 完整
+/// serde 对象双形态；见 `score_price` 的参数面说明）。
+fn parse_price_spec(v: &Value, at: &str) -> Result<bid_domain::pricing::PriceScoreSpec, ToolError> {
+    use bid_domain::pricing::{DeviationRule, PriceScoreMethod, PriceScoreSpec};
+    let coefficient = opt_f64(v, "coefficient", at)?;
+    let method = match v.get("method") {
+        None | Some(Value::Null) => PriceScoreMethod::AveragePrice {
+            coefficient: coefficient.unwrap_or(0.95),
+        },
+        Some(Value::String(s)) => match s.as_str() {
+            "benchmark" => PriceScoreMethod::BenchmarkPrice {
+                coefficient: coefficient.unwrap_or(1.0),
+            },
+            "lowest" => PriceScoreMethod::LowestPrice,
+            "average" => PriceScoreMethod::AveragePrice {
+                coefficient: coefficient.unwrap_or(0.95),
+            },
+            other => return Err(ToolError::EUnprocessable {
+                what: format!(
+                    "{at}: method 须为 benchmark | lowest | average 或完整对象形态（实际: {other}）"
+                ),
+            }),
+        },
+        Some(obj @ Value::Object(_)) => serde_json::from_value(obj.clone()).map_err(|e| {
+            ToolError::EUnprocessable {
+                what: format!(
+                    "{at}: method 完整对象形态解析失败（如 {{\"BENCHMARK_PRICE\":{{\"coefficient\":0.97}}}}）: {e}"
+                ),
+            }
+        })?,
+        Some(_) => return Err(ToolError::EUnprocessable {
+            what: format!("{at}: method 须为字符串或对象"),
+        }),
+    };
+    let deviation_rule = match v.get("deviation") {
+        None | Some(Value::Null) => DeviationRule::Ratio,
+        Some(Value::String(s)) => match s.as_str() {
+            "ratio" => DeviationRule::Ratio,
+            "price" => DeviationRule::Price {
+                deduct_high: opt_f64(v, "deduct_high", at)?.ok_or_else(|| {
+                    ToolError::EUnprocessable {
+                        what: format!("{at}: deviation=price 需要 deduct_high（每高于基准 1% 扣分）"),
+                    }
+                })?,
+                deduct_low: opt_f64(v, "deduct_low", at)?.ok_or_else(|| {
+                    ToolError::EUnprocessable {
+                        what: format!("{at}: deviation=price 需要 deduct_low（每低于基准 1% 扣分，0 = 不罚）"),
+                    }
+                })?,
+            },
+            "rate" => DeviationRule::Rate {
+                deduct: opt_f64(v, "deduct", at)?.ok_or_else(|| {
+                    ToolError::EUnprocessable {
+                        what: format!("{at}: deviation=rate 需要 deduct（每偏离 1 个百分点扣分）"),
+                    }
+                })?,
+            },
+            other => return Err(ToolError::EUnprocessable {
+                what: format!(
+                    "{at}: deviation 须为 ratio | price | rate 或完整对象形态（实际: {other}）"
+                ),
+            }),
+        },
+        Some(obj @ Value::Object(_)) => serde_json::from_value(obj.clone()).map_err(|e| {
+            ToolError::EUnprocessable {
+                what: format!(
+                    "{at}: deviation 完整对象形态解析失败（如 {{\"PRICE\":{{\"deduct_high\":0.2,\"deduct_low\":0.1}}}}）: {e}"
+                ),
+            }
+        })?,
+        Some(_) => return Err(ToolError::EUnprocessable {
+            what: format!("{at}: deviation 须为字符串或对象"),
+        }),
+    };
+    Ok(PriceScoreSpec {
+        method,
+        max_score: opt_f64(v, "max_score", at)?.unwrap_or(30.0),
+        budget: opt_f64(v, "budget", at)?,
+        deviation_rule,
+    })
+}
+
+/// `generator` 参数（#68 阶段 1——缺省 auto；非 auto/mock/real 拒）。
 fn opt_generator(v: &Value, key: &str, at: &str) -> Result<Option<String>, ToolError> {
     match opt_str(v, key, at)? {
         None => Ok(None),

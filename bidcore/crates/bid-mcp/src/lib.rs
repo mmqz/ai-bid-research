@@ -29,14 +29,16 @@ pub use transport::Transport;
 
 use serde_json::Value;
 
-/// 17 个工具名（单一真源；schema 声明与分发都从这里取）。
+/// 20 个工具名（单一真源；schema 声明与分发都从这里取）。
 ///
 /// V3-5（S-4 游标分页）新增 `list_evidence` / `list_tasks` 两个只读列表工具
 /// （原 8 工具契约 + `get_bid_project_state` + 2 = 11）；#42 阶段 10 增
 /// `save_version`；#68 阶段 2 增 `check_bid_quality`；#80 第三批 MCP 补齐
 /// 增 4 个：`build_outline` / `register_evidence` / `bind_evidence` /
-/// `record_review_gate`（G1/G2/G3——外部 Agent 纯 MCP 驱动全链的缺口面）。
-pub const TOOL_NAMES: [&str; 17] = [
+/// `record_review_gate`（G1/G2/G3——外部 Agent 纯 MCP 驱动全链的缺口面）；
+/// #100 任务 3 增 3 个：`score_price` / `score_section` / `score_document`
+/// （B1 价格分 + B2 自评的 MCP 接线——「能得几分、该报多少价」）。
+pub const TOOL_NAMES: [&str; 20] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -54,6 +56,9 @@ pub const TOOL_NAMES: [&str; 17] = [
     "register_evidence",
     "bind_evidence",
     "record_review_gate",
+    "score_price",
+    "score_section",
+    "score_document",
 ];
 
 /// 工具解析与分发入口（进程级全局服务态——stdio 默认传输面）。

@@ -242,13 +242,13 @@ fn draft_override_requirements_and_ghost_warning() {
         "override 后非指定 REQ 不进响应面: {cited:?}");
 }
 
-// ---------------------------------------------------------------- 3. 契约工具面回归（17——#80 第三批 G1/G2/G3 补齐后）
+// ---------------------------------------------------------------- 3. 契约工具面回归（20——#100 任务 3 评分三件接线后）
 
 #[test]
-fn tool_face_remains_seventeen_with_draft_implemented() {
+fn tool_face_remains_twenty_with_draft_implemented() {
     let v = bid_mcp::tools_schema();
     let arr = v["tools"].as_array().unwrap();
-    assert_eq!(arr.len(), 17, "工具面保持 17 个（#80 第三批 G1/G2/G3 补齐 +4）");
+    assert_eq!(arr.len(), 20, "工具面保持 20 个（#80 补齐 17 + #100 任务 3 评分三件）");
     let draft = arr.iter().find(|t| t["name"] == "draft_response_section").unwrap();
     assert_eq!(draft["implemented"], json!(true));
     // 其余一个仍未实现（search——骨架纪律；export/validate 已在阶段 2/3 落地）
@@ -258,4 +258,9 @@ fn tool_face_remains_seventeen_with_draft_implemented() {
     }
     let exported = arr.iter().find(|t| t["name"] == "export_bid_document").unwrap();
     assert_eq!(exported["implemented"], json!(true), "export 已落地（阶段 2）");
+    // #100 任务 3：评分三件已实现（B1/B2 接线）
+    for name in ["score_price", "score_section", "score_document"] {
+        let t = arr.iter().find(|t| t["name"] == name).unwrap();
+        assert_eq!(t["implemented"], json!(true), "{name} 已接线（#100 任务 3）");
+    }
 }

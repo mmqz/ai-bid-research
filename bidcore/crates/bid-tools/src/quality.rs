@@ -336,11 +336,6 @@ const PARAM_UNITS: &[&str] = &[
     "米", "平方", "TB", "Tb", "GHz", "MHz", "kW", "个", "台班",
 ];
 
-/// 标准编号前缀（可验证陈述的形态之二：ISO9001 / GB/T19001 / JGJ46 …）。
-const STANDARD_PREFIXES: &[&str] = &[
-    "ISO", "GB", "JGJ", "CJJ", "DB", "CQC", "OHSAS", "ITU", "IEC", "IEEE",
-];
-
 /// 句子切分（。；！？与 ASCII 句读 + 换行——B3 三维度共用的最小单元）。
 ///
 /// 纯内容函数：切分保序，空段/纯空白段丢弃。
@@ -377,33 +372,33 @@ fn count_number_unit(content: &str) -> usize {
     n
 }
 
-/// 句内具体锚：数字+单位 / 标准编号（前缀+数字）/ [REQ-*][EV-*] 引用。
+/// 标准编号形态（可验证陈述的形态之二）。
+///
+/// 覆盖真实标书高频形态：`ISO9001` / `GB/T19001` / `GB50205` / `JGJ46-2005`
+/// / `DB11/T` / `CJJ/T77`——前缀字母 + 可选 `/T` 分段 + 数字。
+/// `OnceLock` 缓存编译（regex::Regex Send+Sync——首次调用后零重复编译）。
+fn standard_id_regex() -> &'static regex::Regex {
+    static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    RE.get_or_init(|| {
+        // 不用 \b 词边界：rust regex 的 \w 含 CJK，「符合GB50205」这种
+        // 无空格紧邻形态会因「中文|字母均为词字符」而无边界可断——漏检
+        // 常见形态；裸前缀匹配的误报面（RGB565 之类）在标书语料可忽略。
+        regex::Regex::new(
+            r"(?:ISO|GB|JGJ|CJJ|DB|CQC|OHSAS|ITU|IEC|IEEE)(?:/[A-Z0-9]{1,3})?[/-]?[0-9]",
+        )
+        .expect("标准编号正则是常量——编译不会失败")
+    })
+}
+
+/// 句内具体锚：数字+单位 / 标准编号（regex 形态）/ [REQ-*][EV-*] 引用。
 ///
 /// 「有锚的承诺句不是空话」——政府示范文本投标函的「我方承诺投标有效期
 /// 为自投标截止日起 90 天」有数字锚，是功能句不是空话（锚规则压假阳性）。
 fn has_concrete_anchor(sentence: &str) -> bool {
-    if count_number_unit(sentence) > 0 {
-        return true;
-    }
-    // 标准编号：字母前缀紧跟数字（ISO9001 / GB/T19001 的 T 由数字切分吸收）
-    let bytes: Vec<char> = sentence.chars().collect();
-    for p in STANDARD_PREFIXES {
-        let pc: Vec<char> = p.chars().collect();
-        for i in 0..bytes.len().saturating_sub(pc.len() - 1) {
-            if bytes[i..].starts_with(&pc) {
-                // 前缀后紧跟 ASCII 数字（跳过 '/' 与 '-'——GB/T、DB11/T 形态）
-                let mut j = i + pc.len();
-                while j < bytes.len() && (bytes[j] == '/' || bytes[j] == '-') {
-                    j += 1;
-                }
-                if j < bytes.len() && bytes[j].is_ascii_digit() {
-                    return true;
-                }
-            }
-        }
-    }
-    // 引用锚（[REQ-0001] / EV-0002——与 draft::scan_citations 同口径）
-    sentence.contains("REQ-") || sentence.contains("EV-")
+    count_number_unit(sentence) > 0
+        || standard_id_regex().is_match(sentence)
+        || sentence.contains("REQ-")
+        || sentence.contains("EV-")
 }
 
 /// 空话句判定：句含空话短语 **且** 句内无具体锚。
@@ -544,6 +539,61 @@ pub fn assess_specificity(section: &str, project: &ProjectContext) -> Specificit
         has_tenderer_name,
         concrete_params,
         boilerplate_ratio: boilerplate,
+        score,
+    }
+}
+
+// ---------------------------------------------------------------- B3 维度 2：实质性
+
+/// 可验证陈述的满分线（[`SubstanceScore::score`] 的归一基数）。
+///
+/// 依据：B2 `WORDS_PER_POINT = 50 字/分` × 30 分满项 = 1500 字的典型章节
+/// 约含 15~20 句，8 句 ≈ 过半——「多数句子可验证」的量化线（低于 8 线性
+/// 给分，高于 8 满分——短章不罚、长章不虚涨）。
+pub const VERIFIABLE_CLAIMS_FULL: usize = 8;
+
+/// 实质性评分（是否空话——信息密度的量化面）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SubstanceScore {
+    /// 空话句占比（字符加权——句含套话短语且无具体锚；与
+    /// [`SpecificityScore::boilerplate_ratio`] 同一底层度量：针对性看
+    /// 「模板味」，实质性看「信息密度」）。
+    pub empty_sentence_ratio: f64,
+    /// 可验证陈述数（含数字+单位 / 标准编号 / REQ-EV 引用的句子数）。
+    pub verifiable_claims: usize,
+    /// 总分 0-1。
+    pub score: f64,
+}
+
+/// 实质性评估（纯内容函数——同输入同输出）。
+///
+/// 计分（issue #97 未给公式，自定并给依据）：
+/// ```text
+/// score = (1 - 空话句占比) × 0.6 + min(可验证陈述数 / 8, 1) × 0.4
+/// ```
+/// - **负面面 0.6 > 正面面 0.4**：一句空话对评委的伤害大于一句实话的
+///   贡献（空话是扣分证据，可验证是加分证据）——权重不对称是评标直觉
+///   的量化；
+/// - 空内容（无句面）→ 诚实 0 分（不因「没说空话」白得 0.6）；
+/// - 验收锚定：纯空话章节（占比→1、陈述→0）score→0 < 0.4 ✅；好章节
+///   （占比 ≈0、陈述 ≥8）→ ≈1.0。
+pub fn assess_substance(section: &str) -> SubstanceScore {
+    let sentences = split_sentences(section);
+    let empty_ratio = boilerplate_ratio(section);
+    let verifiable_claims = sentences
+        .iter()
+        .filter(|s| has_concrete_anchor(s))
+        .count();
+    let score = if sentences.is_empty() {
+        0.0
+    } else {
+        let density = (1.0 - empty_ratio) * 0.6;
+        let claims = (verifiable_claims as f64 / VERIFIABLE_CLAIMS_FULL as f64).min(1.0) * 0.4;
+        ((density + claims) * 1000.0).round() / 1000.0
+    };
+    SubstanceScore {
+        empty_sentence_ratio: empty_ratio,
+        verifiable_claims,
         score,
     }
 }

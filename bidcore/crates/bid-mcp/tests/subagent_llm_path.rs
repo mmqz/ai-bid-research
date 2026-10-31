@@ -5,9 +5,15 @@
 //!   子代理作者——它们只拿到 RealGenerator 实发的 prompt（system + user），
 //!   没有任何仓库/引擎上下文。这才是对「skill 是否成功可用不偏移」的真检验：
 //!   prompt 就是章节作者的 skill 面，作者偏移 = skill 有缺口。
-//! - **多章并行**：3 个目标章（确定性选法：REQ 数降序、id 升序取前三），
-//!   中继按「章节标题」路由（--content-map）——对应 #80 的「子 Agent =
-//!   各章节作者」架构（主 Agent = 总工：分派 + 验收）。
+//! - **多章并行**：目标章数可配（缺省 3——确定性选法：REQ 数降序、id 升序
+//!   取前 N），中继按「章节标题」路由（--content-map）——对应 #80 的
+//!   「子 Agent = 各章节作者」架构（主 Agent = 总工：分派 + 验收）。
+//! - **规模模式**（Lead 反馈：3 章 ~4.6k 字不构成对 skill 的规模检验）：
+//!   `BID_SUBAGENT_N_TARGETS=0`（全部叶章）+ `BID_SUBAGENT_TOTAL_CHARS` /
+//!   `BID_SUBAGENT_MAX_REQS_PER_LEAF`（建纲配额）——synth-tender 全量
+//!   ~108 叶 × ~7.4k 字/叶 ≈ 80 万字全部由子代理作者撰写。字数带外率
+//!   容差 `BID_SUBAGENT_BAND_TOLERANCE`（缺省严格逐章 ±20%；规模模式设
+//!   如 0.15——偏移是评估数据，记录不中断，带外率超容差才 fail）。
 //! - **skill 纪律 8 落地**：每章完成后调 save_version 存版本（作者手稿
 //!   <ws>/manuscripts/<SEC>.md——文本面可快照）。
 //!
@@ -19,11 +25,12 @@
 //!   （generator=real + 引用回查 + 覆盖度 + 字数 ±20% + save_version）→
 //!   其余章节 mock 补齐 → 校验 blocker=0 → 导出 docx → 用量台账 → 重启恢复。
 //!
-//! **MCP 缺口（诚实面，评估报告的实证来源）**：本测试的建纲/建矩阵
-//! （prepare_outline_and_matrix）、证据登记与绑定（register_evidence /
-//! bind_evidence）、审批门（record_review ×3）走【服务面直调】——MCP 工具面
-//! （契约 12 工具）没有对应工具，外部 Agent 纯 MCP 驱动不了全链。
-//! 详见 docs/subagent-llm-assessment.md 缺口清单。
+//! **MCP 工具面全贯通（G1/G2/G3 补齐后）**：建纲建矩阵（build_outline §10）、
+//! 证据登记与绑定（register_evidence / bind_evidence §11）、审批门
+//! （record_review_gate ×3 §12）全部走【MCP 工具面】（进程内 dispatch_with
+//! ——与 stdio 同一壳层裁决）；起草/校验/导出/save_version 走【真实 stdio
+//! 子进程】。G4 编排纪律：serve 相位起草完成后调 check_bid_quality。
+//! 详见 docs/subagent-llm-assessment.md。
 //!
 //! 传输面：draft/校验/导出/save_version 走【真实 stdio 子进程】（BID_WS
 //! 持久化工作区）——与 Claude Desktop 同款接线面。
@@ -32,7 +39,6 @@
 //! （CI / 普通开发面）→ 响亮横幅 + return。驱动脚本：
 //! `scripts/e2e_bid/run_subagent_path.sh`（phase1 抓 prompt 派遣作者 / phase2 回灌）。
 
-use bid_domain::outline::OutlineSpec;
 use bid_mcp::{dispatch_with, BidService, ToolCall, ToolReply};
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
@@ -40,8 +46,47 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::Instant;
 
-/// 目标章数：多章并行的规模面（3 = 一位子代理作者一章的最小可信并行度）。
+/// 目标章数（缺省形态）：多章并行的规模面（3 = 一位子代理作者一章的最小
+/// 可信并行度）。规模实验用 BID_SUBAGENT_N_TARGETS=0（全部叶章）覆盖。
 const N_TARGETS: usize = 3;
+
+// ---------------------------------------------------------------- 规模旋钮
+
+/// 环境变量读 u64（缺省回退）——规模实验的驱动面，默认值保持第三批任务 A'
+/// 的 3 章形态（向后兼容：不设旋钮时行为不变）。
+fn env_u64_or(name: &str, default: u64) -> u64 {
+    std::env::var(name)
+        .ok()
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(default)
+}
+
+/// 建纲配额：目标总字数（BID_SUBAGENT_TOTAL_CHARS，缺省 20,000——与旧口径
+/// 一致；规模实验设 800,000 进入 50w-100w 字区间）。
+fn outline_total_chars() -> u64 {
+    env_u64_or("BID_SUBAGENT_TOTAL_CHARS", 20_000)
+}
+
+/// 建纲配额：每叶 REQ 上限（BID_SUBAGENT_MAX_REQS_PER_LEAF，缺省 8；规模
+/// 实验设 1——每章单条款，108 叶 × ~7.4k 字，配额在单次补全能力带内）。
+fn outline_max_reqs_per_leaf() -> u64 {
+    env_u64_or("BID_SUBAGENT_MAX_REQS_PER_LEAF", 8)
+}
+
+/// 目标章数（BID_SUBAGENT_N_TARGETS，缺省 3；0 = 全部叶章——规模实验）。
+fn n_targets_cfg() -> usize {
+    env_u64_or("BID_SUBAGENT_N_TARGETS", N_TARGETS as u64) as usize
+}
+
+/// 字数带外率容差（BID_SUBAGENT_BAND_TOLERANCE，如 0.15；缺省 None =
+/// 严格逐章 ±20% 断言——旧口径。规模模式给容差：偏移是评估数据，记录
+/// 不中断，带外率超容差才 fail）。
+fn band_tolerance() -> Option<f64> {
+    std::env::var("BID_SUBAGENT_BAND_TOLERANCE")
+        .ok()
+        .and_then(|s| s.trim().parse::<f64>().ok())
+        .filter(|t| (0.0..=1.0).contains(t))
+}
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..")
@@ -172,6 +217,30 @@ fn leaf_ids_of(svc: &BidService) -> Vec<String> {
         .collect()
 }
 
+/// 待绑 REQ 发现（MCP §4 矩阵分页——类目过滤 + cursor 翻页，外部 Agent
+/// 同款视角；与 mcp_scaffold_tools 同构）。类目用矩阵行自己的 category 面
+/// （qualification / veto —— 契约 §4 filters 口径）。
+fn matrix_reqs(svc: &mut BidService, pid: &str, category: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cursor: Option<String> = None;
+    loop {
+        let mut args =
+            json!({ "project_id": pid, "filters": { "category": category }, "limit": 10 });
+        if let Some(c) = &cursor {
+            args["cursor"] = json!(c);
+        }
+        let r = ok_result(call(svc, "get_compliance_matrix", args));
+        for row in r["rows"].as_array().expect("rows 数组") {
+            out.push(row["requirement"]["id"].as_str().unwrap().to_string());
+        }
+        match r["next_cursor"].as_str() {
+            Some(c) if !c.is_empty() => cursor = Some(c.to_string()),
+            _ => break,
+        }
+    }
+    out
+}
+
 /// 确定性选目标章：REQ 数降序、id 升序取前 N——规模面最大的章先被检验。
 fn top_targets(svc: &BidService, n: usize) -> Vec<String> {
     let mut leaves: Vec<(usize, String)> = leaf_ids_of(svc)
@@ -273,65 +342,88 @@ fn ensure_prepared(svc: &mut BidService, ws: &Path) -> (String, Vec<String>) {
     let n_reqs = extract["counts"]["total"].as_u64().unwrap_or(0);
     assert!(n_reqs >= 60, "抽取面规模: {n_reqs}");
 
-    // ---- 建纲建矩阵（服务面——MCP 无对应工具【缺口 G1】，评估报告实证）
-    svc.prepare_outline_and_matrix(OutlineSpec {
-        target_total_chars: 20_000,
-        max_reqs_per_leaf: 8,
-    })
-    .expect("建纲建矩阵");
+    // ---- 建纲建矩阵（MCP §10——G1 工具面；配额旋钮：规模实验用环境变量覆盖）
+    let bo = ok_result(call(
+        svc,
+        "build_outline",
+        json!({
+            "project_id": &pid,
+            "target_total_chars": outline_total_chars(),
+            "max_reqs_per_leaf": outline_max_reqs_per_leaf(),
+        }),
+    ));
+    assert_eq!(
+        bo["status"],
+        json!("MATRIX_READY"),
+        "建纲后状态（G1 工具面）: {bo:?}"
+    );
 
-    // ---- 证据登记 + 绑定（服务面——MCP 无对应工具【缺口 G2】）
-    use bid_domain::evidence::{EvidenceKind, EvidenceSpec};
-    use bid_domain::locator::EngineLocator;
-    let (eid, _) = svc
-        .store_mut()
-        .register_evidence(EvidenceSpec {
-            kind: EvidenceKind::Qualification,
-            title: "电子与智能化工程专业承包二级资质证书（synth·subagent-path）".into(),
-            source_file: "SYN-EV-资质证书.pdf".into(),
-            source_sha256: "sha-subagent-path".into(),
-            locator: EngineLocator::DocxParagraph {
-                paragraph_index: 0,
-                text_fingerprint: "fnv64:sp".into(),
-            },
-            fingerprint: "fnv64:sp".into(),
-            valid_from: None,
-            valid_until: None,
-            subject_name: "投标人".into(),
-            scope: "电子与智能化工程".into(),
-        })
-        .unwrap();
-    let qual_ids: Vec<String> = svc
-        .store()
-        .requirements()
-        .iter()
-        .filter(|r| r.category == "资格条件" || r.category == "否决项")
-        .map(|r| r.id.clone())
-        .collect();
-    for rid in &qual_ids {
-        svc.store_mut()
-            .bind_evidence(&eid, rid, "2026-11-30")
-            .unwrap();
+    // ---- 待绑 REQ 发现（MCP §4 矩阵分页——资格 + 否决，外部 Agent 同款视角）
+    let mut bind_ids = matrix_reqs(svc, &pid, "qualification");
+    let n_qual = bind_ids.len();
+    bind_ids.extend(matrix_reqs(svc, &pid, "veto"));
+    assert!(n_qual >= 5, "资格条件规模: {n_qual}");
+    assert!(
+        bind_ids.len() > n_qual,
+        "否决项并入: {}",
+        bind_ids.len() - n_qual
+    );
+
+    // ---- 证据登记 + 绑定（MCP §11——G2 工具面）
+    let reg = ok_result(call(
+        svc,
+        "register_evidence",
+        json!({
+            "project_id": &pid, "kind": "qualification",
+            "title": "电子与智能化工程专业承包二级资质证书（synth·subagent-path）",
+            "source_file": "SYN-EV-资质证书.pdf",
+            "source_sha256": "sha-subagent-path",
+            "subject_name": "投标人", "scope": "电子与智能化工程",
+        }),
+    ));
+    let eid = reg["ev_id"].as_str().unwrap().to_string();
+    assert!(eid.starts_with("EV-"), "EV 签发（G2 工具面）: {reg:?}");
+    let bind = ok_result(call(
+        svc,
+        "bind_evidence",
+        json!({
+            "project_id": &pid, "ev_id": &eid,
+            "requirement_ids": bind_ids, "bid_open_date": "2026-11-30",
+        }),
+    ));
+    assert_eq!(
+        bind["matrix"]["blocking"],
+        json!(0),
+        "绑定后 blocking 清零（G2 工具面）: {bind:?}"
+    );
+
+    // ---- 三门审批（MCP §12——G3 工具面；门序：矩阵 → 大纲 → 导出前）
+    for gate in ["matrix_approval", "outline_approval", "pre_export_confirm"] {
+        let g = ok_result(call(
+            svc,
+            "record_review_gate",
+            json!({
+                "project_id": &pid, "gate": gate, "decision": "APPROVED",
+                "reviewer": "human:subagent-path-lead",
+            }),
+        ));
+        assert_eq!(
+            g["receipt"]["decision"],
+            json!("APPROVED"),
+            "门 {gate}: {g:?}"
+        );
     }
-    let _ = svc.store_mut().build_matrix().unwrap();
 
-    // ---- 三门审批（服务面——MCP 无对应工具【缺口 G3】）
-    use bid_domain::review::{Decision, Gate};
-    for gate in [
-        Gate::MatrixApproval,
-        Gate::OutlineApproval,
-        Gate::PreExportConfirm,
-    ] {
-        svc.store_mut()
-            .record_review(gate, "human:subagent-path-lead", Decision::Approved, vec![])
-            .unwrap();
-    }
-    let n_blocking = svc.store().matrix().iter().filter(|r| r.blocking).count();
-    assert_eq!(n_blocking, 0, "绑定后 blocking 清零: 剩 {n_blocking}");
-
-    // ---- 选目标章节（确定性：REQ 数降序、id 升序前 N）
-    let targets = top_targets(svc, N_TARGETS);
-    assert_eq!(targets.len(), N_TARGETS, "目标章数量");
+    // ---- 选目标章节（确定性：REQ 数降序、id 升序前 N；N=0 = 全部叶——规模模式）
+    let n_targets = n_targets_cfg();
+    let targets = if n_targets == 0 {
+        let mut all = top_targets(svc, usize::MAX);
+        all.sort(); // 全量模式按 id 序（分派顺序稳定可复现）
+        all
+    } else {
+        top_targets(svc, n_targets)
+    };
+    assert!(!targets.is_empty(), "目标章数量（旋钮 N={n_targets}）");
 
     // ---- 标记落盘（标题是中继路由键——必须唯一，否则多章回灌会串章）
     let mut entries: Vec<Value> = Vec::new();
@@ -500,6 +592,12 @@ fn subagent_llm_multi_chapter_path() {
         })
         .collect();
 
+    // 字数带分布记录（评估数据——严格模式逐章断言，容差模式汇总裁决）
+    let strict_band = band_tolerance().is_none();
+    let mut band_rows: Vec<Value> = Vec::new();
+    let mut total_words: u64 = 0;
+    let mut out_of_band: Vec<Value> = Vec::new();
+
     for sec in &targets {
         let t_one = Instant::now();
         let reply = proc.call(
@@ -527,10 +625,23 @@ fn subagent_llm_multi_chapter_path() {
         let words = d["stats"]["words"].as_u64().unwrap();
         let tc = *target_chars.get(sec).unwrap();
         let dev = (words as f64 - tc as f64).abs() / tc as f64;
-        assert!(
-            dev <= 0.20,
-            "{sec} 字数偏离 {dev:.1}% 超 ±20%（{words} vs {tc}）——skill prompt 的字数面失守"
-        );
+        let within = dev <= 0.20;
+        total_words += words;
+        band_rows.push(json!({
+            "section_id": sec, "words": words, "target_chars": tc,
+            "dev_pct": (dev * 1000.0).round() / 10.0, "within_band": within,
+            "citations": citations,
+        }));
+        if !within {
+            out_of_band.push(json!({ "section_id": sec, "words": words,
+                "target_chars": tc, "dev_pct": (dev * 1000.0).round() / 10.0 }));
+        }
+        if strict_band {
+            assert!(
+                dev <= 0.20,
+                "{sec} 字数偏离 {dev:.1}% 超 ±20%（{words} vs {tc}）——skill prompt 的字数面失守"
+            );
+        }
 
         // ---- skill 纪律 8：每完成一章 save_version（作者手稿文本面）
         let ms = manuscript(&ws, sec);
@@ -548,12 +659,58 @@ fn subagent_llm_multi_chapter_path() {
         );
         assert_eq!(sv["ok"], json!(true), "save_version 应成功: {sv}");
         println!(
-            "[subagent-path] serve {sec} ✅ 真实链路（{words} 字｜引用 {citations}｜偏离 {:.1}%｜版本 {}）｜{}ms",
+            "[subagent-path] serve {sec} {}（{words} 字｜引用 {citations}｜偏离 {:.1}%｜版本 {}）｜{}ms",
+            if within { "✅" } else { "⚠️ 带外" },
             dev * 100.0,
             sv["data"]["snapshot"].as_str().unwrap_or("?"),
             t_one.elapsed().as_millis()
         );
     }
+
+    // ---- 字数带汇总（容差模式：带外率超容差才 fail；分布与带外清单落盘）
+    let n = targets.len();
+    let oob_rate = out_of_band.len() as f64 / n as f64;
+    if let Some(tol) = band_tolerance() {
+        assert!(
+            oob_rate <= tol,
+            "字数带外率 {:.1}% 超容差 {:.1}%（{}/{} 章）——skill 字数面在规模下失守，见 band-report",
+            oob_rate * 100.0,
+            tol * 100.0,
+            out_of_band.len(),
+            n
+        );
+    }
+    let devs: Vec<f64> = band_rows
+        .iter()
+        .map(|r| r["dev_pct"].as_f64().unwrap())
+        .collect();
+    let dev_max = devs.iter().cloned().fold(0.0, f64::max);
+    let dev_mean = devs.iter().sum::<f64>() / n as f64;
+    let band_report = json!({
+        "n_chapters": n,
+        "total_words": total_words,
+        "total_target_chars": target_chars.values().sum::<u64>(),
+        "within_band": n - out_of_band.len(),
+        "out_of_band": out_of_band,
+        "dev_pct": { "mean": (dev_mean * 10.0).round() / 10.0,
+                     "max": (dev_max * 10.0).round() / 10.0 },
+        "chapters": band_rows,
+    });
+    let band_path = ws.join("band-report.json");
+    std::fs::write(
+        &band_path,
+        serde_json::to_string_pretty(&band_report).unwrap(),
+    )
+    .unwrap();
+    println!(
+        "[subagent-path] 字数带：{}/{} 带内（带外率 {:.1}%）｜偏离均值 {:.1}%、最大 {:.1}%｜总字数 {total_words}｜分布 → {}",
+        n - out_of_band.len(),
+        n,
+        oob_rate * 100.0,
+        dev_mean,
+        dev_max,
+        band_path.display()
+    );
 
     // ---- 其余章节 mock 补齐（同一 stdio 子进程——完成文档面）
     let t_mock = Instant::now();
@@ -581,6 +738,22 @@ fn subagent_llm_multi_chapter_path() {
         t_mock.elapsed().as_millis()
     );
 
+    // ---- G4 编排纪律（评估报告登记项）：起草完成后总工调 check_bid_quality
+    //      （章节发现面 + 质量分布——外部 Agent 同款只读视角）
+    let q = proc.call("check_bid_quality", json!({ "project_id": &pid }));
+    assert_eq!(q["ok"], json!(true), "check_bid_quality 应成功: {q}");
+    let qd = reply_data(&q);
+    let q_secs = qd["sections"].as_array().map(|a| a.len()).unwrap_or(0);
+    assert!(
+        q_secs >= n,
+        "质量面章节发现 ≥ 目标章数（{q_secs} vs {n}）: {q}"
+    );
+    let q_oob = qd["summary"]["out_of_band"].as_u64().unwrap_or(0);
+    println!(
+        "[subagent-path] G4 check_bid_quality ✅ 章节发现 {q_secs}｜带外 {q_oob}｜needs_human {}",
+        qd["needs_human"].as_u64().unwrap_or(0)
+    );
+
     // ---- 校验（MCP §7——BLOCKER 清零）
     let v = proc.call(
         "validate_bid_document",
@@ -589,7 +762,7 @@ fn subagent_llm_multi_chapter_path() {
     assert_eq!(reply_data(&v)["ok"], json!(true), "校验未过: {v}");
     assert_eq!(reply_data(&v)["counts"]["blocker"], json!(0));
 
-    // ---- 导出（MCP §8——3 章子代理真实内容进成品 docx）
+    // ---- 导出（MCP §8——全部子代理真实内容进成品 docx）
     let e = proc.call(
         "export_bid_document",
         json!({
@@ -608,7 +781,7 @@ fn subagent_llm_multi_chapter_path() {
     let size = reply_data(&e)["artifact"]["size"].as_u64().unwrap();
     assert!(size > 5_000, "产物 >5KB: {size}");
 
-    // ---- 用量台账（真实调用面的审计产物——3 位作者 = ≥3 次调用）
+    // ---- 用量台账（真实调用面的审计产物——N 位作者 = ≥N 次调用）
     drop(proc);
     let usage_path = ws.join(".mang").join("llm-usage.json");
     assert!(
@@ -634,11 +807,11 @@ fn subagent_llm_multi_chapter_path() {
     assert_eq!(asm.committed_count(), leaves.len(), "重启后工作区全量恢复");
 
     println!(
-        "[subagent-path] serve 全链 ✅ 导出 {}（{} 字节）｜台账 {} 次调用｜真实章节 {:?}",
-        url, size, usage["calls"], targets
+        "[subagent-path] serve 全链 ✅ 导出 {}（{} 字节）｜台账 {} 次调用｜真实章节 {} 章（其余 mock {} 章）",
+        url, size, usage["calls"], targets.len(), n_mock
     );
     println!(
-        "[subagent-path] 成品中上述 {} 章为【子代理作者真实撰写】，其余为 mock 补齐",
+        "[subagent-path] 成品中上述 {} 章为【子代理作者真实撰写】共 {total_words} 字",
         targets.len()
     );
 }

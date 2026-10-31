@@ -7,17 +7,129 @@ warning: function `content_paragraphs` is never used
     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
 
 warning: `bid-tools` (lib) generated 1 warning
-    Finished `test` profile [unoptimized] target(s) in 0.15s
-     Running tests/subagent_llm_path.rs (/tmp/shared-target/debug/deps/subagent_llm_path-8032a7f0d1d0fe12)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+     Running tests/subagent_llm_path.rs (/tmp/shared-target/debug/deps/subagent_llm_path-bbd8229e3e11e1d3)
 
 running 1 test
-test subagent_llm_multi_chapter_path ... [subagent-path] 准备链 766ms｜目标章节 ["SEC-0008", "SEC-0009", "SEC-0010"]｜叶 16 个
+test subagent_llm_multi_chapter_path ... [subagent-path] 准备链 838ms｜目标章节 ["SEC-0008", "SEC-0009", "SEC-0010", "SEC-0011", "SEC-0012", "SEC-0013", "SEC-0014", "SEC-0015", "SEC-0016", "SEC-0017", "SEC-0018", "SEC-0019", "SEC-0020", "SEC-0021", "SEC-0022", "SEC-0023", "SEC-0024", "SEC-0025", "SEC-0026", "SEC-0027", "SEC-0028", "SEC-0029", "SEC-0030", "SEC-0031", "SEC-0032", "SEC-0033", "SEC-0034", "SEC-0035", "SEC-0036", "SEC-0037", "SEC-0038", "SEC-0040", "SEC-0041", "SEC-0042", "SEC-0043", "SEC-0044", "SEC-0045", "SEC-0046", "SEC-0047", "SEC-0048", "SEC-0049", "SEC-0050", "SEC-0051", "SEC-0052", "SEC-0053", "SEC-0054", "SEC-0055", "SEC-0056", "SEC-0057", "SEC-0058", "SEC-0059", "SEC-0060", "SEC-0061", "SEC-0062", "SEC-0063", "SEC-0064", "SEC-0065", "SEC-0066", "SEC-0067", "SEC-0068", "SEC-0069", "SEC-0070", "SEC-0071", "SEC-0072", "SEC-0073", "SEC-0074", "SEC-0075", "SEC-0076", "SEC-0077", "SEC-0078", "SEC-0079", "SEC-0080", "SEC-0081", "SEC-0082", "SEC-0083", "SEC-0084", "SEC-0085", "SEC-0086", "SEC-0087", "SEC-0088", "SEC-0089", "SEC-0090", "SEC-0092", "SEC-0093", "SEC-0094", "SEC-0095", "SEC-0096", "SEC-0097", "SEC-0098", "SEC-0099", "SEC-0101", "SEC-0102", "SEC-0103", "SEC-0104", "SEC-0106", "SEC-0107", "SEC-0108", "SEC-0109", "SEC-0110", "SEC-0111", "SEC-0113", "SEC-0114", "SEC-0115", "SEC-0116", "SEC-0117", "SEC-0118", "SEC-0119", "SEC-0120", "SEC-0121", "SEC-0122", "SEC-0123", "SEC-0124", "SEC-0125", "SEC-0126", "SEC-0127"]｜叶 115 个
 [subagent-path] capture SEC-0008 → 503（prompt 已落盘 prompt-0.json）
 [subagent-path] capture SEC-0009 → 503（prompt 已落盘 prompt-1.json）
 [subagent-path] capture SEC-0010 → 503（prompt 已落盘 prompt-2.json）
-[subagent-path] capture ✅ 3 章真实传输面（ureq → 中继 → 503 错误语义）｜20ms
+[subagent-path] capture SEC-0011 → 503（prompt 已落盘 prompt-3.json）
+[subagent-path] capture SEC-0012 → 503（prompt 已落盘 prompt-4.json）
+[subagent-path] capture SEC-0013 → 503（prompt 已落盘 prompt-5.json）
+[subagent-path] capture SEC-0014 → 503（prompt 已落盘 prompt-6.json）
+[subagent-path] capture SEC-0015 → 503（prompt 已落盘 prompt-7.json）
+[subagent-path] capture SEC-0016 → 503（prompt 已落盘 prompt-8.json）
+[subagent-path] capture SEC-0017 → 503（prompt 已落盘 prompt-9.json）
+[subagent-path] capture SEC-0018 → 503（prompt 已落盘 prompt-10.json）
+[subagent-path] capture SEC-0019 → 503（prompt 已落盘 prompt-11.json）
+[subagent-path] capture SEC-0020 → 503（prompt 已落盘 prompt-12.json）
+[subagent-path] capture SEC-0021 → 503（prompt 已落盘 prompt-13.json）
+[subagent-path] capture SEC-0022 → 503（prompt 已落盘 prompt-14.json）
+[subagent-path] capture SEC-0023 → 503（prompt 已落盘 prompt-15.json）
+[subagent-path] capture SEC-0024 → 503（prompt 已落盘 prompt-16.json）
+[subagent-path] capture SEC-0025 → 503（prompt 已落盘 prompt-17.json）
+[subagent-path] capture SEC-0026 → 503（prompt 已落盘 prompt-18.json）
+[subagent-path] capture SEC-0027 → 503（prompt 已落盘 prompt-19.json）
+[subagent-path] capture SEC-0028 → 503（prompt 已落盘 prompt-20.json）
+[subagent-path] capture SEC-0029 → 503（prompt 已落盘 prompt-21.json）
+[subagent-path] capture SEC-0030 → 503（prompt 已落盘 prompt-22.json）
+[subagent-path] capture SEC-0031 → 503（prompt 已落盘 prompt-23.json）
+[subagent-path] capture SEC-0032 → 503（prompt 已落盘 prompt-24.json）
+[subagent-path] capture SEC-0033 → 503（prompt 已落盘 prompt-25.json）
+[subagent-path] capture SEC-0034 → 503（prompt 已落盘 prompt-26.json）
+[subagent-path] capture SEC-0035 → 503（prompt 已落盘 prompt-27.json）
+[subagent-path] capture SEC-0036 → 503（prompt 已落盘 prompt-28.json）
+[subagent-path] capture SEC-0037 → 503（prompt 已落盘 prompt-29.json）
+[subagent-path] capture SEC-0038 → 503（prompt 已落盘 prompt-30.json）
+[subagent-path] capture SEC-0040 → 503（prompt 已落盘 prompt-31.json）
+[subagent-path] capture SEC-0041 → 503（prompt 已落盘 prompt-32.json）
+[subagent-path] capture SEC-0042 → 503（prompt 已落盘 prompt-33.json）
+[subagent-path] capture SEC-0043 → 503（prompt 已落盘 prompt-34.json）
+[subagent-path] capture SEC-0044 → 503（prompt 已落盘 prompt-35.json）
+[subagent-path] capture SEC-0045 → 503（prompt 已落盘 prompt-36.json）
+[subagent-path] capture SEC-0046 → 503（prompt 已落盘 prompt-37.json）
+[subagent-path] capture SEC-0047 → 503（prompt 已落盘 prompt-38.json）
+[subagent-path] capture SEC-0048 → 503（prompt 已落盘 prompt-39.json）
+[subagent-path] capture SEC-0049 → 503（prompt 已落盘 prompt-40.json）
+[subagent-path] capture SEC-0050 → 503（prompt 已落盘 prompt-41.json）
+[subagent-path] capture SEC-0051 → 503（prompt 已落盘 prompt-42.json）
+[subagent-path] capture SEC-0052 → 503（prompt 已落盘 prompt-43.json）
+[subagent-path] capture SEC-0053 → 503（prompt 已落盘 prompt-44.json）
+[subagent-path] capture SEC-0054 → 503（prompt 已落盘 prompt-45.json）
+[subagent-path] capture SEC-0055 → 503（prompt 已落盘 prompt-46.json）
+[subagent-path] capture SEC-0056 → 503（prompt 已落盘 prompt-47.json）
+[subagent-path] capture SEC-0057 → 503（prompt 已落盘 prompt-48.json）
+[subagent-path] capture SEC-0058 → 503（prompt 已落盘 prompt-49.json）
+[subagent-path] capture SEC-0059 → 503（prompt 已落盘 prompt-50.json）
+[subagent-path] capture SEC-0060 → 503（prompt 已落盘 prompt-51.json）
+[subagent-path] capture SEC-0061 → 503（prompt 已落盘 prompt-52.json）
+[subagent-path] capture SEC-0062 → 503（prompt 已落盘 prompt-53.json）
+[subagent-path] capture SEC-0063 → 503（prompt 已落盘 prompt-54.json）
+[subagent-path] capture SEC-0064 → 503（prompt 已落盘 prompt-55.json）
+[subagent-path] capture SEC-0065 → 503（prompt 已落盘 prompt-56.json）
+[subagent-path] capture SEC-0066 → 503（prompt 已落盘 prompt-57.json）
+[subagent-path] capture SEC-0067 → 503（prompt 已落盘 prompt-58.json）
+[subagent-path] capture SEC-0068 → 503（prompt 已落盘 prompt-59.json）
+[subagent-path] capture SEC-0069 → 503（prompt 已落盘 prompt-60.json）
+[subagent-path] capture SEC-0070 → 503（prompt 已落盘 prompt-61.json）
+[subagent-path] capture SEC-0071 → 503（prompt 已落盘 prompt-62.json）
+[subagent-path] capture SEC-0072 → 503（prompt 已落盘 prompt-63.json）
+[subagent-path] capture SEC-0073 → 503（prompt 已落盘 prompt-64.json）
+[subagent-path] capture SEC-0074 → 503（prompt 已落盘 prompt-65.json）
+[subagent-path] capture SEC-0075 → 503（prompt 已落盘 prompt-66.json）
+[subagent-path] capture SEC-0076 → 503（prompt 已落盘 prompt-67.json）
+[subagent-path] capture SEC-0077 → 503（prompt 已落盘 prompt-68.json）
+[subagent-path] capture SEC-0078 → 503（prompt 已落盘 prompt-69.json）
+[subagent-path] capture SEC-0079 → 503（prompt 已落盘 prompt-70.json）
+[subagent-path] capture SEC-0080 → 503（prompt 已落盘 prompt-71.json）
+[subagent-path] capture SEC-0081 → 503（prompt 已落盘 prompt-72.json）
+[subagent-path] capture SEC-0082 → 503（prompt 已落盘 prompt-73.json）
+[subagent-path] capture SEC-0083 → 503（prompt 已落盘 prompt-74.json）
+[subagent-path] capture SEC-0084 → 503（prompt 已落盘 prompt-75.json）
+[subagent-path] capture SEC-0085 → 503（prompt 已落盘 prompt-76.json）
+[subagent-path] capture SEC-0086 → 503（prompt 已落盘 prompt-77.json）
+[subagent-path] capture SEC-0087 → 503（prompt 已落盘 prompt-78.json）
+[subagent-path] capture SEC-0088 → 503（prompt 已落盘 prompt-79.json）
+[subagent-path] capture SEC-0089 → 503（prompt 已落盘 prompt-80.json）
+[subagent-path] capture SEC-0090 → 503（prompt 已落盘 prompt-81.json）
+[subagent-path] capture SEC-0092 → 503（prompt 已落盘 prompt-82.json）
+[subagent-path] capture SEC-0093 → 503（prompt 已落盘 prompt-83.json）
+[subagent-path] capture SEC-0094 → 503（prompt 已落盘 prompt-84.json）
+[subagent-path] capture SEC-0095 → 503（prompt 已落盘 prompt-85.json）
+[subagent-path] capture SEC-0096 → 503（prompt 已落盘 prompt-86.json）
+[subagent-path] capture SEC-0097 → 503（prompt 已落盘 prompt-87.json）
+[subagent-path] capture SEC-0098 → 503（prompt 已落盘 prompt-88.json）
+[subagent-path] capture SEC-0099 → 503（prompt 已落盘 prompt-89.json）
+[subagent-path] capture SEC-0101 → 503（prompt 已落盘 prompt-90.json）
+[subagent-path] capture SEC-0102 → 503（prompt 已落盘 prompt-91.json）
+[subagent-path] capture SEC-0103 → 503（prompt 已落盘 prompt-92.json）
+[subagent-path] capture SEC-0104 → 503（prompt 已落盘 prompt-93.json）
+[subagent-path] capture SEC-0106 → 503（prompt 已落盘 prompt-94.json）
+[subagent-path] capture SEC-0107 → 503（prompt 已落盘 prompt-95.json）
+[subagent-path] capture SEC-0108 → 503（prompt 已落盘 prompt-96.json）
+[subagent-path] capture SEC-0109 → 503（prompt 已落盘 prompt-97.json）
+[subagent-path] capture SEC-0110 → 503（prompt 已落盘 prompt-98.json）
+[subagent-path] capture SEC-0111 → 503（prompt 已落盘 prompt-99.json）
+[subagent-path] capture SEC-0113 → 503（prompt 已落盘 prompt-100.json）
+[subagent-path] capture SEC-0114 → 503（prompt 已落盘 prompt-101.json）
+[subagent-path] capture SEC-0115 → 503（prompt 已落盘 prompt-102.json）
+[subagent-path] capture SEC-0116 → 503（prompt 已落盘 prompt-103.json）
+[subagent-path] capture SEC-0117 → 503（prompt 已落盘 prompt-104.json）
+[subagent-path] capture SEC-0118 → 503（prompt 已落盘 prompt-105.json）
+[subagent-path] capture SEC-0119 → 503（prompt 已落盘 prompt-106.json）
+[subagent-path] capture SEC-0120 → 503（prompt 已落盘 prompt-107.json）
+[subagent-path] capture SEC-0121 → 503（prompt 已落盘 prompt-108.json）
+[subagent-path] capture SEC-0122 → 503（prompt 已落盘 prompt-109.json）
+[subagent-path] capture SEC-0123 → 503（prompt 已落盘 prompt-110.json）
+[subagent-path] capture SEC-0124 → 503（prompt 已落盘 prompt-111.json）
+[subagent-path] capture SEC-0125 → 503（prompt 已落盘 prompt-112.json）
+[subagent-path] capture SEC-0126 → 503（prompt 已落盘 prompt-113.json）
+[subagent-path] capture SEC-0127 → 503（prompt 已落盘 prompt-114.json）
+[subagent-path] capture ✅ 115 章真实传输面（ureq → 中继 → 503 错误语义）｜206ms
 [subagent-path] prompt 已由中继落盘——主代理派遣子代理作者后跑 serve 相位
 ok
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.79s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.05s
 

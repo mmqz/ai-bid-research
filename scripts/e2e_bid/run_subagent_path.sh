@@ -4,26 +4,36 @@
 # 与 run_real_llm_path.sh（第二批·人肉 LLM）的差异：
 #   - 作者不是开发者本人，而是【并行派遣的无上下文子代理】——主代理只做
 #     总工（分派 + 验收），正文全部由子代理按 RealGenerator 实发 prompt 撰写；
-#   - 多章（3 章）并行：中继按「章节标题」路由（--content-map）；
+#   - 多章并行：中继按「章节标题」路由（--content-map）；
 #   - 每章完成后 save_version 存版本（skill 纪律 8——测试内已落地）。
+#
+# 规模旋钮（Lead 反馈：3 章 ~4.6k 字不构成规模检验——扩到 50w-100w 字）：
+#   BID_SUBAGENT_TOTAL_CHARS       建纲目标总字数（缺省 20000）
+#   BID_SUBAGENT_MAX_REQS_PER_LEAF 每叶 REQ 上限（缺省 8；规模轮 1）
+#   BID_SUBAGENT_N_TARGETS         目标章数（缺省 3；0 = 全部叶——规模轮）
+#   BID_SUBAGENT_BAND_TOLERANCE    字数带外率容差（缺省严格逐章；如 0.15）
+#   例（规模轮 ~108 章 × ~7.4k 字 ≈ 80 万字）：
+#     BID_SUBAGENT_TOTAL_CHARS=800000 BID_SUBAGENT_MAX_REQS_PER_LEAF=1 \
+#     BID_SUBAGENT_N_TARGETS=0 BID_SUBAGENT_BAND_TOLERANCE=0.15 \
+#     ./run_subagent_path.sh phase1 /tmp/subagent-ws-scale
 #
 # 两相位（draft 失败零副作用——生成器报错在 CAS 之前返回，可安全重试）：
 #   ./run_subagent_path.sh phase1 <ws-dir>
 #     ① 写 <ws>/.mang/llm.json（指向本地中继——OpenAI 兼容端点）
 #     ② 起中继（capture 模式）→ 跑 subagent_llm_path 测试（capture 相位）
-#        → 3 次 draft 各报「LLM HTTP 503」（真实传输面 + 错误语义）
+#        → N 次 draft 各报「LLM HTTP 503」（真实传输面 + 错误语义）
 #     ③ prompt 逐个渲染成人读 markdown → <ws>/prompts/<SEC>.md
 #        （按 subagent-targets.json 顺序对账标题——错序即 FATAL）
-#     【主代理此刻并行派遣 3 个子代理作者 → 各写 <ws>/manuscripts/<SEC>.md】
+#     【主代理此刻并行派遣 N 个子代理作者 → 各写 <ws>/manuscripts/<SEC>.md】
 #
 #   ./run_subagent_path.sh phase2 <ws-dir>
-#     ④ 校验 3 份手稿（在场 + 非空；格式偏差记录不预拒——偏移是评估数据）
+#     ④ 校验 N 份手稿（在场 + 非空；格式偏差记录不预拒——偏移是评估数据）
 #        → 生成 content-map.json（标题 → 手稿路径）
 #     ⑤ 起中继（serve --content-map）→ 跑 subagent_llm_path 测试（serve 相位）
 #        → 每章真实链路（引用/覆盖/字数 ±20%/save_version）→ mock 补齐
 #        → 校验 blocker=0 → 导出 docx → 台账 → 重启恢复断言
 #     ⑥ 产物归档 artifacts/e2e-subagent-path/<run-id>/（prompts/手稿/成品/
-#        台账/测试日志）+ latest 刷新
+#        台账/测试日志/band-report）+ latest 刷新
 #
 # 纪律：中继是工具面基础设施；serve 模式的正文必须由子代理作者撰写（不是
 # 引擎输出回灌——循环论证）。CI 不跑本脚本（subagent_llm_path 测试默认 SKIP）。
@@ -100,12 +110,16 @@ run_test_phase() {  # $1 = capture|serve
 # 标记 targets[n].title——错序/漏抓都 FATAL，不许静默对齐）
 render_prompts() {
     python3 - "$RELAY_DIR" "$PROMPTS_DIR" "$MARKER" <<'PYEOF'
-import json, sys
+import json, re, sys
 from pathlib import Path
 relay, out_dir, marker_p = map(Path, sys.argv[1:4])
 marker = json.loads(marker_p.read_text(encoding="utf-8"))
 targets = marker["targets"]
-prompts = sorted(relay.glob("prompt-*.json"), key=lambda p: p.stat().st_mtime)
+# 按文件名数字后缀排序（规模轮 108 份时 mtime 可能并列——序号才是真源）
+prompts = sorted(
+    relay.glob("prompt-*.json"),
+    key=lambda p: int(re.search(r"prompt-(\d+)\.json$", p.name).group(1)),
+)
 if len(prompts) != len(targets):
     sys.exit(f"FATAL: 中继捕获 {len(prompts)} 个 prompt，标记目标 {len(targets)} 章——数量不符")
 out_dir.mkdir(parents=True, exist_ok=True)
@@ -179,11 +193,13 @@ phase1)
     run_test_phase capture
     stop_relay; trap - EXIT
     render_prompts
+    N_CHAPTERS=$(python3 -c "import json;print(len(json.load(open('$MARKER'))['targets']))")
     echo
     echo "=================================================================="
     echo " capture 相位完成——现在【派遣子代理作者】（主代理 = 总工）："
+    echo "   目标章数：$N_CHAPTERS（prompt 已渲染 → $PROMPTS_DIR/SEC-XXXX.md）"
     echo "   1. 逐份阅读 $PROMPTS_DIR/SEC-XXXX.md（实发 prompt 原文）"
-    echo "   2. 并行派遣 3 个子代理，每个只拿到自己那份 prompt——"
+    echo "   2. 并行派遣 $N_CHAPTERS 个子代理，每个只拿到自己那份 prompt——"
     echo "      零仓库上下文、零额外写作指导（偏移检验的核心纪律）"
     echo "   3. 子代理把补全正文写入 $MS_DIR/SEC-XXXX.md"
     echo "      （文件内容 = 补全输出本体，不含解释/元信息）"
@@ -205,6 +221,7 @@ phase2)
     cp -r "$MS_DIR" "$ART/manuscripts"
     cp "$MARKER" "$ART/"
     cp "$WS/content-map.json" "$WS/manuscript-check.json" "$ART/" 2>/dev/null || true
+    cp "$WS/band-report.json" "$ART/" 2>/dev/null || true
     cp "$WS/.mang/llm-usage.json" "$ART/" 2>/dev/null || true
     cp "$WS"/phase*-test.log "$ART/" 2>/dev/null || true
     cp "$WS"/out/*.docx "$ART/" 2>/dev/null || true

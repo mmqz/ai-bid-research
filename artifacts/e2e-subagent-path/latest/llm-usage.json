@@ -1,15 +1,15 @@
 {
-  "calls": 3,
-  "prompt_tokens": 3159,
-  "completion_tokens": 4650,
-  "total_tokens": 7809,
+  "calls": 115,
+  "prompt_tokens": 64147,
+  "completion_tokens": 835852,
+  "total_tokens": 899999,
   "by_model": {
     "subagent-author-v1": {
-      "calls": 3,
-      "prompt_tokens": 3159,
-      "completion_tokens": 4650,
-      "total_tokens": 7809
+      "calls": 115,
+      "prompt_tokens": 64147,
+      "completion_tokens": 835852,
+      "total_tokens": 899999
     }
   },
-  "last_at": 1793378010
+  "last_at": 1793423274
 }

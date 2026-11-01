@@ -40,6 +40,17 @@ fn gt_path() -> PathBuf {
     repo_root().join("artifacts/veto-gt/ground-truth.json")
 }
 
+/// 环境探针：poppler 的 `pdftotext` 在不在。
+///
+/// 真实 PDF 的文本层提取走 poppler；缺它时纯 Rust 兜底的分块粒度与 GT
+/// 标注（按 poppler 产出标注）不一致 → 块对齐恒 false → 假红。
+fn has_pdftotext() -> bool {
+    std::process::Command::new("pdftotext")
+        .arg("-v")
+        .output()
+        .is_ok()
+}
+
 fn out_root() -> PathBuf {
     repo_root().join("artifacts/real-corpus-e2e")
 }
@@ -269,6 +280,31 @@ fn real_corpus_full_chain() {
     let paths: Vec<PathBuf> = CORPUS.iter().map(|(n, _)| files_dir().join(n)).collect();
     let path_refs: Vec<&std::path::Path> = paths.iter().map(std::convert::AsRef::as_ref).collect();
     if bid_parse::env_preflight::skip_if_fixture_missing("real-corpus-e2e", &path_refs) {
+        return;
+    }
+    // ---- 0.5 外部工具链在位（issue #9 SKIP 纪律的延伸）----
+    //
+    // 本测试的红线是【GT 逐块对照】：anchor 的 locator/text 必须与解析产出的
+    // Block 精确相等才能算块命中。真实 PDF 的文本层提取依赖 poppler
+    // （pdftotext）——CI 的 windows-latest runner **不装 poppler**，此时
+    // bid_engine::parse_pdf_via_engine 拿不到文本层，回退纯 Rust 兜底，
+    // 分块粒度与本地（有 pdftotext）完全不同 → 块对齐全错 → L1 掉到 0.67。
+    //
+    // 这不是代码缺陷，是【环境缺件】——按 issue #9 纪律打 SKIP 横幅而非
+    // 假 FAIL（缺件不是业务失败，也绝不静默假装通过）。
+    //
+    // 判定用 `pdftotext -v`：poppler 的版本探针，不依赖语料。
+    if !has_pdftotext() {
+        eprintln!(
+            "SKIP: real_corpus_full_chain —— 环境缺 pdftotext（poppler）\n\
+             \n\
+             红线对照依赖 poppler 的文本层提取：缺它时纯 Rust 兜底的分块\n\
+             粒度与 GT 标注（按 poppler 产出标注）不一致，块对齐恒 false。\n\
+             这是环境缺件，不是代码失败（issue #9 SKIP 纪律）。\n\
+             \n\
+             在有 poppler 的机器上真跑：apt install poppler-utils / \n\
+             conda install -c conda-forge poppler / brew install poppler"
+        );
         return;
     }
     // GT 在位性（GT 缺失时 L1/P 红线无从对照——显式失败而非跳过：

@@ -2,11 +2,11 @@
  "case": "13-external-cas-version",
  "transport": "linejson",
  "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
- "server_sha256": "134e9939d46742d229bba97ead748a2a2878c620af44258bac1968e7cd1029cd",
+ "server_sha256": "4a50e533834e0f13b3bbf0df89748b858b1697ad0a91edabb3683bbc7fb4faaf",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-01T11:41:57+00:00",
+ "started_at": "2026-11-01T13:16:24+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 3.3331310000903613
+   "elapsed_ms": 3.495015000225976
   },
   {
    "stage": "P1 import_tender_files",
@@ -149,7 +149,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 243.38729800001602
+   "elapsed_ms": 242.59328299922345
   },
   {
    "stage": "P2 extract_requirements",
@@ -161,12 +161,12 @@
      "added": 121,
      "by_category": {
       "commercial": 3,
-      "format": 2,
-      "other": 11,
+      "format": 3,
+      "other": 10,
       "qualification": 6,
-      "scoring": 4,
+      "scoring": 5,
       "tech_param": 82,
-      "veto": 13
+      "veto": 12
      },
      "total": 121
     },
@@ -188,7 +188,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 64.35097100029452
+   "elapsed_ms": 71.15693400010059
   },
   {
    "stage": "P3 build_outline",
@@ -196,12 +196,12 @@
    "args": {},
    "result": {
     "counts": {
-     "leaves": 23,
-     "matrix_blocking": 19,
+     "leaves": 22,
+     "matrix_blocking": 18,
      "matrix_rows": 121,
      "requirements": 121,
-     "sections": 30,
-     "total_target_chars": 11500
+     "sections": 28,
+     "total_target_chars": 11000
     },
     "project_version": 8,
     "request_id": "req-000005",
@@ -221,7 +221,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.085816999733652
+   "elapsed_ms": 7.655772000362049
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -246,12 +246,12 @@
        "mandatory": true,
        "params": {},
        "source_anchor": {
-        "excerpt": "本项目预算金额：设备采购预算 350 万元（含税）；最高限价（招标控制价）：人民币 480 万元（含税），投标报价超过最高限价的作否决投标处理。",
+        "excerpt": "本项目预算金额:设备采购预算350万元(含税);最高限价(招标控制价):人民币480万元(含税),投标报价超过最高限价的作否决投标处理。",
         "file": "A-招标文件.docx",
         "kind": "para",
-        "locator": "第一章 招标公告"
+        "locator": "第一章招标公告"
        },
-       "statement": "本项目预算金额：设备采购预算 350 万元（含税）；最高限价（招标控制价）：人民币 480 万元（含税），投标报价超过最高限价的作否决投标处理。"
+       "statement": "本项目预算金额:设备采购预算350万元(含税);最高限价(招标控制价):人民币480万元(含税),投标报价超过最高限价的作否决投标处理。"
       },
       "response_policy": "default",
       "status": "NOT_RESPONDED"
@@ -270,12 +270,12 @@
        "mandatory": true,
        "params": {},
        "source_anchor": {
-        "excerpt": "10 否决条款提示 未按本表第 9 项规定格式填写技术偏离表的，其投标作否决投标处理",
+        "excerpt": "10否决条款提示未按本表第9项规定格式填写技术偏离表的,其投标作否决投标处理",
         "file": "A-招标文件.docx",
         "kind": "table",
-        "locator": "第二章 投标人须知前附表 表1 行11"
+        "locator": "第二章投标人须知前附表表1行11"
        },
-       "statement": "10 否决条款提示 未按本表第 9 项规定格式填写技术偏离表的，其投标作否决投标处理"
+       "statement": "10否决条款提示未按本表第9项规定格式填写技术偏离表的,其投标作否决投标处理"
       },
       "response_policy": "default",
       "status": "NOT_RESPONDED"
@@ -283,7 +283,7 @@
      {
       "blocking": false,
       "cmp_id": "CMP-0003",
-      "draft_section_id": "SEC-0012",
+      "draft_section_id": "SEC-0011",
       "evidence": [],
       "gap": null,
       "requirement": {
@@ -294,18 +294,18 @@
        "mandatory": false,
        "params": {},
        "source_anchor": {
-        "excerpt": "3.1.1 适用范围：本须知适用于本项目投标、开标、评标、定标及合同签订全过程。",
+        "excerpt": "3.1.1适用范围:本须知适用于本项目投标、开标、评标、定标及合同签订全过程。",
         "file": "A-招标文件.docx",
         "kind": "para",
-        "locator": "第三章 投标人须知 > 一、总则"
+        "locator": "第三章投标人须知>一、总则"
        },
-       "statement": "3.1.1 适用范围：本须知适用于本项目投标、开标、评标、定标及合同签订全过程。"
+       "statement": "3.1.1适用范围:本须知适用于本项目投标、开标、评标、定标及合同签订全过程。"
       },
       "response_policy": "default",
       "status": "NOT_RESPONDED"
      }
     ],
-    "n_blocking": 19
+    "n_blocking": 18
    },
    "checks": [
     {
@@ -325,11 +325,11 @@
      "pass": true
     },
     {
-     "desc": "P3: 建纲后 blocking 行 = 19（未绑证据，预期 >0 或 =0）",
+     "desc": "P3: 建纲后 blocking 行 = 18（未绑证据，预期 >0 或 =0）",
      "pass": true
     }
    ],
-   "elapsed_ms": 8.513150999988284,
+   "elapsed_ms": 6.843336001111311,
    "extra": {
     "sections": {
      "SEC-0007": [
@@ -340,12 +340,13 @@
       "REQ-0007",
       "REQ-0008"
      ],
-     "SEC-0012": [
+     "SEC-0011": [
       "REQ-0003",
       "REQ-0004",
+      "REQ-0011",
+      "REQ-0012",
       "REQ-0015",
-      "REQ-0018",
-      "REQ-0024"
+      "REQ-0018"
      ],
      "SEC-0008": [
       "REQ-0009",
@@ -355,19 +356,18 @@
       "REQ-0016",
       "REQ-0017"
      ],
-     "SEC-0018": [
-      "REQ-0011",
-      "REQ-0012"
-     ],
      "SEC-0009": [
-      "REQ-0019",
       "REQ-0020",
       "REQ-0021",
       "REQ-0022",
       "REQ-0023",
-      "REQ-0051"
+      "REQ-0051",
+      "REQ-0121"
      ],
-     "SEC-0020": [
+     "SEC-0012": [
+      "REQ-0024"
+     ],
+     "SEC-0016": [
       "REQ-0029",
       "REQ-0030",
       "REQ-0031",
@@ -375,7 +375,7 @@
       "REQ-0033",
       "REQ-0034"
      ],
-     "SEC-0021": [
+     "SEC-0017": [
       "REQ-0035",
       "REQ-0036",
       "REQ-0037",
@@ -383,7 +383,7 @@
       "REQ-0039",
       "REQ-0040"
      ],
-     "SEC-0022": [
+     "SEC-0018": [
       "REQ-0041",
       "REQ-0042",
       "REQ-0043",
@@ -391,22 +391,22 @@
       "REQ-0055",
       "REQ-0056"
      ],
-     "SEC-0035": [
+     "SEC-0031": [
       "REQ-0045",
       "REQ-0046",
       "REQ-0047"
      ],
-     "SEC-0014": [
+     "SEC-0033": [
       "REQ-0048",
       "REQ-0049",
       "REQ-0050"
      ],
-     "SEC-0016": [
+     "SEC-0014": [
       "REQ-0052",
       "REQ-0053",
       "REQ-0054"
      ],
-     "SEC-0023": [
+     "SEC-0019": [
       "REQ-0057",
       "REQ-0058",
       "REQ-0059",
@@ -414,7 +414,7 @@
       "REQ-0061",
       "REQ-0062"
      ],
-     "SEC-0024": [
+     "SEC-0020": [
       "REQ-0063",
       "REQ-0064",
       "REQ-0065",
@@ -422,7 +422,7 @@
       "REQ-0067",
       "REQ-0068"
      ],
-     "SEC-0025": [
+     "SEC-0021": [
       "REQ-0069",
       "REQ-0070",
       "REQ-0071",
@@ -430,7 +430,7 @@
       "REQ-0073",
       "REQ-0074"
      ],
-     "SEC-0026": [
+     "SEC-0022": [
       "REQ-0075",
       "REQ-0076",
       "REQ-0077",
@@ -438,7 +438,7 @@
       "REQ-0079",
       "REQ-0080"
      ],
-     "SEC-0027": [
+     "SEC-0023": [
       "REQ-0081",
       "REQ-0082",
       "REQ-0083",
@@ -446,7 +446,7 @@
       "REQ-0085",
       "REQ-0086"
      ],
-     "SEC-0028": [
+     "SEC-0024": [
       "REQ-0087",
       "REQ-0088",
       "REQ-0089",
@@ -454,7 +454,7 @@
       "REQ-0091",
       "REQ-0092"
      ],
-     "SEC-0029": [
+     "SEC-0025": [
       "REQ-0093",
       "REQ-0094",
       "REQ-0095",
@@ -462,7 +462,7 @@
       "REQ-0097",
       "REQ-0098"
      ],
-     "SEC-0030": [
+     "SEC-0026": [
       "REQ-0099",
       "REQ-0100",
       "REQ-0101",
@@ -470,7 +470,7 @@
       "REQ-0103",
       "REQ-0104"
      ],
-     "SEC-0031": [
+     "SEC-0027": [
       "REQ-0105",
       "REQ-0106",
       "REQ-0107",
@@ -478,7 +478,7 @@
       "REQ-0109",
       "REQ-0110"
      ],
-     "SEC-0032": [
+     "SEC-0028": [
       "REQ-0111",
       "REQ-0112",
       "REQ-0113",
@@ -486,14 +486,11 @@
       "REQ-0115",
       "REQ-0116"
      ],
-     "SEC-0033": [
+     "SEC-0029": [
       "REQ-0117",
       "REQ-0118",
       "REQ-0119",
       "REQ-0120"
-     ],
-     "SEC-0010": [
-      "REQ-0121"
      ]
     }
    }
@@ -507,7 +504,7 @@
    },
    "result": {
     "deduplicated": false,
-    "ev_id": "EV-0036",
+    "ev_id": "EV-0034",
     "hint": "新 EV 已签发（若为同 key 换版，旧记录已单向降级 SUPERSEDED；全新登记则无旧记录）",
     "kind": "qualification",
     "project_version": 9,
@@ -528,26 +525,26 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.789896000100271
+   "elapsed_ms": 6.199053999807802
   },
   {
    "stage": "P4 bind_evidence",
    "tool": "bind_evidence",
    "args": {
-    "ev_id": "EV-0036",
-    "n_reqs": 101
+    "ev_id": "EV-0034",
+    "n_reqs": 100
    },
    "result": {
-    "bound_new": 101,
-    "ev_id": "EV-0036",
+    "bound_new": 100,
+    "ev_id": "EV-0034",
     "matrix": {
      "blocking": 0,
      "rows": 121
     },
-    "project_version": 111,
+    "project_version": 110,
     "replayed": 0,
     "request_id": "req-000008",
-    "requested": 101,
+    "requested": 100,
     "status": "MATRIX_READY"
    },
    "checks": [
@@ -560,7 +557,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.0842620002622425
+   "elapsed_ms": 7.173718000558438
   },
   {
    "stage": "G3 record_review_gate ×3",
@@ -578,12 +575,12 @@
      "outline_approval",
      "pre_export_confirm"
     ],
-    "project_version": 114,
+    "project_version": 113,
     "receipt": {
      "decision": "APPROVED",
      "finding_ids": [],
      "gate": "pre_export_confirm",
-     "review_id": "REV-0039",
+     "review_id": "REV-0037",
      "reviewer": "human:mcp-e2e",
      "spawned_rt_ids": []
     },
@@ -596,7 +593,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 19.875949999914155
+   "elapsed_ms": 19.273636999059818
   },
   {
    "stage": "④ draft #1（内容 A）",
@@ -609,7 +606,7 @@
     "content_ref": "DOC-SEC-0007-v1",
     "draft_note": "起草指令：外部手稿——CAS 版本递增验证",
     "project_status": "DRAFTING",
-    "project_version": 120,
+    "project_version": 119,
     "request_id": "req-000012",
     "section_id": "SEC-0007",
     "section_status": "DRAFTED",
@@ -622,7 +619,7 @@
       "REQ-0006",
       "REQ-0007",
       "REQ-0008",
-      "EV-0036"
+      "EV-0034"
      ],
      "generator": "external",
      "unanchored_claims": 0,
@@ -665,7 +662,7 @@
     "content_ref": "DOC-SEC-0007-v2",
     "draft_note": "起草指令：外部手稿——CAS 版本递增验证",
     "project_status": "DRAFTING",
-    "project_version": 121,
+    "project_version": 120,
     "request_id": "req-000013",
     "section_id": "SEC-0007",
     "section_status": "DRAFTED",
@@ -678,7 +675,7 @@
       "REQ-0006",
       "REQ-0007",
       "REQ-0008",
-      "EV-0036"
+      "EV-0034"
      ],
      "generator": "external",
      "unanchored_claims": 0,
@@ -718,7 +715,7 @@
     "deduplicated": true,
     "draft_note": "起草指令：外部手稿——CAS 版本递增验证",
     "project_status": "DRAFTING",
-    "project_version": 121,
+    "project_version": 120,
     "request_id": "req-000013",
     "section_id": "SEC-0007",
     "section_status": "DRAFTED",
@@ -731,7 +728,7 @@
       "REQ-0006",
       "REQ-0007",
       "REQ-0008",
-      "EV-0036"
+      "EV-0034"
      ],
      "generator": "external",
      "unanchored_claims": 0,
@@ -782,5 +779,5 @@
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/external-cas-version/ws",
- "finished_at": "2026-11-01T11:41:57+00:00"
+ "finished_at": "2026-11-01T13:16:25+00:00"
 }

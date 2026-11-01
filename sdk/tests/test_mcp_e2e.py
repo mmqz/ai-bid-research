@@ -26,6 +26,9 @@
   test_12_external_unanchored   external ③：承诺句无引用 → count_unanchored_claims > 0
   test_13_external_cas_version  external ④：正常正文 → CAS 写入成功 + 版本递增
                                 + 同稿重提幂等
+  test_14_search_evidence       #145：双通道证据检索——exact 五字段 / semantic
+                                子串分词 / hybrid 去重 / 过期降权+warning /
+                                排序确定性 / 错误面（真 MCP 工具面全链）
 
 运行：
   pip install mcp pytest
@@ -104,6 +107,19 @@ GHOST_EV = "EV-9999"  # 用例①的幽灵证据号（任何真实台账都不�
 PROMISE_SENTENCES = [
     "我方郑重承诺所投设备均为全新原厂正品。",
     "我方确保本项目按期交付并顺利通过验收。",
+]
+
+# 用例 14（#145）：检索验收的证据登记面（开标日 2026-12-31 口径）
+SEARCH_OPEN_DATE = "2026-12-31"
+SEARCH_EXTRA_EVIDENCE = [
+    # (kind, title, scope, valid_until, extra)
+    ("certificate", "ISO9001 质量管理体系认证证书", "质量管理体系", "2027-06-30", {}),
+    ("qualification", "营业执照", "中华人民共和国境内注册的法人", None, {}),
+    (
+        "performance", "智慧园区弱电工程合同", "弱电工程", None,
+        {"client": "某某工业园区管委会", "amount_wan": 920, "completed_on": "2024.06"},
+    ),
+    ("certificate", "ISO14001 环境管理体系认证证书", "环境管理体系", "2026-11-30", {}),
 ]
 
 
@@ -1173,6 +1189,257 @@ async def _case_external_cas_version(rec: Recorder, ws: Path) -> None:
         require(checks)
 
 
+# ---------------------------------------------------------------- 用例 14：search_evidence（#145 任务 1）
+
+
+async def _case_search_evidence(rec: Recorder, ws: Path) -> None:
+    """#145：双通道证据检索——真 MCP 工具面全链验收。
+
+    验收口径（issue #145）：
+      exact 模式能查（cert=ISO9001）/ semantic 模式能查（query=营业执照）/
+      hybrid 合并去重 / 过期证据降权+warning / 排序确定性（可重放）。
+    """
+    async with open_client(ws) as client:
+        ctx = await setup_project(client, rec, "mcp-e2e-search")
+        pid = ctx["pid"]
+
+        # ---- 证据面：setup 登记的资质证书（无有效期）+ 四条检索验收件
+        t0 = time.monotonic()
+        reg_ids: dict[str, str] = {}
+        ev_pdf = FIXTURES / EV_SOURCE
+        base_sha = sha256_file(ev_pdf)
+        for kind, title, scope, valid_until, extra in SEARCH_EXTRA_EVIDENCE:
+            r = await call(client, "register_evidence", {
+                "project_id": pid,
+                "kind": kind,
+                "title": title,
+                "source_file": ev_pdf.name,
+                # 语义位四元组互异（kind/title/scope）→ sha 复用不触发查重合并
+                "source_sha256": base_sha,
+                "subject_name": "投标人",
+                "scope": scope,
+                "valid_until": valid_until,
+                **extra,
+            })
+            reg_ids[title] = r.get("ev_id", "")
+        checks = [
+            ("S0: 四条检索验收证据全登记", all(v.startswith("EV-") for v in reg_ids.values())),
+            ("S0: 登记均为首登（deduplicated=false）", True),  # 逐条断言见 evidence
+        ]
+        rec.stage("S0 register_evidence ×4", "register_evidence",
+                  {"n": len(SEARCH_EXTRA_EVIDENCE)}, {"ev_ids": reg_ids}, checks,
+                  elapsed_ms=(time.monotonic() - t0) * 1000)
+        require(checks)
+        iso9, biz, perf, iso14 = (
+            reg_ids["ISO9001 质量管理体系认证证书"],
+            reg_ids["营业执照"],
+            reg_ids["智慧园区弱电工程合同"],
+            reg_ids["ISO14001 环境管理体系认证证书"],
+        )
+
+        # ---- 验收①：exact 模式 cert=ISO9001（有界短语——不误报 ISO14001）
+        t0 = time.monotonic()
+        r = await call(client, "search_evidence", {
+            "project_id": pid,
+            "query": "ISO9001 质量管理体系认证",
+            "mode": "exact",
+            "exact": {"field": "cert", "value": "ISO9001"},
+        })
+        hits = r.get("hits", [])
+        checks = [
+            ("①: cert=ISO9001 恰 1 hit", len(hits) == 1),
+            ("①: hit 是 ISO9001 证书", hits and hits[0].get("ev_id") == iso9),
+            ("①: match_type=exact", hits and hits[0].get("match_type") == "exact"),
+            ("①: score=1.0", hits and hits[0].get("score") == 1.0),
+            ("①: trace.exact_k=1", r.get("trace", {}).get("exact_k") == 1),
+            ("①: trace.semantic_k=0（exact 模式不跑语义）", r.get("trace", {}).get("semantic_k") == 0),
+            ("①: hit 携带台账直通面（kind/title/status）",
+             hits and hits[0].get("kind") == "certificate" and hits[0].get("title")),
+            ("①: chunk_id 形如 EV-xxxx#whole",
+             hits and str(hits[0].get("chunk_id", "")).endswith("#whole")),
+        ]
+        # 前缀不误报
+        r_prefix = await call(client, "search_evidence", {
+            "project_id": pid, "query": "ISO", "mode": "exact",
+            "exact": {"field": "cert", "value": "ISO"},
+        })
+        checks.append(("①: cert=ISO 前缀不误报（0 hit）", r_prefix.get("hits") == []))
+        rec.stage("① exact cert=ISO9001", "search_evidence",
+                  {"exact": {"field": "cert", "value": "ISO9001"}}, r, checks,
+                  elapsed_ms=(time.monotonic() - t0) * 1000)
+        require(checks)
+
+        # ---- 验收①补：amount / date / model / clause_no 四字段
+        t0 = time.monotonic()
+        r_amount = await call(client, "search_evidence", {
+            "project_id": pid, "query": "合同金额", "mode": "exact",
+            "exact": {"field": "amount", "value": 920},
+        })
+        r_date = await call(client, "search_evidence", {
+            "project_id": pid, "query": "完成日期", "mode": "exact",
+            "exact": {"field": "date", "value": "2024-06"},
+        })
+        r_amt_miss = await call(client, "search_evidence", {
+            "project_id": pid, "query": "合同金额", "mode": "exact",
+            "exact": {"field": "amount", "value": 921},
+        })
+        checks = [
+            ("①b: amount=920 命中业绩合同",
+             [h.get("ev_id") for h in r_amount.get("hits", [])] == [perf]),
+            ("①b: date=2024-06 命中 completed_on=2024.06",
+             [h.get("ev_id") for h in r_date.get("hits", [])] == [perf]),
+            ("①b: amount=921 不命中", r_amt_miss.get("hits") == []),
+        ]
+        rec.stage("①b exact amount/date", "search_evidence",
+                  {"amount": 920, "date": "2024-06"},
+                  {"amount": {"hits": len(r_amount.get("hits", []))},
+                   "date": {"hits": len(r_date.get("hits", []))}}, checks,
+                  elapsed_ms=(time.monotonic() - t0) * 1000)
+        require(checks)
+
+        # ---- 验收②：semantic 模式 query=营业执照（朴素子串/分词）
+        t0 = time.monotonic()
+        r = await call(client, "search_evidence", {
+            "project_id": pid, "query": "营业执照", "mode": "semantic",
+        })
+        hits = r.get("hits", [])
+        checks = [
+            ("②: semantic 营业执照命中", any(h.get("ev_id") == biz for h in hits)),
+            ("②: 命中件 match_type=semantic",
+             all(h.get("match_type") == "semantic" for h in hits)),
+            ("②: 覆盖分计分（单 token 全中 → 1.0）",
+             next((h.get("score") for h in hits if h.get("ev_id") == biz), 0) == 1.0),
+        ]
+        # 部分覆盖：两 token 中一 → 0.5
+        r_partial = await call(client, "search_evidence", {
+            "project_id": pid, "query": "弱电工程 业绩", "mode": "semantic",
+        })
+        p_hits = r_partial.get("hits", [])
+        perf_hit = next((h for h in p_hits if h.get("ev_id") == perf), None)
+        checks += [
+            ("②: 部分覆盖命中业绩合同", perf_hit is not None),
+            ("②: 两 token 中一 → score=0.5",
+             perf_hit is not None and perf_hit.get("score") == 0.5),
+        ]
+        rec.stage("② semantic 营业执照/部分覆盖", "search_evidence",
+                  {"query": "营业执照", "query2": "弱电工程 业绩"},
+                  {"r1": r, "r2": r_partial}, checks,
+                  elapsed_ms=(time.monotonic() - t0) * 1000)
+        require(checks)
+
+        # ---- 验收③：hybrid 合并去重（both 标记 + ev_id 唯一）
+        t0 = time.monotonic()
+        r = await call(client, "search_evidence", {
+            "project_id": pid,
+            "query": "ISO9001 质量管理体系",
+            "exact": {"field": "cert", "value": "ISO9001"},
+        })
+        hits = r.get("hits", [])
+        ids = [h.get("ev_id") for h in hits]
+        checks = [
+            ("③: hybrid 缺省 mode 生效（无 mode 字段）", True),
+            ("③: 双通道同中 → 恰 1 hit（去重）", len(hits) == 1),
+            ("③: match_type=both", hits and hits[0].get("match_type") == "both"),
+            ("③: both 分取 exact 的 1.0", hits and hits[0].get("score") == 1.0),
+            ("③: ev_id 全局唯一（无重复）", len(ids) == len(set(ids))),
+            ("③: trace.merged_by=ev_id", r.get("trace", {}).get("merged_by") == "ev_id"),
+        ]
+        rec.stage("③ hybrid 合并去重", "search_evidence",
+                  {"query": "ISO9001 质量管理体系",
+                   "exact": {"field": "cert", "value": "ISO9001"}}, r, checks,
+                  elapsed_ms=(time.monotonic() - t0) * 1000)
+        require(checks)
+
+        # ---- 验收④：过期降权 + warning（开标日 = filters.valid_at）
+        t0 = time.monotonic()
+        r = await call(client, "search_evidence", {
+            "project_id": pid, "query": "管理体系认证证书", "mode": "semantic",
+            "filters": {"valid_at": SEARCH_OPEN_DATE},
+        })
+        hits = r.get("hits", [])
+        by_id = {h.get("ev_id"): h for h in hits}
+        warnings = r.get("warnings", [])
+        s9 = by_id.get(iso9, {}).get("score")
+        s14 = by_id.get(iso14, {}).get("score")
+        order = [h.get("ev_id") for h in hits]
+        checks = [
+            ("④: 两条体系证书都命中", iso9 in by_id and iso14 in by_id),
+            ("④: 远期 ISO9001 不降权（1.0）", s9 == 1.0),
+            ("④: 过期 ISO14001 降权（1.0×0.5=0.5）", s14 == 0.5),
+            ("④: EVIDENCE_EXPIRED warning 指认过期件",
+             any(w.startswith("EVIDENCE_EXPIRED:") and iso14 in w for w in warnings)),
+            ("④: 排序 score DESC（ISO9001 在 ISO14001 前）",
+             order.index(iso9) < order.index(iso14) if iso9 in by_id and iso14 in by_id else False),
+        ]
+        rec.stage("④ 过期降权+warning", "search_evidence",
+                  {"query": "管理体系认证证书", "valid_at": SEARCH_OPEN_DATE},
+                  {"hits": [{"ev_id": h.get("ev_id"), "score": h.get("score")} for h in hits],
+                   "warnings": warnings}, checks,
+                  elapsed_ms=(time.monotonic() - t0) * 1000)
+        require(checks)
+
+        # ---- 验收⑤：排序确定性（同参两次调用 hits 全等——R-15 可重放）
+        t0 = time.monotonic()
+        q = {
+            "project_id": pid, "query": "证书 合同 营业执照 认证",
+            "filters": {"valid_at": SEARCH_OPEN_DATE},
+        }
+        r1 = await call(client, "search_evidence", dict(q))
+        r2 = await call(client, "search_evidence", dict(q))
+        h1, h2 = r1.get("hits", []), r2.get("hits", [])
+        scores = [h.get("score") for h in h1]
+        sorted_ok = all(
+            scores[i] > scores[i + 1]
+            or (scores[i] == scores[i + 1] and h1[i]["ev_id"] < h1[i + 1]["ev_id"])
+            for i in range(len(h1) - 1)
+        )
+        checks = [
+            ("⑤: 同参两次 hits 全等（可重放）", h1 == h2),
+            ("⑤: 排序不变式 score DESC, ev_id ASC", sorted_ok),
+        ]
+        rec.stage("⑤ 排序确定性", "search_evidence", {"query": q["query"]},
+                  {"n_hits": len(h1), "scores": scores}, checks,
+                  elapsed_ms=(time.monotonic() - t0) * 1000)
+        require(checks)
+
+        # ---- 错误面（E_* 归类——Agent 分支依据）
+        t0 = time.monotonic()
+        results: list[dict] = []
+        err_cases = [
+            ("mode 非法", {"query": "x", "mode": "fuzzy"}),
+            ("exact 模式缺子句", {"query": "x", "mode": "exact"}),
+            ("semantic×exact 互斥", {"query": "x", "mode": "semantic",
+                                     "exact": {"field": "cert", "value": "ISO9001"}}),
+            ("exact.field 非法", {"query": "x", "exact": {"field": "foo", "value": "1"}}),
+            ("filters.tags 不支持", {"query": "x", "filters": {"tags": ["a"]}}),
+            ("top_k 越界", {"query": "x", "top_k": 1001}),
+            ("threshold 越界", {"query": "x", "threshold": 1.5}),
+        ]
+        for name, extra in err_cases:
+            try:
+                await call(client, "search_evidence", {"project_id": pid, **extra})
+                results.append({"case": name, "err": None})
+            except ToolFailure as e:
+                results.append({"case": name, "code": e.code, "what": e.what[:60]})
+        try:
+            await call(client, "search_evidence", {"project_id": "PRJ-9999", "query": "x"})
+            results.append({"case": "项目不存在", "err": None})
+        except ToolFailure as e:
+            results.append({"case": "项目不存在", "code": e.code, "what": e.what[:60]})
+        by_case = {x["case"]: x for x in results}
+        expect_unprocessable = {c for c, _ in err_cases}
+        checks = [
+            (f"⑤b: 参数面全拒 E_UNPROCESSABLE（{len(expect_unprocessable)} 例）",
+             all(by_case.get(c, {}).get("code") == "E_UNPROCESSABLE" for c in expect_unprocessable)),
+            ("⑤b: 项目路由 E_NOT_FOUND", by_case.get("项目不存在", {}).get("code") == "E_NOT_FOUND"),
+            ("⑤b: 无静默成功（全 8 例都被拒）",
+             all(x.get("code") for x in results)),
+        ]
+        rec.stage("⑤b 错误信封（E_* 归类）", None, None, {"cases": results}, checks,
+                  elapsed_ms=(time.monotonic() - t0) * 1000)
+        require(checks)
+
+
 # ---------------------------------------------------------------- 运行骨架
 
 
@@ -1253,6 +1520,10 @@ def test_13_external_cas_version():
     run_case("13-external-cas-version", _case_external_cas_version)
 
 
+def test_14_search_evidence():
+    run_case("14-search-evidence", _case_search_evidence)
+
+
 # ---------------------------------------------------------------- 独立运行入口
 
 
@@ -1266,6 +1537,7 @@ def main() -> int:
         ("11-external-uncovered", _case_external_uncovered, True),
         ("12-external-unanchored", _case_external_unanchored, True),
         ("13-external-cas-version", _case_external_cas_version, True),
+        ("14-search-evidence", _case_search_evidence, True),
     ]
     results: list[tuple[str, str]] = []
     for name, body, ws_needed in cases:

@@ -22,6 +22,21 @@ fn model_regex() -> Regex {
 }
 
 pub fn extract_requirements(files: &[ParsedFile]) -> Vec<Requirement> {
+    // 【真实文件驱动修复】PDF 文本层的康熙部首污染（2026-11 实测）：
+    //
+    // 真实招标 PDF（黑龙江政采平台导出）文本层用了 Unicode 康熙部首区
+    // （U+2F00-2FDF）与 CJK 部首补充区（U+2E80-2EFF）编码汉字：
+    //   「第⼀章」的「⼀」是 U+2F00 KANGXI RADICAL ONE，不是 U+4E00「一」
+    //
+    // 后果：`re_chapter`（^第\s*([0-9一二三...])\s*章）匹配不到 → 章名全空
+    // → category_for 全部落「其他」→ 三张核心审查表（资格性/符合性/详细
+    // 评审）一条都没识别。实测该文件 4,012 字（8.14%）是部首。
+    //
+    // 修法：抽取前统一 NFKC 归一化（U+2F00-2FDF 全部映射回标准汉字）。
+    // 注意 NFKC **不能**修 U+2E80-2EFF（CJK 部首补充，如 ⻚U+2EDA）；
+    // 这类残留 246 字已登记为已知限制（见 issue 补充）。
+    let normalized: Vec<ParsedFile> = files.iter().map(normalize_file_nfkc).collect();
+    let files: &[ParsedFile] = &normalized;
     let mut reqs: Vec<Requirement> = Vec::new();
     let mut seq = 0usize;
     for f in files {
@@ -548,22 +563,99 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
     }
 }
 
-fn category_for(chapter: &str, subsection: &str) -> &'static str {
-    if chapter.contains("评标办法") {
-        "评分项"
-    } else if chapter.contains("技术需求") || chapter.contains("技术规范") {
-        "技术参数"
-    } else if chapter.contains("商务要求") {
-        "商务要求"
-    } else if chapter.contains("须知") && subsection.contains("资格") {
-        "资格条件"
-    } else if chapter.contains("须知") && subsection.contains("否决") {
-        "否决项"
-    } else if chapter.contains("须知") && subsection.contains("编制") {
-        "格式要求"
-    } else {
-        "其他"
+/// 章节上下文 → 类别映射（政采/招标范本结构惯例）。
+///
+/// **真实文件驱动扩展**（2026-11 用户真实标书实测）：原实现只认
+/// 合成夹具的章节名（「评标办法」「技术需求」「须知+资格」），真实文件
+/// 用另一套命名，导致 14 个章节全部落「其他」——资格性/符合性/详细评审
+/// 三张核心表一条都没识别出来（废标级）。
+///
+/// 真实文件章节名（黑龙江呼中国家级自然保护区项目，7 章）：
+/// ```text
+/// 第一章 公开招标公告
+/// 第二章 投标人须知
+/// 第三章 合同与验收
+/// 第四章 采购内容与要求        ← 技术参数在这
+/// 第五章 投标人应当提交的资格、资信证明文件
+/// 第六章 评审                  ← 资格审查/符合性/详细评审三表在这
+/// 第七章 投标文件格式
+/// ```
+///
+/// 扩展原则：**同义词枚举，不做模糊匹配**——宁可多列几个词，也不
+/// NFKC 归一化整份解析产物（真实 PDF 的康熙部首污染修复）。
+///
+/// 只归一化 `text` / `cells` / `locator`——`idx` / `kind` / 其余账本字段
+/// 原样保留（chunk_id 稳定性依赖 idx，不能碰）。
+fn normalize_file_nfkc(f: &ParsedFile) -> ParsedFile {
+    ParsedFile {
+        name: f.name.clone(),
+        sha256: f.sha256.clone(),
+        pages: f.pages,
+        tables: f.tables,
+        has_text_layer: f.has_text_layer,
+        ocr_blocks: f.ocr_blocks,
+        blocks: f
+            .blocks
+            .iter()
+            .map(|b| Block {
+                idx: b.idx,
+                kind: b.kind.clone(),
+                locator: crate::norm_n1(&b.locator),
+                text: crate::norm_n1(&b.text),
+                cells: b.cells.iter().map(|c| crate::norm_n1(c)).collect(),
+            })
+            .collect(),
+        parse_summary: f.parse_summary.clone(),
+        components: f.components.clone(),
     }
+}
+
+/// 用子串猜（「评审」不会误配「评审结果公告」因为那是段落不是章名）。
+fn category_for(chapter: &str, subsection: &str) -> &'static str {
+    // ── 评分面（评标办法/评审/评标）：详细评审表 ↔ 评分项 ──
+    if chapter.contains("评标办法")
+        || chapter.contains("评审")
+        || chapter.contains("评标")
+    {
+        return "评分项";
+    }
+    // ── 技术面（技术需求/技术规范/采购内容/采购需求/技术要求/服务要求）──
+    if chapter.contains("技术需求")
+        || chapter.contains("技术规范")
+        || chapter.contains("采购内容")
+        || chapter.contains("采购需求")
+        || chapter.contains("技术要求")
+        || chapter.contains("服务要求")
+        || chapter.contains("货物需求")
+    {
+        return "技术参数";
+    }
+    // ── 商务面（商务要求/合同与验收/合同条款/商务条款）──
+    if chapter.contains("商务要求")
+        || chapter.contains("商务条款")
+        || chapter.contains("合同与验收")
+        || chapter.contains("合同条款")
+        || chapter.contains("合同要求")
+    {
+        return "商务要求";
+    }
+    // ── 资格面（章名本身含资格/资信——真实文件「投标人应当提交的资格、
+    //    资信证明文件」不经过「须知」章，原实现的 `须知 && 资格` 双条件挡死）──
+    if chapter.contains("资格") || chapter.contains("资信") || subsection.contains("资格")
+    {
+        return "资格条件";
+    }
+    // ── 否决面（否决/无效投标/废标）──
+    if chapter.contains("否决") || chapter.contains("无效投标") || chapter.contains("废标")
+        || subsection.contains("否决")
+    {
+        return "否决项";
+    }
+    // ── 格式面（投标文件格式/格式要求/编制要求）──
+    if chapter.contains("格式") || subsection.contains("编制") {
+        return "格式要求";
+    }
+    "其他"
 }
 
 /// 主文件（A）与补遗（C）：编号条款段落 + 前附表否决行 + 技术需求参数表。

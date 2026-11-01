@@ -38,13 +38,11 @@ fn unknown_tool_is_typed_not_found() {
 
 #[test]
 fn unimplemented_tools_return_typed_unimplemented_not_ok() {
-    // 1 个未落地工具：必须返回 UNIMPLEMENTED_INTERNAL，不能"空成功"
-    // （B-1 落地 create/import；B5 落地 extract/matrix；#59 阶段 1-3 落地
-    // draft/export/validate——不在此清单。工具落地时本清单同步收缩，
-    // 防止骨架与实现脱钩）
-    let unimplemented = [
-        "search_evidence",
-    ];
+    // #145 任务 1：search_evidence 接线后清单**清空**——全部 20 工具实装
+    // （骨架纪律保留：未来新增工具未接线时回到此清单，防止骨架与实现脱钩）。
+    // 此前 B-1 落地 create/import；B5 落地 extract/matrix；#59 阶段 1-3 落地
+    // draft/export/validate——不在此清单。
+    let unimplemented: [&str; 0] = [];
     for tool in unimplemented {
         match call(tool, json!({})) {
             bid_mcp::ToolReply::Err { error, .. } => {
@@ -111,7 +109,9 @@ fn tools_schema_lists_all_twenty() {
     // #68 阶段 2：check_bid_quality；
     // + get_bid_project_state（TOOL_NAMES 声明序）——工具落地时本清单同步
     // 收缩，防骨架与实现脱钩；
-    // #100 任务 3：score_price / score_section / score_document（B1/B2 接线）
+    // #100 任务 3：score_price / score_section / score_document（B1/B2 接线）；
+    // #145 任务 1：search_evidence 接线 + save_version 补登（此前 is_implemented
+    // 漏登致 tools/list 误报 false——#145 测试面抓出，如实登记）→ 全部 20 实装
     assert_eq!(
         implemented,
         vec![
@@ -121,10 +121,12 @@ fn tools_schema_lists_all_twenty() {
             "get_compliance_matrix",
             "list_evidence",
             "list_tasks",
+            "search_evidence",
             "draft_response_section",
             "validate_bid_document",
             "export_bid_document",
             "get_bid_project_state",
+            "save_version",
             "check_bid_quality",
             "build_outline",
             "register_evidence",

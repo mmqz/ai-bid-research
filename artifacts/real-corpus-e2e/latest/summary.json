@@ -41,14 +41,14 @@
       "tables_in_xml": 5,
       "tech_req_count": 0,
       "timings_ms": {
-        "draft": 29613,
+        "draft": 29605,
         "evidence": 3,
         "export": 280,
-        "extract": 5419,
-        "import": 2318,
-        "outline": 145,
-        "quality": 4437,
-        "validate": 957
+        "extract": 5432,
+        "import": 2291,
+        "outline": 152,
+        "quality": 4470,
+        "validate": 942
       },
       "total_words": 194497,
       "veto_cls_L2": 89,
@@ -87,14 +87,14 @@
       "tables_in_xml": 5,
       "tech_req_count": 0,
       "timings_ms": {
-        "draft": 11640,
+        "draft": 11613,
         "evidence": 2,
-        "export": 178,
-        "extract": 2382,
-        "import": 284,
-        "outline": 88,
-        "quality": 2846,
-        "validate": 598
+        "export": 174,
+        "extract": 2406,
+        "import": 303,
+        "outline": 80,
+        "quality": 2843,
+        "validate": 575
       },
       "total_words": 126328,
       "veto_cls_L2": 92,
@@ -133,14 +133,14 @@
       "tables_in_xml": 5,
       "tech_req_count": 0,
       "timings_ms": {
-        "draft": 2590,
+        "draft": 2566,
         "evidence": 1,
         "export": 85,
-        "extract": 1574,
+        "extract": 1545,
         "import": 261,
-        "outline": 33,
-        "quality": 1099,
-        "validate": 219
+        "outline": 32,
+        "quality": 1106,
+        "validate": 221
       },
       "total_words": 50242,
       "veto_cls_L2": 107,

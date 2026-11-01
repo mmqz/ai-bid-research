@@ -1882,6 +1882,75 @@ fn check_bid_quality(svc: &mut BidService, args: Value) -> ToolResult {
         }
     };
 
+    // ---- 跨章查重摘要（#145 任务 3——Agent 不必自己遍历 sections 算）
+    //
+    // 口径（与 SKILL.md「跨章查重」表一致）：
+    // - 严重线 0.8 取自 bid-tools 的 `DUP_SEVERE_JACCARD`（单一真源——壳层
+    //   不另写常数，引擎调线时摘要跟着动）；
+    // - 对按无序计一次（a.id < b.id——dup_with 是双向回填，直接遍历会双计）；
+    // - 多对端取该对的最大相似度（本章对 X 可能在 jaccard/containment 两
+    //   口径各一条——同一对只该计一次，取大如实反映「最像」）；
+    // - 不收报告的 < 0.3 对天然不进 dup_with（报告层已过滤）。
+    const DUP_PAIR_LINE: f64 = bid_tools::quality::DUP_SEVERE_JACCARD;
+    let mut dup_max_similarity = 0.0f64;
+    for q in &report.sections {
+        for (_, sim) in &q.dup_with {
+            if sim.is_finite() && *sim > dup_max_similarity {
+                dup_max_similarity = *sim;
+            }
+        }
+    }
+    let mut pair_sims: std::collections::BTreeMap<(&str, &str), f64> =
+        std::collections::BTreeMap::new();
+    for q in &report.sections {
+        for (other, sim) in &q.dup_with {
+            if !sim.is_finite() {
+                continue;
+            }
+            let (a, b) = if q.section_id.as_str() < other.as_str() {
+                (q.section_id.as_str(), other.as_str())
+            } else {
+                (other.as_str(), q.section_id.as_str())
+            };
+            if a == b {
+                continue; // 自反（理论不入——防御）
+            }
+            pair_sims
+                .entry((a, b))
+                .and_modify(|v| {
+                    if *sim > *v {
+                        *v = *sim;
+                    }
+                })
+                .or_insert(*sim);
+        }
+    }
+    let dup_pairs = pair_sims.values().filter(|s| **s >= DUP_PAIR_LINE).count();
+
+    // ---- 篇幅核对（全局账：已写 vs 配额）
+    //
+    // 已写 = 叶节点 content 字符数之和（node.content 是正文真源——叶判定同
+    // 报告层：无子者即叶）；目标 = outline 根节点配额和（outline_total_chars
+    // 本身就按根求和，全树求和会双计）。
+    let char_total: usize = {
+        use std::collections::HashSet;
+        let parents: HashSet<&str> = svc.store().sections().iter()
+            .filter_map(|n| n.parent_id.as_deref()).collect();
+        svc.store().sections().iter()
+            .filter(|n| !parents.contains(n.id.as_str()))
+            .map(|n| n.content.as_deref().map_or(0, |c| c.chars().count()))
+            .sum()
+    };
+    let char_target = svc.store().outline_total_chars();
+    // 偏离百分比：(total-target)/target*100，保留 1 位小数；target=0 → null
+    // （无配额 = 无「偏离」可言，null 是诚实面，不是 0.0）
+    let char_deviation_pct: Option<f64> = if char_target == 0 {
+        None
+    } else {
+        let pct = (char_total as f64 - char_target as f64) / char_target as f64 * 100.0;
+        Some((pct * 10.0).round() / 10.0)
+    };
+
     // ---- out 组装（sections 内联——全量诊断一次到位；大文档以 artifact 为准）
     let sm = &report.summary;
     Ok(serde_json::json!({
@@ -1894,6 +1963,11 @@ fn check_bid_quality(svc: &mut BidService, args: Value) -> ToolResult {
             "uncovered_req_total": sm.uncovered_req_total,
             "out_of_band": sm.out_of_band,
             "unanchored_total": sm.unanchored_total,
+            "dup_pairs": dup_pairs,
+            "dup_max_similarity": dup_max_similarity,
+            "char_total": char_total,
+            "char_target": char_target,
+            "char_deviation_pct": char_deviation_pct,
         },
         "needs_human": sm.needs_human,
         "sections": report.sections,

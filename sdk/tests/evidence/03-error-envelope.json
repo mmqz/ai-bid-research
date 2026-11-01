@@ -1,0 +1,82 @@
+{
+ "case": "03-error-envelope",
+ "transport": "linejson",
+ "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
+ "server_sha256": "134e9939d46742d229bba97ead748a2a2878c620af44258bac1968e7cd1029cd",
+ "python": "3.12.16",
+ "mcp_sdk": "1.27.0",
+ "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
+ "started_at": "2026-11-01T11:41:55+00:00",
+ "stages": [
+  {
+   "stage": "错误信封（E_* 归类）",
+   "tool": null,
+   "args": {},
+   "result": {
+    "cases": [
+     {
+      "case": "无项目查矩阵",
+      "code": "E_NOT_FOUND",
+      "what": "project 未创建"
+     },
+     {
+      "case": "未知工具",
+      "code": "E_NOT_FOUND",
+      "what": "未知工具 no_such_tool（合法工具面见 TOOL_NAMES / docs/bid-mcp-contract.md）"
+     },
+     {
+      "case": "建项缺参",
+      "code": "E_UNPROCESSABLE",
+      "what": "create_bid_project: name 缺失或非字符串"
+     },
+     {
+      "case": "mode 非法",
+      "code": "E_UNPROCESSABLE",
+      "what": "mode 须为 明标|暗标（契约 §1），实际：随口填"
+     },
+     {
+      "case": "external 缺 content",
+      "code": "E_UNPROCESSABLE",
+      "what": "draft_response_section: generator=external 需要 content 参数（外部作者的手稿全文）——无手稿请用 auto/"
+     },
+     {
+      "case": "content×generator 互斥",
+      "code": "E_UNPROCESSABLE",
+      "what": "draft_response_section: content（外部手稿）与 generator=mock 互斥——外部稿直注请用 generator=exte"
+     },
+     {
+      "case": "未导入先抽取",
+      "code": "E_STATE",
+      "what": "当前状态 DRAFT 不允许调用 extract_requirements"
+     }
+    ]
+   },
+   "checks": [
+    {
+     "desc": "E_NOT_FOUND 面（{'无项目查矩阵', '未知工具'}）",
+     "pass": true
+    },
+    {
+     "desc": "E_UNPROCESSABLE 面（{'content×generator 互斥', 'external 缺 content', '建项缺参', 'mode 非法'}）",
+     "pass": true
+    },
+    {
+     "desc": "E_STATE 面（{'未导入先抽取'}）",
+     "pass": true
+    },
+    {
+     "desc": "错误信封携带 what（人类可读）",
+     "pass": true
+    },
+    {
+     "desc": "全部七种失败面都被拒（无静默成功）",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  }
+ ],
+ "payload_shapes": {},
+ "ws": "/tmp/bid-mcp-e2e/error-envelope/ws",
+ "finished_at": "2026-11-01T11:41:55+00:00"
+}

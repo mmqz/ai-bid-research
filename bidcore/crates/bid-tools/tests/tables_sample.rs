@@ -50,22 +50,22 @@ fn generate_sample_with_all_six_tables() {
         },
         BidTable::Personnel {
             rows: vec![
-                PersonnelRow::new("项目经理", "张三", "高级工程师/一级建造师", "水利水电", 12),
-                PersonnelRow::new("技术负责人", "李四", "高级工程师", "水工结构", 9),
-                PersonnelRow::new("安全员", "王五", "工程师/安全员证", "水利水电", 6),
+                PersonnelRow::new("项目经理", "张三", "高级工程师/一级建造师", "水利水电", Some(12)),
+                PersonnelRow::new("技术负责人", "李四", "高级工程师", "水工结构", Some(9)),
+                PersonnelRow::new("安全员", "王五", "工程师/安全员证", "水利水电", Some(6)),
             ],
         },
         BidTable::Equipment {
             rows: vec![
-                EquipmentRow::new("挖掘机", "PC200", 2, "台"),
-                EquipmentRow::new("闸阀", "DN100|PN16", 8, "套"),
-                EquipmentRow::new("混凝土搅拌站", "HZS60", 1, "座"),
+                EquipmentRow::new("挖掘机", "PC200", Some(2), "台"),
+                EquipmentRow::new("闸阀", "DN100|PN16", Some(8), "套"),
+                EquipmentRow::new("混凝土搅拌站", "HZS60", Some(1), "座"),
             ],
         },
         BidTable::Performance {
             rows: vec![
-                PerformanceRow::new("甲水库除险加固", "某市水务局", 3200.0, "2023-03", "2024-06"),
-                PerformanceRow::new("乙灌区信息化", "某县水利局", 1800.0, "2024-01", "2025-02"),
+                PerformanceRow::new("甲水库除险加固", "某市水务局", Some(3200.0), "2023-03", "2024-06"),
+                PerformanceRow::new("乙灌区信息化", "某县水利局", Some(1800.0), "2024-01", "2025-02"),
             ],
         },
         BidTable::PriceBreakdown {

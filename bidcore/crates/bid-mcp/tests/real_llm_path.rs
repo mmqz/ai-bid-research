@@ -264,6 +264,9 @@ fn ensure_prepared(svc: &mut BidService, ws: &Path) -> (String, String) {
             valid_until: None,
             subject_name: "投标人".into(),
             scope: "电子与智能化工程".into(),
+            client: None,
+            amount_wan: None,
+            completed_on: None,
         })
         .unwrap();
     let qual_ids: Vec<String> = svc

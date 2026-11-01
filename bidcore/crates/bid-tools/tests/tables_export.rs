@@ -149,21 +149,21 @@ fn all_six_tables_markdown() -> String {
         },
         BidTable::Personnel {
             rows: vec![
-                PersonnelRow::new("项目经理", "张三", "高级工程师/一级建造师", "水利水电", 12),
-                PersonnelRow::new("技术负责人", "李四", "高级工程师", "水工结构", 9),
+                PersonnelRow::new("项目经理", "张三", "高级工程师/一级建造师", "水利水电", Some(12)),
+                PersonnelRow::new("技术负责人", "李四", "高级工程师", "水工结构", Some(9)),
             ],
         },
         BidTable::Equipment {
             rows: vec![
-                EquipmentRow::new("挖掘机", "PC200", 2, "台"),
-                EquipmentRow::new("闸阀", "DN100|PN16", 8, "套"),
+                EquipmentRow::new("挖掘机", "PC200", Some(2), "台"),
+                EquipmentRow::new("闸阀", "DN100|PN16", Some(8), "套"),
             ],
         },
         BidTable::Performance {
             rows: vec![PerformanceRow::new(
                 "甲水库除险加固",
                 "某市水务局",
-                3200.0,
+                Some(3200.0),
                 "2023-03",
                 "2024-06",
             )],
@@ -295,8 +295,8 @@ fn deviation_draft_from_real_technical_requirements() {
 fn cell_pipe_does_not_break_table_columns() {
     let content = BidTable::Equipment {
         rows: vec![
-            EquipmentRow::new("闸阀", "DN100|PN16", 8, "套"),
-            EquipmentRow::new("球阀", "DN50|PN10", 4, "套"),
+            EquipmentRow::new("闸阀", "DN100|PN16", Some(8), "套"),
+            EquipmentRow::new("球阀", "DN50|PN10", Some(4), "套"),
         ],
     }
     .to_markdown();
@@ -315,7 +315,7 @@ fn anonymized_table_cells_scrub_company_name() {
         rows: vec![PerformanceRow::new(
             "甲水库除险加固（某建设工程有限公司承建）",
             "某市水务局",
-            3200.0,
+            Some(3200.0),
             "2023-03",
             "2024-06",
         )],

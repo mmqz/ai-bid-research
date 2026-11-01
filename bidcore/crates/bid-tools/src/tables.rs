@@ -65,6 +65,12 @@ pub const RED_MARK_OPEN: &str = "{{r:";
 /// 红标行内标记闭合符（配对 [`RED_MARK_OPEN`]）。
 pub const RED_MARK_CLOSE: &str = "}}";
 
+/// 数值未知时的待填占位（#117：诚实态——不落 0/空白，落【待填】）。
+///
+/// 与 bid-domain `party::Blank` 同口径（全角方括号）；不直接引用是为了
+/// 本模块零业务依赖（表格层自己能独立说清「缺就是缺」）。
+pub const PENDING_FILL: &str = "【待填】";
+
 /// 把文本包成红标 run（导出层渲染为红色；纯文本阅读时仍可读）。
 pub fn red(text: impl AsRef<str>) -> String {
     format!("{RED_MARK_OPEN}{}{RED_MARK_CLOSE}", text.as_ref())
@@ -162,8 +168,8 @@ pub struct PersonnelRow {
     pub title: String,
     /// 专业
     pub major: String,
-    /// 本专业年限（年）
-    pub years: u32,
+    /// 本专业年限（年；None = 未知 → 渲染【待填】——#117：不落「0 年」假值）
+    pub years: Option<u32>,
     /// 备注（在岗状态、社保等）
     pub note: String,
 }
@@ -174,7 +180,7 @@ impl PersonnelRow {
         name: impl Into<String>,
         title: impl Into<String>,
         major: impl Into<String>,
-        years: u32,
+        years: Option<u32>,
     ) -> Self {
         Self {
             position: position.into(),
@@ -194,8 +200,8 @@ pub struct EquipmentRow {
     pub name: String,
     /// 型号规格
     pub model: String,
-    /// 数量
-    pub quantity: u32,
+    /// 数量（None = 未知 → 渲染【待填】——#117）
+    pub quantity: Option<u32>,
     /// 单位（台/套/辆…）
     pub unit: String,
     /// 产地/品牌
@@ -210,7 +216,7 @@ impl EquipmentRow {
     pub fn new(
         name: impl Into<String>,
         model: impl Into<String>,
-        quantity: u32,
+        quantity: Option<u32>,
         unit: impl Into<String>,
     ) -> Self {
         Self {
@@ -232,8 +238,8 @@ pub struct PerformanceRow {
     pub project: String,
     /// 发包人/建设单位
     pub client: String,
-    /// 合同金额（万元）
-    pub amount_wan: f64,
+    /// 合同金额（万元；None = 未知 → 渲染【待填】——#117：不落「0.00」假值）
+    pub amount_wan: Option<f64>,
     /// 签订日期（ISO 或「2024.05」）
     pub signed: String,
     /// 完成日期
@@ -248,7 +254,7 @@ impl PerformanceRow {
     pub fn new(
         project: impl Into<String>,
         client: impl Into<String>,
-        amount_wan: f64,
+        amount_wan: Option<f64>,
         signed: impl Into<String>,
         completed: impl Into<String>,
     ) -> Self {
@@ -358,9 +364,10 @@ impl BidTable {
     /// 交出去就是废标（或至少丢技术分）。
     pub fn negative_count(&self) -> usize {
         match self {
-            BidTable::TechDeviation { rows } => {
-                rows.iter().filter(|r| r.deviation == Deviation::Negative).count()
-            }
+            BidTable::TechDeviation { rows } => rows
+                .iter()
+                .filter(|r| r.deviation == Deviation::Negative)
+                .count(),
             _ => 0,
         }
     }
@@ -373,7 +380,14 @@ impl BidTable {
                 vec!["序号", "招标技术要求", "投标响应", "偏离情况", "说明"]
             }
             BidTable::Personnel { .. } => {
-                vec!["岗位", "姓名", "职称/执业资格", "专业", "本专业年限", "备注"]
+                vec![
+                    "岗位",
+                    "姓名",
+                    "职称/执业资格",
+                    "专业",
+                    "本专业年限",
+                    "备注",
+                ]
             }
             BidTable::Equipment { .. } => vec![
                 "设备名称",
@@ -394,7 +408,15 @@ impl BidTable {
                 "备注",
             ],
             BidTable::PriceBreakdown { .. } => {
-                vec!["序号", "项目名称", "单位", "数量", "单价(元)", "合价(元)", "备注"]
+                vec![
+                    "序号",
+                    "项目名称",
+                    "单位",
+                    "数量",
+                    "单价(元)",
+                    "合价(元)",
+                    "备注",
+                ]
             }
         }
     }
@@ -402,9 +424,10 @@ impl BidTable {
     /// 数据行（不含表头；报价表含自动合计行）。
     pub fn rows(&self) -> Vec<Vec<String>> {
         match self {
-            BidTable::ProjectOverview { rows } => {
-                rows.iter().map(|(k, v)| vec![k.clone(), v.clone()]).collect()
-            }
+            BidTable::ProjectOverview { rows } => rows
+                .iter()
+                .map(|(k, v)| vec![k.clone(), v.clone()])
+                .collect(),
             BidTable::TechDeviation { rows } => rows
                 .iter()
                 .map(|r| {
@@ -431,7 +454,10 @@ impl BidTable {
                         r.name.clone(),
                         r.title.clone(),
                         r.major.clone(),
-                        format!("{} 年", r.years),
+                        // #117：年限未知 = 【待填】（不是「0 年」——那是假值）
+                        r.years
+                            .map(|y| format!("{y} 年"))
+                            .unwrap_or_else(|| PENDING_FILL.to_string()),
                         r.note.clone(),
                     ]
                 })
@@ -442,7 +468,9 @@ impl BidTable {
                     vec![
                         r.name.clone(),
                         r.model.clone(),
-                        r.quantity.to_string(),
+                        r.quantity
+                            .map(|q| q.to_string())
+                            .unwrap_or_else(|| PENDING_FILL.to_string()),
                         r.unit.clone(),
                         r.origin.clone(),
                         r.spec.clone(),
@@ -456,7 +484,9 @@ impl BidTable {
                     vec![
                         r.project.clone(),
                         r.client.clone(),
-                        format!("{:.2}", r.amount_wan),
+                        r.amount_wan
+                            .map(|v| format!("{v:.2}"))
+                            .unwrap_or_else(|| PENDING_FILL.to_string()),
                         r.signed.clone(),
                         r.completed.clone(),
                         r.evidence.clone(),
@@ -519,7 +549,10 @@ impl BidTable {
     pub fn to_markdown(&self) -> String {
         let header = self.header();
         let mut out = String::new();
-        push_md_row(&mut out, &header.iter().map(|h| md_escape(h)).collect::<Vec<_>>());
+        push_md_row(
+            &mut out,
+            &header.iter().map(|h| md_escape(h)).collect::<Vec<_>>(),
+        );
         push_md_row(&mut out, &vec!["---".to_string(); header.len()]);
         for row in self.rows() {
             let cells: Vec<String> = row.iter().map(|c| md_escape(c)).collect();
@@ -632,8 +665,7 @@ mod tests {
         let md = t.to_markdown();
         let lines: Vec<&str> = md.lines().collect();
         assert_eq!(
-            lines[0],
-            "| 序号 | 招标技术要求 | 投标响应 | 偏离情况 | 说明 |",
+            lines[0], "| 序号 | 招标技术要求 | 投标响应 | 偏离情况 | 说明 |",
             "表头齐备"
         );
         assert!(lines[1].starts_with("| --- |"), "分隔行在位: {}", lines[1]);
@@ -655,8 +687,16 @@ mod tests {
             lines[3]
         );
         // 正偏离/无偏离不标红
-        assert!(!lines[2].contains(RED_MARK_OPEN), "正偏离不标红: {}", lines[2]);
-        assert!(!lines[4].contains(RED_MARK_OPEN), "无偏离不标红: {}", lines[4]);
+        assert!(
+            !lines[2].contains(RED_MARK_OPEN),
+            "正偏离不标红: {}",
+            lines[2]
+        );
+        assert!(
+            !lines[4].contains(RED_MARK_OPEN),
+            "无偏离不标红: {}",
+            lines[4]
+        );
         assert_eq!(t.negative_count(), 1);
     }
 
@@ -674,7 +714,7 @@ mod tests {
     #[test]
     fn cell_pipes_are_escaped_so_table_does_not_shift() {
         let t = BidTable::Equipment {
-            rows: vec![EquipmentRow::new("闸阀|球阀", "DN100|PN16", 3, "台")],
+            rows: vec![EquipmentRow::new("闸阀|球阀", "DN100|PN16", Some(3), "台")],
         };
         let md = t.to_markdown();
         let data_line = md.lines().nth(2).unwrap();
@@ -718,15 +758,17 @@ mod tests {
                     "张三",
                     "高级工程师/一级建造师",
                     "水利水电",
-                    12,
+                    Some(12),
                 )],
             },
-            BidTable::Equipment { rows: vec![EquipmentRow::new("挖掘机", "PC200", 2, "台")] },
+            BidTable::Equipment {
+                rows: vec![EquipmentRow::new("挖掘机", "PC200", Some(2), "台")],
+            },
             BidTable::Performance {
                 rows: vec![PerformanceRow::new(
                     "甲水库除险加固",
                     "某水务局",
-                    3200.0,
+                    Some(3200.0),
                     "2023-03",
                     "2024-06",
                 )],
@@ -782,5 +824,45 @@ mod tests {
         assert_eq!(format_money(-1234.5), "-1,234.50");
         assert_eq!(format_quantity(3.0), "3");
         assert_eq!(format_quantity(1.5), "1.50");
+    }
+
+    /// #117：数值未知（None）→ 【待填】——不落「0 年」「0.00」这类假值
+    /// （评标现场读到假值比读到待填更糟：前者是错误响应，后者是待补录）。
+    #[test]
+    fn unknown_numerics_render_pending_fill_not_fake_zero() {
+        let t = BidTable::Personnel {
+            rows: vec![PersonnelRow::new(
+                "项目经理",
+                "张三",
+                "高级工程师",
+                "机电",
+                None,
+            )],
+        };
+        let md = t.to_markdown();
+        assert!(md.contains("【待填】"), "未知年限落待填: {md}");
+        assert!(!md.contains("0 年"), "绝不落「0 年」假值: {md}");
+
+        let e = BidTable::Equipment {
+            rows: vec![EquipmentRow::new("物联网关", "IoT-GW-3000", None, "台")],
+        };
+        let md = e.to_markdown();
+        assert!(md.contains("【待填】"), "未知数量落待填: {md}");
+
+        let p = BidTable::Performance {
+            rows: vec![PerformanceRow::new(
+                "某医院项目",
+                "某医院",
+                None,
+                "2023-05",
+                "2024-08",
+            )],
+        };
+        let md = p.to_markdown();
+        assert!(md.contains("【待填】"), "未知金额落待填: {md}");
+        assert!(!md.contains("0.00"), "绝不落「0.00」假值: {md}");
+        // 列数不受待填影响（仍是 7 列——错位比缺值更糟）
+        let data_line = md.lines().nth(2).unwrap();
+        assert_eq!(unescaped_pipes(data_line) - 1, 7, "列数对齐: {data_line}");
     }
 }

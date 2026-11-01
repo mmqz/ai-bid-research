@@ -68,6 +68,9 @@ fn register_bound(s: &mut DomainStore, i: usize, source_file: &str,
         valid_until: None,
         subject_name: "测试投标人".into(),
         scope: format!("适用范围：建筑智能化-{i}").into(),
+        client: None,
+        amount_wan: None,
+        completed_on: None,
     }).unwrap();
     s.bind_evidence(&id, "REQ-0003", "2026-03-11").unwrap();
     id

@@ -416,6 +416,9 @@ fn service_iterative_draft_commits_best_content() {
         valid_until: None,
         subject_name: "某建设工程有限公司".into(),
         scope: "水利水电工程施工".into(),
+        client: None,
+        amount_wan: None,
+        completed_on: None,
     }).unwrap();
     svc.store_mut().bind_evidence(&eid, "REQ-0101", "2027-12-31").unwrap();
 

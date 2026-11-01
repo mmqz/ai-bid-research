@@ -94,6 +94,9 @@ fn bind_evidence_for(svc: &mut BidService, req_ids: &[&str]) {
         valid_until: None,
         subject_name: "某公司".into(),
         scope: "水利水电".into(),
+        client: None,
+        amount_wan: None,
+        completed_on: None,
     }).unwrap();
     for rid in req_ids {
         svc.store_mut().bind_evidence(&eid, rid, "2026-12-31").unwrap();
@@ -116,6 +119,9 @@ fn register_qual_ledger_only(svc: &mut BidService) {
         valid_until: None,
         subject_name: "某公司".into(),
         scope: "水利水电".into(),
+        client: None,
+        amount_wan: None,
+        completed_on: None,
     }).unwrap();
 }
 
@@ -342,6 +348,9 @@ fn rule_evidence_expired_is_blocker() {
         valid_until: Some("2030-06-30".into()),
         subject_name: "某公司".into(),
         scope: "全国".into(),
+        client: None,
+        amount_wan: None,
+        completed_on: None,
     }).unwrap();
     svc.store_mut().bind_evidence(&eid, "REQ-0003", "2026-12-31").unwrap(); // 此刻 Active 可绑
     svc.store_mut().apply_validity("2031-01-01").unwrap(); // 开标日修正到 2031 → 2030 < 2031 翻转 EXPIRED

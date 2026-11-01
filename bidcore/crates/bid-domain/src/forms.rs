@@ -96,6 +96,9 @@ pub enum StandardForm {
         position: String,
         /// 所属公司（全称）。
         company: String,
+        /// 注册地址（#117 任务 2：从主体信息铺管——缺 → 待填位）。
+        #[serde(default)]
+        address: String,
     },
 
     /// 授权委托书。
@@ -122,6 +125,15 @@ pub enum StandardForm {
         payee: String,
         /// 银行账号。
         bank_account: String,
+        /// 开户银行名称（#117 任务 2：从主体信息铺管）。
+        #[serde(default)]
+        bank_name: String,
+        /// 联系人（#117 任务 2）。
+        #[serde(default)]
+        contact_person: String,
+        /// 联系电话（#117 任务 2）。
+        #[serde(default)]
+        contact_phone: String,
     },
 
     /// 资格声明（投标人就主体资格、财务状况、业绩等作的声明）。
@@ -140,6 +152,12 @@ pub enum StandardForm {
         solvency: bool,
         /// 是否依法缴纳税收及社会保障资金。
         tax_and_social_security_paid: bool,
+        /// 统一社会信用代码（#117 任务 2：从主体信息铺管）。
+        #[serde(default)]
+        tax_no: String,
+        /// 注册地址（#117 任务 2）。
+        #[serde(default)]
+        address: String,
     },
 
     /// 无重大违法记录声明。
@@ -246,8 +264,8 @@ impl StandardForm {
                      致：{project_name} 招标人（或招标代理机构）\n\n\
                      根据贵方项目编号为 {project_no} 的 {project_name} 招标文件，我方经认真研究招标文件的全部内容后，\
                      愿以人民币（大写）{upper}（小写）{amount} 的投标总报价承担本项目的全部工作，\
-                     工期 {duration_days} 日历天。\n\n\
-                     **投标有效期**：{validity_days} 日历天自投标截止之日起计算。\n\n\
+                     工期 {duration}。\n\n\
+                     **投标有效期**：{validity} 自投标截止之日起计算。\n\n\
                      我方承诺：\n\n\
                      1. 已细致审阅了招标文件的全部内容（含补遗文件），完全接受招标文件中的各项条款、格式与评审标准；\n\
                      2. 上述报价在投标有效期内自始至终对我方具有约束力，我方将不提任何调价要求；\n\
@@ -263,22 +281,39 @@ impl StandardForm {
                     project_no = project_no,
                     upper = upper,
                     amount = amount,
-                    duration_days = duration_days,
-                    validity_days = validity_days
+                    duration = if *duration_days == 0 {
+                        // #117 任务 2：0 = 未定——【待填】，绝不落「0 日历天」假承诺
+                        Blank::of("工期（日历天）")
+                    } else {
+                        format!("{duration_days} 日历天")
+                    },
+                    validity = if *validity_days == 0 {
+                        Blank::of("投标有效期（日历天）")
+                    } else {
+                        format!("{validity_days} 日历天")
+                    }
                 )
             }
 
-            StandardForm::LegalRepCertificate { name, gender, id_no, position, company } => {
+            StandardForm::LegalRepCertificate {
+                name,
+                gender,
+                id_no,
+                position,
+                company,
+                address,
+            } => {
                 let name = Blank::or(name, "姓名");
                 let gender = Blank::or(gender, "性别");
                 let id_no = Blank::or(id_no, "身份证号");
                 let position = Blank::or(position, "职务");
                 let company = Blank::or(company, "出具单位名称");
+                let address = Blank::or(address, "注册地址");
                 format!(
                     "# {title}\n\n\
                      单位名称：{company}\n\n\
                      单位性质：【公司类型（如有限责任公司）】\n\n\
-                     地址：【注册地址】\n\n\
+                     地址：{address}\n\n\
                      成立时间：【成立日期】\n\n\
                      经营期限：【营业期限】\n\n\
                      姓名：{name}　　性别：{gender}　　年龄：【年龄】\n\n\
@@ -294,11 +329,18 @@ impl StandardForm {
                     name = name,
                     gender = gender,
                     position = position,
-                    id_no = id_no
+                    id_no = id_no,
+                    address = address
                 )
             }
 
-            StandardForm::PowerOfAttorney { principal, agent, agent_id_no, scope, project_name } => {
+            StandardForm::PowerOfAttorney {
+                principal,
+                agent,
+                agent_id_no,
+                scope,
+                project_name,
+            } => {
                 let principal = Blank::or(principal, "法定代表人姓名");
                 let agent = Blank::or(agent, "受托人姓名");
                 let agent_id_no = Blank::or(agent_id_no, "受托人身份证号");
@@ -329,10 +371,21 @@ impl StandardForm {
                 )
             }
 
-            StandardForm::DepositRefund { project_name, amount, payee, bank_account } => {
+            StandardForm::DepositRefund {
+                project_name,
+                amount,
+                payee,
+                bank_account,
+                bank_name,
+                contact_person,
+                contact_phone,
+            } => {
                 let project_name = Blank::or(project_name, "项目名称");
                 let payee = Blank::or(payee, "收款人名称");
                 let bank_account = Blank::or(bank_account, "银行账号");
+                let bank_name = Blank::or(bank_name, "开户银行名称");
+                let contact_person = Blank::or(contact_person, "联系人姓名");
+                let contact_phone = Blank::or(contact_phone, "联系电话");
                 let amount = format_amount(*amount, "退还金额");
                 format!(
                     "# {title}\n\n\
@@ -342,17 +395,20 @@ impl StandardForm {
                      特向贵方申请退还投标保证金。\n\n\
                      **退还金额**：人民币 {amount}\n\n\
                      **收款人**：{payee}\n\n\
-                     **开户银行**：【开户银行名称】\n\n\
+                     **开户银行**：{bank_name}\n\n\
                      **银行账号**：{bank_account}\n\n\
                      我方承诺：上述收款账户为我方基本存款账户，账户名称与投标人名称一致，\
                      因账户信息错误导致款项无法入账的后果由我方自行承担。\n\n\
                      申请人（全称并盖公章）：{payee}\n\n\
-                     联系人：【联系人姓名】　　联系电话：【联系电话】\n\n\
+                     联系人：{contact_person}　　联系电话：{contact_phone}\n\n\
                      日期：【申请日期】\n",
                     title = self.title(),
                     project_name = project_name,
                     payee = payee,
                     bank_account = bank_account,
+                    bank_name = bank_name,
+                    contact_person = contact_person,
+                    contact_phone = contact_phone,
                     amount = amount
                 )
             }
@@ -365,22 +421,26 @@ impl StandardForm {
                 qualification,
                 solvency,
                 tax_and_social_security_paid,
+                tax_no,
+                address,
             } => {
                 let tenderer = Blank::or(tenderer, "投标人名称");
                 let project_name = Blank::or(project_name, "项目名称");
                 let capital = Blank::or(registered_capital, "注册资本");
                 let established = Blank::or(established_on, "成立日期");
                 let qualification = Blank::or(qualification, "资质等级");
+                let tax_no = Blank::or(tax_no, "统一社会信用代码");
+                let address = Blank::or(address, "注册地址");
                 format!(
                     "# {title}\n\n\
                      致：{project_name} 招标人（或招标代理机构）\n\n\
                      我方（{tenderer}）就「{project_name}」项目投标的主体资格作如下声明：\n\n\
                      **一、基本情况**\n\n\
                      1. 企业名称：{tenderer}\n\
-                     2. 统一社会信用代码：【统一社会信用代码】\n\
+                     2. 统一社会信用代码：{tax_no}\n\
                      3. 注册资本：{capital}\n\
                      4. 成立日期：{established}\n\
-                     5. 注册地址：【注册地址】\n\
+                     5. 注册地址：{address}\n\
                      6. 资质等级：{qualification}\n\n\
                      **二、财务及经营状况**\n\n\
                      1. 我方当前【{solvency_text}】处于被责令停业、财产被接管、被冻结或处于破产状态；\n\
@@ -398,6 +458,8 @@ impl StandardForm {
                     capital = capital,
                     established = established,
                     qualification = qualification,
+                    tax_no = tax_no,
+                    address = address,
                     solvency_text = yes_no(!*solvency),
                     tax_text = yes_no(*tax_and_social_security_paid)
                 )
@@ -442,7 +504,11 @@ impl StandardForm {
                 )
             }
 
-            StandardForm::IntegrityCommitment { tenderer, project_name, focus_clauses } => {
+            StandardForm::IntegrityCommitment {
+                tenderer,
+                project_name,
+                focus_clauses,
+            } => {
                 let tenderer = Blank::or(tenderer, "投标人名称");
                 let project_name = Blank::or(project_name, "项目名称");
                 let mut body = String::new();
@@ -514,6 +580,7 @@ impl StandardForm {
             id_no: profile.legal_rep_id.clone(),
             position: profile.legal_rep_position.clone(),
             company: profile.company_name.clone(),
+            address: profile.address.clone(),
         }
     }
 
@@ -535,6 +602,9 @@ impl StandardForm {
             amount,
             payee: profile.company_name.clone(),
             bank_account: profile.bank_account.clone(),
+            bank_name: profile.bank_name.clone(),
+            contact_person: profile.contact_person.clone(),
+            contact_phone: profile.contact_phone.clone(),
         }
     }
 
@@ -557,6 +627,8 @@ impl StandardForm {
             qualification: profile.qualification.clone(),
             solvency,
             tax_and_social_security_paid,
+            tax_no: profile.tax_no.clone(),
+            address: profile.address.clone(),
         }
     }
 
@@ -578,7 +650,11 @@ impl StandardForm {
     }
 
     /// 廉洁承诺书。
-    pub fn integrity_commitment(profile: &BidderProfile, project_name: &str, focus_clauses: Vec<String>) -> Self {
+    pub fn integrity_commitment(
+        profile: &BidderProfile,
+        project_name: &str,
+        focus_clauses: Vec<String>,
+    ) -> Self {
         StandardForm::IntegrityCommitment {
             tenderer: profile.company_name.clone(),
             project_name: project_name.to_string(),
@@ -590,7 +666,11 @@ impl StandardForm {
     ///
     /// 参数与 [`Self::bid_letter`] 等构造器一致；返回的 Vec 已排好序。
     pub fn render_all_markdown(forms: &[StandardForm]) -> String {
-        forms.iter().map(|f| f.to_markdown()).collect::<Vec<_>>().join("\n\n---\n\n")
+        forms
+            .iter()
+            .map(|f| f.to_markdown())
+            .collect::<Vec<_>>()
+            .join("\n\n---\n\n")
     }
 }
 
@@ -617,17 +697,36 @@ mod tests {
             postcode: "230000".into(),
             established_on: "2005-06-18".into(),
             qualification: "建筑工程施工总承包二级".into(),
+            personnel: vec![],
+            equipment: vec![],
         }
     }
 
     fn all_seven(p: &BidderProfile) -> Vec<StandardForm> {
         vec![
-            StandardForm::bid_letter(p, "智慧病房物联网平台建设项目", "ZHYY-2026-GK-018", 16_200_000.0, 180, 90),
+            StandardForm::bid_letter(
+                p,
+                "智慧病房物联网平台建设项目",
+                "ZHYY-2026-GK-018",
+                16_200_000.0,
+                180,
+                90,
+            ),
             StandardForm::legal_rep_certificate(p, "男"),
-            StandardForm::power_of_attorney(p, "智慧病房物联网平台建设项目", "参加本项目投标并签署投标文件"),
+            StandardForm::power_of_attorney(
+                p,
+                "智慧病房物联网平台建设项目",
+                "参加本项目投标并签署投标文件",
+            ),
             StandardForm::deposit_refund(p, "智慧病房物联网平台建设项目", 160_000.0),
             StandardForm::qualification_statement(p, "智慧病房物联网平台建设项目", true, true),
-            StandardForm::no_violation_statement(p, "智慧病房物联网平台建设项目", "2023-11-01", "2026-10-31", false),
+            StandardForm::no_violation_statement(
+                p,
+                "智慧病房物联网平台建设项目",
+                "2023-11-01",
+                "2026-10-31",
+                false,
+            ),
             StandardForm::integrity_commitment(p, "智慧病房物联网平台建设项目", vec![]),
         ]
     }
@@ -645,11 +744,19 @@ mod tests {
             assert!(!md.is_empty(), "{} 渲染为空", form.kind());
             assert!(md.starts_with("# "), "{} 要有一级标题: {md}", form.kind());
             assert!(md.contains(form.kind()), "{} 标题要带格式件名", form.kind());
-            assert!(md.contains(form.appendix_no()), "{} 要带附件编号", form.kind());
+            assert!(
+                md.contains(form.appendix_no()),
+                "{} 要带附件编号",
+                form.kind()
+            );
             assert!(md.contains("日期"), "{} 要有落款日期栏", form.kind());
             // 除授权委托书外，每件都直接携带投标人名称（授权书只写委托人/受托人）
             if form.kind() != "授权委托书" {
-                assert!(md.contains(&p.company_name), "{} 要带投标人名称", form.kind());
+                assert!(
+                    md.contains(&p.company_name),
+                    "{} 要带投标人名称",
+                    form.kind()
+                );
             }
             kinds.push(form.kind());
         }
@@ -715,11 +822,17 @@ mod tests {
         let p = profile();
         let forms = all_seven(&p);
         let bid_letter = forms[0].to_markdown();
-        assert!(bid_letter.contains("ZHYY-2026-GK-018"), "投标函要带项目编号");
+        assert!(
+            bid_letter.contains("ZHYY-2026-GK-018"),
+            "投标函要带项目编号"
+        );
         assert!(bid_letter.contains("16200000.00 元"), "投标函要带小写报价");
         assert!(bid_letter.contains("180 日历天"), "投标函要带工期");
         assert!(bid_letter.contains("90 日历天"), "投标函要带投标有效期");
-        assert!(!bid_letter.contains("廉洁承诺书"), "投标函不应混入廉洁承诺书");
+        assert!(
+            !bid_letter.contains("廉洁承诺书"),
+            "投标函不应混入廉洁承诺书"
+        );
 
         let cert = forms[1].to_markdown();
         assert!(cert.contains(&p.legal_rep_id), "身份证明书要带身份证号");
@@ -729,7 +842,10 @@ mod tests {
         assert!(poa.contains(&p.agent), "授权书要带受托人");
         assert!(poa.contains(&p.legal_rep), "授权书要带委托人");
         assert!(poa.contains(&p.agent_id), "授权书要带受托人身份证号");
-        assert!(poa.contains("权限") || poa.contains("范围"), "授权书要带授权范围");
+        assert!(
+            poa.contains("权限") || poa.contains("范围"),
+            "授权书要带授权范围"
+        );
 
         let refund = forms[3].to_markdown();
         assert!(refund.contains("160000.00 元"), "退还申请要带退还金额");
@@ -740,12 +856,18 @@ mod tests {
         assert!(qual.contains(&p.qualification), "资格声明要带资质等级");
 
         let nov = forms[5].to_markdown();
-        assert!(nov.contains("2023-11-01") && nov.contains("2026-10-31"), "声明要带查询区间");
+        assert!(
+            nov.contains("2023-11-01") && nov.contains("2026-10-31"),
+            "声明要带查询区间"
+        );
         assert!(!nov.contains("【存在】"), "无异常时不应落「存在」");
 
         let integ = forms[6].to_markdown();
         assert!(integ.contains("承诺"), "廉洁承诺书要有承诺体");
-        assert!(integ.contains("【重点条款】"), "条款为空时要落待填位而不是空行号");
+        assert!(
+            integ.contains("【重点条款】"),
+            "条款为空时要落待填位而不是空行号"
+        );
     }
 
     /// 验收 4：纯函数——同一格式件两次渲染逐字节相同。
@@ -753,7 +875,12 @@ mod tests {
     fn rendering_is_deterministic() {
         let p = profile();
         for form in all_seven(&p) {
-            assert_eq!(form.to_markdown(), form.to_markdown(), "{} 渲染不确定", form.kind());
+            assert_eq!(
+                form.to_markdown(),
+                form.to_markdown(),
+                "{} 渲染不确定",
+                form.kind()
+            );
         }
     }
 }

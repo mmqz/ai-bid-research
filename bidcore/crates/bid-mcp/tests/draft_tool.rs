@@ -80,6 +80,9 @@ fn svc_ready(tag: &str) -> (BidService, String, String) {
         valid_until: None,
         subject_name: "某建设工程有限公司".into(),
         scope: "水利水电工程施工".into(),
+        client: None,
+        amount_wan: None,
+        completed_on: None,
     }).unwrap();
     for rid in ["REQ-0001", "REQ-0002"] {
         svc.store_mut().bind_evidence(&eid, rid, "2026-12-31").unwrap();

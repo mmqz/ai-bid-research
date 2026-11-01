@@ -61,7 +61,7 @@ impl Deviation {
 /// 参数响应行（T-4 规格 struct 的 Rust 落地——字段对齐 issue #11 批次 v3）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParamResponse {
-    pub id: String,                    // PR-xxxx（store 单序列签发）
+    pub id: String, // PR-xxxx（store 单序列签发）
     pub requirement_id: String,
     pub param_name: String,
     /// 招标要求原文（如「≥100GB」「不低于 3 年」）
@@ -176,12 +176,17 @@ impl DomainStore {
     /// - content_version += 1（整批写入是显式写操作——set_outline 同款口径）。
     ///
     /// 返回 (总行数, 新增行数)。
-    pub fn set_param_responses(&mut self, rows: Vec<ParamInput>) -> Result<(usize, usize), ToolError> {
+    pub fn set_param_responses(
+        &mut self,
+        rows: Vec<ParamInput>,
+    ) -> Result<(usize, usize), ToolError> {
         let p = self.project()?;
         let allowed = matches!(
             p.status,
-            ProjectStatus::RequirementsExtracted | ProjectStatus::MatrixReady
-                | ProjectStatus::EvidenceBound | ProjectStatus::Drafting
+            ProjectStatus::RequirementsExtracted
+                | ProjectStatus::MatrixReady
+                | ProjectStatus::EvidenceBound
+                | ProjectStatus::Drafting
         );
         if !allowed {
             return Err(ToolError::EState {
@@ -259,14 +264,16 @@ impl DomainStore {
     /// 负偏离全量清单（**废标级查询面**——T-4 验收：植入的负偏离必须一条不漏；
     /// 导出前的死磕清单从这里来）。
     pub fn negative_deviations(&self) -> Vec<&ParamResponse> {
-        self.params.iter()
+        self.params
+            .iter()
             .filter(|pr| pr.deviation == Deviation::Negative)
             .collect()
     }
 
     /// 不可比清单（人工裁决工作面——诚实态显式列出，不混入无偏离假装太平）。
     pub fn incomparable_deviations(&self) -> Vec<&ParamResponse> {
-        self.params.iter()
+        self.params
+            .iter()
             .filter(|pr| pr.deviation == Deviation::Incomparable)
             .collect()
     }
@@ -276,34 +283,54 @@ impl DomainStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ParseStatus;
     use crate::evidence::{Evidence, EvidenceKind, EvidenceStatus};
     use crate::locator::EngineLocator;
+    use crate::ParseStatus;
     use std::collections::HashMap;
 
     /// 参数表基座：项目 + 文件 + N 条技术参数类 REQ（REQ-0003 起——extract 产物品格）。
     fn store_with_params_base(n_reqs: usize) -> DomainStore {
         let mut s = DomainStore::new();
-        s.create_project("参数项目", "C-PRM", "明标", "prm-key").unwrap();
-        s.upsert_file("A.docx", "招标文件", "sha-p", 5, 1, 50, 0,
-                      ParseStatus::Ok, "").unwrap();
-        let reqs: Vec<crate::Requirement> = (0..n_reqs).map(|i| crate::Requirement {
-            id: format!("REQ-{:04}", i + 3),
-            category: "技术参数".into(),
-            clause_no: Some(format!("5.{}", i + 1)),
-            anchors: vec![crate::Anchor {
-                file: "A".into(), kind: "table".into(),
-                locator: format!("技术参数表 > 第 {} 行", i + 1),
-                excerpt: format!("参数-{i} 的原文摘录"),
-            }],
-            params: HashMap::new(), source_file: "A".into(),
-        }).collect();
+        s.create_project("参数项目", "C-PRM", "明标", "prm-key")
+            .unwrap();
+        s.upsert_file(
+            "A.docx",
+            "招标文件",
+            "sha-p",
+            5,
+            1,
+            50,
+            0,
+            ParseStatus::Ok,
+            "",
+        )
+        .unwrap();
+        let reqs: Vec<crate::Requirement> = (0..n_reqs)
+            .map(|i| crate::Requirement {
+                id: format!("REQ-{:04}", i + 3),
+                category: "技术参数".into(),
+                clause_no: Some(format!("5.{}", i + 1)),
+                anchors: vec![crate::Anchor {
+                    file: "A".into(),
+                    kind: "table".into(),
+                    locator: format!("技术参数表 > 第 {} 行", i + 1),
+                    excerpt: format!("参数-{i} 的原文摘录"),
+                }],
+                params: HashMap::new(),
+                source_file: "A".into(),
+            })
+            .collect();
         s.set_requirements(reqs).unwrap();
         s
     }
 
-    fn input(req: &str, name: &str, required: &str, response: &str,
-             evidence: Option<&str>) -> ParamInput {
+    fn input(
+        req: &str,
+        name: &str,
+        required: &str,
+        response: &str,
+        evidence: Option<&str>,
+    ) -> ParamInput {
         ParamInput {
             requirement_id: req.into(),
             param_name: name.into(),
@@ -316,13 +343,25 @@ mod tests {
     /// 台账里塞一条活证据（产品资料类——参数佐证的典型形态）。
     fn push_evidence(s: &mut DomainStore, id: &str) {
         s.evidences.push(Evidence {
-            id: id.into(), kind: EvidenceKind::ProductDoc,
-            title: "产品检测报告".into(), source_file: "B.pdf".into(),
+            id: id.into(),
+            kind: EvidenceKind::ProductDoc,
+            title: "产品检测报告".into(),
+            source_file: "B.pdf".into(),
             source_sha256: format!("sha-{id}").into(),
-            locator: EngineLocator::PdfPageText { page: 1, text_fingerprint: format!("fnv64:{id}") },
+            locator: EngineLocator::PdfPageText {
+                page: 1,
+                text_fingerprint: format!("fnv64:{id}"),
+            },
             fingerprint: format!("fnv64:{id}").into(),
-            valid_from: None, valid_until: None,
-            subject_name: "S".into(), scope: "".into(), version: 1, status: EvidenceStatus::Active,
+            valid_from: None,
+            valid_until: None,
+            subject_name: "S".into(),
+            scope: "".into(),
+            client: None,
+            amount_wan: None,
+            completed_on: None,
+            version: 1,
+            status: EvidenceStatus::Active,
         });
     }
 
@@ -335,29 +374,53 @@ mod tests {
         // 响应值与要求相等或略优（数值 ≥ 要求），另植入恰好 3 行负偏离
         //（i=8/41/86——response < required）。
         const NAMES: [&str; 4] = ["存储容量", "并发用户数", "质保年限", "响应时间"];
-        let planted: [(usize, &str); 3] = [
-            (8, "存储容量"), (41, "并发用户数"), (86, "质保年限"),
-        ];
-        let rows: Vec<ParamInput> = (0..100usize).map(|i| {
-            let name = NAMES[i % 4];
-            let (required, response): (String, String) = match i {
-                // —— 植入的 3 行负偏离（response < required）——
-                8 => ("≥100GB".into(), "60GB".into()),
-                41 => ("不低于 1000 人".into(), "800 人".into()),
-                86 => ("不低于 3 年".into(), "2年".into()),
-                // —— 常规行：相等或略优 ——
-                _ if i % 4 == 0 => ("≥100GB".into(),
-                    if (i / 4) % 2 == 0 { "100GB".into() } else { "120GB".into() }),
-                _ if i % 4 == 1 => ("不低于 1000 人".into(),
-                    if (i / 4) % 3 == 0 { "1,000 人".into() } else { "1,200 人".into() }),
-                _ if i % 4 == 2 => ("不低于 3 年".into(),
-                    if (i / 4) % 2 == 0 { "3年".into() } else { "5年".into() }),
-                // 响应时间（方向敏感参数）：本批默认口径下只造相等——
-                // 不拿「响应快=数值小」制造语义反例（direction 覆写面留待 T-7）
-                _ => ("7×24 小时响应".into(), "7×24 小时响应".into()),
-            };
-            input(&format!("REQ-{:04}", i + 3), name, &required, &response, None)
-        }).collect();
+        let planted: [(usize, &str); 3] = [(8, "存储容量"), (41, "并发用户数"), (86, "质保年限")];
+        let rows: Vec<ParamInput> = (0..100usize)
+            .map(|i| {
+                let name = NAMES[i % 4];
+                let (required, response): (String, String) = match i {
+                    // —— 植入的 3 行负偏离（response < required）——
+                    8 => ("≥100GB".into(), "60GB".into()),
+                    41 => ("不低于 1000 人".into(), "800 人".into()),
+                    86 => ("不低于 3 年".into(), "2年".into()),
+                    // —— 常规行：相等或略优 ——
+                    _ if i % 4 == 0 => (
+                        "≥100GB".into(),
+                        if (i / 4) % 2 == 0 {
+                            "100GB".into()
+                        } else {
+                            "120GB".into()
+                        },
+                    ),
+                    _ if i % 4 == 1 => (
+                        "不低于 1000 人".into(),
+                        if (i / 4) % 3 == 0 {
+                            "1,000 人".into()
+                        } else {
+                            "1,200 人".into()
+                        },
+                    ),
+                    _ if i % 4 == 2 => (
+                        "不低于 3 年".into(),
+                        if (i / 4) % 2 == 0 {
+                            "3年".into()
+                        } else {
+                            "5年".into()
+                        },
+                    ),
+                    // 响应时间（方向敏感参数）：本批默认口径下只造相等——
+                    // 不拿「响应快=数值小」制造语义反例（direction 覆写面留待 T-7）
+                    _ => ("7×24 小时响应".into(), "7×24 小时响应".into()),
+                };
+                input(
+                    &format!("REQ-{:04}", i + 3),
+                    name,
+                    &required,
+                    &response,
+                    None,
+                )
+            })
+            .collect();
 
         let mut s = store_with_params_base(100);
         let (total, added) = s.set_param_responses(rows).unwrap();
@@ -366,23 +429,33 @@ mod tests {
         // 负偏离全检出：恰好 3 条，且正是植入的那 3 行
         let negatives = s.negative_deviations();
         assert_eq!(negatives.len(), 3, "植入 3 个负偏离必须全部检出（废标级）");
-        let got: Vec<(String, String)> = negatives.iter()
+        let got: Vec<(String, String)> = negatives
+            .iter()
             .map(|pr| (pr.requirement_id.clone(), pr.param_name.clone()))
             .collect();
-        let expect: Vec<(String, String)> = planted.iter()
+        let expect: Vec<(String, String)> = planted
+            .iter()
             .map(|&(i, name)| (format!("REQ-{:04}", i + 3), name.to_string()))
             .collect();
         assert_eq!(got, expect, "检出的正是植入的 3 行（REQ × param_name）");
-        assert!(negatives.iter().all(|pr| pr.deviation.is_bid_fatal()),
-            "负偏离全部 is_bid_fatal=true（废标级口径）");
+        assert!(
+            negatives.iter().all(|pr| pr.deviation.is_bid_fatal()),
+            "负偏离全部 is_bid_fatal=true（废标级口径）"
+        );
 
         // 其余 97 行：无偏离或正偏离（不得有漏网的负偏离/不可比）
-        let others: Vec<&ParamResponse> = s.param_responses().iter()
+        let others: Vec<&ParamResponse> = s
+            .param_responses()
+            .iter()
             .filter(|pr| !negatives.iter().any(|n| n.id == pr.id))
             .collect();
         assert_eq!(others.len(), 97);
-        assert!(others.iter().all(|pr| matches!(pr.deviation,
-            Deviation::None | Deviation::Positive)), "非植入行 ∈ 无偏离/正偏离");
+        assert!(
+            others
+                .iter()
+                .all(|pr| matches!(pr.deviation, Deviation::None | Deviation::Positive)),
+            "非植入行 ∈ 无偏离/正偏离"
+        );
         // 夹具自检：97 行里两类都有（相等面与略优面都被覆盖）
         assert!(others.iter().any(|pr| pr.deviation == Deviation::None));
         assert!(others.iter().any(|pr| pr.deviation == Deviation::Positive));
@@ -392,26 +465,53 @@ mod tests {
     #[test]
     fn numeric_comparison_variants() {
         // 千分位逗号容忍：1,000 == 1000 → 无偏离
-        assert_eq!(derive_deviation("1,000", "1000"), Deviation::None, "千分位等值");
-        assert_eq!(derive_deviation("1,000", "1,200"), Deviation::Positive, "千分位比较");
+        assert_eq!(
+            derive_deviation("1,000", "1000"),
+            Deviation::None,
+            "千分位等值"
+        );
+        assert_eq!(
+            derive_deviation("1,000", "1,200"),
+            Deviation::Positive,
+            "千分位比较"
+        );
         // 单位前后缀容忍：3年 < 5年 → 正偏离；100GB > 60GB → 负偏离
         assert_eq!(derive_deviation("3年", "5年"), Deviation::Positive);
         assert_eq!(derive_deviation("100GB", "60GB"), Deviation::Negative);
-        assert_eq!(derive_deviation("≥100GB", "120GB"), Deviation::Positive, "≥ 前缀容忍");
+        assert_eq!(
+            derive_deviation("≥100GB", "120GB"),
+            Deviation::Positive,
+            "≥ 前缀容忍"
+        );
         // 单侧无数值：response 走语义（「满足」→ 无偏离）
-        assert_eq!(derive_deviation("不低于 3 年", "满足"), Deviation::None,
-            "response 无数值走语义标记");
+        assert_eq!(
+            derive_deviation("不低于 3 年", "满足"),
+            Deviation::None,
+            "response 无数值走语义标记"
+        );
     }
 
     /// 语义标记三态 + 不可比诚实态 + as_str/is_bid_fatal 口径。
     #[test]
     fn semantic_markers_and_incomparable() {
-        assert_eq!(derive_deviation("支持国产化适配", "满足招标要求"), Deviation::None);
-        assert_eq!(derive_deviation("支持国产化适配", "优于招标要求"), Deviation::Positive);
-        assert_eq!(derive_deviation("支持国产化适配", "低于要求"), Deviation::Negative);
+        assert_eq!(
+            derive_deviation("支持国产化适配", "满足招标要求"),
+            Deviation::None
+        );
+        assert_eq!(
+            derive_deviation("支持国产化适配", "优于招标要求"),
+            Deviation::Positive
+        );
+        assert_eq!(
+            derive_deviation("支持国产化适配", "低于要求"),
+            Deviation::Negative
+        );
         // 两侧都无数值且无标记词 → 不可比（不猜测）
-        assert_eq!(derive_deviation("详见技术白皮书", "≥5A 安全等级"), Deviation::Incomparable,
-            "无数值无标记 → 诚实态不可比");
+        assert_eq!(
+            derive_deviation("详见技术白皮书", "≥5A 安全等级"),
+            Deviation::Incomparable,
+            "无数值无标记 → 诚实态不可比"
+        );
         // 展示名与废标级口径
         assert_eq!(Deviation::None.as_str(), "NONE");
         assert_eq!(Deviation::Positive.as_str(), "POSITIVE");
@@ -420,22 +520,37 @@ mod tests {
         assert!(Deviation::Negative.is_bid_fatal(), "负偏离 = 废标级");
         assert!(!Deviation::None.is_bid_fatal());
         assert!(!Deviation::Positive.is_bid_fatal());
-        assert!(!Deviation::Incomparable.is_bid_fatal(), "不可比 ≠ 不合格（待裁决）");
+        assert!(
+            !Deviation::Incomparable.is_bid_fatal(),
+            "不可比 ≠ 不合格（待裁决）"
+        );
     }
 
     /// 「万」单位解析（×10000）与千分位互通。
     #[test]
     fn wan_unit_parsing() {
-        assert_eq!(derive_deviation("100万", "1,000,000"), Deviation::None,
-            "100万 == 1,000,000（万 ×10000 与千分位等值——两侧对称，排列不敏感）");
+        assert_eq!(
+            derive_deviation("100万", "1,000,000"),
+            Deviation::None,
+            "100万 == 1,000,000（万 ×10000 与千分位等值——两侧对称，排列不敏感）"
+        );
         // 规格「"50万" vs "100万" → Negative」的落位：要求 100万、响应 50万
         // （响应不足要求）——负偏离；数值大=优默认口径下这是唯一成立排列
-        assert_eq!(derive_deviation("100万", "50万"), Deviation::Negative,
-            "响应 50万 不足要求 100万 → 负偏离（废标级）");
-        assert_eq!(derive_deviation("50万", "100万"), Deviation::Positive,
-            "要求 50万、响应 100万 → 正偏离（数值大=优默认口径）");
-        assert_eq!(derive_deviation("注册资金 100万元", "注册资金 150万"), Deviation::Positive,
-            "前后缀文字下「万」仍然生效");
+        assert_eq!(
+            derive_deviation("100万", "50万"),
+            Deviation::Negative,
+            "响应 50万 不足要求 100万 → 负偏离（废标级）"
+        );
+        assert_eq!(
+            derive_deviation("50万", "100万"),
+            Deviation::Positive,
+            "要求 50万、响应 100万 → 正偏离（数值大=优默认口径）"
+        );
+        assert_eq!(
+            derive_deviation("注册资金 100万元", "注册资金 150万"),
+            Deviation::Positive,
+            "前后缀文字下「万」仍然生效"
+        );
     }
 
     /// 幂等合并 + id 稳定：同批重放零新增零漂移；改值原位覆盖。
@@ -466,8 +581,11 @@ mod tests {
         let (n3, a3) = s.set_param_responses(rows3).unwrap();
         assert_eq!((n3, a3), (3, 0), "覆盖不新增");
         assert_eq!(s.param_responses()[0].id, target_id, "原位覆盖保留原 id");
-        assert_eq!(s.param_responses()[0].deviation, Deviation::Negative,
-            "覆盖后偏离重派生（120GB→60GB 翻负）");
+        assert_eq!(
+            s.param_responses()[0].deviation,
+            Deviation::Negative,
+            "覆盖后偏离重派生（120GB→60GB 翻负）"
+        );
         assert_eq!(s.negative_deviations().len(), 1, "翻负立即进入废标级查询面");
         assert_eq!(s.content_version(), v2 + 1, "改值写入 bump content_version");
         assert!(s.content_version() > v1, "版本单调递增");
@@ -477,24 +595,40 @@ mod tests {
     #[test]
     fn ghost_requirement_and_evidence_rejected() {
         let mut s = store_with_params_base(2); // REQ-0003..REQ-0004
-        // 幽灵 REQ → 拒（零残留）
-        let err = s.set_param_responses(vec![input("REQ-9999", "存储容量", "≥100GB", "120GB", None)])
+                                               // 幽灵 REQ → 拒（零残留）
+        let err = s
+            .set_param_responses(vec![input("REQ-9999", "存储容量", "≥100GB", "120GB", None)])
             .unwrap_err();
         assert_eq!(err.code(), "E_UNPROCESSABLE", "幽灵条款拒");
         assert_eq!(s.param_responses().len(), 0, "拒绝路径零残留");
         // 幽灵证据 → 拒
-        let err = s.set_param_responses(vec![input("REQ-0003", "存储容量", "≥100GB", "120GB",
-                                                    Some("EV-9999"))])
+        let err = s
+            .set_param_responses(vec![input(
+                "REQ-0003",
+                "存储容量",
+                "≥100GB",
+                "120GB",
+                Some("EV-9999"),
+            )])
             .unwrap_err();
         assert_eq!(err.code(), "E_UNPROCESSABLE", "幽灵证据拒");
         assert_eq!(s.param_responses().len(), 0, "拒绝路径零残留");
         // 真证据在台账 → 放行且随行
         push_evidence(&mut s, "EV-0001");
-        let (n, added) = s.set_param_responses(vec![input("REQ-0003", "存储容量", "≥100GB", "120GB",
-                                                           Some("EV-0001"))])
+        let (n, added) = s
+            .set_param_responses(vec![input(
+                "REQ-0003",
+                "存储容量",
+                "≥100GB",
+                "120GB",
+                Some("EV-0001"),
+            )])
             .unwrap();
         assert_eq!((n, added), (1, 1));
-        assert_eq!(s.param_responses()[0].evidence_id.as_deref(), Some("EV-0001"));
+        assert_eq!(
+            s.param_responses()[0].evidence_id.as_deref(),
+            Some("EV-0001")
+        );
     }
 
     /// 状态门：FILES_IMPORTED（未抽条款）拒；REQUIREMENTS_EXTRACTED 放行。
@@ -502,20 +636,33 @@ mod tests {
     fn state_gate_rejects_early() {
         let mut s = DomainStore::new();
         s.create_project("p", "c", "明标", "k-prm").unwrap();
-        s.upsert_file("f", "招标文件", "sha-x", 1, 0, 5, 0, ParseStatus::Ok, "").unwrap();
-        let err = s.set_param_responses(vec![input("REQ-0003", "存储容量", "≥100GB", "120GB", None)])
+        s.upsert_file("f", "招标文件", "sha-x", 1, 0, 5, 0, ParseStatus::Ok, "")
+            .unwrap();
+        let err = s
+            .set_param_responses(vec![input("REQ-0003", "存储容量", "≥100GB", "120GB", None)])
             .unwrap_err();
         assert_eq!(err.code(), "E_STATE", "FILES_IMPORTED 无条款不可写参数表");
         assert_eq!(s.param_responses().len(), 0, "状态门拒绝零副作用");
         // 推到 REQUIREMENTS_EXTRACTED 后放行
         s.set_requirements(vec![crate::Requirement {
-            id: "REQ-0003".into(), category: "技术参数".into(), clause_no: None,
-            anchors: vec![crate::Anchor { file: "f".into(), kind: "para".into(),
-                locator: "第三章".into(), excerpt: "技术参数响应表合成件".into() }],
-            params: HashMap::new(), source_file: "f".into(),
-        }]).unwrap();
-        assert!(s.set_param_responses(vec![input("REQ-0003", "存储容量", "≥100GB", "120GB", None)]).is_ok(),
-            "REQUIREMENTS_EXTRACTED 可写参数表");
+            id: "REQ-0003".into(),
+            category: "技术参数".into(),
+            clause_no: None,
+            anchors: vec![crate::Anchor {
+                file: "f".into(),
+                kind: "para".into(),
+                locator: "第三章".into(),
+                excerpt: "技术参数响应表合成件".into(),
+            }],
+            params: HashMap::new(),
+            source_file: "f".into(),
+        }])
+        .unwrap();
+        assert!(
+            s.set_param_responses(vec![input("REQ-0003", "存储容量", "≥100GB", "120GB", None)])
+                .is_ok(),
+            "REQUIREMENTS_EXTRACTED 可写参数表"
+        );
     }
 
     /// 确定性：同输入两次调用结果一致（对照 outline derive_is_deterministic 模式）。
@@ -551,10 +698,16 @@ mod tests {
         let mut s = store_with_params_base(4); // REQ-0003..REQ-0006
         push_evidence(&mut s, "EV-0001");
         let rows = vec![
-            input("REQ-0003", "存储容量", "1,000 点", "1000 点", None),        // 无偏离
-            input("REQ-0004", "并发用户数", "≥100 人", "200 人", None),          // 正偏离
-            input("REQ-0005", "质保年限", "不低于 3 年", "2年", None),           // 负偏离（废标级）
-            input("REQ-0006", "安全等级", "详见技术白皮书", "≥5A 安全等级", Some("EV-0001")), // 不可比 + 带证据
+            input("REQ-0003", "存储容量", "1,000 点", "1000 点", None), // 无偏离
+            input("REQ-0004", "并发用户数", "≥100 人", "200 人", None), // 正偏离
+            input("REQ-0005", "质保年限", "不低于 3 年", "2年", None),  // 负偏离（废标级）
+            input(
+                "REQ-0006",
+                "安全等级",
+                "详见技术白皮书",
+                "≥5A 安全等级",
+                Some("EV-0001"),
+            ), // 不可比 + 带证据
         ];
         s.set_param_responses(rows).unwrap();
         let before = s.param_responses().to_vec();
@@ -568,23 +721,45 @@ mod tests {
         // 参数表全量在位（逐行全等——偏离判定跨重启不漂移）
         assert_eq!(s2.param_responses(), before.as_slice(), "params 往返全等");
         // 废标级查询面等价（重开后的负偏离清单不缩水）
-        let neg2: Vec<(&str, &str)> = s2.negative_deviations().iter()
-            .map(|pr| (pr.requirement_id.as_str(), pr.param_name.as_str())).collect();
+        let neg2: Vec<(&str, &str)> = s2
+            .negative_deviations()
+            .iter()
+            .map(|pr| (pr.requirement_id.as_str(), pr.param_name.as_str()))
+            .collect();
         assert_eq!(neg2, vec![("REQ-0005", "质保年限")], "负偏离清单往返等价");
-        let inc2: Vec<(&str, &str)> = s2.incomparable_deviations().iter()
-            .map(|pr| (pr.requirement_id.as_str(), pr.param_name.as_str())).collect();
+        let inc2: Vec<(&str, &str)> = s2
+            .incomparable_deviations()
+            .iter()
+            .map(|pr| (pr.requirement_id.as_str(), pr.param_name.as_str()))
+            .collect();
         assert_eq!(inc2, vec![("REQ-0006", "安全等级")], "不可比清单往返等价");
         // 证据随行
-        assert_eq!(s2.param_responses().iter().find(|pr| pr.param_name == "安全等级")
-            .and_then(|pr| pr.evidence_id.clone()).as_deref(), Some("EV-0001"));
+        assert_eq!(
+            s2.param_responses()
+                .iter()
+                .find(|pr| pr.param_name == "安全等级")
+                .and_then(|pr| pr.evidence_id.clone())
+                .as_deref(),
+            Some("EV-0001")
+        );
 
         // 重开后继续写入：新签 PR id 单调不碰撞（水位随快照走——mdcore 审计序号同款）
-        let old_ids: Vec<String> = s2.param_responses().iter().map(|pr| pr.id.clone()).collect();
-        let (n, added) = s2.set_param_responses(vec![input("REQ-0006", "投标保证金", "10万", "10万", None)])
+        let old_ids: Vec<String> = s2
+            .param_responses()
+            .iter()
+            .map(|pr| pr.id.clone())
+            .collect();
+        let (n, added) = s2
+            .set_param_responses(vec![input("REQ-0006", "投标保证金", "10万", "10万", None)])
             .unwrap();
         assert_eq!((n, added), (5, 1), "重开后可继续补录");
-        let new_id = s2.param_responses().iter()
-            .find(|pr| pr.param_name == "投标保证金").unwrap().id.clone();
+        let new_id = s2
+            .param_responses()
+            .iter()
+            .find(|pr| pr.param_name == "投标保证金")
+            .unwrap()
+            .id
+            .clone();
         assert!(!old_ids.contains(&new_id), "新签 id 不与恢复的 id 碰撞");
     }
 
@@ -599,7 +774,8 @@ mod tests {
         s.set_param_responses(vec![
             input("REQ-0003", "存储容量", "≥100GB", "120GB", None),
             input("REQ-0004", "质保年限", "不低于 3 年", "3年", None),
-        ]).unwrap();
+        ])
+        .unwrap();
         let mut snap = s.to_snapshot();
         // 人工破坏：复制首行造重复 id（JSON 完全合法——语义校验面拦截）
         let dup = snap.params[0].clone();
@@ -611,6 +787,9 @@ mod tests {
             Err(e) => e,
         };
         assert_eq!(err.code(), "E_UNPROCESSABLE");
-        assert!(format!("{err:?}").contains("params id 重复"), "错误面可辨识: {err:?}");
+        assert!(
+            format!("{err:?}").contains("params id 重复"),
+            "错误面可辨识: {err:?}"
+        );
     }
 }

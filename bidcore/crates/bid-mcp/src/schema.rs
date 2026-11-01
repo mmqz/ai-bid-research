@@ -86,9 +86,15 @@ impl<'de> Deserialize<'de> for ToolReply {
         }
         let raw = Raw::deserialize(deserializer)?;
         match (raw.ok, raw.data, raw.error) {
-            (true, Some(result), _) => Ok(Self::Ok(ToolOutcome { tool: raw.tool, result })),
+            (true, Some(result), _) => Ok(Self::Ok(ToolOutcome {
+                tool: raw.tool,
+                result,
+            })),
             (true, None, _) => Err(serde::de::Error::custom("ok=true 但缺 data")),
-            (false, _, Some(error)) => Ok(Self::Err { tool: raw.tool, error }),
+            (false, _, Some(error)) => Ok(Self::Err {
+                tool: raw.tool,
+                error,
+            }),
             (false, _, None) => Err(serde::de::Error::custom("ok=false 但缺 error")),
         }
     }
@@ -121,12 +127,12 @@ fn describe(name: &str) -> &'static str {
         "search_evidence" => "双通道证据检索（M2-b 落地时必须走 cursor.rs 游标模块）",
         "draft_response_section" => "单章起草（引用回查后写内核）",
         "validate_bid_document" => "双层校验（确定性规则 + 模型复核）",
-        "export_bid_document" => "导出（含暗标模式）",
+        "export_bid_document" => "导出（含暗标模式；#117 表格接线——profile.bid_amount/price_breakdown 报价决策，六表自动注入/附表）",
         "get_bid_project_state" => "只读：项目状态与 allowed_next_tools",
         "save_version" => "AI 主动存版本快照（mang-snap 同源）",
         "check_bid_quality" => "只读：生成质量覆盖度检查 + 报告落盘（#68 阶段 2）",
         "build_outline" => "建纲 + 矩阵首建（G1——#80 第三批补齐；REQUIREMENTS_EXTRACTED 态）",
-        "register_evidence" => "证据登记（G2——语义位查重/换版；MATRIX_READY+）",
+        "register_evidence" => "证据登记（G2——语义位查重/换版；MATRIX_READY+；业绩类可带 client/amount_wan/completed_on 业务面）",
         "bind_evidence" => "证据批量绑定 + 矩阵重算（G2——EXPIRED 禁绑；MATRIX_READY+）",
         "record_review_gate" => "三门记审（G3——matrix/outline/pre_export；reviewer 须 human: 前缀）",
         "score_price" => "价格分试算 + 最优报价反推（#100 任务 3——纯计算器，B1 五方法只调用不改）",

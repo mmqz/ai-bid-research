@@ -108,6 +108,7 @@ fn svc_export_ready(tag: &str, n_reqs: usize, target_chars: u32) -> (BidService,
         client: None,
         amount_wan: None,
         completed_on: None,
+        fields: Default::default(), // #147
     }).unwrap();
     let must: Vec<String> = svc.store().requirements().iter()
         // #110 任务 1 缺失回报闸：技术参数类也须证据佐证（否则 draft 拒生成）

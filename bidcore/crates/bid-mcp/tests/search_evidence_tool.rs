@@ -102,6 +102,7 @@ fn ev(
         client: None,
         amount_wan: None,
         completed_on: None,
+        fields: Default::default(), // #147
     };
     for (k, v) in extra {
         match *k {

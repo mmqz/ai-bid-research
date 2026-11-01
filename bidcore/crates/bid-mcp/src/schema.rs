@@ -362,6 +362,23 @@ fn input_schema(name: &str) -> Value {
                 "client": {"type": "string", "description": "业绩类：发包人（#117）"},
                 "amount_wan": {"type": "number", "description": "业绩类：合同金额（万元）"},
                 "completed_on": {"type": "string", "description": "业绩类：完成日期"},
+                "fields": {
+                    "type": "object",
+                    "description": "结构化字段（#147——search_evidence exact 通道的精确查询面：cert 查 cert_name/cert_no、amount 查 amount_wan、date 查 signed_at/finished_at）。全部可选；非法日期/负金额/年限 > 100 → E_UNPROCESSABLE",
+                    "properties": {
+                        "project_name": {"type": "string", "description": "合同/业绩：项目名称"},
+                        "client": {"type": "string", "description": "合同/业绩：发包人/建设单位"},
+                        "amount_wan": {"type": "number", "minimum": 0, "description": "合同/业绩：合同金额（万元，>= 0）"},
+                        "signed_at": {"type": "string", "description": "合同/业绩：签订日期（YYYY-MM-DD）"},
+                        "finished_at": {"type": "string", "description": "合同/业绩：完成日期（YYYY-MM-DD）"},
+                        "cert_name": {"type": "string", "description": "证书/资质：证书名称"},
+                        "cert_no": {"type": "string", "description": "证书/资质：证书编号"},
+                        "issuer": {"type": "string", "description": "证书/资质：发证机关"},
+                        "person_name": {"type": "string", "description": "人员：姓名"},
+                        "person_title": {"type": "string", "description": "人员：职称"},
+                        "years": {"type": "integer", "minimum": 0, "maximum": 100, "description": "人员：从业年限（<= 100）"}
+                    }
+                },
                 "project_version": pv
             },
             "required": ["project_id", "kind", "title", "source_file", "source_sha256", "subject_name"]
@@ -464,7 +481,7 @@ fn describe(name: &str) -> &'static str {
         "save_version" => "AI 主动存版本快照（mang-snap 同源）",
         "check_bid_quality" => "只读：生成质量覆盖度检查 + 报告落盘（#68 阶段 2）",
         "build_outline" => "建纲 + 矩阵首建（G1——#80 第三批补齐；REQUIREMENTS_EXTRACTED 态）",
-        "register_evidence" => "证据登记（G2——语义位查重/换版；MATRIX_READY+；业绩类可带 client/amount_wan/completed_on 业务面）",
+        "register_evidence" => "证据登记（G2——语义位查重/换版；MATRIX_READY+；业绩类可带 client/amount_wan/completed_on 业务面；结构化字段走可选 fields 对象）",
         "bind_evidence" => "证据批量绑定 + 矩阵重算（G2——EXPIRED 禁绑；MATRIX_READY+）",
         "record_review_gate" => "三门记审（G3——matrix/outline/pre_export；reviewer 须 human: 前缀）",
         "score_price" => "价格分试算 + 最优报价反推（#100 任务 3——纯计算器，B1 五方法只调用不改）",

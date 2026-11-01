@@ -142,6 +142,7 @@ fn evidence_store(n: usize) -> (BidService, String) {
                 client: None,
                 amount_wan: None,
                 completed_on: None,
+                fields: Default::default(), // #147
             })
             .unwrap();
         }
@@ -168,6 +169,7 @@ fn evidence_store(n: usize) -> (BidService, String) {
                 client: None,
                 amount_wan: None,
                 completed_on: None,
+                fields: Default::default(), // #147
             })
             .unwrap();
     }

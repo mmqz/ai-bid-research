@@ -267,6 +267,7 @@ fn ensure_prepared(svc: &mut BidService, ws: &Path) -> (String, String) {
             client: None,
             amount_wan: None,
             completed_on: None,
+            fields: Default::default(), // #147
         })
         .unwrap();
     let qual_ids: Vec<String> = svc

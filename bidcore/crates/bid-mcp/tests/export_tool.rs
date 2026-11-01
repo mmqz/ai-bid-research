@@ -111,6 +111,7 @@ fn svc_drafted(tag: &str, format_req: bool) -> (BidService, String, std::path::P
         client: None,
         amount_wan: None,
         completed_on: None,
+        fields: Default::default(), // #147
     }).unwrap();
     for rid in ["REQ-0001", "REQ-0002"] {
         svc.store_mut().bind_evidence(&eid, rid, "2026-12-31").unwrap();
@@ -293,6 +294,7 @@ fn export_blocked_by_unresponded_mandatory_rows() {
         client: None,
         amount_wan: None,
         completed_on: None,
+        fields: Default::default(), // #147
     }).unwrap();
     let parents: std::collections::HashSet<String> = svc.store().sections().iter()
         .filter_map(|n| n.parent_id.clone()).collect();

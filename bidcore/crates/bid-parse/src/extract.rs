@@ -287,6 +287,25 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
         "巡检|软件版本|功能检查|质保期|编制水平|内容完整性"
     ))
     .unwrap();
+    // #144：名词「负责人」（单位负责人/技术负责人/项目负责人——身份描述）
+    // 不是程序动词「负责」——**仅在评审表/定义组语义场内剥离名词**后再匹配
+    // （保守面：非语义场的「技术负责人应具有…职称」类资格条款仍走原守卫）。
+    // 实测误杀面：A-01/A-05 形式评审表「单位负责人为同一人…不得参加同一
+    // 标段…」与 9.2.2 本单位人员定义组（「技术负责人、财务负责人…不是本
+    // 单位人员」——语境被杀后续 ⑴聘任/⑵工资全部失语境——GT round-2 增补
+    // 目标）。
+    let procedure_hit = |t: &str| -> bool {
+        let stripped = if t.contains("单位负责人为同一人")
+            || t.contains("本单位人员")
+            || t.contains("聘任合同")
+            || t.contains("工资关系")
+        {
+            t.replace("负责人", "")
+        } else {
+            t.to_string()
+        };
+        re_procedure.is_match(&stripped)
+    };
     // 列举条目（（N）/N、/⑴⑵⑶ 圈号——语境传播对象；「3.5.2」条款号排除）。
     // #68 阶段 4 扩面（missed 样例驱动——审查表条目的 pdftotext 残影形态）：
     //   「1.投标范围符合…」「7 投标文件的正本…」——点号/空格分隔的裸数字条目
@@ -402,9 +421,24 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
         }).collect()
     };
 
+    // #144 审查表接管（PDF 线性化附表——形式评审表/初评表等）：
+    // review_table 装配消费的行（含孤立序号行）扩展到整段后从主循环剔除
+    // （防段落重组双抽）；结构化条目在主循环后统一 REQ 化（表名行不剔除——
+    // 留给旧链开审查语境，与既有行为一致）。
+    let (review_items, review_used) = crate::review_table::extract_pdf_linearized(f);
+    let review_consumed: std::collections::HashSet<usize> = review_used
+        .iter()
+        .filter(|&&rb| rb < blocks.len())
+        .flat_map(|&rb| para_start[rb]..=para_end[rb])
+        .collect();
+
     let mut seen_para = std::collections::HashSet::new();
     for (i, b) in blocks.iter().enumerate() {
         if !matches!(b.kind, BlockKind::PdfLine | BlockKind::OcrLine) {
+            continue;
+        }
+        // #144 审查表接管：被装配行（含其段落成员）跳过既有逐行分支
+        if review_consumed.contains(&i) {
             continue;
         }
         let t = b.text.trim();
@@ -514,7 +548,7 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
             && t.chars().filter(|c| !c.is_whitespace()).count() >= 5
             && !(chapter.contains("格式") && !review_strong)
             && !is_checklist_doc(&para)
-            && !re_procedure.is_match(&para)
+            && !procedure_hit(&para)
             && !re_score_line.is_match(t)
             && !is_template_shape(&para)
             // K4：履约主体守卫（与 veto_hit 的 perf_ctx 同口径）——
@@ -537,7 +571,7 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
             push_req(reqs, seq, "否决项", None, para_anchors(i, pend), HashMap::new(), &f.name);
         } else if review_ctx && re_conformance.is_match(t) && t.chars().count() >= 6
             && !is_checklist_doc(&para)
-            && !re_procedure.is_match(&para)
+            && !procedure_hit(&para)
             && !is_template_shape(&para)
         {
             // 审查语境内符合性行（「投标人名称应与…一致」——非圈号形态）
@@ -569,6 +603,33 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
                 veto_ctx = false;
             }
         }
+    }
+
+    // #144 审查表条目 REQ 化：表7/表8 面（形式评审表/初评表等附表形态）→
+    // 否决项（表级脚注「任何一项未通过的，评标委员会应当否决其投标」——
+    // round-1 GT 判例口径：评审表行 = true）；详细评审面 → 评分项。
+    // 锚 = 装配行文本（孤立序号行不入锚——GT 对齐口径；locator 取首块定位）。
+    for it in &review_items {
+        let cat = match it.kind {
+            crate::review_table::ReviewTableKind::Detailed => "评分项",
+            _ => "否决项",
+        };
+        let locator = it
+            .block_idxs
+            .first()
+            .and_then(|&bi| f.blocks.get(bi).map(|b| b.locator.clone()))
+            .unwrap_or_else(|| it.locator.clone());
+        push_req(
+            reqs, seq, cat,
+            Some(format!("{}-{}", it.table_name, it.row)),
+            vec![Anchor {
+                file: f.name.clone(),
+                kind: "table".into(),
+                locator,
+                excerpt: it.item.clone(),
+            }],
+            HashMap::new(), &f.name,
+        );
     }
 }
 
@@ -660,6 +721,17 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
     let re_chapter_line = Regex::new(r"^第\s*[0-9一二三四五六七八九十百]+\s*(章|篇|部分)").unwrap();
 
     let blocks = &f.blocks;
+    // #144 审查表接管（DOCX 表格侧）：块位 → 结构化条目（区域接管防双抽）。
+    // 表7/表8 → 资格条件（必选废标面——矩阵 blocking）；表9 → 评分项 +
+    // params.score 承载标准分（整数形态——矩阵 as_i64 消费口径）。
+    let review_map: HashMap<usize, crate::review_table::ReviewItem> =
+        crate::review_table::extract_docx_tables(f)
+            .into_iter()
+            .flat_map(|it| {
+                let idxs = it.block_idxs.clone();
+                idxs.into_iter().map(move |bi| (bi, it.clone()))
+            })
+            .collect();
     let mut bi = 0usize;
     while bi < blocks.len() {
     let b = &blocks[bi];
@@ -769,6 +841,38 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                 }
             }
             BlockKind::TableRow => {
+                // #144 审查表接管：数据行 → 结构化 REQ（旧链不走——防双抽）；
+                // 表头形状行只消费（防旧链误开语境/误产 REQ）。
+                if let Some(ri) = review_map.get(&b.idx) {
+                    let mut params = HashMap::new();
+                    if let Some(sc) = ri.score {
+                        params.insert(
+                            "score".into(),
+                            if sc.fract() == 0.0 {
+                                serde_json::json!(sc as i64)
+                            } else {
+                                serde_json::json!(sc)
+                            },
+                        );
+                    }
+                    if let Some(rules) = &ri.score_rules {
+                        params.insert(
+                            "score_rules".into(),
+                            serde_json::Value::String(rules.clone()),
+                        );
+                    }
+                    let cat = match ri.kind {
+                        crate::review_table::ReviewTableKind::Detailed => "评分项",
+                        _ => "资格条件",
+                    };
+                    push_req(
+                        reqs, seq, cat,
+                        Some(format!("{}-{}", ri.table_name, ri.row)),
+                        vec![anchor(f, b)], params, &f.name,
+                    );
+                } else if crate::review_table::recognize_header(&b.cells).is_some() {
+                    // 审查表表头行——只消费不产出
+                } else {
                 // 表切换检测（locator 表号变化）
                 let tbl_key = table_key_of(&b.locator);
                 if cur_table.as_deref() != Some(tbl_key.as_str()) {
@@ -808,6 +912,7 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                     push_req(reqs, seq, "技术参数", last_numbered_head.clone(),
                              vec![anchor(f, b)], params, &f.name);
                 }
+                } // #144：审查表接管 else 块闭合
             }
             _ => {}
         }

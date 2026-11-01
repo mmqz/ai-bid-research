@@ -21,22 +21,31 @@ fn model_regex() -> Regex {
     Regex::new(r"[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+").unwrap()
 }
 
+/// 纯 NFKC（不剥空白）——**只用于章节/小节识别**，不改任何落库数据。
+///
+/// 真实政采平台 PDF 的文本层用康熙部首区编码汉字（「第⼀章」的「⼀」
+/// 是 U+2F00 不是 U+4E00），导致章名正则匹配不到 → 全部落「其他」。
+/// 只在**匹配瞬间**归一化，anchor/text 保持原文——
+/// 这样块对齐（locator/text 精确比较）不受影响。
+fn nfkc(s: &str) -> String {
+    use unicode_normalization::UnicodeNormalization;
+    s.nfkc().collect()
+}
+
 pub fn extract_requirements(files: &[ParsedFile]) -> Vec<Requirement> {
     // 【真实文件驱动修复】PDF 文本层的康熙部首污染（2026-11 实测）：
     //
-    // 真实招标 PDF（黑龙江政采平台导出）文本层用了 Unicode 康熙部首区
-    // （U+2F00-2FDF）与 CJK 部首补充区（U+2E80-2EFF）编码汉字：
+    // 真实招标 PDF（黑龙江政采平台导出）文本层用了 Unicode 康熙部首区：
     //   「第⼀章」的「⼀」是 U+2F00 KANGXI RADICAL ONE，不是 U+4E00「一」
+    // 后果：re_chapter 匹配不到 → 章名全空 → 全部落「其他」。
     //
-    // 后果：`re_chapter`（^第\s*([0-9一二三...])\s*章）匹配不到 → 章名全空
-    // → category_for 全部落「其他」→ 三张核心审查表（资格性/符合性/详细
-    // 评审）一条都没识别。实测该文件 4,012 字（8.14%）是部首。
-    //
-    // 修法：抽取前统一 NFKC 归一化（U+2F00-2FDF 全部映射回标准汉字）。
-    // 注意 NFKC **不能**修 U+2E80-2EFF（CJK 部首补充，如 ⻚U+2EDA）；
-    // 这类残留 246 字已登记为已知限制（见 issue 补充）。
-    let normalized: Vec<ParsedFile> = files.iter().map(normalize_file_nfkc).collect();
-    let files: &[ParsedFile] = &normalized;
+    // 【修法演进】（两次回归的教训）：
+    //   ① 首版：对 ParsedFile 全量归一化 → 打挂水科红线（L1 0.22/0.97）。
+    //      原因：anchor 来自归一化 blocks、`svc.parsed()` 是原始 blocks，
+    //      块对齐 `locator == && text ==` 全对不上。
+    //   ② 本版：**不动任何数据**，只在【章节识别】时用归一化副本。
+    //      `chapter_of()` 内部先 nfkc 再匹配；anchor/text 全是原文。
+    //      → 水科/合成语料零影响（它们本来没有部首污染）。
     let mut reqs: Vec<Requirement> = Vec::new();
     let mut seq = 0usize;
     for f in files {
@@ -325,7 +334,7 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
         s.chars().last().map(|c| "。；！？：；".contains(c)).unwrap_or(false)
     };
     let is_clause_start = |s: &str| -> bool {
-        re_clause.is_match(s) || re_chapter.is_match(s) || re_subsection.is_match(s)
+        re_clause.is_match(s) || re_chapter.is_match(&nfkc(s)) || re_subsection.is_match(s)
     };
     let is_skip_line = |s: &str| -> bool {
         s.is_empty() || s.matches('.').count() >= 6 || s.contains("……")
@@ -403,7 +412,7 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
         if t.matches('.').count() >= 6 || t.contains("……") {
             continue;
         }
-        if re_chapter.is_match(t) {
+        if re_chapter.is_match(&nfkc(t)) {
             chapter = t.to_string();
             subsection.clear();
             veto_ctx = false;
@@ -563,52 +572,11 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
     }
 }
 
-/// 章节上下文 → 类别映射（政采/招标范本结构惯例）。
+
+/// 纯 NFKC（不剥空白）——PDF 部首归一化专用。
 ///
-/// **真实文件驱动扩展**（2026-11 用户真实标书实测）：原实现只认
-/// 合成夹具的章节名（「评标办法」「技术需求」「须知+资格」），真实文件
-/// 用另一套命名，导致 14 个章节全部落「其他」——资格性/符合性/详细评审
-/// 三张核心表一条都没识别出来（废标级）。
-///
-/// 真实文件章节名（黑龙江呼中国家级自然保护区项目，7 章）：
-/// ```text
-/// 第一章 公开招标公告
-/// 第二章 投标人须知
-/// 第三章 合同与验收
-/// 第四章 采购内容与要求        ← 技术参数在这
-/// 第五章 投标人应当提交的资格、资信证明文件
-/// 第六章 评审                  ← 资格审查/符合性/详细评审三表在这
-/// 第七章 投标文件格式
-/// ```
-///
-/// 扩展原则：**同义词枚举，不做模糊匹配**——宁可多列几个词，也不
-/// NFKC 归一化整份解析产物（真实 PDF 的康熙部首污染修复）。
-///
-/// 只归一化 `text` / `cells` / `locator`——`idx` / `kind` / 其余账本字段
-/// 原样保留（chunk_id 稳定性依赖 idx，不能碰）。
-fn normalize_file_nfkc(f: &ParsedFile) -> ParsedFile {
-    ParsedFile {
-        name: f.name.clone(),
-        sha256: f.sha256.clone(),
-        pages: f.pages,
-        tables: f.tables,
-        has_text_layer: f.has_text_layer,
-        ocr_blocks: f.ocr_blocks,
-        blocks: f
-            .blocks
-            .iter()
-            .map(|b| Block {
-                idx: b.idx,
-                kind: b.kind.clone(),
-                locator: crate::norm_n1(&b.locator),
-                text: crate::norm_n1(&b.text),
-                cells: b.cells.iter().map(|c| crate::norm_n1(c)).collect(),
-            })
-            .collect(),
-        parse_summary: f.parse_summary.clone(),
-        components: f.components.clone(),
-    }
-}
+/// `crate::norm_n1` 是「NFKC + 去全部空白」，用于对齐/检索面；
+/// 这里要保留原文空白（locator 的「第N 页 > 第M 行」形态、excerpt 的原样）。
 
 /// 用子串猜（「评审」不会误配「评审结果公告」因为那是段落不是章名）。
 fn category_for(chapter: &str, subsection: &str) -> &'static str {

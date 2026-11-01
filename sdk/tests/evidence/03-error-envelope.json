@@ -1,12 +1,12 @@
 {
  "case": "03-error-envelope",
- "transport": "linejson",
- "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
- "server_sha256": "134e9939d46742d229bba97ead748a2a2878c620af44258bac1968e7cd1029cd",
+ "transport": "mcp",
+ "server_bin": "/tmp/shared-target/debug/bid-mcp-server",
+ "server_sha256": "742c95a83c0ebbe07640b19d3577c8c791da0ff598ab6b664b3b3c35a415bd67",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-01T11:41:55+00:00",
+ "started_at": "2026-11-01T15:27:07+00:00",
  "stages": [
   {
    "stage": "错误信封（E_* 归类）",
@@ -20,9 +20,9 @@
       "what": "project 未创建"
      },
      {
-      "case": "未知工具",
-      "code": "E_NOT_FOUND",
-      "what": "未知工具 no_such_tool（合法工具面见 TOOL_NAMES / docs/bid-mcp-contract.md）"
+      "case": "未知工具_协议层",
+      "code": "PROTOCOL_LEVEL",
+      "what": "McpError('Invalid params: 未知工具 no_such_tool（工具面见 tools/list）')"
      },
      {
       "case": "建项缺参",
@@ -53,15 +53,19 @@
    },
    "checks": [
     {
-     "desc": "E_NOT_FOUND 面（{'无项目查矩阵', '未知工具'}）",
+     "desc": "E_NOT_FOUND 面（{'无项目查矩阵'}）",
      "pass": true
     },
     {
-     "desc": "E_UNPROCESSABLE 面（{'content×generator 互斥', 'external 缺 content', '建项缺参', 'mode 非法'}）",
+     "desc": "E_UNPROCESSABLE 面（{'建项缺参', 'content×generator 互斥', 'external 缺 content', 'mode 非法'}）",
      "pass": true
     },
     {
      "desc": "E_STATE 面（{'未导入先抽取'}）",
+     "pass": true
+    },
+    {
+     "desc": "未知工具由协议层拦（JSON-RPC error 而非工具层信封）",
      "pass": true
     },
     {
@@ -78,5 +82,5 @@
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/error-envelope/ws",
- "finished_at": "2026-11-01T11:41:55+00:00"
+ "finished_at": "2026-11-01T15:27:07+00:00"
 }

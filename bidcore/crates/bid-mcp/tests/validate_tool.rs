@@ -54,8 +54,42 @@ fn tmp_dir(tag: &str) -> std::path::PathBuf {
     d
 }
 
+/// 夹具变体（#126 适配）：svc_base + 一条「格式要求」REQ——资格/否决合并叶
+/// 之外再出一个可零绑定起草的格式叶，让「未响应面由 validate 报 BLOCKER」
+/// 的前提（进 DRAFTING 后才准校验）重新成立。validate_contract_shape /
+/// rule_veto_and_qual 专用（其余用 svc_base 的测试断言面不受 REQ 集变化影响）。
+fn svc_base_grouped(tag: &str) -> (BidService, String) {
+    // 与 svc_base 同构，仅 REQ 集追加 REQ-0004 格式要求（svc_base 已推
+    // MATRIX_READY 不能改条款集，故独立重建而非复用）。
+    let mut svc = BidService::open(tmp_dir(&format!("{tag}-grp"))).unwrap();
+    let pid = ok_result(call(&mut svc, "create_bid_project", json!({
+        "name": "校验测试", "bid_deadline": "2026-12-31", "mode": "明标",
+        "external_key": format!("{tag}-grp"),
+    })))["project_id"].as_str().unwrap().to_string();
+    svc.store_mut().upsert_file(
+        "A-招标文件.docx", "招标文件", &format!("sha-v-{tag}-grp"), 10, 1, 50, 0, ParseStatus::Ok, "",
+    ).unwrap();
+    svc.store_mut().upsert_file(
+        "C-补遗文件01.docx", "补遗", &format!("sha-v-add-{tag}-grp"), 5, 0, 20, 0, ParseStatus::Ok, "",
+    ).unwrap();
+    svc.set_requirements(vec![
+        mk_req("REQ-0001", "资格条件", "具备水利水电工程施工总承包贰级资质"),
+        mk_req("REQ-0002", "资格条件", "项目经理具备一级建造师注册证书"),
+        mk_req("REQ-0003", "否决项", "投标文件未经法定代表人签字作否决处理"),
+        mk_req("REQ-0004", "格式要求", "正文用仿宋三号字，行距为 1.5 倍"),
+    ]).unwrap();
+    let _ = svc.prepare_outline_and_matrix(
+        OutlineSpec { target_total_chars: 2_000, max_reqs_per_leaf: 8 },
+    ).unwrap();
+    (svc, pid)
+}
+
 /// 基础夹具：extract → outline → matrix（DRAFTING 前状态——MATRIX_READY）。
-/// REQ 构成：资格 2 + 否决 1 + 格式 1（可配）。
+/// REQ 构成：资格 2 + 否决 1。
+///
+/// #131 适配：基座补一件补遗件（draft_tool.rs 同款）——否则 L3「无补遗阻塞」
+/// readiness 闸（MissingAddendum）会拦下后续所有 draft 调用，本套件的校验
+/// 规则面测试根本走不到（#131 合入时漏适配，13 例连锁红）。
 fn svc_base(tag: &str) -> (BidService, String) {
     let mut svc = BidService::open(tmp_dir(tag)).unwrap();
     let pid = ok_result(call(&mut svc, "create_bid_project", json!({
@@ -63,6 +97,9 @@ fn svc_base(tag: &str) -> (BidService, String) {
     })))["project_id"].as_str().unwrap().to_string();
     svc.store_mut().upsert_file(
         "A-招标文件.docx", "招标文件", &format!("sha-v-{tag}"), 10, 1, 50, 0, ParseStatus::Ok, "",
+    ).unwrap();
+    svc.store_mut().upsert_file(
+        "C-补遗文件01.docx", "补遗", &format!("sha-v-add-{tag}"), 5, 0, 20, 0, ParseStatus::Ok, "",
     ).unwrap();
     svc.set_requirements(vec![
         mk_req("REQ-0001", "资格条件", "具备水利水电工程施工总承包贰级资质"),
@@ -153,7 +190,10 @@ fn validate(svc: &mut BidService, pid: &str) -> Value {
 
 #[test]
 fn validate_contract_shape_and_promotes_validating() {
-    let (mut svc, pid) = svc_base("shape");
+    // #126 适配：大纲分组把资格+否决合并进同一叶（否决项并入「资格与响应」
+    // 章节组）——svc_base 的 3 REQ 只出一个叶且被否决项闸拦死，进不了
+    // DRAFTING。改用 grouped 夹具（追加格式 REQ → 另出一个可零绑定起草的叶）。
+    let (mut svc, pid) = svc_base_grouped("shape");
     // 缺失回报闸（#110 任务 1）：登记可用资质（不绑——未响应面留给 validate），
     // 只起草就绪叶；含未响应否决项（REQ-0003）的叶拒生成、保持 Pending
     register_qual_ledger_only(&mut svc);
@@ -207,7 +247,10 @@ fn validate_after_draft_runs_and_reports() {
 
 #[test]
 fn rule_veto_and_qual_unresponded_are_blockers() {
-    let (mut svc, pid) = svc_base("veto-qual");
+    // #126 适配：同 validate_contract_shape——grouped 夹具保证有可起草叶
+    // （格式叶零绑定可起草 → 进 DRAFTING），资格+否决合并叶保持 Pending，
+    // 未响应面由 validate 从矩阵报 BLOCKER（原测试意图不变）。
+    let (mut svc, pid) = svc_base_grouped("veto-qual");
     // 缺失回报闸（#110 任务 1）：否决叶（REQ-0003 未响应）拒生成保持 Pending；
     // 资格叶登记台账资质后可起草。未响应面由 validate 从矩阵报 BLOCKER
     register_qual_ledger_only(&mut svc);
@@ -421,6 +464,10 @@ fn green_path_ok_true_when_no_blockers() {
     svc.store_mut().upsert_file(
         "A-招标文件.docx", "招标文件", "sha-green", 10, 1, 50, 0, ParseStatus::Ok, "",
     ).unwrap();
+    // #131 适配：补遗件（否则 MissingAddendum 闸拦下起草，见 svc_base 注）
+    svc.store_mut().upsert_file(
+        "C-补遗文件01.docx", "补遗", "sha-green-add", 5, 0, 20, 0, ParseStatus::Ok, "",
+    ).unwrap();
     svc.set_requirements(vec![
         mk_req("REQ-0001", "资格条件", "具备贰级资质"),
         mk_req("REQ-0002", "资格条件", "项目经理一级建造师"),
@@ -455,6 +502,12 @@ fn svc_with_format_req(tag: &str, excerpt: &str) -> (BidService, String) {
     svc.store_mut()
         .upsert_file(
             "A-招标文件.docx", "招标文件", &format!("sha-vf-{tag}"), 10, 1, 50, 0, ParseStatus::Ok, "",
+        )
+        .unwrap();
+    // #131 适配：补遗件（否则 MissingAddendum 闸拦下起草，见 svc_base 注）
+    svc.store_mut()
+        .upsert_file(
+            "C-补遗文件01.docx", "补遗", &format!("sha-vf-add-{tag}"), 5, 0, 20, 0, ParseStatus::Ok, "",
         )
         .unwrap();
     svc.set_requirements(vec![

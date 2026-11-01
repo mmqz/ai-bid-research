@@ -280,11 +280,10 @@ fn tool_face_remains_twenty_with_draft_implemented() {
     assert_eq!(arr.len(), 20, "工具面保持 20 个（#80 补齐 17 + #100 任务 3 评分三件）");
     let draft = arr.iter().find(|t| t["name"] == "draft_response_section").unwrap();
     assert_eq!(draft["implemented"], json!(true));
-    // 其余一个仍未实现（search——骨架纪律；export/validate 已在阶段 2/3 落地）
-    for name in ["search_evidence"] {
-        let t = arr.iter().find(|t| t["name"] == name).unwrap();
-        assert_eq!(t["implemented"], json!(false), "{name} 不得提前标实现");
-    }
+    // #145 任务 1：search_evidence 已接线——原「不得提前标实现」守卫随之撤销
+    // （骨架纪律由 dispatch_contract 的 UNIMPLEMENTED 清单承载，见该文件）
+    let search = arr.iter().find(|t| t["name"] == "search_evidence").unwrap();
+    assert_eq!(search["implemented"], json!(true), "search_evidence 已接线（#145）");
     let exported = arr.iter().find(|t| t["name"] == "export_bid_document").unwrap();
     assert_eq!(exported["implemented"], json!(true), "export 已落地（阶段 2）");
     // #100 任务 3：评分三件已实现（B1/B2 接线）

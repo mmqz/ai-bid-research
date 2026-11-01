@@ -60,11 +60,8 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         "score_price" => score_price(svc, args),
         "score_section" => score_section(svc, args),
         "score_document" => score_document(svc, args),
-        // ---- M0 骨架：以下工具待各自里程碑接线 ----
-        "search_evidence" => Err(ToolError::unimplemented(
-            name,
-            "M2-b（双通道检索——#59 已降级可选，素材库上来再启）",
-        )),
+        // ---- #145 任务 1：双通道证据检索（契约 §5——朴素实现，真向量库见 M2-b）----
+        "search_evidence" => search_evidence(svc, args),
         other => Err(ToolError::ENotFound {
             what: format!("未接入的工具 {other}"),
         }),
@@ -1030,6 +1027,475 @@ fn list_tasks(svc: &mut BidService, args: Value) -> ToolResult {
     }))
 }
 
+// ================================================================ search_evidence（契约 §5——双通道检索，#145 任务 1）
+
+/// exact 通道五字段（契约 §5 enum 单一真源——B 侧 #146 inputSchema 同一口径）。
+const SEARCH_EXACT_FIELDS: [&str; 5] = ["model", "amount", "date", "clause_no", "cert"];
+/// top_k 上界（与 cursor::LIMIT_MAX 同护栏口径——检索 hits 面同属大结果列表，
+/// 朴素实现以 top_k 收口；M2-b 落地时升级 cursor.rs 游标信封，见契约 §5 注）。
+const SEARCH_TOPK_MAX: u64 = 1000;
+/// top_k 缺省（契约未定缺省——检索场景惯例 20）。
+const SEARCH_TOPK_DEFAULT: u64 = 20;
+
+/// 解析后的 exact 子句（参数校验已完成——匹配阶段零分支错误）。
+enum ExactSpec {
+    /// model / clause_no / cert：有界短语包含匹配 title + scope（值可含
+    /// `.`/`-` 等分隔符——`6.3.2`、`DS-KD6900` 都是合法查询值）。
+    Text(String),
+    /// amount：amount_wan（万元）数值全等。
+    Amount(f64),
+    /// date：completed_on / valid_from / valid_until 归一后全等或 YYYY-MM 前缀。
+    Date(String),
+}
+
+/// 朴素分词（#145：semantic 通道「子串/分词」——真向量库是 M2-b）：
+/// 按字母/数字/CJK 连续段切 token 并小写化；查询侧丢单字噪声（「的」「a」命中一切）。
+fn tokens_of(s: &str, min_len: usize) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    let flush = |cur: &mut String, out: &mut Vec<String>| {
+        if cur.chars().count() >= min_len && !cur.is_empty() {
+            out.push(cur.to_lowercase());
+        }
+        cur.clear();
+    };
+    for ch in s.chars() {
+        if ch.is_alphanumeric() {
+            cur.push(ch);
+        } else {
+            flush(&mut cur, &mut out);
+        }
+    }
+    flush(&mut cur, &mut out);
+    out
+}
+
+/// 有界短语包含（exact 通道的「精确」口径）：值在文本中以**完整段**出现——
+/// 前后邻都不是字母/数字（大小写不敏感）。
+/// `ISO` 不命中 `ISO9001`（后邻 `9` 是字母数字）；`6.3.2` 命中「条款 6.3.2）」
+/// （`）` 是天然边界）；`DS-KD6900` 命中标题同名段（`-` 在值内部不影响）。
+fn phrase_hit(text: &str, value_lower: &str) -> bool {
+    if value_lower.is_empty() {
+        return false;
+    }
+    let hay = text.to_lowercase();
+    let needle = value_lower.to_lowercase();
+    let mut from = 0usize;
+    while let Some(rel) = hay[from..].find(needle.as_str()) {
+        let start = from + rel;
+        let end = start + needle.len();
+        let before_ok = hay[..start]
+            .chars()
+            .next_back()
+            .map_or(true, |c| !c.is_alphanumeric());
+        let after_ok = hay[end..]
+            .chars()
+            .next()
+            .map_or(true, |c| !c.is_alphanumeric());
+        if before_ok && after_ok {
+            return true;
+        }
+        from = end.max(start + 1);
+    }
+    false
+}
+
+/// 日期口径归一：'.' → '-'（台账 `completed_on` 允许「2024.06」形态，#117）。
+fn norm_date(s: &str) -> String {
+    s.trim().replace('.', "-")
+}
+
+/// exact 通道单证据匹配（纯函数）。
+fn exact_hit(ev: &bid_domain::evidence::Evidence, spec: &ExactSpec) -> bool {
+    match spec {
+        ExactSpec::Text(v) => {
+            let vl = v.trim().to_lowercase();
+            !vl.is_empty() && (phrase_hit(&ev.title, &vl) || phrase_hit(&ev.scope, &vl))
+        }
+        ExactSpec::Amount(v) => ev.amount_wan.is_some_and(|a| a == *v),
+        ExactSpec::Date(d) => [
+            ev.completed_on.as_deref(),
+            ev.valid_from.as_deref(),
+            ev.valid_until.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        .any(|s| {
+            let n = norm_date(s);
+            // 全等，或值为 YYYY-MM 时按月前缀命中（「2024-06」↔「2024-06-15」）
+            &n == d || (d.len() == 7 && n.starts_with(d.as_str()))
+        }),
+    }
+}
+
+/// 朴素 chunk 文案（pre-M2-b：整件为一块——title/scope/subject/client 直通拼接；
+/// M2-b chunk 化后由真实分块文本承载）。
+fn evidence_content(ev: &bid_domain::evidence::Evidence) -> String {
+    [Some(ev.title.as_str()), Some(ev.scope.as_str()), Some(ev.subject_name.as_str()), ev.client.as_deref()]
+        .into_iter()
+        .flatten()
+        .filter(|s| !s.trim().is_empty())
+        .collect::<Vec<_>>()
+        .join("；")
+}
+
+/// exact 子句解析（形态校验 + 与 mode 的互斥/前置约束，fail-closed）。
+fn parse_exact_clause(
+    args: &Value,
+    mode: &str,
+) -> Result<Option<ExactSpec>, ToolError> {
+    const TOOL: &str = "search_evidence";
+    let Some(c) = args.get("exact").filter(|v| !v.is_null()) else {
+        if mode == "exact" {
+            return Err(ToolError::EUnprocessable {
+                what: format!("{TOOL}: mode=exact 必须带 exact 子句 {{field, value}}（契约 §5）"),
+            });
+        }
+        return Ok(None);
+    };
+    if !c.is_object() {
+        return Err(ToolError::EUnprocessable {
+            what: format!("{TOOL}: exact 须为对象 {{field, value}}（收到 {c}）"),
+        });
+    }
+    if mode == "semantic" {
+        return Err(ToolError::EUnprocessable {
+            what: format!("{TOOL}: mode=semantic 与 exact 子句互斥（语义检索不吃结构化字段——要字段过滤请用 hybrid 或 exact）"),
+        });
+    }
+    let field = c
+        .get("field")
+        .and_then(Value::as_str)
+        .ok_or_else(|| ToolError::EUnprocessable {
+            what: format!("{TOOL}: exact.field 必填（{SEARCH_EXACT_FIELDS:?} 五字段——契约 §5）"),
+        })?;
+    if !SEARCH_EXACT_FIELDS.contains(&field) {
+        return Err(ToolError::EUnprocessable {
+            what: format!(
+                "{TOOL}: exact.field={field} 非法（合法：{SEARCH_EXACT_FIELDS:?}——契约 §5）"
+            ),
+        });
+    }
+    let value = c
+        .get("value")
+        .filter(|v| !v.is_null())
+        .ok_or_else(|| ToolError::EUnprocessable {
+            what: format!("{TOOL}: exact.value 必填（与 exact.field 成对——契约 §5）"),
+        })?;
+    let spec = match field {
+        "amount" => match value {
+            Value::Number(n) => n.as_f64().map(ExactSpec::Amount).ok_or_else(|| {
+                ToolError::EUnprocessable {
+                    what: format!("{TOOL}: exact.value 数值不可表示为 f64（万元口径）"),
+                }
+            })?,
+            Value::String(s) => s
+                .trim()
+                .parse::<f64>()
+                .map(ExactSpec::Amount)
+                .map_err(|_| ToolError::EUnprocessable {
+                    what: format!(
+                        "{TOOL}: amount 的 value 须为数值或数字字符串（收到 {s:?}——万元口径）"
+                    ),
+                })?,
+            _ => {
+                return Err(ToolError::EUnprocessable {
+                    what: format!("{TOOL}: amount 的 value 须为数值或数字字符串（万元口径）"),
+                })
+            }
+        },
+        "date" => match value {
+            // 归一（'.'→'-'）：台账 completed_on 允许「2024.06」形态；YYYY-MM 月前缀
+            Value::String(s) if !s.trim().is_empty() => ExactSpec::Date(norm_date(s)),
+            _ => {
+                return Err(ToolError::EUnprocessable {
+                    what: format!("{TOOL}: date 的 value 须为非空字符串（YYYY-MM-DD 或 YYYY-MM——比对 completed_on/valid_from/valid_until）"),
+                })
+            }
+        },
+        _ => match value {
+            Value::String(s) if !s.trim().is_empty() => ExactSpec::Text(s.trim().to_string()),
+            _ => {
+                return Err(ToolError::EUnprocessable {
+                    what: format!("{TOOL}: {field} 的 value 须为非空字符串（契约 §5）"),
+                })
+            }
+        },
+    };
+    Ok(Some(spec))
+}
+
+/// search_evidence 的 filters 解析（契约 §5 四键——fail-closed：未知键/未支持键响亮拒，
+/// 静默丢过滤器会让调用方以为查过）。
+/// 返回 (source_type, valid_at=开标日, min_valid_until)。
+fn parse_search_filters(
+    args: &Value,
+) -> Result<(Option<String>, Option<String>, Option<String>), ToolError> {
+    const TOOL: &str = "search_evidence";
+    let Some(f) = args.get("filters").filter(|v| !v.is_null()) else {
+        return Ok((None, None, None));
+    };
+    let Value::Object(map) = f else {
+        return Err(ToolError::EUnprocessable {
+            what: format!("{TOOL}: filters 须为对象（契约 §5 四键：source_type|tags|valid_at|min_valid_until）"),
+        });
+    };
+    for key in map.keys() {
+        match key.as_str() {
+            "source_type" | "tags" | "valid_at" | "min_valid_until" => {}
+            other => {
+                return Err(ToolError::EUnprocessable {
+                    what: format!(
+                        "{TOOL}: filters.{other} 不是合法过滤键（合法：source_type|tags|valid_at|min_valid_until——未知键显式拒，不静默忽略）"
+                    ),
+                })
+            }
+        }
+    }
+    if map.get("tags").is_some_and(|v| !v.is_null()) {
+        return Err(ToolError::EUnprocessable {
+            what: format!(
+                "{TOOL}: filters.tags 暂不支持——证据台账无标签面（M2-b 知识库落地后开；台账清单过滤请用 list_evidence）"
+            ),
+        });
+    }
+    let str_field = |key: &str| -> Result<Option<String>, ToolError> {
+        match map.get(key) {
+            None | Some(Value::Null) => Ok(None),
+            Some(Value::String(s)) if !s.trim().is_empty() => Ok(Some(s.trim().to_string())),
+            Some(_) => Err(ToolError::EUnprocessable {
+                what: format!("{TOOL}: filters.{key} 须为非空字符串"),
+            }),
+        }
+    };
+    let source_type = str_field("source_type")?;
+    let valid_at = str_field("valid_at")?;
+    let min_valid_until = str_field("min_valid_until")?;
+    for (key, v) in [("valid_at", &valid_at), ("min_valid_until", &min_valid_until)] {
+        if let Some(d) = v {
+            if !bid_domain::dates::is_valid_ymd(d) {
+                return Err(ToolError::EUnprocessable {
+                    what: format!("{TOOL}: filters.{key}={d:?} 非合法 ISO 日期（YYYY-MM-DD）"),
+                });
+            }
+        }
+    }
+    Ok((source_type, valid_at, min_valid_until))
+}
+
+/// `search_evidence` —— 契约 §5（#145 任务 1 接线，朴素实现）。
+///
+/// 双通道检索：
+/// - **exact 通道**：五字段（model/amount/date/clause_no/cert）结构化精确匹配
+///   ——model/clause_no/cert 为 title+scope 的**有界短语包含**（`ISO` 不命中
+///   `ISO9001`；`6.3.2`/`DS-KD6900` 可命中同名段）；amount 为 amount_wan（万元）
+///   数值全等；date 归一（`.`→`-`）后与 completed_on/valid_from/valid_until
+///   全等或 YYYY-MM 月前缀。命中分 1.0。
+/// - **semantic 通道**（朴素：子串/分词——真向量库 M2-b）：查询按字母/数字/CJK
+///   连续段切 token（单字噪声丢弃），token 在证据文案（title/scope/subject/client）
+///   中子串命中计分 score = 命中 token 数 / 查询 token 数。
+/// - **hybrid**（缺省）：按 ev_id 合并去重，双通道同中 → match_type="both"
+///   （分取 exact 的 1.0——资格类查询 exact 优先，语义覆盖率不叠加假精度）。
+///
+/// 硬规则（契约 §5 + #145）：
+/// - `filters.valid_at`（开标日）给定时：`valid_until < 开标日` → **score×0.5 +
+///   EVIDENCE_EXPIRED warning**；开标日 ≤ valid_until < 开标日+90 天 →
+///   EVIDENCE_EXPIRING warning（不降权——#145 只要求过期降权）。开标日口径归
+///   调用方（不给则不做时间面降权，与导出层「开标日不替调用方定」同纪律）。
+/// - 排序确定性（R-15 可重放）：score DESC, ev_id ASC；`threshold`（0..=1）过滤
+///   降权后分值，`top_k`（1..=1000，缺省 20）截断。
+/// - 换版旧证（SUPERSEDED）不入检索面（找的是可用证据——历史版本走 list_evidence）。
+///
+/// 已知边界（如实）：M2-b 前无 chunk 化——chunk_id 恒 `{ev_id}#whole`、content 为
+/// 台账文案直通；tags 过滤显式拒；hits 面以 top_k 收口（游标信封留 M2-b）。
+fn search_evidence(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "search_evidence";
+    // ---- 参数校验
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let query = req_str(&args, "query", TOOL)?;
+    let mode = match opt_str(&args, "mode", TOOL)? {
+        None => "hybrid".to_string(),
+        Some(m) if matches!(m.as_str(), "hybrid" | "semantic" | "exact") => m,
+        Some(m) => {
+            return Err(ToolError::EUnprocessable {
+                what: format!("{TOOL}: mode={m:?} 非法（合法：hybrid|semantic|exact——契约 §5）"),
+            })
+        }
+    };
+    let exact_spec = parse_exact_clause(&args, &mode)?;
+    let (f_source_type, f_valid_at, f_min_valid_until) = parse_search_filters(&args)?;
+    let top_k = match args.get("top_k") {
+        None | Some(Value::Null) => SEARCH_TOPK_DEFAULT,
+        Some(Value::Number(n)) => {
+            let v = n.as_u64().ok_or_else(|| ToolError::EUnprocessable {
+                what: format!("{TOOL}: top_k 须为 1..={SEARCH_TOPK_MAX} 的整数"),
+            })?;
+            if !(1..=SEARCH_TOPK_MAX).contains(&v) {
+                return Err(ToolError::EUnprocessable {
+                    what: format!(
+                        "{TOOL}: top_k={v} 越界（合法 1..={SEARCH_TOPK_MAX}，缺省 {SEARCH_TOPK_DEFAULT}——显式拒绝，不静默 clamp）"
+                    ),
+                });
+            }
+            v
+        }
+        Some(_) => {
+            return Err(ToolError::EUnprocessable {
+                what: format!("{TOOL}: top_k 须为 1..={SEARCH_TOPK_MAX} 的整数"),
+            })
+        }
+    };
+    let threshold = match args.get("threshold") {
+        None | Some(Value::Null) => 0.0f64,
+        Some(Value::Number(n)) => {
+            let v = n.as_f64().unwrap_or(f64::NAN);
+            if !(0.0..=1.0).contains(&v) {
+                return Err(ToolError::EUnprocessable {
+                    what: format!("{TOOL}: threshold={v} 越界（合法 0.0..=1.0——作用于降权后的分值）"),
+                });
+            }
+            v
+        }
+        Some(_) => {
+            return Err(ToolError::EUnprocessable {
+                what: format!("{TOOL}: threshold 须为 0.0..=1.0 的数值"),
+            })
+        }
+    };
+
+    // ---- 项目路由（只读：任何阶段可调；E_STATE 资料库绑定面在朴素实现下
+    //      不存在独立绑定——项目路由即总闸，M2-b 接知识库时补）
+    route_project(svc, &project_id, TOOL)?;
+
+    // ---- 过滤面（先过滤后检索）
+    let pool: Vec<&bid_domain::evidence::Evidence> = svc
+        .store()
+        .evidences()
+        .iter()
+        .filter(|e| e.status != EvidenceStatus::Superseded)
+        .filter(|e| {
+            f_source_type.as_deref().map_or(true, |st| {
+                e.source_file.to_lowercase().contains(&st.to_lowercase())
+            })
+        })
+        .filter(|e| {
+            f_min_valid_until.as_deref().map_or(true, |mv| {
+                // 长期证（valid_until=None）不设有效期下限——口径与台账一致
+                e.valid_until.as_deref().map_or(true, |vu| norm_date(vu).as_str() >= mv)
+            })
+        })
+        .collect();
+
+    // ---- 双通道
+    let runs_exact = mode != "semantic";
+    let runs_semantic = mode != "exact";
+    let query_tokens = if runs_semantic { tokens_of(&query, 2) } else { Vec::new() };
+    let mut exact_idx: Vec<usize> = Vec::new();
+    let mut semantic: Vec<(usize, f64)> = Vec::new();
+    for (i, e) in pool.iter().enumerate() {
+        if runs_exact && exact_spec.as_ref().is_some_and(|spec| exact_hit(e, spec)) {
+            exact_idx.push(i);
+        }
+        if runs_semantic && !query_tokens.is_empty() {
+            let content = evidence_content(e).to_lowercase();
+            let matched = query_tokens
+                .iter()
+                .filter(|t| content.contains(t.as_str()))
+                .count();
+            if matched > 0 {
+                semantic.push((i, matched as f64 / query_tokens.len() as f64));
+            }
+        }
+    }
+    let semantic_k = semantic.len();
+    let exact_k = exact_idx.len();
+
+    // ---- 合并去重（hybrid：ev_id 为键；双中 → both，分取 exact 的 1.0）
+    let mut merged: Vec<(usize, f64, u8)> = exact_idx
+        .iter()
+        .map(|&i| (i, 1.0f64, 1u8))
+        .collect();
+    for &(i, s) in &semantic {
+        match merged.iter_mut().find(|(j, _, _)| *j == i) {
+            Some(h) => {
+                h.2 = 3; // both
+            }
+            None => merged.push((i, s, 2)),
+        }
+    }
+
+    // ---- 时间面降权 + warning（开标日由 filters.valid_at 给定才启用）
+    let mut warnings: Vec<String> = Vec::new();
+    if let Some(va) = &f_valid_at {
+        for h in &mut merged {
+            let e = pool[h.0];
+            match bid_domain::evidence::validity_flip(e.valid_until.as_deref(), va) {
+                Some(EvidenceStatus::Expired) => {
+                    h.1 *= 0.5;
+                    warnings.push(format!(
+                        "EVIDENCE_EXPIRED: {}（{}）有效期至 {}，早于开标日 {va}——已降权 score×0.5（禁绑口径见 bind_evidence）",
+                        e.id, e.title, e.valid_until.as_deref().unwrap_or("(无)")
+                    ));
+                }
+                Some(EvidenceStatus::Expiring) => {
+                    warnings.push(format!(
+                        "EVIDENCE_EXPIRING: {}（{}）有效期至 {}，距开标日 {va} 不足 90 天——可绑但请尽快换证",
+                        e.id, e.title, e.valid_until.as_deref().unwrap_or("(无)")
+                    ));
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // ---- 排序（score DESC, ev_id ASC——R-15 可重放）+ threshold + top_k
+    merged.sort_by(|a, b| {
+        b.1.total_cmp(&a.1)
+            .then_with(|| pool[a.0].id.cmp(&pool[b.0].id))
+    });
+    merged.retain(|(_, s, _)| *s >= threshold);
+    let total = merged.len();
+    let page_end = total.min(top_k as usize);
+    let hits: Vec<Value> = merged[..page_end]
+        .iter()
+        .map(|&(i, score, mt)| {
+            let e = pool[i];
+            json!({
+                "ev_id": e.id,
+                "chunk_id": format!("{}#whole", e.id),
+                "content": evidence_content(e),
+                "source": {
+                    "file": e.source_file,
+                    "position": serde_json::to_string(&e.locator)
+                        .unwrap_or_else(|_| "\"(locator 序列化失败)\"".to_string()),
+                },
+                "score": score,
+                "match_type": match mt { 1 => "exact", 2 => "semantic", _ => "both" },
+                // 台账直通附加面（pre-M2-b：调用方选证/续绑决策需要；chunk 化后由 chunk 元数据承载）
+                "kind": kind_machine(e.kind),
+                "title": e.title,
+                "status": e.status.as_str(),
+                "valid_until": e.valid_until,
+            })
+        })
+        .collect();
+
+    Ok(json!({
+        "hits": hits,
+        "total": total,
+        "top_k": top_k,
+        "trace": {
+            "semantic_k": semantic_k,
+            "exact_k": exact_k,
+            "merged_by": "ev_id",
+            "engine": "naive-token-v1（pre-M2-b：子串/整 token——真向量库见 M2-b）",
+        },
+        "warnings": warnings,
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
+}
+
 // ---------------------------------------------------------------- save_version
 
 /// `save_version { file_path, message? }` —— AI 主动存版本快照（issue #42 阶段 10）。
@@ -1256,6 +1722,42 @@ fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
     let mut warnings = outcome.warnings;
     warnings.append(&mut gen_warnings);
 
+    // ---- 配额账面（issue：Agent 无从得知本节该写多少字——24 条 MINOR 字数
+    // 偏离的根因）。给 Agent 三个数：target_chars（目标）/ written_chars（已写）
+    // / remaining（还差）；外加 min_segments = 按 SEGMENT_CHARS 折算的批次数。
+    //
+    // 口径：target_chars 取【本节叶节点配额】（父 = 子配额和，叶才是内容单元）；
+    // written_chars 取本次起草后的正文字符数（含重写后的全量）。
+    const SEGMENT_CHARS: u64 = 4000; // 单次生成的安全字数量（模型上下文漂移阈值）
+    let quota = svc
+        .store()
+        .sections()
+        .iter()
+        .find(|n| n.id == section_id)
+        .map(|n| {
+            let target = u64::from(n.target_chars);
+            let written = n
+                .content
+                .as_deref()
+                .map(|c| c.chars().count() as u64)
+                .unwrap_or(0);
+            let remaining = target.saturating_sub(written);
+            serde_json::json!({
+                "target_chars": target,
+                "written_chars": written,
+                "remaining": remaining,
+                // 按 4000 字/批折算还需要几次「续写」；已达标 = 0
+                "min_segments": target.div_ceil(SEGMENT_CHARS),
+                "remaining_segments": remaining.div_ceil(SEGMENT_CHARS),
+                // 完成度（0-100；>100 表示超配额，Agent 应精简）
+                "progress_pct": if target == 0 {
+                    serde_json::Value::Null
+                } else {
+                    serde_json::json!(written * 100 / target)
+                },
+            })
+        })
+        .unwrap_or(serde_json::Value::Null);
     // ---- 契约 §6 out 组装
     let out = json!({
         "section_id": outcome.section_id,
@@ -1274,6 +1776,7 @@ fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
         // #127 P0-2：起草指令 + 缺失回报的留档账面（与正文分离——正文渲染
         // 面零「起草指令/缺失回报」字样；Agent/人工从这里看本章起草时的
         // 指令与素材缺口，随 chapters/{id}.json 持久化）
+        "quota": quota,
         "draft_note": outcome.draft_note,
         "section_status": "DRAFTED",
         "project_status": svc.store().project().map(|p| p.status.as_str()).unwrap_or("UNKNOWN"),

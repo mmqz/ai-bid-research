@@ -14,9 +14,15 @@
 //! 游标核心）与两个只读列表工具 `list_evidence` / `list_tasks`；
 //! `get_compliance_matrix` 升级为游标分页信封（详见 docs/bid-mcp-contract.md
 //! §0「大结果分页」与 §4/§4-A/§4-B）。
+//!
+//! #137（MCP 协议层）：新增 [`protocol`] 模块——JSON-RPC 2.0 + `initialize` /
+//! `tools/list` / `tools/call`（标准 MCP 客户端可直接连接；新 bin
+//! `bid-mcp-server`）。旧逐行裸 JSON 路径（[`dispatch_json`] +
+//! `bid-mcp-stdio`）一字未动。
 
 pub mod cursor;
 pub mod error;
+pub mod protocol;
 pub mod schema;
 pub mod tools;
 pub mod transport;
@@ -24,6 +30,7 @@ mod state;
 
 pub use bid_tools::service::BidService;
 pub use error::{ToolError, ToolResult};
+pub use protocol::McpSession;
 pub use schema::{ToolCall, ToolOutcome, ToolReply};
 pub use transport::Transport;
 
@@ -107,7 +114,8 @@ pub fn dispatch_json(input: &str) -> String {
     }
 }
 
-/// 工具 schema 声明（MCP `tools/list` 应答体；当前为静态描述）。
+/// 工具 schema 声明（MCP `tools/list` 应答体；静态描述 + #137 起逐工具
+/// `inputSchema`——合法 JSON Schema，官方 SDK Tool 模型直接可用）。
 #[must_use]
 pub fn tools_schema() -> Value {
     schema::tools_schema()

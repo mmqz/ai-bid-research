@@ -1,12 +1,12 @@
 {
  "case": "10-external-ghost-ev",
- "transport": "linejson",
- "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
- "server_sha256": "134e9939d46742d229bba97ead748a2a2878c620af44258bac1968e7cd1029cd",
+ "transport": "mcp",
+ "server_bin": "/tmp/shared-target/debug/bid-mcp-server",
+ "server_sha256": "742c95a83c0ebbe07640b19d3577c8c791da0ff598ab6b664b3b3c35a415bd67",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-01T11:41:55+00:00",
+ "started_at": "2026-11-01T15:27:08+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 3.170456000134436
+   "elapsed_ms": 5.648208999900817
   },
   {
    "stage": "P1 import_tender_files",
@@ -149,7 +149,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 238.30927099970722
+   "elapsed_ms": 245.71843200010335
   },
   {
    "stage": "P2 extract_requirements",
@@ -161,8 +161,8 @@
      "added": 121,
      "by_category": {
       "commercial": 3,
-      "format": 2,
-      "other": 11,
+      "format": 5,
+      "other": 8,
       "qualification": 6,
       "scoring": 4,
       "tech_param": 82,
@@ -188,7 +188,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 61.25243999986196
+   "elapsed_ms": 67.18644600005064
   },
   {
    "stage": "P3 build_outline",
@@ -196,12 +196,12 @@
    "args": {},
    "result": {
     "counts": {
-     "leaves": 23,
+     "leaves": 22,
      "matrix_blocking": 19,
      "matrix_rows": 121,
      "requirements": 121,
-     "sections": 30,
-     "total_target_chars": 11500
+     "sections": 28,
+     "total_target_chars": 11000
     },
     "project_version": 8,
     "request_id": "req-000005",
@@ -221,7 +221,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.175426999765477
+   "elapsed_ms": 7.546787999899607
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -329,7 +329,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.663901999876543,
+   "elapsed_ms": 19.944680999969933,
    "extra": {
     "sections": {
      "SEC-0007": [
@@ -355,9 +355,12 @@
       "REQ-0016",
       "REQ-0017"
      ],
-     "SEC-0018": [
+     "SEC-0016": [
       "REQ-0011",
-      "REQ-0012"
+      "REQ-0012",
+      "REQ-0048",
+      "REQ-0049",
+      "REQ-0050"
      ],
      "SEC-0009": [
       "REQ-0019",
@@ -367,7 +370,7 @@
       "REQ-0023",
       "REQ-0051"
      ],
-     "SEC-0020": [
+     "SEC-0018": [
       "REQ-0029",
       "REQ-0030",
       "REQ-0031",
@@ -375,7 +378,7 @@
       "REQ-0033",
       "REQ-0034"
      ],
-     "SEC-0021": [
+     "SEC-0019": [
       "REQ-0035",
       "REQ-0036",
       "REQ-0037",
@@ -383,7 +386,7 @@
       "REQ-0039",
       "REQ-0040"
      ],
-     "SEC-0022": [
+     "SEC-0020": [
       "REQ-0041",
       "REQ-0042",
       "REQ-0043",
@@ -391,22 +394,17 @@
       "REQ-0055",
       "REQ-0056"
      ],
-     "SEC-0035": [
+     "SEC-0033": [
       "REQ-0045",
       "REQ-0046",
       "REQ-0047"
      ],
      "SEC-0014": [
-      "REQ-0048",
-      "REQ-0049",
-      "REQ-0050"
-     ],
-     "SEC-0016": [
       "REQ-0052",
       "REQ-0053",
       "REQ-0054"
      ],
-     "SEC-0023": [
+     "SEC-0021": [
       "REQ-0057",
       "REQ-0058",
       "REQ-0059",
@@ -414,7 +412,7 @@
       "REQ-0061",
       "REQ-0062"
      ],
-     "SEC-0024": [
+     "SEC-0022": [
       "REQ-0063",
       "REQ-0064",
       "REQ-0065",
@@ -422,7 +420,7 @@
       "REQ-0067",
       "REQ-0068"
      ],
-     "SEC-0025": [
+     "SEC-0023": [
       "REQ-0069",
       "REQ-0070",
       "REQ-0071",
@@ -430,7 +428,7 @@
       "REQ-0073",
       "REQ-0074"
      ],
-     "SEC-0026": [
+     "SEC-0024": [
       "REQ-0075",
       "REQ-0076",
       "REQ-0077",
@@ -438,7 +436,7 @@
       "REQ-0079",
       "REQ-0080"
      ],
-     "SEC-0027": [
+     "SEC-0025": [
       "REQ-0081",
       "REQ-0082",
       "REQ-0083",
@@ -446,7 +444,7 @@
       "REQ-0085",
       "REQ-0086"
      ],
-     "SEC-0028": [
+     "SEC-0026": [
       "REQ-0087",
       "REQ-0088",
       "REQ-0089",
@@ -454,7 +452,7 @@
       "REQ-0091",
       "REQ-0092"
      ],
-     "SEC-0029": [
+     "SEC-0027": [
       "REQ-0093",
       "REQ-0094",
       "REQ-0095",
@@ -462,7 +460,7 @@
       "REQ-0097",
       "REQ-0098"
      ],
-     "SEC-0030": [
+     "SEC-0028": [
       "REQ-0099",
       "REQ-0100",
       "REQ-0101",
@@ -470,7 +468,7 @@
       "REQ-0103",
       "REQ-0104"
      ],
-     "SEC-0031": [
+     "SEC-0029": [
       "REQ-0105",
       "REQ-0106",
       "REQ-0107",
@@ -478,7 +476,7 @@
       "REQ-0109",
       "REQ-0110"
      ],
-     "SEC-0032": [
+     "SEC-0030": [
       "REQ-0111",
       "REQ-0112",
       "REQ-0113",
@@ -486,7 +484,7 @@
       "REQ-0115",
       "REQ-0116"
      ],
-     "SEC-0033": [
+     "SEC-0031": [
       "REQ-0117",
       "REQ-0118",
       "REQ-0119",
@@ -507,7 +505,7 @@
    },
    "result": {
     "deduplicated": false,
-    "ev_id": "EV-0036",
+    "ev_id": "EV-0034",
     "hint": "新 EV 已签发（若为同 key 换版，旧记录已单向降级 SUPERSEDED；全新登记则无旧记录）",
     "kind": "qualification",
     "project_version": 9,
@@ -528,18 +526,18 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.42938500004675
+   "elapsed_ms": 7.02289900004871
   },
   {
    "stage": "P4 bind_evidence",
    "tool": "bind_evidence",
    "args": {
-    "ev_id": "EV-0036",
+    "ev_id": "EV-0034",
     "n_reqs": 101
    },
    "result": {
     "bound_new": 101,
-    "ev_id": "EV-0036",
+    "ev_id": "EV-0034",
     "matrix": {
      "blocking": 0,
      "rows": 121
@@ -560,7 +558,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.8813699999736855
+   "elapsed_ms": 7.397114000013971
   },
   {
    "stage": "G3 record_review_gate ×3",
@@ -583,7 +581,7 @@
      "decision": "APPROVED",
      "finding_ids": [],
      "gate": "pre_export_confirm",
-     "review_id": "REV-0039",
+     "review_id": "REV-0037",
      "reviewer": "human:mcp-e2e",
      "spawned_rt_ids": []
     },
@@ -596,7 +594,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 19.51575499970204
+   "elapsed_ms": 21.5486750000764
   },
   {
    "stage": "① draft(external) 幽灵 EV [SEC-0007]",
@@ -622,7 +620,7 @@
       "REQ-0006",
       "REQ-0007",
       "REQ-0008",
-      "EV-0036"
+      "EV-0034"
      ],
      "generator": "external",
      "unanchored_claims": 0,
@@ -699,5 +697,5 @@
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/external-ghost-ev/ws",
- "finished_at": "2026-11-01T11:41:55+00:00"
+ "finished_at": "2026-11-01T15:27:08+00:00"
 }

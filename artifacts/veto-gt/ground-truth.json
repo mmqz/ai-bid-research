@@ -1,5 +1,5 @@
 {
- "schema": "veto-gt/2",
+ "schema": "veto-gt/3",
  "task": "issue #35 第一步：power_grid 15 件真实语料否决项标注集（去重 15 件；A-19 与 A-01 同 sha256 复用标注）",
  "method": {
   "annotator": "AI 标注员（executor-agent，GLM）——如实声明：非人类人工标注",
@@ -156,8 +156,8 @@
  ],
  "stats": {
   "files": 14,
-  "candidates_adjudicated": 5088,
-  "veto_true": 1752,
+  "candidates_adjudicated": 5097,
+  "veto_true": 1761,
   "veto_false": 3336,
   "by_category": {
    "资格性否决": 544,
@@ -167,19 +167,19 @@
    "评标处置": 89,
    "串通造假否决": 293
   },
-  "supplement_round": 1,
+  "supplement_round": 2,
   "by_file": {
    "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf": {
-    "true": 87,
-    "adjudicated": 385
+    "true": 91,
+    "adjudicated": 389
    },
    "A-04_某水利工程施工标段_施工招标文件.pdf": {
-    "true": 87,
-    "adjudicated": 308
+    "true": 90,
+    "adjudicated": 311
    },
    "A-05_伊犁州奎屯东郊水库质量检测_招标文件.pdf": {
-    "true": 111,
-    "adjudicated": 285
+    "true": 113,
+    "adjudicated": 287
    },
    "A-15_兰溪双峰岭水库勘察设计_招标文件.pdf": {
     "true": 64,
@@ -82618,6 +82618,145 @@
    "note": "《招标投标法实施条例》第 34 条（利害关系负面清单口径）；RELATION/RECUSE 跨文档不一致：统一标 true；这不是「两个都对」，是口径错误修正；评标委员会成员回避清单成员（处置对象是评委，按裁决口径计 true）",
    "source": "s68-recuse-ruling（Lead 裁决①——见 supplement-recuse-ruling.json）",
    "legal_basis": "《招标投标法实施条例》第 34 条（利害关系负面清单口径）"
+  },
+  {
+   "id": "R2-SUP-001",
+   "file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
+   "page": 50,
+   "locator": "第50页 行14",
+   "main_block_idx": 1422,
+   "clause_blocks": [
+    1422
+   ],
+   "text": "单位负责人为同一人或者存在控股、管理关系的不同单位，不得参加同一标段或者未划分标段的同一招标项目投标；",
+   "is_veto": true,
+   "category": "资格性否决",
+   "source": "r2-review-tables-supplement（#144 三张审查表抽取驱动的 S2 盲区补标）",
+   "note": "三张审查表（#144）附表区行装配——同表兄弟行（1/2/3/5-8 对应 5.1.1 ⑴⑵⑶⑸-⑻）均已标 true；表级脚注「任何一项未响应的，评标委员会应当否决其投标」"
+  },
+  {
+   "id": "R2-SUP-002",
+   "file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
+   "page": 38,
+   "locator": "第38页 行29 + 行接",
+   "main_block_idx": 1106,
+   "clause_blocks": [
+    1106,
+    1107
+   ],
+   "text": "⑷单位负责人为同一人或者存在控股、管理关系的不同单位，不得参加同一标段或者未划分标段的同一招标项目投标；",
+   "is_veto": true,
+   "category": "资格性否决",
+   "source": "r2-review-tables-supplement（#144 三张审查表抽取驱动的 S2 盲区补标）",
+   "note": "5.1.1 形式评审标准 ⑷——与形式评审表第 4 行同一语义（单位负责人控股）；曾被 re_procedure 的「负责」名词误杀（#144 修复）"
+  },
+  {
+   "id": "R2-SUP-003",
+   "file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
+   "page": 24,
+   "locator": "第24页 行20",
+   "main_block_idx": 793,
+   "clause_blocks": [
+    793
+   ],
+   "text": "⑴聘任合同必须由投标人单位与之签订；",
+   "is_veto": true,
+   "category": "串通造假否决",
+   "source": "r2-review-tables-supplement（#144 三张审查表抽取驱动的 S2 盲区补标）",
+   "note": "本单位人员定义组（9.2.2 视为允许他人以本单位名义承揽工程）——兄弟条目 ⑶社保（A01-GT-074）已标 true，同组补全"
+  },
+  {
+   "id": "R2-SUP-004",
+   "file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
+   "page": 24,
+   "locator": "第24页 行21",
+   "main_block_idx": 794,
+   "clause_blocks": [
+    794
+   ],
+   "text": "⑵与投标人单位有合法的工资关系；",
+   "is_veto": true,
+   "category": "串通造假否决",
+   "source": "r2-review-tables-supplement（#144 三张审查表抽取驱动的 S2 盲区补标）",
+   "note": "本单位人员定义组——兄弟条目 ⑶社保已标 true，同组补全"
+  },
+  {
+   "id": "R2-SUP-005",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 25,
+   "locator": "第25页 行5",
+   "main_block_idx": 784,
+   "clause_blocks": [
+    784
+   ],
+   "text": "(1)聘任合同必须由投标人单位与之签订；",
+   "is_veto": true,
+   "category": "串通造假否决",
+   "source": "r2-review-tables-supplement（#144 三张审查表抽取驱动的 S2 盲区补标）",
+   "note": "本单位人员定义组（资格评审标准 2.）——兄弟条目 (3)社保已标 true（A04），同组补全"
+  },
+  {
+   "id": "R2-SUP-006",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 25,
+   "locator": "第25页 行6",
+   "main_block_idx": 785,
+   "clause_blocks": [
+    785
+   ],
+   "text": "(2)与投标人单位有合法的工资关系；",
+   "is_veto": true,
+   "category": "串通造假否决",
+   "source": "r2-review-tables-supplement（#144 三张审查表抽取驱动的 S2 盲区补标）",
+   "note": "本单位人员定义组——兄弟条目 (3)社保已标 true（A04），同组补全"
+  },
+  {
+   "id": "R2-SUP-007",
+   "file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+   "page": 34,
+   "locator": "第34页 行12 + 行接",
+   "main_block_idx": 951,
+   "clause_blocks": [
+    951,
+    952,
+    953
+   ],
+   "text": "3.单位负责人为同一人或者存在控股管理关系的不同单位，不得参加同一标段或者未划分标段的同一招标项目投标",
+   "is_veto": true,
+   "category": "资格性否决",
+   "source": "r2-review-tables-supplement（#144 三张审查表抽取驱动的 S2 盲区补标）",
+   "note": "前附表形式评审标准 3.（单位负责人控股）——与 A-01 形式评审表-4 / A-05 形式评审表-3 同一判例（评审表行 = true）"
+  },
+  {
+   "id": "R2-SUP-008",
+   "file": "A-05_伊犁州奎屯东郊水库质量检测_招标文件.pdf",
+   "page": 25,
+   "locator": "第25页 行9",
+   "main_block_idx": 879,
+   "clause_blocks": [
+    879
+   ],
+   "text": "单位负责人为同一人或者存在控股管理关系的不同单位，不得参加同一标段或者未划分标段的同一招标项目投标；",
+   "is_veto": true,
+   "category": "资格性否决",
+   "source": "r2-review-tables-supplement（#144 三张审查表抽取驱动的 S2 盲区补标）",
+   "note": "三张审查表（#144）附表区行装配——同表兄弟行（1/2/4/5）均已标 true；表级脚注「任何一项未通过的，评标委员会应当否决其投标」"
+  },
+  {
+   "id": "R2-SUP-009",
+   "file": "A-05_伊犁州奎屯东郊水库质量检测_招标文件.pdf",
+   "page": 36,
+   "locator": "第36页 行14 + 行接",
+   "main_block_idx": 1091,
+   "clause_blocks": [
+    1091,
+    1092
+   ],
+   "text": "（3）单位负责人为同一人或者存在控股管理关系的不同单位，不得参加同一标段或者未划分标段的同一招标项目投标；",
+   "is_veto": true,
+   "category": "资格性否决",
+   "source": "r2-review-tables-supplement（#144 三张审查表抽取驱动的 S2 盲区补标）",
+   "note": "2.1.1 形式评审标准（3）——与形式评审表第 3 行同一语义（单位负责人控股）"
   }
  ],
  "supplement": {
@@ -82631,6 +82770,18 @@
   "discipline": "只按领域语义标注，不看实现结果；每条带理由；判例口径与原 GT 一致（重新招标=false/钱面处置=false/评审表行=true）",
   "worklist": "scripts/veto_gt/supplement_scan.py 产出（复现命令见该文件头注）",
   "s5_residual": "S5 残余清扫：双生锚定/编号组头盲区/原判例误标三类，134 条（含真实块位修正 5 组）",
-  "s6_micro": "S6 微清扫：51 条双生锚定块（true 4）"
+  "s6_micro": "S6 微清扫：51 条双生锚定块（true 4）",
+  "rounds": [
+   {
+    "round": 2,
+    "at": "2026-11-01T23:59:00+08:00",
+    "driver": "#144 三张审查表抽取（bid-parse review_table + extract 区域接管）",
+    "reason": "S2 评审/审查表级扫描盲区：单位负责人控股评审行（A-01/A-04/A-05 附表与前附表）与 本单位人员定义组兄弟条目（⑴聘任/⑵工资——⑶社保已标）漏标",
+    "ruling": "round-1 判例口径（supplement-blindspot-analysis.md §三）：评审表行=true；同列表 GT-true 兄弟补全",
+    "added_count": 9,
+    "added_true": 9,
+    "added_false": 0
+   }
+  ]
  }
 }

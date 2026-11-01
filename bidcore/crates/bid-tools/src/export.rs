@@ -955,11 +955,25 @@ impl<'a> DocumentExporter<'a> {
             match block {
                 Block::Para { text, bold } => {
                     let text = opts.scrub(&text);
-                    let mut run = Run::new().add_text(text.as_str());
-                    if bold {
-                        run = run.bold();
+                    // #117 任务 3：行内粗体在 run 发射层拆段（不是 parse_blocks
+                    // 层——Block::Para 的文本契约不变，`**字段**：值` 这类
+                    // 格式件字段行在这里变粗体 run，星号字面量零进 docx）。
+                    let mut para = Paragraph::new();
+                    let mut any_run = false;
+                    for (seg, seg_bold) in split_bold_marks(&text) {
+                        let mut run = Run::new().add_text(seg.as_str());
+                        if bold || seg_bold {
+                            run = run.bold();
+                        }
+                        para = para.add_run(run);
+                        any_run = true;
                     }
-                    docx = docx.add_paragraph(Paragraph::new().add_run(run));
+                    if !any_run {
+                        // 退化行（整行只有 `**`）：保底空 run——段落仍在，
+                        // 星号不进 docx
+                        para = para.add_run(Run::new().add_text(""));
+                    }
+                    docx = docx.add_paragraph(para);
                 }
                 Block::Image { alt, target } => {
                     let bytes = self.resolve_image(dir, &target)?;
@@ -1562,8 +1576,10 @@ fn parse_blocks(content: &str) -> Vec<Block> {
         }
         // #117：全行粗体 `**文本**` → 加粗段（[crate::tables::BidTable::
         // to_markdown_titled] 的标题面走这里——不解析会把 `**` 字面量带进
-        // docx，评标现场看到星号比看到加粗更糟）。保守面：只认「整行恰好
-        // 一对粗体定界」——行内混合粗体（`**a** 与 **b**`）仍按普通段落。
+        // docx，评标现场看到星号比看到加粗更糟）。整行一对定界在此提前
+        // 剥除；行内混合粗体（`**a** 与 **b**`）保留在 Para 文本里，由
+        // run 发射层的 [split_bold_marks] 拆段渲染（#117 任务 3——同样
+        // 零星号进 docx）。
         if let Some(inner) = t.strip_prefix("**").and_then(|r| r.strip_suffix("**")) {
             if !inner.is_empty() && !inner.contains("**") {
                 blocks.push(Block::Para {
@@ -1726,14 +1742,32 @@ fn build_table(rows: Vec<Vec<String>>, opts: &ExportOptions<'_>) -> Table {
                     let mut para = Paragraph::new();
                     for (text, is_red) in split_red_marks(&c) {
                         let text = opts.scrub(&text);
-                        let mut run = Run::new().add_text(text.as_str());
-                        if i == 0 {
-                            run = run.bold(); // 表头行加粗（无样式表依赖的稳妥面）
+                        // #117 任务 3：单元格同享行内粗体拆段（红标与粗体
+                        // 正交组合——红段内的 `**…**` 也渲染为粗体）
+                        let mut any_run = false;
+                        for (seg, seg_bold) in split_bold_marks(&text) {
+                            let mut run = Run::new().add_text(seg.as_str());
+                            if i == 0 || seg_bold {
+                                run = run.bold(); // 表头行加粗（无样式表依赖的稳妥面）
+                            }
+                            if is_red {
+                                run = run.color(RED_RUN_COLOR);
+                            }
+                            para = para.add_run(run);
+                            any_run = true;
                         }
-                        if is_red {
-                            run = run.color(RED_RUN_COLOR);
+                        // 空红段（`{{r:}}`——负偏离行的空备注格）：保底空 run
+                        // 带色——整行标红的「整行」语义不因空格破缺
+                        if !any_run {
+                            let mut run = Run::new().add_text("");
+                            if i == 0 {
+                                run = run.bold();
+                            }
+                            if is_red {
+                                run = run.color(RED_RUN_COLOR);
+                            }
+                            para = para.add_run(run);
                         }
-                        para = para.add_run(run);
                     }
                     TableCell::new().add_paragraph(para)
                 })
@@ -1780,6 +1814,25 @@ fn sibling_tmp(out: &Path) -> PathBuf {
     let mut s = out.as_os_str().to_os_string();
     s.push(".tmp");
     PathBuf::from(s)
+}
+
+/// 行内粗体切段（#117 任务 3）：`**a**b` → [("a", true), ("b", false)]。
+///
+/// 语义：`**` 定界符按 markdown 交替开/关（toggle）。配对完好时与
+/// CommonMark 一致；出现落单 `**`（LLM 生成文本的常见碎屑）时其后
+/// 文本按粗体渲染——**不是**把星号字面量带进 docx（渲染面零星号是
+/// #117 任务 3 的验收线：半截标记宁可视作强调，不可漏成垃圾字符）。
+/// 纯文本 → 单段；空串/纯定界符 → 空 vec（调用方保底空 run）。
+fn split_bold_marks(text: &str) -> Vec<(String, bool)> {
+    let mut out: Vec<(String, bool)> = Vec::new();
+    let mut bold = false;
+    for seg in text.split("**") {
+        if !seg.is_empty() {
+            out.push((seg.to_string(), bold));
+        }
+        bold = !bold;
+    }
+    out
 }
 
 /// 当前 UNIX_EPOCH 秒（no-chrono 纪律；时钟异常 → 0——单调性由 attempt 承载）。
@@ -1882,7 +1935,8 @@ mod tests {
     }
 
     /// #117：全行粗体 `**文本**` → 加粗段（表格标题面——`**` 字面量
-    /// 不许进 docx）；行内混合粗体保守按普通段落（不猜）。
+    /// 不许进 docx）；行内混合粗体在解析层保留原文本，由 run 发射层
+    /// 的 [split_bold_marks] 渲染为粗体段（#117 任务 3）。
     #[test]
     fn full_line_bold_parses_as_bold_para_not_literal_asterisks() {
         let blocks =
@@ -1896,7 +1950,7 @@ mod tests {
             "全行粗体 → 加粗段（不带星号）: {blocks:?}"
         );
         assert!(matches!(blocks[1], Block::Table { .. }), "表格行照常成表");
-        // 行内混合粗体（两对定界）→ 原样普通段（保守面——不解析半截语法）
+        // 行内混合粗体（两对定界）→ 解析层保留原文本（run 发射层拆段）
         let mixed = parse_blocks("**a** 与 **b**");
         assert_eq!(
             mixed[0],
@@ -1904,7 +1958,7 @@ mod tests {
                 text: "**a** 与 **b**".to_string(),
                 bold: false
             },
-            "混合粗体不猜: {mixed:?}"
+            "混合粗体解析层不猜，发射层拆段: {mixed:?}"
         );
         // 空粗体 `****` → 普通段（不产空加粗段）
         let empty = parse_blocks("****");
@@ -1915,6 +1969,41 @@ mod tests {
                 bold: false
             }
         );
+    }
+
+    /// #117 任务 3：行内粗体切段（run 发射层）——格式件字段行
+    /// `**姓名**：王锐` 的星号零进 docx，字段名成粗体 run。
+    #[test]
+    fn split_bold_marks_segments_inline() {
+        // 格式件字段行（授权委托书）：前缀无 → 字段名粗体 + 值普通
+        assert_eq!(
+            split_bold_marks("**姓名**：王锐"),
+            vec![("姓名".to_string(), true), ("：王锐".to_string(), false)],
+            "字段行 → 粗体字段名 + 普通值"
+        );
+        // 行内多对定界
+        assert_eq!(
+            split_bold_marks("**a** 与 **b**"),
+            vec![
+                ("a".to_string(), true),
+                (" 与 ".to_string(), false),
+                ("b".to_string(), true)
+            ]
+        );
+        // 纯文本 → 单段（与旧单 run 行为字节级一致）
+        assert_eq!(
+            split_bold_marks("工期 180 日历天"),
+            vec![("工期 180 日历天".to_string(), false)]
+        );
+        // 落单定界（LLM 碎屑）：toggle 语义——后续按粗体，星号不进 docx
+        assert_eq!(
+            split_bold_marks("落单**后半"),
+            vec![("落单".to_string(), false), ("后半".to_string(), true)]
+        );
+        // 空串 / 纯定界符 → 空 vec（调用方保底空 run）
+        assert_eq!(split_bold_marks(""), Vec::new());
+        assert_eq!(split_bold_marks("**"), Vec::new());
+        assert_eq!(split_bold_marks("****"), Vec::new());
     }
 
     /// #103 B：md 表格行 → 单元格切分（红标标记不被列分隔符误伤）。

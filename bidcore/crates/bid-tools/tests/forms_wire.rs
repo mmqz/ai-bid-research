@@ -502,6 +502,38 @@ fn dark_bid_scrubs_company_name_in_forms() {
 // ---------------------------------------------------------------- ⑤ 中文大写换写
 
 #[test]
+/// #117 任务 3 回归锚：格式件字段行的行内粗体——星号零进 docx，
+/// 字段名成粗体 run（`<w:b/>`）。
+fn inline_bold_field_lines_render_without_literal_asterisks() {
+    let (store, dir) = forms_store("inline-bold");
+    let (extras, _w) = build_export_extras(&store, &full_profile(), &full_decision());
+    let xml = export_xml(&store, &dir, &extras, None);
+    // (a) 渲染面零星号（#117 任务 3 验收线——不是 markdown 源，是标书正本）
+    let asterisk_leak = xml.matches("**").count();
+    assert_eq!(
+        asterisk_leak, 0,
+        "document.xml 含 {asterisk_leak} 处 `**` 字面量（行内粗体未拆段）"
+    );
+    // (b) 授权委托书的字段值在场（粗体定界剥除后文本完整）
+    assert!(xml.contains("王锐"), "受托人姓名在场: 截取自 {} 字节 XML", xml.len());
+    assert!(
+        xml.contains("34010419920202000X"),
+        "受托人身份证号在场（字段值不被粗体拆段误伤）"
+    );
+    // (c) 字段名成粗体 run：`<w:r><w:rPr>…<w:b/>` 且含「姓名」的 run 带 <w:b/>
+    let idx = xml.find("附件三、授权委托书").unwrap();
+    let seg = &xml[idx..];
+    let name_run = seg.find("姓名").unwrap();
+    let run_start = seg[..name_run].rfind("<w:r>").unwrap();
+    let run_end = seg[name_run..].find("</w:r>").unwrap() + name_run;
+    let run = &seg[run_start..run_end];
+    assert!(
+        run.contains("<w:b/>") || run.contains("<w:b "),
+        "「姓名」run 必须带粗体标记: {run}"
+    );
+}
+
+#[test]
 fn cn_upper_amount_conversion() {
     assert_eq!(amount_to_cn_upper(Some(15_800_000.0)), "壹仟伍佰捌拾万元整");
     assert_eq!(amount_to_cn_upper(Some(100_000_005.0)), "壹亿零伍元整");

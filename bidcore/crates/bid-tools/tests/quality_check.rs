@@ -82,6 +82,7 @@ fn register_ev(s: &mut DomainStore, title: &str) -> String {
         client: None,
         amount_wan: None,
         completed_on: None,
+        fields: Default::default(),
     }).unwrap();
     eid
 }

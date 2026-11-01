@@ -53,6 +53,7 @@ fn evidence_spec() -> EvidenceSpec {
         client: None,
         amount_wan: None,
         completed_on: None,
+        fields: Default::default(),
     }
 }
 
@@ -117,6 +118,7 @@ fn restart_resumes_full_service_state() {
             client: None,
             amount_wan: None,
             completed_on: None,
+            fields: Default::default(),
         }).unwrap().0;
         assert_ne!(ev2, ev_id, "重启后新 id 不与既有证据碰撞");
 

@@ -34,3 +34,4 @@ artifacts/e2e-real-path/2*
 
 # #80 第三批：同款只留 latest（run-id 在 phase 日志与产物内可查）
 artifacts/e2e-subagent-path/2*
+__pycache__/

@@ -93,6 +93,14 @@ fn svc_drafted(tag: &str, ws: Option<&std::path::Path>) -> (BidService, String, 
         svc.store_mut().bind_evidence(&eid, rid, "2026-12-31").unwrap();
     }
     let _ = svc.store_mut().build_matrix().unwrap();
+    // L3 无补遗阻塞的人工出口（#131）：本基座只导入招标文件（无补遗件），
+    // 起草会被 MissingAddendum 拒——#118 合入时漏适配本套件（与
+    // draft_iterative/readiness_wire 同类债）。走 AddendumWaiver 门
+    // 确认无补遗（本套件面在质量工具契约，不在 L3 阻塞语义）。
+    use bid_domain::review::{Decision, Gate};
+    svc.store_mut()
+        .record_review(Gate::AddendumWaiver, "human:quality-tool-test", Decision::Approved, vec![])
+        .unwrap();
     let parents: std::collections::HashSet<&str> = svc.store().sections().iter()
         .filter_map(|n| n.parent_id.as_deref()).collect();
     let leaf = svc.store().sections().iter()
@@ -217,4 +225,60 @@ fn needs_human_lists_failed_and_uncovered_sections() {
     let needs: Vec<&str> = q["needs_human"].as_array().unwrap()
         .iter().filter_map(|v| v.as_str()).collect();
     assert!(needs.contains(&&leaf[..]), "FAILED 章进 needs_human: {needs:?}");
+}
+
+// ---------------------------------------------------------------- B3 评分接线（#131 任务 3）
+
+/// #131 质量真实性回归：MCP 生产路径必须评 B3 三维度——
+/// check_bid_quality 此前走旧调用面（ctx=None），specificity/substance/score
+/// 全 None（评分器只在 quality_integrate 测试里接过线）。接线后已起草章的
+/// 三面必须非 null 且在 [0,1] 值域（防评分面再断线假绿）。
+#[test]
+fn quality_report_carries_b3_scores_on_drafted_sections() {
+    let (mut svc, pid, leaf) = svc_drafted("q-b3", None);
+    let _ = ok_result(call(&mut svc, "draft_response_section", json!({
+        "project_id": &pid, "section_id": &leaf,
+        "instructions": "质量评分接线测试",
+    })));
+    let q = ok_result(call(&mut svc, "check_bid_quality", json!({
+        "project_id": &pid,
+    })));
+    let drafted: Vec<&Value> = q["sections"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|s| s["status"] == "DRAFTED" || s["status"] == "VALIDATING")
+        .collect();
+    assert!(!drafted.is_empty(), "已起草章非空（B3 评面对象）");
+    for s in &drafted {
+        let sid = s["section_id"].as_str().unwrap();
+        // specificity：结构体在场且分数值域合法
+        let sp = &s["specificity"];
+        assert!(sp.is_object(), "{sid} specificity 为 null（B3 接线断裂——#131 修复回归）");
+        let spv = sp["score"].as_f64().unwrap();
+        assert!((0.0..=1.0).contains(&spv), "{sid} specificity.score={spv} 越域 [0,1]");
+        // substance：同上
+        let su = &s["substance"];
+        assert!(su.is_object(), "{sid} substance 为 null（B3 接线断裂）");
+        let suv = su["score"].as_f64().unwrap();
+        assert!((0.0..=1.0).contains(&suv), "{sid} substance.score={suv} 越域 [0,1]");
+        // score（B2 自评）：结构体在场（本夹具无评分项 REQ → estimated/max=0 +
+        // rationale 诚实说明——不是 null 伪装）
+        let sc = &s["score"];
+        assert!(sc.is_object(), "{sid} score 为 null（B2 联动断裂）");
+        assert!(
+            sc["rationale"].as_str().unwrap_or("").contains("无映射")
+                || sc["max"].as_f64().unwrap_or(0.0) > 0.0,
+            "{sid} score 要么有映射项（max>0）要么 rationale 诚实说明: {sc:?}"
+        );
+    }
+    // mock 正文（套话为主）的针对性不应满分——评分器有判别力，不是恒 1.0
+    let sp_all: Vec<f64> = drafted
+        .iter()
+        .filter_map(|s| s["specificity"]["score"].as_f64())
+        .collect();
+    assert!(
+        sp_all.iter().all(|v| *v < 1.0),
+        "mock 正文 specificity 全满分（评分器无判别力——恒 1 是假评）: {sp_all:?}"
+    );
 }

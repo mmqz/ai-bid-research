@@ -199,6 +199,7 @@ fn full_store(tag: &str) -> (DomainStore, PathBuf) {
             client: Some("某市第一人民医院".into()),
             amount_wan: Some(820.0),
             completed_on: Some("2024-09-30".into()),
+            fields: Default::default(),
         })
         .unwrap();
     // 参数账：正偏离（5000→8000）/ 负偏离（3年→2年）/ REQ-0005 不录（【待填】面）

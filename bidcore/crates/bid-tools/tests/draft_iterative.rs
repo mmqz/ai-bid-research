@@ -424,6 +424,7 @@ fn service_iterative_draft_commits_best_content() {
         client: None,
         amount_wan: None,
         completed_on: None,
+        fields: Default::default(),
     }).unwrap();
     svc.store_mut().bind_evidence(&eid, "REQ-0101", "2027-12-31").unwrap();
 

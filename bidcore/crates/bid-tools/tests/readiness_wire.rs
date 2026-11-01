@@ -92,6 +92,7 @@ fn register_ev(svc: &mut BidService, kind: EvidenceKind, title: &str) -> String 
             client: None,
             amount_wan: None,
             completed_on: None,
+            fields: Default::default(),
         })
         .unwrap();
     eid

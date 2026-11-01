@@ -106,7 +106,10 @@ pub struct ContextBudget {
 
 impl Default for ContextBudget {
     fn default() -> Self {
-        ContextBudget { total: DEFAULT_TOTAL_TOKENS, constraint_reserve_headroom_pct: DEFAULT_HEADROOM_PCT }
+        ContextBudget {
+            total: DEFAULT_TOTAL_TOKENS,
+            constraint_reserve_headroom_pct: DEFAULT_HEADROOM_PCT,
+        }
     }
 }
 
@@ -135,7 +138,11 @@ impl ConstraintBlock {
     pub fn new(kind: impl Into<String>, text: impl Into<String>) -> Self {
         let text = text.into();
         let tokens = estimate_tokens(&text);
-        ConstraintBlock { kind: kind.into(), text, tokens }
+        ConstraintBlock {
+            kind: kind.into(),
+            text,
+            tokens,
+        }
     }
 }
 
@@ -153,7 +160,11 @@ impl SectionSpecBlock {
     pub fn new(section_id: impl Into<String>, text: impl Into<String>) -> Self {
         let text = text.into();
         let tokens = estimate_tokens(&text);
-        SectionSpecBlock { section_id: section_id.into(), text, tokens }
+        SectionSpecBlock {
+            section_id: section_id.into(),
+            text,
+            tokens,
+        }
     }
 }
 
@@ -186,7 +197,14 @@ impl EvidenceCandidate {
         let tokens_full = estimate_tokens(&full_text);
         let summary_text = summary_paragraphs.join("\n");
         let tokens_summary = estimate_tokens(&summary_text);
-        EvidenceCandidate { evidence_id: evidence_id.into(), relevance, full_text, summary_paragraphs, tokens_full, tokens_summary }
+        EvidenceCandidate {
+            evidence_id: evidence_id.into(),
+            relevance,
+            full_text,
+            summary_paragraphs,
+            tokens_full,
+            tokens_summary,
+        }
     }
 }
 
@@ -310,24 +328,41 @@ pub enum BudgetError {
     /// 章节规格缺 section id（空/纯空白——组装侧不该放行到这里，防御性双门）。
     EmptySectionId,
     /// token 字段与 `estimate_tokens` 实测不符（谎报预算 = 红线失守面，拒）。
-    TokenAccountingMismatch { what: String, declared: u64, measured: u64 },
+    TokenAccountingMismatch {
+        what: String,
+        declared: u64,
+        measured: u64,
+    },
 }
 
 impl std::fmt::Display for BudgetError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            BudgetError::ConstraintOverflow { prefix_tokens, total } => write!(
+            BudgetError::ConstraintOverflow {
+                prefix_tokens,
+                total,
+            } => write!(
                 f,
                 "约束区 {prefix_tokens} tokens 超出预算红线 {total}（约束区超预算，绝不静默截断、\
                  绝不悄悄放行超限——请拆分约束或显式上调 budget.total）"
             ),
             BudgetError::DuplicateEvidenceId { id } => {
-                write!(f, "证据 id 重复: {id}（平局破序前提被破坏——确定性失效，拒绝规划）")
+                write!(
+                    f,
+                    "证据 id 重复: {id}（平局破序前提被破坏——确定性失效，拒绝规划）"
+                )
             }
             BudgetError::EmptySectionId => {
-                write!(f, "章节规格缺 section id（空/纯空白——单章输入必须有明确归属）")
+                write!(
+                    f,
+                    "章节规格缺 section id（空/纯空白——单章输入必须有明确归属）"
+                )
             }
-            BudgetError::TokenAccountingMismatch { what, declared, measured } => write!(
+            BudgetError::TokenAccountingMismatch {
+                what,
+                declared,
+                measured,
+            } => write!(
                 f,
                 "{what} 的 tokens 字段({declared})与 estimate_tokens 实测({measured})不符\
                  （谎报预算会让红线失守——拒绝规划）"
@@ -356,7 +391,9 @@ pub fn plan(input: &BudgetInput, budget: &ContextBudget) -> Result<ContextPlan, 
     let mut seen = std::collections::HashSet::new();
     for c in &input.candidates {
         if !seen.insert(c.evidence_id.as_str()) {
-            return Err(BudgetError::DuplicateEvidenceId { id: c.evidence_id.clone() });
+            return Err(BudgetError::DuplicateEvidenceId {
+                id: c.evidence_id.clone(),
+            });
         }
     }
     // token 记账一致性（字段是便捷构造器的预计算副本——手工构造谎报即拒）
@@ -365,14 +402,16 @@ pub fn plan(input: &BudgetInput, budget: &ContextBudget) -> Result<ContextPlan, 
         if c.tokens_full != measured {
             return Err(BudgetError::TokenAccountingMismatch {
                 what: format!("candidates[{i}]（{}）tokens_full", c.evidence_id),
-                declared: c.tokens_full, measured,
+                declared: c.tokens_full,
+                measured,
             });
         }
         let measured = estimate_tokens(&c.summary_paragraphs.join("\n"));
         if c.tokens_summary != measured {
             return Err(BudgetError::TokenAccountingMismatch {
                 what: format!("candidates[{i}]（{}）tokens_summary", c.evidence_id),
-                declared: c.tokens_summary, measured,
+                declared: c.tokens_summary,
+                measured,
             });
         }
     }
@@ -381,7 +420,8 @@ pub fn plan(input: &BudgetInput, budget: &ContextBudget) -> Result<ContextPlan, 
         if c.tokens != measured {
             return Err(BudgetError::TokenAccountingMismatch {
                 what: format!("constraints[{i}]（{}）tokens", c.kind),
-                declared: c.tokens, measured,
+                declared: c.tokens,
+                measured,
             });
         }
     }
@@ -390,7 +430,8 @@ pub fn plan(input: &BudgetInput, budget: &ContextBudget) -> Result<ContextPlan, 
         if input.section_spec.tokens != measured {
             return Err(BudgetError::TokenAccountingMismatch {
                 what: format!("section_spec（{}）tokens", input.section_spec.section_id),
-                declared: input.section_spec.tokens, measured,
+                declared: input.section_spec.tokens,
+                measured,
             });
         }
     }
@@ -400,7 +441,10 @@ pub fn plan(input: &BudgetInput, budget: &ContextBudget) -> Result<ContextPlan, 
         + input.section_spec.tokens
         + prefix_marker_tokens(input.constraints.len());
     if prefix_tokens > budget.total {
-        return Err(BudgetError::ConstraintOverflow { prefix_tokens, total: budget.total });
+        return Err(BudgetError::ConstraintOverflow {
+            prefix_tokens,
+            total: budget.total,
+        });
     }
     let planning_target = budget.planning_target();
     let evidence_budget = planning_target.saturating_sub(prefix_tokens);
@@ -408,7 +452,9 @@ pub fn plan(input: &BudgetInput, budget: &ContextBudget) -> Result<ContextPlan, 
     // ---- 确定性排序：relevance 降序（total_cmp——NaN 亦有确定位）→ id 字典序
     let mut sorted: Vec<&EvidenceCandidate> = input.candidates.iter().collect();
     sorted.sort_by(|a, b| {
-        b.relevance.total_cmp(&a.relevance).then_with(|| a.evidence_id.cmp(&b.evidence_id))
+        b.relevance
+            .total_cmp(&a.relevance)
+            .then_with(|| a.evidence_id.cmp(&b.evidence_id))
     });
 
     // ---- 阶梯 b：按 relevance 降序贪心装 full（top-N 前缀语义：装不下即停）
@@ -430,7 +476,8 @@ pub fn plan(input: &BudgetInput, budget: &ContextBudget) -> Result<ContextPlan, 
     // kept 是 [n_full..] 的前缀（高相关的 summary 优先保——丢弃只发生在尾部）。
     let rest = &sorted[n_full..];
     let summary_cost = |kept_n: usize| -> u64 {
-        rest[..kept_n].iter()
+        rest[..kept_n]
+            .iter()
             .map(|c| c.tokens_summary + EVIDENCE_MARKER_TOKENS)
             .sum()
     };
@@ -449,16 +496,24 @@ pub fn plan(input: &BudgetInput, budget: &ContextBudget) -> Result<ContextPlan, 
 
     // ---- 计划产物（输出序 = 排序序——确定性可 diff）
     let dropped_n = sorted.len() - n_full - kept_n;
-    let evidence_plan: Vec<EvidencePlanEntry> = sorted.iter().zip(modes.iter()).map(|(c, m)| {
-        let tokens = match m {
-            EvidenceMode::Full => c.tokens_full + EVIDENCE_MARKER_TOKENS,
-            EvidenceMode::Summary => c.tokens_summary + EVIDENCE_MARKER_TOKENS,
-            EvidenceMode::Dropped => 0,
-        };
-        EvidencePlanEntry { evidence_id: c.evidence_id.clone(), relevance: c.relevance, mode: *m, tokens }
-    }).collect();
-    let truncated_evidence = evidence_plan.iter()
-        .any(|e| e.mode != EvidenceMode::Full);
+    let evidence_plan: Vec<EvidencePlanEntry> = sorted
+        .iter()
+        .zip(modes.iter())
+        .map(|(c, m)| {
+            let tokens = match m {
+                EvidenceMode::Full => c.tokens_full + EVIDENCE_MARKER_TOKENS,
+                EvidenceMode::Summary => c.tokens_summary + EVIDENCE_MARKER_TOKENS,
+                EvidenceMode::Dropped => 0,
+            };
+            EvidencePlanEntry {
+                evidence_id: c.evidence_id.clone(),
+                relevance: c.relevance,
+                mode: *m,
+                tokens,
+            }
+        })
+        .collect();
+    let truncated_evidence = evidence_plan.iter().any(|e| e.mode != EvidenceMode::Full);
     // dropped 清单行的渲染开销也计入保守计量（审计诚实：它真实占用 prompt）
     let dropped_line_tokens = if dropped_n > 0 {
         DROPPED_LINE_BASE_TOKENS + DROPPED_ID_TOKENS * dropped_n as u64
@@ -495,17 +550,17 @@ mod tests {
         assert_eq!(estimate_tokens("招标控制价"), 5);
         assert_eq!(estimate_tokens("，。；"), 3);
         // 纯 ASCII：连续非空白串按 4 字符 ≈ 1 token（向上取整）
-        assert_eq!(estimate_tokens("ab"), 1);      // ceil(2/4)
-        assert_eq!(estimate_tokens("ABCD"), 1);    // ceil(4/4)
-        assert_eq!(estimate_tokens("ABCDE"), 2);   // ceil(5/4)
-        assert_eq!(estimate_tokens("budget"), 2);  // ceil(6/4)
+        assert_eq!(estimate_tokens("ab"), 1); // ceil(2/4)
+        assert_eq!(estimate_tokens("ABCD"), 1); // ceil(4/4)
+        assert_eq!(estimate_tokens("ABCDE"), 2); // ceil(5/4)
+        assert_eq!(estimate_tokens("budget"), 2); // ceil(6/4)
         assert_eq!(estimate_tokens("hello world"), 4); // 两个串：ceil(5/4)*2
-        assert_eq!(estimate_tokens("350"), 1);     // ceil(3/4)
-        // 混合：CJK 各 1 + ASCII 串折算（空白与交错都终结 ASCII 串）
+        assert_eq!(estimate_tokens("350"), 1); // ceil(3/4)
+                                               // 混合：CJK 各 1 + ASCII 串折算（空白与交错都终结 ASCII 串）
         assert_eq!(estimate_tokens("控制价 budget 350 万"), 7); // 3 + 2 + 1 + 1
-        assert_eq!(estimate_tokens("abc证"), 2);   // ceil(3/4)=1 + 1
-        assert_eq!(estimate_tokens("证abc"), 2);   // 1 + ceil(3/4)
-        // 确定性：同输入多次调用逐次相等（验收「实测」的尺子必须无状态）
+        assert_eq!(estimate_tokens("abc证"), 2); // ceil(3/4)=1 + 1
+        assert_eq!(estimate_tokens("证abc"), 2); // 1 + ceil(3/4)
+                                                 // 确定性：同输入多次调用逐次相等（验收「实测」的尺子必须无状态）
         for t in ["", "招标控制价", "hello world", "控制价 budget 350 万"] {
             assert_eq!(estimate_tokens(t), estimate_tokens(t));
         }
@@ -517,11 +572,19 @@ mod tests {
         assert_eq!(ContextBudget::default().total, DEFAULT_TOTAL_TOKENS);
         assert_eq!(ContextBudget::default().planning_target(), 7_200);
         assert_eq!(
-            ContextBudget { total: 8_050, constraint_reserve_headroom_pct: 10 }.planning_target(),
+            ContextBudget {
+                total: 8_050,
+                constraint_reserve_headroom_pct: 10
+            }
+            .planning_target(),
             7_245,
         );
         assert_eq!(
-            ContextBudget { total: 1_000, constraint_reserve_headroom_pct: 150 }.planning_target(),
+            ContextBudget {
+                total: 1_000,
+                constraint_reserve_headroom_pct: 150
+            }
+            .planning_target(),
             0,
             "pct > 100 按 100 截断——规划目标退化为 0（红线仍由 total 硬守）",
         );

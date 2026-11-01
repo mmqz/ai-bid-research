@@ -98,8 +98,12 @@ impl DomainStore {
     /// - 已存在且换 owner → 覆盖 owner/deadline 且状态复位 ASSIGNED
     ///   （换人 = 新进度轴——见模块头）；
     /// - 新 target → 追加 status=ASSIGNED。
-    pub fn batch_assign(&mut self, targets: &[String], owner: &str,
-                        deadline: Option<&str>) -> Result<(usize, usize), ToolError> {
+    pub fn batch_assign(
+        &mut self,
+        targets: &[String],
+        owner: &str,
+        deadline: Option<&str>,
+    ) -> Result<(usize, usize), ToolError> {
         // 项目存在性：分工是项目内数据（restore 对「有数据无项目」fail-closed，
         // 这里不先拦就会造出 store 自己都还原不了的快照——不变量自洽）。
         self.project()?;
@@ -141,7 +145,10 @@ impl DomainStore {
         // 线性扫描（镜像 set_requirements 的 PR #24 治本纪律——批量大时
         // O(N²) 是 CI 卡死的老根子）。同批内重复 target 自然落 upsert 分支，
         // added 只计一次。
-        let mut index: HashMap<String, usize> = self.assignments.iter().enumerate()
+        let mut index: HashMap<String, usize> = self
+            .assignments
+            .iter()
+            .enumerate()
             .map(|(i, a)| (a.target_id.clone(), i))
             .collect();
         let mut added = 0usize;
@@ -181,7 +188,9 @@ impl DomainStore {
     /// 双过滤（None = 不过滤该维）；结果**按 target_id 字典序**——确定性输出
     /// （BTree 语义）：同参数两次调用全等，R-15 可重放口径的对账前提。
     pub fn list_tasks(&self, owner: Option<&str>, status: Option<TaskStatus>) -> Vec<&Assignment> {
-        let mut out: Vec<&Assignment> = self.assignments.iter()
+        let mut out: Vec<&Assignment> = self
+            .assignments
+            .iter()
             .filter(|a| owner.map_or(true, |o| a.owner == o))
             .filter(|a| status.map_or(true, |st| a.status == st))
             .collect();
@@ -193,7 +202,10 @@ impl DomainStore {
     /// 的消息格式：合法前向列在错误里，调用方不用翻源码）。
     /// 拒绝路径零副作用（content_version 不动）。
     pub fn advance_task(&mut self, target_id: &str, to: TaskStatus) -> Result<(), ToolError> {
-        let idx = self.assignments.iter().position(|a| a.target_id == target_id)
+        let idx = self
+            .assignments
+            .iter()
+            .position(|a| a.target_id == target_id)
             .ok_or_else(|| ToolError::ENotFound {
                 what: format!("assignment target {target_id} 不存在"),
             })?;
@@ -202,8 +214,12 @@ impl DomainStore {
             return Err(ToolError::EUnprocessable {
                 reason: format!(
                     "任务状态 {} 不允许推进到 {}（合法前向: {:?}）",
-                    cur.as_str(), to.as_str(),
-                    cur.next_allowed().iter().map(|s| s.as_str()).collect::<Vec<_>>()
+                    cur.as_str(),
+                    to.as_str(),
+                    cur.next_allowed()
+                        .iter()
+                        .map(|s| s.as_str())
+                        .collect::<Vec<_>>()
                 ),
             });
         }
@@ -227,37 +243,60 @@ mod tests {
     /// 「500 节点章节树」的最小可复用形态）。
     fn store_with_flat_tree(n: usize) -> DomainStore {
         let mut s = DomainStore::new();
-        s.create_project("测试项目", "ZFCG-2026-GK-0311", "明标", "ext-key-t6").unwrap();
-        s.upsert_file("A-招标文件.docx", "招标文件", "sha-t6", 31, 12, 120, 0,
-                      ParseStatus::Ok, "").unwrap();
-        let categories = ["资格条件", "技术参数", "评分项", "商务要求", "格式要求", "其他"];
-        let reqs: Vec<Requirement> = (0..n).map(|i| Requirement {
-            id: format!("REQ-{:04}", i + 1),
-            category: categories[i % categories.len()].into(),
-            clause_no: Some(format!("3.{}", i + 1)),
-            anchors: vec![Anchor {
-                file: "A".into(), kind: "para".into(),
-                locator: "第三章".into(),
-                excerpt: format!("条款-{i} 的原文摘录"), // 唯一锚——dedupe_hash 不互撞
-            }],
-            params: std::collections::HashMap::new(),
-            source_file: "A".into(),
-        }).collect();
+        s.create_project("测试项目", "ZFCG-2026-GK-0311", "明标", "ext-key-t6")
+            .unwrap();
+        s.upsert_file(
+            "A-招标文件.docx",
+            "招标文件",
+            "sha-t6",
+            31,
+            12,
+            120,
+            0,
+            ParseStatus::Ok,
+            "",
+        )
+        .unwrap();
+        let categories = [
+            "资格条件",
+            "技术参数",
+            "评分项",
+            "商务要求",
+            "格式要求",
+            "其他",
+        ];
+        let reqs: Vec<Requirement> = (0..n)
+            .map(|i| Requirement {
+                id: format!("REQ-{:04}", i + 1),
+                category: categories[i % categories.len()].into(),
+                clause_no: Some(format!("3.{}", i + 1)),
+                anchors: vec![Anchor {
+                    file: "A".into(),
+                    kind: "para".into(),
+                    locator: "第三章".into(),
+                    excerpt: format!("条款-{i} 的原文摘录"), // 唯一锚——dedupe_hash 不互撞
+                }],
+                params: std::collections::HashMap::new(),
+                source_file: "A".into(),
+            })
+            .collect();
         s.set_requirements(reqs).unwrap();
         // 平铺树：N 个 level-1 根各绑 1 REQ（set_outline 门：树不变量 + 幽灵 REQ 把关）
-        let nodes: Vec<OutlineNode> = (0..n).map(|i| OutlineNode {
-            id: format!("SEC-{:04}", i + 1),
-            parent_id: None,
-            title: format!("验收平铺章-{i}"),
-            level: 1,
-            order: (i + 1) as u32,
-            requirement_ids: vec![format!("REQ-{:04}", i + 1)],
-            target_chars: 2000,
-            status: SectionStatus::Pending,
-            dirty: false,
-            content: None,
-            content_attempt: 0,
-        }).collect();
+        let nodes: Vec<OutlineNode> = (0..n)
+            .map(|i| OutlineNode {
+                id: format!("SEC-{:04}", i + 1),
+                parent_id: None,
+                title: format!("验收平铺章-{i}"),
+                level: 1,
+                order: (i + 1) as u32,
+                requirement_ids: vec![format!("REQ-{:04}", i + 1)],
+                target_chars: 2000,
+                status: SectionStatus::Pending,
+                dirty: false,
+                content: None,
+                content_attempt: 0,
+            })
+            .collect();
         s.set_outline(nodes).unwrap();
         s
     }
@@ -270,10 +309,20 @@ mod tests {
         let mut s = store_with_flat_tree(500);
         // 整树一批派给同一执行人（带截止日）
         let targets: Vec<String> = (1..=500).map(|i| format!("SEC-{i:04}")).collect();
-        let (total, added) = s.batch_assign(&targets, "writer:zhang", Some("2026-11-30")).unwrap();
+        let (total, added) = s
+            .batch_assign(&targets, "writer:zhang", Some("2026-11-30"))
+            .unwrap();
         assert_eq!((total, added), (500, 500), "500 节点一批到位");
-        assert_eq!(s.list_tasks(Some("writer:zhang"), None).len(), 500, "按 owner 过滤全量");
-        assert_eq!(s.list_tasks(Some("writer:li"), None).len(), 0, "他人名下为空（不串人）");
+        assert_eq!(
+            s.list_tasks(Some("writer:zhang"), None).len(),
+            500,
+            "按 owner 过滤全量"
+        );
+        assert_eq!(
+            s.list_tasks(Some("writer:li"), None).len(),
+            0,
+            "他人名下为空（不串人）"
+        );
         // 前 200 个推进 IN_PROGRESS——人侧进度与章节内容状态两轴互不相扰
         for t in &targets[..200] {
             s.advance_task(t, TaskStatus::InProgress).unwrap();
@@ -281,7 +330,11 @@ mod tests {
         assert_eq!(s.list_tasks(None, Some(TaskStatus::Assigned)).len(), 300);
         assert_eq!(s.list_tasks(None, Some(TaskStatus::InProgress)).len(), 200);
         // 组合过滤（owner × status 双维交集）
-        assert_eq!(s.list_tasks(Some("writer:zhang"), Some(TaskStatus::Assigned)).len(), 300);
+        assert_eq!(
+            s.list_tasks(Some("writer:zhang"), Some(TaskStatus::Assigned))
+                .len(),
+            300
+        );
     }
 
     /// 幂等重批（同 owner）：零新增、已推进状态不回 ASSIGNED、deadline 更新生效。
@@ -289,17 +342,30 @@ mod tests {
     fn idempotent_reassign_same_owner_keeps_status() {
         let mut s = store_with_flat_tree(2);
         let targets: Vec<String> = (1..=2).map(|i| format!("SEC-{i:04}")).collect();
-        s.batch_assign(&targets, "writer:zhang", Some("2026-11-30")).unwrap();
+        s.batch_assign(&targets, "writer:zhang", Some("2026-11-30"))
+            .unwrap();
         s.advance_task("SEC-0001", TaskStatus::InProgress).unwrap();
         // 同 owner 重批同 targets——语义是对齐排期（改期），不是重新派活
-        let (total, added) = s.batch_assign(&targets, "writer:zhang", Some("2026-12-15")).unwrap();
+        let (total, added) = s
+            .batch_assign(&targets, "writer:zhang", Some("2026-12-15"))
+            .unwrap();
         assert_eq!((total, added), (2, 0), "同 owner 重批零新增");
-        let t1 = s.list_tasks(None, None).into_iter()
-            .find(|a| a.target_id == "SEC-0001").unwrap();
+        let t1 = s
+            .list_tasks(None, None)
+            .into_iter()
+            .find(|a| a.target_id == "SEC-0001")
+            .unwrap();
         assert_eq!(t1.status, TaskStatus::InProgress, "已推进状态不被改期清回");
-        assert_eq!(t1.deadline.as_deref(), Some("2026-12-15"), "deadline 更新生效");
-        assert_eq!(s.list_tasks(None, Some(TaskStatus::Assigned)).len(), 1,
-                   "仅 SEC-0002 仍 ASSIGNED");
+        assert_eq!(
+            t1.deadline.as_deref(),
+            Some("2026-12-15"),
+            "deadline 更新生效"
+        );
+        assert_eq!(
+            s.list_tasks(None, Some(TaskStatus::Assigned)).len(),
+            1,
+            "仅 SEC-0002 仍 ASSIGNED"
+        );
     }
 
     /// 重指派（换 owner）：状态复位 ASSIGNED——换人 = 新进度轴（旧执行人的
@@ -307,16 +373,26 @@ mod tests {
     #[test]
     fn reassign_different_owner_resets_status() {
         let mut s = store_with_flat_tree(2);
-        s.batch_assign(&["SEC-0001".into(), "SEC-0002".into()], "writer:zhang",
-                       Some("2026-11-30")).unwrap();
+        s.batch_assign(
+            &["SEC-0001".into(), "SEC-0002".into()],
+            "writer:zhang",
+            Some("2026-11-30"),
+        )
+        .unwrap();
         s.advance_task("SEC-0001", TaskStatus::InProgress).unwrap();
         // 只把 SEC-0001 改派给 writer:li——单目标重指派，台账不增行
-        let (total, added) = s.batch_assign(&["SEC-0001".into()], "writer:li", None).unwrap();
+        let (total, added) = s
+            .batch_assign(&["SEC-0001".into()], "writer:li", None)
+            .unwrap();
         assert_eq!((total, added), (2, 0), "换人重批零新增（upsert 同一行）");
         let li = s.list_tasks(Some("writer:li"), None);
         assert_eq!(li.len(), 1);
         assert_eq!(li[0].target_id, "SEC-0001");
-        assert_eq!(li[0].status, TaskStatus::Assigned, "换人复位 ASSIGNED（新进度轴）");
+        assert_eq!(
+            li[0].status,
+            TaskStatus::Assigned,
+            "换人复位 ASSIGNED（新进度轴）"
+        );
         assert_eq!(li[0].deadline, None, "换人时 deadline 一并被新参数覆盖");
         // 旧 owner 名下只剩未改派的 SEC-0002（其进度轴不受牵连）
         let zhang = s.list_tasks(Some("writer:zhang"), None);
@@ -331,19 +407,30 @@ mod tests {
         let mut s = store_with_flat_tree(2);
         let v = s.content_version();
         // SEC-9999 不在章节树——幽灵调度单元
-        let err = s.batch_assign(&["SEC-9999".into()], "writer:zhang", None).unwrap_err();
+        let err = s
+            .batch_assign(&["SEC-9999".into()], "writer:zhang", None)
+            .unwrap_err();
         assert_eq!(err.code(), "E_UNPROCESSABLE", "幽灵 SEC 拒");
         // REQ-9999 不在条款集——同门
-        let err = s.batch_assign(&["REQ-9999".into()], "writer:zhang", None).unwrap_err();
+        let err = s
+            .batch_assign(&["REQ-9999".into()], "writer:zhang", None)
+            .unwrap_err();
         assert_eq!(err.code(), "E_UNPROCESSABLE", "幽灵 REQ 拒");
         assert_eq!(s.assignments().len(), 0, "拒绝路径零残留");
         assert_eq!(s.content_version(), v, "拒绝不 bump");
         // 未知前缀放行（DOC-*——未来实体面，由各自实体落地时补存在性门）
-        let (total, added) = s.batch_assign(&["DOC-1".into()], "writer:zhang", None).unwrap();
+        let (total, added) = s
+            .batch_assign(&["DOC-1".into()], "writer:zhang", None)
+            .unwrap();
         assert_eq!((total, added), (1, 1), "DOC- 前缀放行");
         // 对照面：在位 REQ/SEC 真目标必须能派
-        let (total, added) = s.batch_assign(&["REQ-0001".into(), "SEC-0001".into()],
-                                            "writer:zhang", None).unwrap();
+        let (total, added) = s
+            .batch_assign(
+                &["REQ-0001".into(), "SEC-0001".into()],
+                "writer:zhang",
+                None,
+            )
+            .unwrap();
         assert_eq!((total, added), (3, 2));
     }
 
@@ -353,54 +440,73 @@ mod tests {
         let mut s = store_with_flat_tree(1);
         let v = s.content_version();
         // 非 ISO（斜杠形态——dates::is_valid_ymd 定长连字符口径拒收）
-        let err = s.batch_assign(&["SEC-0001".into()], "writer:zhang",
-                                 Some("2026/11/30")).unwrap_err();
+        let err = s
+            .batch_assign(&["SEC-0001".into()], "writer:zhang", Some("2026/11/30"))
+            .unwrap_err();
         assert_eq!(err.code(), "E_UNPROCESSABLE", "非 ISO deadline 拒");
         // 空批（镜像 set_outline 空树纪律）
         let err = s.batch_assign(&[], "writer:zhang", None).unwrap_err();
         assert_eq!(err.code(), "E_UNPROCESSABLE", "空 targets 拒");
         // 空 owner（含纯空白——调度账本不容匿名行）
-        let err = s.batch_assign(&["SEC-0001".into()], "  ", None).unwrap_err();
+        let err = s
+            .batch_assign(&["SEC-0001".into()], "  ", None)
+            .unwrap_err();
         assert_eq!(err.code(), "E_UNPROCESSABLE", "空 owner 拒");
         assert_eq!(s.assignments().len(), 0, "拒绝路径零残留");
         assert_eq!(s.content_version(), v, "拒绝不 bump");
         // 对照面：合法形态放行
-        assert!(s.batch_assign(&["SEC-0001".into()], "writer:zhang",
-                               Some("2026-11-30")).is_ok());
+        assert!(s
+            .batch_assign(&["SEC-0001".into()], "writer:zhang", Some("2026-11-30"))
+            .is_ok());
     }
 
     /// 任务状态链与门：越级拒（零副作用）、线性链通过、终态拒、不存在 E_NOTFOUND。
     #[test]
     fn advance_task_chain_and_gates() {
         // 链形态（T-6 规格）
-        assert_eq!(TaskStatus::Assigned.next_allowed(), &[TaskStatus::InProgress]);
+        assert_eq!(
+            TaskStatus::Assigned.next_allowed(),
+            &[TaskStatus::InProgress]
+        );
         assert_eq!(TaskStatus::InProgress.next_allowed(), &[TaskStatus::Done]);
-        assert_eq!(TaskStatus::Done.next_allowed(), &[], "终态——重开走 batch_assign 显式复位");
+        assert_eq!(
+            TaskStatus::Done.next_allowed(),
+            &[],
+            "终态——重开走 batch_assign 显式复位"
+        );
         assert_eq!(TaskStatus::Assigned.as_str(), "ASSIGNED");
         assert_eq!(TaskStatus::InProgress.as_str(), "IN_PROGRESS");
         assert_eq!(TaskStatus::Done.as_str(), "DONE");
 
         let mut s = store_with_flat_tree(1);
-        s.batch_assign(&["SEC-0001".into()], "writer:zhang", None).unwrap();
+        s.batch_assign(&["SEC-0001".into()], "writer:zhang", None)
+            .unwrap();
         let v = s.content_version();
         // 越级：ASSIGNED → DONE 拒（合法前向必须列在错误消息里）
         let err = s.advance_task("SEC-0001", TaskStatus::Done).unwrap_err();
         assert_eq!(err.code(), "E_UNPROCESSABLE", "越级拒");
-        assert!(matches!(&err, ToolError::EUnprocessable { reason } if reason.contains("IN_PROGRESS")),
-                "错误消息列出合法前向");
+        assert!(
+            matches!(&err, ToolError::EUnprocessable { reason } if reason.contains("IN_PROGRESS")),
+            "错误消息列出合法前向"
+        );
         assert_eq!(s.content_version(), v, "拒绝零副作用");
         // 线性链通过
         s.advance_task("SEC-0001", TaskStatus::InProgress).unwrap();
         s.advance_task("SEC-0001", TaskStatus::Done).unwrap();
         assert_eq!(s.list_tasks(None, Some(TaskStatus::Done)).len(), 1);
         // 终态再推进拒（离开终态唯一通道 = batch_assign 重指派显式复位）
-        let err = s.advance_task("SEC-0001", TaskStatus::InProgress).unwrap_err();
+        let err = s
+            .advance_task("SEC-0001", TaskStatus::InProgress)
+            .unwrap_err();
         assert_eq!(err.code(), "E_UNPROCESSABLE", "终态拒");
         // 不存在目标
-        assert!(matches!(
-            s.advance_task("SEC-9999", TaskStatus::InProgress),
-            Err(ToolError::ENotFound { .. })
-        ), "不存在 E_NOTFOUND");
+        assert!(
+            matches!(
+                s.advance_task("SEC-9999", TaskStatus::InProgress),
+                Err(ToolError::ENotFound { .. })
+            ),
+            "不存在 E_NOTFOUND"
+        );
     }
 
     /// list_tasks 确定性：乱序插入后按 target_id 字典序，同参数两次调用全等。
@@ -409,19 +515,30 @@ mod tests {
         let mut s = store_with_flat_tree(3);
         // 乱序混派（含 REQ/DOC 跨类目标——字典序跨前缀也确定）
         let targets: Vec<String> = ["SEC-0003", "REQ-0002", "DOC-9", "SEC-0001", "SEC-0002"]
-            .iter().map(|t| t.to_string()).collect();
+            .iter()
+            .map(|t| t.to_string())
+            .collect();
         s.batch_assign(&targets, "writer:zhang", None).unwrap();
         let l1 = s.list_tasks(None, None);
         let ids: Vec<&str> = l1.iter().map(|a| a.target_id.as_str()).collect();
-        assert_eq!(ids, ["DOC-9", "REQ-0002", "SEC-0001", "SEC-0002", "SEC-0003"],
-                   "结果按 target_id 字典序（BTree 语义——R-15 可重放口径）");
+        assert_eq!(
+            ids,
+            ["DOC-9", "REQ-0002", "SEC-0001", "SEC-0002", "SEC-0003"],
+            "结果按 target_id 字典序（BTree 语义——R-15 可重放口径）"
+        );
         // 同参数两次调用全等（确定性——对账前提）
         let l2 = s.list_tasks(None, None);
         assert_eq!(l1, l2, "同参数两次调用全等");
         // owner 过滤维不破坏序
-        let owned: Vec<&str> = s.list_tasks(Some("writer:zhang"), None)
-            .iter().map(|a| a.target_id.as_str()).collect();
-        assert_eq!(owned, ["DOC-9", "REQ-0002", "SEC-0001", "SEC-0002", "SEC-0003"]);
+        let owned: Vec<&str> = s
+            .list_tasks(Some("writer:zhang"), None)
+            .iter()
+            .map(|a| a.target_id.as_str())
+            .collect();
+        assert_eq!(
+            owned,
+            ["DOC-9", "REQ-0002", "SEC-0001", "SEC-0002", "SEC-0003"]
+        );
     }
 
     // ============================ 借鉴测试 ============================
@@ -436,15 +553,18 @@ mod tests {
         //（本夹具 2 个：PRJ-0001 + TF-0002）——生产面 SEC 由 next_id 签发恒
         // 满足；这里取 2 节点树（SEC-0001/SEC-0002）保持快照可还原。
         let mut s = store_with_flat_tree(2);
-        s.batch_assign(&["SEC-0001".into(), "SEC-0002".into(), "REQ-0002".into()],
-                       "writer:zhang", Some("2026-11-30")).unwrap();
+        s.batch_assign(
+            &["SEC-0001".into(), "SEC-0002".into(), "REQ-0002".into()],
+            "writer:zhang",
+            Some("2026-11-30"),
+        )
+        .unwrap();
         s.advance_task("SEC-0001", TaskStatus::InProgress).unwrap();
         let before = s.to_snapshot();
         // JSON 往返（模拟落盘再读——serde 形态是跨进程续跑的契约面）
         let json = serde_json::to_string(&before).unwrap();
-        let mut restored = DomainStore::restore(
-            serde_json::from_str::<StoreSnapshot>(&json).unwrap(),
-        ).unwrap();
+        let mut restored =
+            DomainStore::restore(serde_json::from_str::<StoreSnapshot>(&json).unwrap()).unwrap();
         // 重开后全量保真（台账 + 推进态 + 截止日）
         assert_eq!(restored.to_snapshot(), before, "快照往返全等");
         let l = restored.list_tasks(Some("writer:zhang"), None);
@@ -454,11 +574,20 @@ mod tests {
         assert_eq!(t1.deadline.as_deref(), Some("2026-11-30"), "截止日保真");
         // 续用不碰撞：重开后的推进从恢复态接着走（而非从头重来）
         restored.advance_task("SEC-0001", TaskStatus::Done).unwrap();
-        restored.advance_task("SEC-0002", TaskStatus::InProgress).unwrap();
+        restored
+            .advance_task("SEC-0002", TaskStatus::InProgress)
+            .unwrap();
         assert_eq!(restored.list_tasks(None, Some(TaskStatus::Done)).len(), 1);
-        assert_eq!(restored.list_tasks(None, Some(TaskStatus::InProgress)).len(), 1);
+        assert_eq!(
+            restored
+                .list_tasks(None, Some(TaskStatus::InProgress))
+                .len(),
+            1
+        );
         // 重指派跨重开也续用（target_id 自然键不因重启漂移）
-        let (total, added) = restored.batch_assign(&["SEC-0001".into()], "writer:li", None).unwrap();
+        let (total, added) = restored
+            .batch_assign(&["SEC-0001".into()], "writer:li", None)
+            .unwrap();
         assert_eq!((total, added), (3, 0), "重开后的 upsert 幂等面不碰撞");
     }
 
@@ -468,7 +597,12 @@ mod tests {
     #[test]
     fn restore_rejects_duplicate_targets() {
         let mut s = store_with_flat_tree(2);
-        s.batch_assign(&["SEC-0001".into(), "SEC-0002".into()], "writer:zhang", None).unwrap();
+        s.batch_assign(
+            &["SEC-0001".into(), "SEC-0002".into()],
+            "writer:zhang",
+            None,
+        )
+        .unwrap();
         let mut snap = s.to_snapshot();
         // 注入第二条同 target_id（自然键破坏——模拟磁盘损坏/手改快照）
         snap.assignments.push(snap.assignments[0].clone());
@@ -479,7 +613,9 @@ mod tests {
             Ok(_) => panic!("重复 target_id 的快照必须被拒（fail-closed 不猜测）"),
         };
         assert_eq!(err.code(), "E_UNPROCESSABLE");
-        assert!(matches!(&err, ToolError::EUnprocessable { reason } if reason.contains("target_id")),
-                "错误指名真键 target_id（本实体无独立 id）");
+        assert!(
+            matches!(&err, ToolError::EUnprocessable { reason } if reason.contains("target_id")),
+            "错误指名真键 target_id（本实体无独立 id）"
+        );
     }
 }

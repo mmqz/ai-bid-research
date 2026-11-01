@@ -61,6 +61,9 @@ fn register_evidence(store: &mut DomainStore, source_file: &str) -> String {
         valid_until: None,
         subject_name: "某建设工程有限公司".into(),
         scope: "本标段".into(),
+        client: None,
+        amount_wan: None,
+        completed_on: None,
     }).unwrap();
     eid
 }

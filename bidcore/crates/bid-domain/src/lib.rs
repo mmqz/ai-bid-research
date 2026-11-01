@@ -71,7 +71,10 @@ use std::collections::{BTreeMap, HashMap};
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ToolError {
     /// 状态机拒绝越级或非法转换（无副作用）
-    EState { current: ProjectStatus, attempted: &'static str },
+    EState {
+        current: ProjectStatus,
+        attempted: &'static str,
+    },
     /// project_version 过期（乐观并发冲突）
     EConflict { expected: u64, got: u64 },
     /// 对象不存在
@@ -143,33 +146,75 @@ impl ProjectStatus {
     pub fn allowed_tools(&self) -> &'static [&'static str] {
         use ProjectStatus::*;
         match self {
-            Draft => &["create_bid_project", "import_tender_files", "get_bid_project_state"],
-            FilesImported => &["import_tender_files", "extract_requirements",
-                "get_compliance_matrix", "search_evidence", "get_bid_project_state"],
-            RequirementsExtracted => &["import_tender_files", "extract_requirements",
-                "get_compliance_matrix", "search_evidence", "get_bid_project_state",
+            Draft => &[
+                "create_bid_project",
+                "import_tender_files",
+                "get_bid_project_state",
+            ],
+            FilesImported => &[
+                "import_tender_files",
+                "extract_requirements",
+                "get_compliance_matrix",
+                "search_evidence",
+                "get_bid_project_state",
+            ],
+            RequirementsExtracted => &[
+                "import_tender_files",
+                "extract_requirements",
+                "get_compliance_matrix",
+                "search_evidence",
+                "get_bid_project_state",
                 // #80 第三批 MCP 补齐 G1：建纲+矩阵首建（P3 的前置）
-                "build_outline"],
-            MatrixReady | EvidenceBound => &["get_compliance_matrix", "search_evidence",
-                "get_bid_project_state", "draft_response_section", "check_bid_quality",
+                "build_outline",
+            ],
+            MatrixReady | EvidenceBound => &[
+                "get_compliance_matrix",
+                "search_evidence",
+                "get_bid_project_state",
+                "draft_response_section",
+                "check_bid_quality",
                 // #80 第三批 MCP 补齐 G2/G3：证据登记绑定 + 审批门（P4 面）
-                "register_evidence", "bind_evidence", "record_review_gate",
+                "register_evidence",
+                "bind_evidence",
+                "record_review_gate",
                 // #100 任务 3：B2 自评接线（只读诊断——与 check_bid_quality 同窗口）
-                "score_section", "score_document"],
-            Drafting => &["get_compliance_matrix", "search_evidence",
-                "get_bid_project_state", "draft_response_section", "validate_bid_document",
-                "export_bid_document", "check_bid_quality",
+                "score_section",
+                "score_document",
+            ],
+            Drafting => &[
+                "get_compliance_matrix",
+                "search_evidence",
+                "get_bid_project_state",
+                "draft_response_section",
+                "validate_bid_document",
+                "export_bid_document",
+                "check_bid_quality",
                 // G3：PreExportConfirm 门在 Drafting+ 窗口内
                 "record_review_gate",
-                "score_section", "score_document"],
-            Validating | Reviewing | ReadyToExport => &["get_compliance_matrix", "search_evidence",
-                "get_bid_project_state", "validate_bid_document", "export_bid_document",
-                "check_bid_quality", "record_review_gate",
-                "score_section", "score_document"],
-            Exported => &["get_compliance_matrix", "search_evidence",
-                "get_bid_project_state", "export_bid_document", "check_bid_quality",
+                "score_section",
+                "score_document",
+            ],
+            Validating | Reviewing | ReadyToExport => &[
+                "get_compliance_matrix",
+                "search_evidence",
+                "get_bid_project_state",
+                "validate_bid_document",
+                "export_bid_document",
+                "check_bid_quality",
                 "record_review_gate",
-                "score_section", "score_document"],
+                "score_section",
+                "score_document",
+            ],
+            Exported => &[
+                "get_compliance_matrix",
+                "search_evidence",
+                "get_bid_project_state",
+                "export_bid_document",
+                "check_bid_quality",
+                "record_review_gate",
+                "score_section",
+                "score_document",
+            ],
         }
     }
 
@@ -214,8 +259,8 @@ pub enum ParseStatus {
 pub struct TenderFile {
     pub id: String, // TF-xxxx
     pub name: String,
-    pub kind: String,      // 招标文件|附件|图纸|补遗|证据
-    pub sha256: String,    // 天然幂等键
+    pub kind: String,   // 招标文件|附件|图纸|补遗|证据
+    pub sha256: String, // 天然幂等键
     pub pages: usize,
     pub tables: usize,
     pub chunks: usize,
@@ -226,8 +271,8 @@ pub struct TenderFile {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Requirement {
-    pub id: String, // REQ-xxxx
-    pub category: String,     // 资格条件|否决项|评分项|技术参数|商务要求|格式要求|其他
+    pub id: String,       // REQ-xxxx
+    pub category: String, // 资格条件|否决项|评分项|技术参数|商务要求|格式要求|其他
     pub clause_no: Option<String>,
     pub anchors: Vec<Anchor>, // 溯源锚（可多文件多锚点——GT-07 双锚点形态）
     pub params: HashMap<String, serde_json::Value>,
@@ -281,13 +326,23 @@ pub struct DomainStore {
 
 impl DomainStore {
     pub fn new() -> Self {
-        Self { project: None, files: vec![], requirements: vec![],
-               evidences: vec![], evidence_bindings: vec![], sections: vec![],
-               assignments: vec![],
-               matrix: vec![], matrix_overrides: HashMap::new(),
-               params: vec![],
-               findings: vec![], reviews: vec![], revision_tasks: vec![],
-               idempotency: HashMap::new(), id_seq: 0 }
+        Self {
+            project: None,
+            files: vec![],
+            requirements: vec![],
+            evidences: vec![],
+            evidence_bindings: vec![],
+            sections: vec![],
+            assignments: vec![],
+            matrix: vec![],
+            matrix_overrides: HashMap::new(),
+            params: vec![],
+            findings: vec![],
+            reviews: vec![],
+            revision_tasks: vec![],
+            idempotency: HashMap::new(),
+            id_seq: 0,
+        }
     }
 
     fn next_id(&mut self, prefix: &str) -> String {
@@ -311,7 +366,10 @@ impl DomainStore {
     }
 
     pub fn content_version(&self) -> u64 {
-        self.project.as_ref().map(|p| p.content_version).unwrap_or(0)
+        self.project
+            .as_ref()
+            .map(|p| p.content_version)
+            .unwrap_or(0)
     }
 
     /// 幂等键查询：命中 → 返回首次结果（调用方必须直接复用，不得再执行）。
@@ -324,8 +382,13 @@ impl DomainStore {
     }
 
     // ------------------------------------------------------------ create_bid_project（契约 §1）
-    pub fn create_project(&mut self, name: &str, code: &str, mode: &str,
-                          external_key: &str) -> Result<(String, serde_json::Value), ToolError> {
+    pub fn create_project(
+        &mut self,
+        name: &str,
+        code: &str,
+        mode: &str,
+        external_key: &str,
+    ) -> Result<(String, serde_json::Value), ToolError> {
         if let Some(p) = &self.project {
             if p.external_key == external_key {
                 // 契约：external_key 相同 → 静默幂等返回已有 project_id
@@ -361,7 +424,10 @@ impl DomainStore {
         if p.status.allowed_tools().contains(&tool) {
             Ok(())
         } else {
-            Err(ToolError::EState { current: p.status, attempted: tool_name(tool) })
+            Err(ToolError::EState {
+                current: p.status,
+                attempted: tool_name(tool),
+            })
         }
     }
 
@@ -372,7 +438,10 @@ impl DomainStore {
         let cur = p.content_version;
         if let Some(exp) = expected {
             if exp != cur {
-                return Err(ToolError::EConflict { expected: exp, got: cur });
+                return Err(ToolError::EConflict {
+                    expected: exp,
+                    got: cur,
+                });
             }
         }
         Ok(cur)
@@ -392,7 +461,10 @@ impl DomainStore {
             return Ok(()); // 幂等 no-op
         }
         if !cur.next_allowed().contains(&to) {
-            return Err(ToolError::EState { current: cur, attempted: to.as_str() });
+            return Err(ToolError::EState {
+                current: cur,
+                attempted: to.as_str(),
+            });
         }
         if let Some(p) = self.project.as_mut() {
             p.status = to;
@@ -403,10 +475,18 @@ impl DomainStore {
 
     // ------------------------------------------------------------ import_tender_files（契约 §2）
     /// 文件按 sha256 天然幂等：已存在 → no-op 返回原 file_id（deduplicated）。
-    pub fn upsert_file(&mut self, name: &str, kind: &str, sha256: &str,
-                       pages: usize, tables: usize, chunks: usize, ocr_blocks: usize,
-                       parse_status: ParseStatus, parse_summary: &str)
-                       -> Result<(String, bool), ToolError> {
+    pub fn upsert_file(
+        &mut self,
+        name: &str,
+        kind: &str,
+        sha256: &str,
+        pages: usize,
+        tables: usize,
+        chunks: usize,
+        ocr_blocks: usize,
+        parse_status: ParseStatus,
+        parse_summary: &str,
+    ) -> Result<(String, bool), ToolError> {
         if let Some(f) = self.files.iter().find(|f| f.sha256 == sha256) {
             return Ok((f.id.clone(), true)); // deduplicated: true
         }
@@ -416,7 +496,10 @@ impl DomainStore {
             name: name.into(),
             kind: kind.into(),
             sha256: sha256.into(),
-            pages, tables, chunks, ocr_blocks,
+            pages,
+            tables,
+            chunks,
+            ocr_blocks,
             parse_status,
             parse_summary: parse_summary.into(),
         });
@@ -431,11 +514,16 @@ impl DomainStore {
 
     // ------------------------------------------------------------ extract_requirements（契约 §3）
     /// 写入条款集（dedupe_hash 幂等合并：同源锚+同陈述 → 复用既有 REQ）。
-    pub fn set_requirements(&mut self, reqs: Vec<Requirement>) -> Result<(usize, usize), ToolError> {
+    pub fn set_requirements(
+        &mut self,
+        reqs: Vec<Requirement>,
+    ) -> Result<(usize, usize), ToolError> {
         let p = self.project.as_ref().ok_or_else(|| ToolError::ENotFound {
             what: "project 未创建".into(),
         })?;
-        if p.status != ProjectStatus::FilesImported && p.status != ProjectStatus::RequirementsExtracted {
+        if p.status != ProjectStatus::FilesImported
+            && p.status != ProjectStatus::RequirementsExtracted
+        {
             return Err(ToolError::EState {
                 current: p.status,
                 attempted: "extract_requirements",
@@ -582,16 +670,47 @@ impl DomainStore {
         // id 唯一性（逐集合）
         let dup_in = |ids: Vec<String>, what: &str| -> Option<String> {
             let mut seen = std::collections::HashSet::new();
-            ids.into_iter().find_map(|i| (!seen.insert(i)).then(|| format!("{what} id 重复")))
+            ids.into_iter()
+                .find_map(|i| (!seen.insert(i)).then(|| format!("{what} id 重复")))
         };
         if let Some(e) = dup_in(snap.files.iter().map(|f| f.id.clone()).collect(), "files")
-            .or_else(|| dup_in(snap.requirements.iter().map(|r| r.id.clone()).collect(), "requirements"))
-            .or_else(|| dup_in(snap.evidences.iter().map(|e| e.id.clone()).collect(), "evidences"))
-            .or_else(|| dup_in(snap.sections.iter().map(|s| s.id.clone()).collect(), "sections"))
+            .or_else(|| {
+                dup_in(
+                    snap.requirements.iter().map(|r| r.id.clone()).collect(),
+                    "requirements",
+                )
+            })
+            .or_else(|| {
+                dup_in(
+                    snap.evidences.iter().map(|e| e.id.clone()).collect(),
+                    "evidences",
+                )
+            })
+            .or_else(|| {
+                dup_in(
+                    snap.sections.iter().map(|s| s.id.clone()).collect(),
+                    "sections",
+                )
+            })
             .or_else(|| dup_in(snap.params.iter().map(|p| p.id.clone()).collect(), "params"))
-            .or_else(|| dup_in(snap.findings.iter().map(|f| f.id.clone()).collect(), "findings"))
-            .or_else(|| dup_in(snap.reviews.iter().map(|r| r.id.clone()).collect(), "reviews"))
-            .or_else(|| dup_in(snap.revision_tasks.iter().map(|t| t.id.clone()).collect(), "revision_tasks"))
+            .or_else(|| {
+                dup_in(
+                    snap.findings.iter().map(|f| f.id.clone()).collect(),
+                    "findings",
+                )
+            })
+            .or_else(|| {
+                dup_in(
+                    snap.reviews.iter().map(|r| r.id.clone()).collect(),
+                    "reviews",
+                )
+            })
+            .or_else(|| {
+                dup_in(
+                    snap.revision_tasks.iter().map(|t| t.id.clone()).collect(),
+                    "revision_tasks",
+                )
+            })
         {
             return Err(un(e));
         }
@@ -599,7 +718,11 @@ impl DomainStore {
         // 自然键，见 assignment.rs 模块头），消息必须指名真键而非笼统的「id 重复」。
         {
             let mut seen = std::collections::HashSet::new();
-            if let Some(a) = snap.assignments.iter().find(|a| !seen.insert(a.target_id.clone())) {
+            if let Some(a) = snap
+                .assignments
+                .iter()
+                .find(|a| !seen.insert(a.target_id.clone()))
+            {
                 return Err(un(format!("assignments target_id 重复: {}", a.target_id)));
             }
         }
@@ -625,8 +748,14 @@ impl DomainStore {
             max_suffix(snap.findings.iter().map(|f| f.id.clone())),
             max_suffix(snap.reviews.iter().map(|r| r.id.clone())),
             max_suffix(snap.revision_tasks.iter().map(|t| t.id.clone())),
-            snap.project.as_ref().map(|p| max_suffix([p.id.clone()].into_iter())).unwrap_or(0),
-        ].into_iter().max().unwrap_or(0);
+            snap.project
+                .as_ref()
+                .map(|p| max_suffix([p.id.clone()].into_iter()))
+                .unwrap_or(0),
+        ]
+        .into_iter()
+        .max()
+        .unwrap_or(0);
         if snap.id_seq < watermark {
             return Err(un(format!(
                 "id_seq={} 低于 id 水位 {}（重启后新 id 会与既有记录碰撞——快照被截断？",
@@ -637,7 +766,9 @@ impl DomainStore {
         // RT 的 finding_id 必须存在（孤儿 RT）；ReviewRecord 引用的 FND 必须存在。
         let fnd_ids: std::collections::HashSet<&str> =
             snap.findings.iter().map(|f| f.id.as_str()).collect();
-        if let Some(rt) = snap.revision_tasks.iter()
+        if let Some(rt) = snap
+            .revision_tasks
+            .iter()
             .find(|t| !fnd_ids.contains(t.finding_id.as_str()))
         {
             return Err(un(format!(
@@ -645,7 +776,9 @@ impl DomainStore {
                 rt.id, rt.finding_id
             )));
         }
-        if let Some(rev) = snap.reviews.iter()
+        if let Some(rev) = snap
+            .reviews
+            .iter()
             .find(|r| r.findings.iter().any(|f| !fnd_ids.contains(f.as_str())))
         {
             return Err(un(format!(
@@ -654,11 +787,15 @@ impl DomainStore {
             )));
         }
         // 孤儿数据（有集合无项目 = 半个库）
-        if snap.project.is_none() && (!snap.files.is_empty() || !snap.requirements.is_empty()
-            || !snap.evidences.is_empty() || !snap.sections.is_empty()
-            || !snap.assignments.is_empty()
-            || !snap.findings.is_empty() || !snap.reviews.is_empty()
-            || !snap.revision_tasks.is_empty())
+        if snap.project.is_none()
+            && (!snap.files.is_empty()
+                || !snap.requirements.is_empty()
+                || !snap.evidences.is_empty()
+                || !snap.sections.is_empty()
+                || !snap.assignments.is_empty()
+                || !snap.findings.is_empty()
+                || !snap.reviews.is_empty()
+                || !snap.revision_tasks.is_empty())
         {
             return Err(un("快照有数据但无项目（孤儿集合——拒绝加载半个库）".into()));
         }
@@ -684,8 +821,7 @@ impl DomainStore {
 
 /// id 数字后缀最大值（水位校验：`TF-0007` → 7；非数字尾 → 忽略）。
 fn max_suffix(ids: impl Iterator<Item = String>) -> u64 {
-    ids.filter_map(|i| i.rsplit('-').next()
-        .and_then(|n| n.parse::<u64>().ok()))
+    ids.filter_map(|i| i.rsplit('-').next().and_then(|n| n.parse::<u64>().ok()))
         .max()
         .unwrap_or(0)
 }
@@ -709,11 +845,18 @@ fn tool_name(tool: &str) -> &'static str {
 }
 
 pub fn requirement_hash(r: &Requirement) -> String {
-    let mut parts: Vec<String> = r.anchors.iter()
+    let mut parts: Vec<String> = r
+        .anchors
+        .iter()
         .map(|a| format!("{}|{}|{}", a.file, a.locator, a.excerpt))
         .collect();
     parts.sort();
-    let stmt = r.anchors.iter().map(|a| a.excerpt.as_str()).collect::<Vec<_>>().join("");
+    let stmt = r
+        .anchors
+        .iter()
+        .map(|a| a.excerpt.as_str())
+        .collect::<Vec<_>>()
+        .join("");
     let mut hasher = Sha256::new();
     hasher.update(parts.join("\n"));
     hasher.update(&stmt);
@@ -726,9 +869,20 @@ mod tests {
 
     fn store_with_files() -> DomainStore {
         let mut s = DomainStore::new();
-        s.create_project("测试项目", "ZFCG-2026-GK-0311", "明标", "ext-key-1").unwrap();
-        s.upsert_file("A-招标文件.docx", "招标文件", "aa", 31, 12, 120, 0,
-                      ParseStatus::Ok, "").unwrap();
+        s.create_project("测试项目", "ZFCG-2026-GK-0311", "明标", "ext-key-1")
+            .unwrap();
+        s.upsert_file(
+            "A-招标文件.docx",
+            "招标文件",
+            "aa",
+            31,
+            12,
+            120,
+            0,
+            ParseStatus::Ok,
+            "",
+        )
+        .unwrap();
         s
     }
 
@@ -748,10 +902,13 @@ mod tests {
         let mut s = DomainStore::new();
         s.create_project("p", "c", "明标", "k").unwrap();
         assert_eq!(s.project().unwrap().status, ProjectStatus::Draft);
-        s.upsert_file("f1", "招标文件", "sha1", 1, 0, 5, 0, ParseStatus::Ok, "").unwrap();
+        s.upsert_file("f1", "招标文件", "sha1", 1, 0, 5, 0, ParseStatus::Ok, "")
+            .unwrap();
         assert_eq!(s.project().unwrap().status, ProjectStatus::FilesImported);
         // Draft 之后唯一前向是 FilesImported；FilesImported 的工具面不含 draft_response_section
-        assert!(ProjectStatus::FilesImported.next_allowed().contains(&ProjectStatus::RequirementsExtracted));
+        assert!(ProjectStatus::FilesImported
+            .next_allowed()
+            .contains(&ProjectStatus::RequirementsExtracted));
     }
 
     #[test]
@@ -769,11 +926,26 @@ mod tests {
         let mut s = store_with_files();
         let before_files = s.files().len();
         let before_version = s.content_version();
-        let (id2, dup) = s.upsert_file("A-招标文件.docx", "招标文件", "aa", 31, 12, 120, 0,
-                                        ParseStatus::Ok, "").unwrap();
+        let (id2, dup) = s
+            .upsert_file(
+                "A-招标文件.docx",
+                "招标文件",
+                "aa",
+                31,
+                12,
+                120,
+                0,
+                ParseStatus::Ok,
+                "",
+            )
+            .unwrap();
         assert!(dup, "同 sha256 必须判 deduplicated");
         assert_eq!(s.files().len(), before_files, "无重复文件记录");
-        assert_eq!(s.content_version(), before_version, "no-op 不 bump content_version");
+        assert_eq!(
+            s.content_version(),
+            before_version,
+            "no-op 不 bump content_version"
+        );
         let (id1, _) = s.files().iter().map(|f| (f.id.clone(), ())).next().unwrap();
         assert_eq!(id1, id2);
     }
@@ -784,7 +956,8 @@ mod tests {
         let v = s.content_version();
         let _ = s.guard_tool("get_bid_project_state"); // 只读不 bump
         assert_eq!(s.content_version(), v);
-        s.upsert_file("B3.xlsx", "图纸", "bb", 2, 1, 20, 0, ParseStatus::Ok, "").unwrap();
+        s.upsert_file("B3.xlsx", "图纸", "bb", 2, 1, 20, 0, ParseStatus::Ok, "")
+            .unwrap();
         assert_eq!(s.content_version(), v + 1);
     }
 
@@ -792,22 +965,35 @@ mod tests {
     fn extract_requirements_idempotent_merge() {
         let mut s = store_with_files();
         let reqs = vec![Requirement {
-            id: "REQ-0001".into(), category: "资格条件".into(), clause_no: Some("3.2.1".into()),
-            anchors: vec![Anchor { file: "A".into(), kind: "para".into(), locator: "第三章".into(),
-                                    excerpt: "独立承担民事责任能力的法人营业执照".into() }],
-            params: HashMap::new(), source_file: "A".into(),
+            id: "REQ-0001".into(),
+            category: "资格条件".into(),
+            clause_no: Some("3.2.1".into()),
+            anchors: vec![Anchor {
+                file: "A".into(),
+                kind: "para".into(),
+                locator: "第三章".into(),
+                excerpt: "独立承担民事责任能力的法人营业执照".into(),
+            }],
+            params: HashMap::new(),
+            source_file: "A".into(),
         }];
         let (n1, added1) = s.set_requirements(reqs.clone()).unwrap();
         assert_eq!((n1, added1), (1, 1));
         let (n2, added2) = s.set_requirements(reqs).unwrap();
         assert_eq!((n2, added2), (1, 0), "同 dedupe_hash 重放 → 合并不新增");
-        assert_eq!(s.project().unwrap().status, ProjectStatus::RequirementsExtracted);
+        assert_eq!(
+            s.project().unwrap().status,
+            ProjectStatus::RequirementsExtracted
+        );
     }
 
     #[test]
     fn optimistic_concurrency_conflict() {
         let s = store_with_files();
-        assert!(matches!(s.check_version(Some(999)), Err(ToolError::EConflict { .. })));
+        assert!(matches!(
+            s.check_version(Some(999)),
+            Err(ToolError::EConflict { .. })
+        ));
         let v = s.content_version();
         assert!(s.check_version(Some(v)).is_ok());
         assert!(s.check_version(None).is_ok(), "内部步骤跳过检查");

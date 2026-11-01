@@ -97,6 +97,9 @@ fn svc_drafted(tag: &str, draft_all: bool) -> (BidService, String) {
         valid_until: None,
         subject_name: "某公司".into(),
         scope: "电子与智能化工程".into(),
+        client: None,
+        amount_wan: None,
+        completed_on: None,
     }).unwrap();
     for rid in ["REQ-0003", "REQ-0004"] {
         svc.store_mut().bind_evidence(&eid, rid, "2026-12-31").unwrap();

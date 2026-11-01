@@ -204,7 +204,9 @@ impl DomainStore {
     /// pub 化（#80 第三批 MCP 补齐 G3）：`record_review_gate` 工具出参
     /// gates_approved 消费同一真源——壳层不得自建第二套门状态。
     pub fn gate_approved(&self, gate: Gate) -> bool {
-        self.reviews.iter().any(|r| r.gate == gate && r.decision == Decision::Approved)
+        self.reviews
+            .iter()
+            .any(|r| r.gate == gate && r.decision == Decision::Approved)
     }
 
     // ------------------------------------------------------------ 记审（T-7 主入口）
@@ -300,7 +302,8 @@ impl DomainStore {
         for (_, category, message, _) in &findings {
             if category.trim().is_empty() || message.trim().is_empty() {
                 return Err(ToolError::EUnprocessable {
-                    reason: "finding 的 category/message 不得为空（空发现 = 不可审计的记录）".into(),
+                    reason: "finding 的 category/message 不得为空（空发现 = 不可审计的记录）"
+                        .into(),
                 });
             }
         }
@@ -310,22 +313,28 @@ impl DomainStore {
             && !findings.iter().any(|(sev, ..)| *sev == Severity::Blocker)
         {
             return Err(ToolError::EUnprocessable {
-                reason: "Rejected 必须携带至少一条 BLOCKER finding（Warning 不构成拒审依据——诚实状态）".into(),
+                reason:
+                    "Rejected 必须携带至少一条 BLOCKER finding（Warning 不构成拒审依据——诚实状态）"
+                        .into(),
             });
         }
 
         // ---- 6. 同门重复 Approved：幂等放行
         if decision == Decision::Approved {
-            if let Some(existing) = self.reviews.iter().find(|r| {
-                r.gate == gate && r.decision == Decision::Approved
-            }) {
+            if let Some(existing) = self
+                .reviews
+                .iter()
+                .find(|r| r.gate == gate && r.decision == Decision::Approved)
+            {
                 // 返回**既有序列号**（首次过门记录的 REV-id + 其 FND 清单 +
                 // 首次派生的 RT 清单），不新建记录、content_version 不动。
                 // 携带的新 findings 不入账——门已 Approved，重复过门不是登记
                 // 新发现的通道（新发现走 Rejected 记录）。既有 RT 一律不动
                 // （不复位/不重派/不重复派生）：**重新过门 ≠ 已修完**——修没
                 // 修完只看 RT 状态，不看门又开了一次。
-                let spawned_rt_ids = self.revision_tasks.iter()
+                let spawned_rt_ids = self
+                    .revision_tasks
+                    .iter()
                     .filter(|rt| existing.findings.contains(&rt.finding_id))
                     .map(|rt| rt.id.clone())
                     .collect();
@@ -379,7 +388,13 @@ impl DomainStore {
         if let Some(p) = self.project.as_mut() {
             p.content_version += 1;
         }
-        Ok(ReviewReceipt { review_id, gate, decision, finding_ids, spawned_rt_ids })
+        Ok(ReviewReceipt {
+            review_id,
+            gate,
+            decision,
+            finding_ids,
+            spawned_rt_ids,
+        })
     }
 
     // ------------------------------------------------------------ 只读面
@@ -397,7 +412,8 @@ impl DomainStore {
 
     /// 未关单清单（status != Done 的 RT——export_allowed 的 RT 面输入）。
     pub fn open_blockers(&self) -> Vec<&RevisionTask> {
-        self.revision_tasks.iter()
+        self.revision_tasks
+            .iter()
             .filter(|rt| rt.status != RTStatus::Done)
             .collect()
     }
@@ -406,8 +422,13 @@ impl DomainStore {
     /// RT 指派（认领/改派）。owner 是修订执行者面——任意操作者（人与 AI
     /// 均可修单；与复审人不同，无 human: 前缀约束：AI 可以修单，不能过门）。
     pub fn assign_revision_task(&mut self, rt_id: &str, owner: &str) -> Result<(), ToolError> {
-        let idx = self.revision_tasks.iter().position(|rt| rt.id == rt_id)
-            .ok_or_else(|| ToolError::ENotFound { what: format!("revision_task {rt_id} 不存在") })?;
+        let idx = self
+            .revision_tasks
+            .iter()
+            .position(|rt| rt.id == rt_id)
+            .ok_or_else(|| ToolError::ENotFound {
+                what: format!("revision_task {rt_id} 不存在"),
+            })?;
         if self.revision_tasks[idx].status == RTStatus::Done {
             return Err(ToolError::EUnprocessable {
                 reason: format!(
@@ -434,8 +455,13 @@ impl DomainStore {
     ///   resolution 非空），本面无 resolution 参，走 [`Self::complete_revision_task`]；
     /// - Done：终态零出边（next_allowed = []——重开 = 重走门派新单，不复活旧单）。
     pub fn advance_rt_status(&mut self, rt_id: &str, to: RTStatus) -> Result<(), ToolError> {
-        let idx = self.revision_tasks.iter().position(|rt| rt.id == rt_id)
-            .ok_or_else(|| ToolError::ENotFound { what: format!("revision_task {rt_id} 不存在") })?;
+        let idx = self
+            .revision_tasks
+            .iter()
+            .position(|rt| rt.id == rt_id)
+            .ok_or_else(|| ToolError::ENotFound {
+                what: format!("revision_task {rt_id} 不存在"),
+            })?;
         let cur = self.revision_tasks[idx].status;
         if !cur.next_allowed().contains(&to) {
             return Err(ToolError::EUnprocessable {
@@ -464,9 +490,18 @@ impl DomainStore {
     /// - 仅 InProgress 可关（Open 直接 Done = 越级拒——先认领开工再关单）；
     /// - resolution 必填非空（空说明不算修完——诚实状态）；
     /// - DONE 后不可重开（重走门 = 新 finding 新 RT，不复活旧单）。
-    pub fn complete_revision_task(&mut self, rt_id: &str, resolution: &str) -> Result<(), ToolError> {
-        let idx = self.revision_tasks.iter().position(|rt| rt.id == rt_id)
-            .ok_or_else(|| ToolError::ENotFound { what: format!("revision_task {rt_id} 不存在") })?;
+    pub fn complete_revision_task(
+        &mut self,
+        rt_id: &str,
+        resolution: &str,
+    ) -> Result<(), ToolError> {
+        let idx = self
+            .revision_tasks
+            .iter()
+            .position(|rt| rt.id == rt_id)
+            .ok_or_else(|| ToolError::ENotFound {
+                what: format!("revision_task {rt_id} 不存在"),
+            })?;
         let cur = self.revision_tasks[idx].status;
         if cur == RTStatus::Done {
             return Err(ToolError::EUnprocessable {
@@ -511,7 +546,11 @@ impl DomainStore {
     pub fn export_allowed(&self) -> Result<(), ToolError> {
         let p = self.project()?;
         // 三门（门序遍历——缺哪门点哪门）
-        for gate in [Gate::MatrixApproval, Gate::OutlineApproval, Gate::PreExportConfirm] {
+        for gate in [
+            Gate::MatrixApproval,
+            Gate::OutlineApproval,
+            Gate::PreExportConfirm,
+        ] {
             if !self.gate_approved(gate) {
                 return Err(ToolError::EState {
                     current: p.status,
@@ -556,9 +595,20 @@ mod tests {
     /// REQUIREMENTS_EXTRACTED——只有最后一段拨位）。
     fn store_review_base() -> DomainStore {
         let mut s = DomainStore::new();
-        s.create_project("审核闭环项目", "ZFCG-2026-GK-0707", "明标", "ext-key-t7").unwrap();
-        s.upsert_file("A-招标文件.docx", "招标文件", "sha-t7", 31, 12, 120, 0,
-                      ParseStatus::Ok, "").unwrap();
+        s.create_project("审核闭环项目", "ZFCG-2026-GK-0707", "明标", "ext-key-t7")
+            .unwrap();
+        s.upsert_file(
+            "A-招标文件.docx",
+            "招标文件",
+            "sha-t7",
+            31,
+            12,
+            120,
+            0,
+            ParseStatus::Ok,
+            "",
+        )
+        .unwrap();
         s.set_requirements(vec![Requirement {
             id: "REQ-0001".into(),
             category: "资格条件".into(),
@@ -571,7 +621,8 @@ mod tests {
             }],
             params: HashMap::new(),
             source_file: "A".into(),
-        }]).unwrap();
+        }])
+        .unwrap();
         s
     }
 
@@ -595,9 +646,27 @@ mod tests {
         s: &mut DomainStore,
         pre_export_findings: Vec<(Severity, String, String, Option<String>)>,
     ) -> ReviewReceipt {
-        s.record_review(Gate::MatrixApproval, "human:zhang", Decision::Approved, vec![]).unwrap();
-        s.record_review(Gate::OutlineApproval, "human:li", Decision::Approved, vec![]).unwrap();
-        s.record_review(Gate::PreExportConfirm, "human:wang", Decision::Approved, pre_export_findings).unwrap()
+        s.record_review(
+            Gate::MatrixApproval,
+            "human:zhang",
+            Decision::Approved,
+            vec![],
+        )
+        .unwrap();
+        s.record_review(
+            Gate::OutlineApproval,
+            "human:li",
+            Decision::Approved,
+            vec![],
+        )
+        .unwrap();
+        s.record_review(
+            Gate::PreExportConfirm,
+            "human:wang",
+            Decision::Approved,
+            pre_export_findings,
+        )
+        .unwrap()
     }
 
     // ============================ 自研测试 ============================
@@ -609,27 +678,77 @@ mod tests {
     fn acceptance_blocker_rt_lifecycle_and_export_gate() {
         let mut s = store_at_matrix_ready();
         // 门一：矩阵定稿（零发现——干净过门）
-        let r1 = s.record_review(Gate::MatrixApproval, "human:zhang", Decision::Approved, vec![]).unwrap();
+        let r1 = s
+            .record_review(
+                Gate::MatrixApproval,
+                "human:zhang",
+                Decision::Approved,
+                vec![],
+            )
+            .unwrap();
         assert_eq!(r1.gate, Gate::MatrixApproval);
         assert!(r1.finding_ids.is_empty());
         assert!(r1.spawned_rt_ids.is_empty());
         // 门二：章节树定稿（1 条 Warning——不派生 RT）
-        let r2 = s.record_review(Gate::OutlineApproval, "human:li", Decision::Approved, vec![
-            (Severity::Warning, "占位符残留".into(), "大纲第 3 章标题占位".into(), Some("SEC-0001".into())),
-        ]).unwrap();
+        let r2 = s
+            .record_review(
+                Gate::OutlineApproval,
+                "human:li",
+                Decision::Approved,
+                vec![(
+                    Severity::Warning,
+                    "占位符残留".into(),
+                    "大纲第 3 章标题占位".into(),
+                    Some("SEC-0001".into()),
+                )],
+            )
+            .unwrap();
         assert_eq!(r2.finding_ids.len(), 1);
-        assert_eq!(r2.spawned_rt_ids.len(), 0, "Warning 不派生 RT——只有 BLOCKER 有 RT");
+        assert_eq!(
+            r2.spawned_rt_ids.len(),
+            0,
+            "Warning 不派生 RT——只有 BLOCKER 有 RT"
+        );
         // 门三：导出前确认（2 Blocker + 1 Warning）
-        let r3 = s.record_review(Gate::PreExportConfirm, "human:wang", Decision::Approved, vec![
-            (Severity::Blocker, "金额冲突".into(), "报价总价与大写金额不一致".into(), Some("SEC-0007".into())),
-            (Severity::Blocker, "占位符残留".into(), "服务承诺章仍有 {{待定}} 模板占位".into(), None),
-            (Severity::Warning, "格式要求".into(), "页眉缺少项目编号".into(), None),
-        ]).unwrap();
+        let r3 = s
+            .record_review(
+                Gate::PreExportConfirm,
+                "human:wang",
+                Decision::Approved,
+                vec![
+                    (
+                        Severity::Blocker,
+                        "金额冲突".into(),
+                        "报价总价与大写金额不一致".into(),
+                        Some("SEC-0007".into()),
+                    ),
+                    (
+                        Severity::Blocker,
+                        "占位符残留".into(),
+                        "服务承诺章仍有 {{待定}} 模板占位".into(),
+                        None,
+                    ),
+                    (
+                        Severity::Warning,
+                        "格式要求".into(),
+                        "页眉缺少项目编号".into(),
+                        None,
+                    ),
+                ],
+            )
+            .unwrap();
         assert_eq!(r3.finding_ids.len(), 3);
-        assert_eq!(r3.spawned_rt_ids.len(), 2, "2 条 BLOCKER → 2 个 RT；Warning 不派生");
+        assert_eq!(
+            r3.spawned_rt_ids.len(),
+            2,
+            "2 条 BLOCKER → 2 个 RT；Warning 不派生"
+        );
         assert_eq!(s.findings().len(), 4);
         assert_eq!(s.revision_tasks().len(), 2);
-        assert!(s.reviews()[2].at > 0, "at 为 UNIX_EPOCH 秒落钟（no-chrono）");
+        assert!(
+            s.reviews()[2].at > 0,
+            "at 为 UNIX_EPOCH 秒落钟（no-chrono）"
+        );
         // 未关单 → 导出前置裁决拒（E_UNPROCESSABLE，消息含未关单数）
         match s.export_allowed() {
             Err(ToolError::EUnprocessable { reason }) => {
@@ -640,7 +759,9 @@ mod tests {
         // 跳级先试：Open 直接 Done → 越级拒
         let rt_first = r3.spawned_rt_ids[0].clone();
         assert_eq!(
-            s.complete_revision_task(&rt_first, "跳级关单").unwrap_err().code(),
+            s.complete_revision_task(&rt_first, "跳级关单")
+                .unwrap_err()
+                .code(),
             "E_UNPROCESSABLE"
         );
         // 逐个 assign → advance(InProgress) → complete(resolution)
@@ -649,7 +770,8 @@ mod tests {
             let owner = if i == 0 { "human:fixer" } else { "ai:glm-7" };
             s.assign_revision_task(rt_id, owner).unwrap();
             s.advance_rt_status(rt_id, RTStatus::InProgress).unwrap();
-            s.complete_revision_task(rt_id, "已按补遗 v2 对齐金额与占位文案").unwrap();
+            s.complete_revision_task(rt_id, "已按补遗 v2 对齐金额与占位文案")
+                .unwrap();
         }
         // 全 DONE → 放行
         assert!(s.open_blockers().is_empty());
@@ -657,7 +779,11 @@ mod tests {
         // 每个 DONE RT 都带非空关单说明（诚实状态的结构面）
         for rt in s.revision_tasks() {
             assert_eq!(rt.status, RTStatus::Done);
-            assert!(rt.resolution.as_deref().map(|r| !r.trim().is_empty()).unwrap_or(false));
+            assert!(rt
+                .resolution
+                .as_deref()
+                .map(|r| !r.trim().is_empty())
+                .unwrap_or(false));
         }
     }
 
@@ -668,8 +794,15 @@ mod tests {
         let mut early = store_review_base();
         let v = early.content_version();
         assert_eq!(
-            early.record_review(Gate::MatrixApproval, "human:zhang", Decision::Approved, vec![])
-                .unwrap_err().code(),
+            early
+                .record_review(
+                    Gate::MatrixApproval,
+                    "human:zhang",
+                    Decision::Approved,
+                    vec![]
+                )
+                .unwrap_err()
+                .code(),
             "E_STATE"
         );
         assert_eq!(early.content_version(), v, "拒绝零副作用");
@@ -677,32 +810,64 @@ mod tests {
 
         // 门序强制：第三门直跳（前两门未过）→ EState 点名缺 matrix_approval
         let mut s = store_at_matrix_ready();
-        let err = s.record_review(Gate::PreExportConfirm, "human:wang", Decision::Approved, vec![]).unwrap_err();
+        let err = s
+            .record_review(
+                Gate::PreExportConfirm,
+                "human:wang",
+                Decision::Approved,
+                vec![],
+            )
+            .unwrap_err();
         match &err {
-            ToolError::EState { attempted, .. } =>
-                assert!(attempted.contains("matrix_approval"), "须点名第一缺门：{attempted}"),
+            ToolError::EState { attempted, .. } => assert!(
+                attempted.contains("matrix_approval"),
+                "须点名第一缺门：{attempted}"
+            ),
             other => panic!("须 EState，得到 {other:?}"),
         }
         // 乱序：大纲门先于矩阵门 → EState
         assert_eq!(
-            s.record_review(Gate::OutlineApproval, "human:li", Decision::Approved, vec![])
-                .unwrap_err().code(),
+            s.record_review(
+                Gate::OutlineApproval,
+                "human:li",
+                Decision::Approved,
+                vec![]
+            )
+            .unwrap_err()
+            .code(),
             "E_STATE"
         );
         assert!(s.reviews().is_empty(), "乱序记审零入账");
         // 矩阵门过后、大纲门未过 → 第三门仍拒（点名缺 outline_approval）
-        s.record_review(Gate::MatrixApproval, "human:zhang", Decision::Approved, vec![]).unwrap();
-        let err = s.record_review(Gate::PreExportConfirm, "human:wang", Decision::Approved, vec![]).unwrap_err();
+        s.record_review(
+            Gate::MatrixApproval,
+            "human:zhang",
+            Decision::Approved,
+            vec![],
+        )
+        .unwrap();
+        let err = s
+            .record_review(
+                Gate::PreExportConfirm,
+                "human:wang",
+                Decision::Approved,
+                vec![],
+            )
+            .unwrap_err();
         match &err {
-            ToolError::EState { attempted, .. } =>
-                assert!(attempted.contains("outline_approval"), "须点名缺门：{attempted}"),
+            ToolError::EState { attempted, .. } => assert!(
+                attempted.contains("outline_approval"),
+                "须点名缺门：{attempted}"
+            ),
             other => panic!("须 EState，得到 {other:?}"),
         }
         assert_eq!(s.reviews().len(), 1, "只有合法矩阵门记录入账");
         // 查询面同口径：三门缺一 → export_allowed EState 点名
         match s.export_allowed() {
-            Err(ToolError::EState { attempted, .. }) =>
-                assert!(attempted.contains("outline_approval"), "查询面须点名缺门：{attempted}"),
+            Err(ToolError::EState { attempted, .. }) => assert!(
+                attempted.contains("outline_approval"),
+                "查询面须点名缺门：{attempted}"
+            ),
             other => panic!("缺门须 EState，得到 {other:?}"),
         }
     }
@@ -715,7 +880,10 @@ mod tests {
         for bad in ["ai:glm", "human", ""] {
             match s.record_review(Gate::MatrixApproval, bad, Decision::Approved, vec![]) {
                 Err(ToolError::EUnprocessable { reason }) => {
-                    assert!(reason.contains("ReviewPolicy"), "错误消息须引 ReviewPolicy 对齐：{reason}");
+                    assert!(
+                        reason.contains("ReviewPolicy"),
+                        "错误消息须引 ReviewPolicy 对齐：{reason}"
+                    );
                     assert!(reason.contains("human:"), "须指出前缀要求：{reason}");
                 }
                 other => panic!("复审人 {bad:?} 必须拒，得到 {other:?}"),
@@ -724,7 +892,13 @@ mod tests {
         assert!(s.reviews().is_empty());
         assert_eq!(s.content_version(), v, "拒绝路径零副作用");
         // "human:wang" 放行（borrow mdcore 测试口径的操作者形态）
-        s.record_review(Gate::MatrixApproval, "human:wang", Decision::Approved, vec![]).unwrap();
+        s.record_review(
+            Gate::MatrixApproval,
+            "human:wang",
+            Decision::Approved,
+            vec![],
+        )
+        .unwrap();
         assert_eq!(s.reviews().len(), 1);
         assert_eq!(s.reviews()[0].reviewer, "human:wang");
     }
@@ -734,28 +908,62 @@ mod tests {
     fn rejected_without_blocker_is_dishonest() {
         let mut s = store_at_matrix_ready();
         // 纯 Warning 的 Rejected → EUnprocessable
-        let err = s.record_review(Gate::MatrixApproval, "human:wang", Decision::Rejected, vec![
-            (Severity::Warning, "格式要求".into(), "页眉缺项目编号".into(), None),
-        ]).unwrap_err();
+        let err = s
+            .record_review(
+                Gate::MatrixApproval,
+                "human:wang",
+                Decision::Rejected,
+                vec![(
+                    Severity::Warning,
+                    "格式要求".into(),
+                    "页眉缺项目编号".into(),
+                    None,
+                )],
+            )
+            .unwrap_err();
         assert_eq!(err.code(), "E_UNPROCESSABLE");
         // 零 findings 的 Rejected → 同拒
         assert_eq!(
-            s.record_review(Gate::MatrixApproval, "human:wang", Decision::Rejected, vec![])
-                .unwrap_err().code(),
+            s.record_review(
+                Gate::MatrixApproval,
+                "human:wang",
+                Decision::Rejected,
+                vec![]
+            )
+            .unwrap_err()
+            .code(),
             "E_UNPROCESSABLE"
         );
-        assert!(s.reviews().is_empty() && s.findings().is_empty(), "拒绝路径零副作用");
+        assert!(
+            s.reviews().is_empty() && s.findings().is_empty(),
+            "拒绝路径零副作用"
+        );
         // 带 Blocker 的 Rejected 放行且 RT 照常派生（拒审不断关单通道）
-        let r = s.record_review(Gate::MatrixApproval, "human:wang", Decision::Rejected, vec![
-            (Severity::Blocker, "金额冲突".into(), "报价总价与大写金额不一致".into(), Some("SEC-0007".into())),
-        ]).unwrap();
+        let r = s
+            .record_review(
+                Gate::MatrixApproval,
+                "human:wang",
+                Decision::Rejected,
+                vec![(
+                    Severity::Blocker,
+                    "金额冲突".into(),
+                    "报价总价与大写金额不一致".into(),
+                    Some("SEC-0007".into()),
+                )],
+            )
+            .unwrap();
         assert_eq!(r.decision, Decision::Rejected);
         assert_eq!(r.spawned_rt_ids.len(), 1, "拒审的 Blocker 照常派生 RT");
         assert_eq!(s.reviews().len(), 1);
         // 空 message 的发现 → 拒（空发现不可审计——findings 形状门的落点）
-        let err = s.record_review(Gate::MatrixApproval, "human:li", Decision::Approved, vec![
-            (Severity::Info, "备注".into(), "   ".into(), None),
-        ]).unwrap_err();
+        let err = s
+            .record_review(
+                Gate::MatrixApproval,
+                "human:li",
+                Decision::Approved,
+                vec![(Severity::Info, "备注".into(), "   ".into(), None)],
+            )
+            .unwrap_err();
         assert_eq!(err.code(), "E_UNPROCESSABLE");
         assert_eq!(s.findings().len(), 1, "非法发现零入账");
     }
@@ -767,44 +975,124 @@ mod tests {
     fn blocker_rt_structural_invariant() {
         let mut s = store_at_matrix_ready();
         // 轮 1：矩阵门 Rejected（1 Blocker + 1 Warning）
-        s.record_review(Gate::MatrixApproval, "human:wang", Decision::Rejected, vec![
-            (Severity::Blocker, "金额冲突".into(), "总价与大写不一致".into(), Some("SEC-0007".into())),
-            (Severity::Warning, "格式要求".into(), "页眉缺编号".into(), None),
-        ]).unwrap();
+        s.record_review(
+            Gate::MatrixApproval,
+            "human:wang",
+            Decision::Rejected,
+            vec![
+                (
+                    Severity::Blocker,
+                    "金额冲突".into(),
+                    "总价与大写不一致".into(),
+                    Some("SEC-0007".into()),
+                ),
+                (
+                    Severity::Warning,
+                    "格式要求".into(),
+                    "页眉缺编号".into(),
+                    None,
+                ),
+            ],
+        )
+        .unwrap();
         // 轮 2：矩阵门重审 Approved（零发现——上轮 RT 未修完不阻断过门，
         // 收紧面在 export_allowed 的 RT 判决）
-        s.record_review(Gate::MatrixApproval, "human:zhang", Decision::Approved, vec![]).unwrap();
+        s.record_review(
+            Gate::MatrixApproval,
+            "human:zhang",
+            Decision::Approved,
+            vec![],
+        )
+        .unwrap();
         // 轮 3：大纲门 Approved（1 Blocker）
-        s.record_review(Gate::OutlineApproval, "human:li", Decision::Approved, vec![
-            (Severity::Blocker, "占位符残留".into(), "第 5 章标题占位".into(), None),
-        ]).unwrap();
+        s.record_review(
+            Gate::OutlineApproval,
+            "human:li",
+            Decision::Approved,
+            vec![(
+                Severity::Blocker,
+                "占位符残留".into(),
+                "第 5 章标题占位".into(),
+                None,
+            )],
+        )
+        .unwrap();
         // 轮 4：第三门 Rejected（1 Blocker）
-        s.record_review(Gate::PreExportConfirm, "human:wang", Decision::Rejected, vec![
-            (Severity::Blocker, "金额冲突".into(), "报价单税率与正文不一致".into(), None),
-        ]).unwrap();
+        s.record_review(
+            Gate::PreExportConfirm,
+            "human:wang",
+            Decision::Rejected,
+            vec![(
+                Severity::Blocker,
+                "金额冲突".into(),
+                "报价单税率与正文不一致".into(),
+                None,
+            )],
+        )
+        .unwrap();
         // 轮 5：第三门 Approved（1 Blocker + 1 Info）
-        s.record_review(Gate::PreExportConfirm, "human:wang", Decision::Approved, vec![
-            (Severity::Blocker, "占位符残留".into(), "签署页日期占位".into(), None),
-            (Severity::Info, "备注".into(), "建议附电子版目录".into(), None),
-        ]).unwrap();
+        s.record_review(
+            Gate::PreExportConfirm,
+            "human:wang",
+            Decision::Approved,
+            vec![
+                (
+                    Severity::Blocker,
+                    "占位符残留".into(),
+                    "签署页日期占位".into(),
+                    None,
+                ),
+                (
+                    Severity::Info,
+                    "备注".into(),
+                    "建议附电子版目录".into(),
+                    None,
+                ),
+            ],
+        )
+        .unwrap();
         // 轮 6：Approved 后的过程记录（第三门再 Rejected + 1 Blocker——
         // Rejected 不撤回 Approved 里程碑，新问题经新 RT 收紧导出面）
-        s.record_review(Gate::PreExportConfirm, "human:li", Decision::Rejected, vec![
-            (Severity::Blocker, "金额冲突".into(), "大写金额错字".into(), None),
-        ]).unwrap();
+        s.record_review(
+            Gate::PreExportConfirm,
+            "human:li",
+            Decision::Rejected,
+            vec![(
+                Severity::Blocker,
+                "金额冲突".into(),
+                "大写金额错字".into(),
+                None,
+            )],
+        )
+        .unwrap();
         // —— 结构不变量断言 ——
         assert_eq!(s.findings().len(), 7);
-        let blockers = s.findings().iter().filter(|f| f.severity == Severity::Blocker).count();
+        let blockers = s
+            .findings()
+            .iter()
+            .filter(|f| f.severity == Severity::Blocker)
+            .count();
         assert_eq!(blockers, 5);
-        assert_eq!(s.revision_tasks().len(), 5, "Blocker 数 ≡ RT 数（结构保证非约定保证）");
+        assert_eq!(
+            s.revision_tasks().len(),
+            5,
+            "Blocker 数 ≡ RT 数（结构保证非约定保证）"
+        );
         for rt in s.revision_tasks() {
             let f = s.findings().iter().find(|f| f.id == rt.finding_id).unwrap();
             assert_eq!(f.severity, Severity::Blocker, "RT 只从 Blocker 派生");
             assert_eq!(rt.status, RTStatus::Open, "全程未修单——全部保持 Open");
         }
-        for f in s.findings().iter().filter(|f| f.severity == Severity::Blocker) {
+        for f in s
+            .findings()
+            .iter()
+            .filter(|f| f.severity == Severity::Blocker)
+        {
             assert_eq!(
-                s.revision_tasks().iter().filter(|rt| rt.finding_id == f.id).count(),
+                s.revision_tasks()
+                    .iter()
+                    .filter(|rt| rt.finding_id == f.id)
+                    .count(),
                 1,
                 "每个 Blocker 恰一个 RT（无遗漏无多生）"
             );
@@ -815,10 +1103,27 @@ mod tests {
     #[test]
     fn rt_completion_requires_resolution_and_chain() {
         let mut s = store_at_matrix_ready();
-        let r = s.record_review(Gate::MatrixApproval, "human:wang", Decision::Rejected, vec![
-            (Severity::Blocker, "金额冲突".into(), "总价与大写不一致".into(), None),
-            (Severity::Blocker, "占位符残留".into(), "签署页占位".into(), None),
-        ]).unwrap();
+        let r = s
+            .record_review(
+                Gate::MatrixApproval,
+                "human:wang",
+                Decision::Rejected,
+                vec![
+                    (
+                        Severity::Blocker,
+                        "金额冲突".into(),
+                        "总价与大写不一致".into(),
+                        None,
+                    ),
+                    (
+                        Severity::Blocker,
+                        "占位符残留".into(),
+                        "签署页占位".into(),
+                        None,
+                    ),
+                ],
+            )
+            .unwrap();
         let (rt_a, rt_b) = (r.spawned_rt_ids[0].clone(), r.spawned_rt_ids[1].clone());
         // 不存在 → ENotFound
         assert!(matches!(
@@ -838,18 +1143,25 @@ mod tests {
             "E_UNPROCESSABLE"
         );
         assert_eq!(s.content_version(), v, "拒绝路径零副作用");
-        s.complete_revision_task(&rt_a, "金额已按补遗 v2 重算对齐").unwrap();
+        s.complete_revision_task(&rt_a, "金额已按补遗 v2 重算对齐")
+            .unwrap();
         let v = s.content_version();
         assert_eq!(
-            s.advance_rt_status(&rt_a, RTStatus::InProgress).unwrap_err().code(),
+            s.advance_rt_status(&rt_a, RTStatus::InProgress)
+                .unwrap_err()
+                .code(),
             "E_UNPROCESSABLE"
         );
         assert_eq!(
-            s.complete_revision_task(&rt_a, "再改一次").unwrap_err().code(),
+            s.complete_revision_task(&rt_a, "再改一次")
+                .unwrap_err()
+                .code(),
             "E_UNPROCESSABLE"
         );
         assert_eq!(
-            s.assign_revision_task(&rt_a, "human:other").unwrap_err().code(),
+            s.assign_revision_task(&rt_a, "human:other")
+                .unwrap_err()
+                .code(),
             "E_UNPROCESSABLE"
         );
         assert_eq!(s.content_version(), v, "终态三拒全零副作用");
@@ -859,17 +1171,22 @@ mod tests {
             "E_UNPROCESSABLE"
         );
         assert_eq!(
-            s.advance_rt_status(&rt_b, RTStatus::Done).unwrap_err().code(),
+            s.advance_rt_status(&rt_b, RTStatus::Done)
+                .unwrap_err()
+                .code(),
             "E_UNPROCESSABLE"
         );
         // rt_b 合法走完：开工 →（无 resolution 参的 Done 推进也拒）→ 带说明关单
         s.assign_revision_task(&rt_b, "ai:glm-7").unwrap();
         s.advance_rt_status(&rt_b, RTStatus::InProgress).unwrap();
         assert_eq!(
-            s.advance_rt_status(&rt_b, RTStatus::Done).unwrap_err().code(),
+            s.advance_rt_status(&rt_b, RTStatus::Done)
+                .unwrap_err()
+                .code(),
             "E_UNPROCESSABLE"
         );
-        s.complete_revision_task(&rt_b, "占位已按定稿版替换").unwrap();
+        s.complete_revision_task(&rt_b, "占位已按定稿版替换")
+            .unwrap();
         assert!(s.open_blockers().is_empty());
     }
 
@@ -877,10 +1194,23 @@ mod tests {
     #[test]
     fn duplicate_gate_approval_idempotent_no_reset() {
         let mut s = store_at_matrix_ready();
-        let r = walk_three_gates(&mut s, vec![
-            (Severity::Blocker, "金额冲突".into(), "总价与大写不一致".into(), None),
-            (Severity::Blocker, "占位符残留".into(), "签署页占位".into(), None),
-        ]);
+        let r = walk_three_gates(
+            &mut s,
+            vec![
+                (
+                    Severity::Blocker,
+                    "金额冲突".into(),
+                    "总价与大写不一致".into(),
+                    None,
+                ),
+                (
+                    Severity::Blocker,
+                    "占位符残留".into(),
+                    "签署页占位".into(),
+                    None,
+                ),
+            ],
+        );
         // 半途修单：rt_a 关单、rt_b 开工未关
         let (rt_a, rt_b) = (r.spawned_rt_ids[0].clone(), r.spawned_rt_ids[1].clone());
         s.assign_revision_task(&rt_a, "human:f1").unwrap();
@@ -888,22 +1218,53 @@ mod tests {
         s.complete_revision_task(&rt_a, "已修").unwrap();
         s.assign_revision_task(&rt_b, "human:f2").unwrap();
         s.advance_rt_status(&rt_b, RTStatus::InProgress).unwrap();
-        let shape = (s.findings().len(), s.revision_tasks().len(), s.reviews().len());
+        let shape = (
+            s.findings().len(),
+            s.revision_tasks().len(),
+            s.reviews().len(),
+        );
         let v = s.content_version();
         // 同门二次 Approved（携同形 findings 重放）→ 幂等返回
-        let r2 = s.record_review(Gate::PreExportConfirm, "human:wang", Decision::Approved, vec![
-            (Severity::Blocker, "金额冲突".into(), "总价与大写不一致".into(), None),
-            (Severity::Blocker, "占位符残留".into(), "签署页占位".into(), None),
-        ]).unwrap();
+        let r2 = s
+            .record_review(
+                Gate::PreExportConfirm,
+                "human:wang",
+                Decision::Approved,
+                vec![
+                    (
+                        Severity::Blocker,
+                        "金额冲突".into(),
+                        "总价与大写不一致".into(),
+                        None,
+                    ),
+                    (
+                        Severity::Blocker,
+                        "占位符残留".into(),
+                        "签署页占位".into(),
+                        None,
+                    ),
+                ],
+            )
+            .unwrap();
         assert_eq!(r2.review_id, r.review_id, "返回既有 REV 序号——不新建记录");
         assert_eq!(r2.finding_ids, r.finding_ids);
         assert_eq!(r2.spawned_rt_ids.len(), 2, "回执带首次过门派生的 RT 清单");
         // 零副作用：findings/RT/reviews 不增、content_version 不动（幂等重放）
-        assert_eq!((s.findings().len(), s.revision_tasks().len(), s.reviews().len()), shape);
+        assert_eq!(
+            (
+                s.findings().len(),
+                s.revision_tasks().len(),
+                s.reviews().len()
+            ),
+            shape
+        );
         assert_eq!(s.content_version(), v);
         // 既有 RT 状态不被复位（Done 仍 Done、InProgress 仍 InProgress）
         let ra = s.revision_tasks().iter().find(|t| t.id == rt_a).unwrap();
-        assert_eq!((ra.status, ra.resolution.as_deref()), (RTStatus::Done, Some("已修")));
+        assert_eq!(
+            (ra.status, ra.resolution.as_deref()),
+            (RTStatus::Done, Some("已修"))
+        );
         let rb = s.revision_tasks().iter().find(|t| t.id == rt_b).unwrap();
         assert_eq!(rb.status, RTStatus::InProgress);
         // 导出裁决不受门重开影响：未全关仍拒 → 关掉 rt_b → 放行
@@ -916,10 +1277,27 @@ mod tests {
     #[test]
     fn section_scoped_and_global_findings() {
         let mut s = store_at_matrix_ready();
-        let r = s.record_review(Gate::MatrixApproval, "human:wang", Decision::Rejected, vec![
-            (Severity::Blocker, "金额冲突".into(), "总价与大写不一致".into(), Some("SEC-0007".into())),
-            (Severity::Blocker, "占位符残留".into(), "全文仍有 {{待定}} 占位".into(), None),
-        ]).unwrap();
+        let r = s
+            .record_review(
+                Gate::MatrixApproval,
+                "human:wang",
+                Decision::Rejected,
+                vec![
+                    (
+                        Severity::Blocker,
+                        "金额冲突".into(),
+                        "总价与大写不一致".into(),
+                        Some("SEC-0007".into()),
+                    ),
+                    (
+                        Severity::Blocker,
+                        "占位符残留".into(),
+                        "全文仍有 {{待定}} 占位".into(),
+                        None,
+                    ),
+                ],
+            )
+            .unwrap();
         assert_eq!(r.spawned_rt_ids.len(), 2);
         let rts = s.revision_tasks();
         assert_eq!(rts[0].section_id, "SEC-0007", "章节域发现锚原章节 id");
@@ -937,34 +1315,65 @@ mod tests {
     #[test]
     fn snapshot_roundtrip_review_state_survives_restart() {
         let mut s = store_at_matrix_ready();
-        let r = walk_three_gates(&mut s, vec![
-            (Severity::Blocker, "金额冲突".into(), "总价与大写不一致".into(), None),
-        ]);
-        s.assign_revision_task(&r.spawned_rt_ids[0], "human:f1").unwrap();
+        let r = walk_three_gates(
+            &mut s,
+            vec![(
+                Severity::Blocker,
+                "金额冲突".into(),
+                "总价与大写不一致".into(),
+                None,
+            )],
+        );
+        s.assign_revision_task(&r.spawned_rt_ids[0], "human:f1")
+            .unwrap();
         // 半途（1 条 RT 未关）→ 裁决拒
         let verdict_before = s.export_allowed().unwrap_err();
         let snap = s.to_snapshot();
         // —— 重启（快照往返：丢弃原库，从快照恢复）——
         drop(s);
         let mut s2 = DomainStore::restore(snap.clone()).unwrap();
-        assert_eq!(s2.to_snapshot(), snap, "重开全量状态全等（findings/reviews/RTs/版本/水位）");
+        assert_eq!(
+            s2.to_snapshot(),
+            snap,
+            "重开全量状态全等（findings/reviews/RTs/版本/水位）"
+        );
         // 裁决等价：重开后 export_allowed 同形拒绝（同一未关单）
         assert_eq!(s2.export_allowed().unwrap_err(), verdict_before);
         // 续跑：新签 id 不碰撞（水位恢复——新 FND/REV/RT 与既有集互异）
-        let existing: Vec<String> = snap.findings.iter().map(|f| f.id.clone())
+        let existing: Vec<String> = snap
+            .findings
+            .iter()
+            .map(|f| f.id.clone())
             .chain(snap.reviews.iter().map(|r| r.id.clone()))
             .chain(snap.revision_tasks.iter().map(|t| t.id.clone()))
             .collect();
-        let r2 = s2.record_review(Gate::PreExportConfirm, "human:wang", Decision::Rejected, vec![
-            (Severity::Blocker, "金额冲突".into(), "复审新发现：大写金额错字".into(), None),
-        ]).unwrap();
+        let r2 = s2
+            .record_review(
+                Gate::PreExportConfirm,
+                "human:wang",
+                Decision::Rejected,
+                vec![(
+                    Severity::Blocker,
+                    "金额冲突".into(),
+                    "复审新发现：大写金额错字".into(),
+                    None,
+                )],
+            )
+            .unwrap();
         assert!(!existing.contains(&r2.review_id), "新 REV id 不碰撞");
-        assert!(r2.finding_ids.iter().all(|f| !existing.contains(f)), "新 FND id 不碰撞");
-        assert!(r2.spawned_rt_ids.iter().all(|t| !existing.contains(t)), "新 RT id 不碰撞");
+        assert!(
+            r2.finding_ids.iter().all(|f| !existing.contains(f)),
+            "新 FND id 不碰撞"
+        );
+        assert!(
+            r2.spawned_rt_ids.iter().all(|t| !existing.contains(t)),
+            "新 RT id 不碰撞"
+        );
         // 两单全关 → 放行（重开后裁决面仍活——闭环跨重启成立）
         for rt_id in [r.spawned_rt_ids[0].clone(), r2.spawned_rt_ids[0].clone()] {
             s2.advance_rt_status(&rt_id, RTStatus::InProgress).unwrap();
-            s2.complete_revision_task(&rt_id, "已修（重启后续跑关单）").unwrap();
+            s2.complete_revision_task(&rt_id, "已修（重启后续跑关单）")
+                .unwrap();
         }
         assert!(s2.export_allowed().is_ok());
     }
@@ -975,11 +1384,23 @@ mod tests {
     #[test]
     fn restore_rejects_orphan_rt_and_duplicate_ids() {
         let mut s = store_at_matrix_ready();
-        s.record_review(Gate::MatrixApproval, "human:wang", Decision::Rejected, vec![
-            (Severity::Blocker, "金额冲突".into(), "总价与大写不一致".into(), None),
-        ]).unwrap();
+        s.record_review(
+            Gate::MatrixApproval,
+            "human:wang",
+            Decision::Rejected,
+            vec![(
+                Severity::Blocker,
+                "金额冲突".into(),
+                "总价与大写不一致".into(),
+                None,
+            )],
+        )
+        .unwrap();
         let base = s.to_snapshot();
-        assert!(DomainStore::restore(base.clone()).is_ok(), "对照组：基线快照可载");
+        assert!(
+            DomainStore::restore(base.clone()).is_ok(),
+            "对照组：基线快照可载"
+        );
         // 孤儿 RT：finding_id 指向不存在的 FND → 拒（半个闭环）
         // （FND-0000：序列从 0001 起——必不存在且后缀 0 不触发水位误报）
         let mut bad = base.clone();

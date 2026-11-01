@@ -43,13 +43,13 @@ pub fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
 pub fn civil_from_days(z: i64) -> (i64, u32, u32) {
     let z = z + 719_468;
     let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
-    let doe = z - era * 146_097;                                  // [0, 146096]
+    let doe = z - era * 146_097; // [0, 146096]
     let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365; // [0, 399]
     let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);            // [0, 365]
-    let mp = (5 * doy + 2) / 153;                                 // [0, 11]
-    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;                // [1, 31]
-    let m = (if mp < 10 { mp + 3 } else { mp - 9 }) as u32;       // [1, 12]
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100); // [0, 365]
+    let mp = (5 * doy + 2) / 153; // [0, 11]
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32; // [1, 31]
+    let m = (if mp < 10 { mp + 3 } else { mp - 9 }) as u32; // [1, 12]
     (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
@@ -77,7 +77,11 @@ mod tests {
     #[test]
     fn parse_ymd_strict_domain() {
         assert_eq!(parse_ymd("2026-11-15"), Some((2026, 11, 15)));
-        assert_eq!(parse_ymd("2026-02-30"), Some((2026, 2, 30)), "本层只校月日域（沿用壳层口径）");
+        assert_eq!(
+            parse_ymd("2026-02-30"),
+            Some((2026, 2, 30)),
+            "本层只校月日域（沿用壳层口径）"
+        );
         assert_eq!(parse_ymd("2026-13-01"), None, "月 13 拒");
         assert_eq!(parse_ymd("2026-00-01"), None, "月 0 拒");
         assert_eq!(parse_ymd("2026-01-32"), None, "日 32 拒");
@@ -85,7 +89,11 @@ mod tests {
         assert_eq!(parse_ymd("2026/01/01"), None, "非连字符拒");
         assert_eq!(parse_ymd("2026-1-01"), None, "非定长拒");
         assert_eq!(parse_ymd(""), None);
-        assert_eq!(parse_ymd("2026-11-15T00:00"), None, "带时间后缀拒（前缀口径已废弃）");
+        assert_eq!(
+            parse_ymd("2026-11-15T00:00"),
+            None,
+            "带时间后缀拒（前缀口径已废弃）"
+        );
     }
 
     /// Hinnant 换算往返全等 + 已知锚点（1970-01-01 = epoch 0 天）。
@@ -94,8 +102,16 @@ mod tests {
         assert_eq!(days_from_civil(1970, 1, 1), 0, "epoch 锚点");
         assert_eq!(civil_from_days(0), (1970, 1, 1));
         // 闰年锚点
-        assert_eq!(days_from_civil(2000, 3, 1), days_from_civil(2000, 2, 29) + 1, "2000 闰");
-        assert_eq!(days_from_civil(2100, 3, 1), days_from_civil(2100, 2, 28) + 1, "2100 非闰（百年不闰）");
+        assert_eq!(
+            days_from_civil(2000, 3, 1),
+            days_from_civil(2000, 2, 29) + 1,
+            "2000 闰"
+        );
+        assert_eq!(
+            days_from_civil(2100, 3, 1),
+            days_from_civil(2100, 2, 28) + 1,
+            "2100 非闰（百年不闰）"
+        );
         // 往返（注意：非闰年的 2-29 不存在——归一化到 3-1 属正常行为，测试用真闰年）
         for (y, m, d) in [(1900, 1, 1), (2026, 11, 15), (2024, 2, 29), (9999, 12, 31)] {
             let back = civil_from_days(days_from_civil(y, m, d));
@@ -106,7 +122,11 @@ mod tests {
     #[test]
     fn add_days_cross_month_and_year() {
         assert_eq!(add_days("2026-11-15", 12).unwrap(), "2026-11-27");
-        assert_eq!(add_days("2026-11-15", -15).unwrap(), "2026-10-31", "跨月回拨");
+        assert_eq!(
+            add_days("2026-11-15", -15).unwrap(),
+            "2026-10-31",
+            "跨月回拨"
+        );
         assert_eq!(add_days("2026-12-31", 1).unwrap(), "2027-01-01", "跨年");
         assert_eq!(add_days("2024-02-28", 1).unwrap(), "2024-02-29", "闰日");
         assert_eq!(add_days("bad", 1), None);

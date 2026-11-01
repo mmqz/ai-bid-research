@@ -41,7 +41,11 @@ pub enum AuditEntry {
 impl LinkageLedger {
     pub fn new(chain_ids: &[String]) -> Self {
         Self {
-            status: chain_ids.iter().cloned().map(|c| (c, LinkageStatus::Valid)).collect(),
+            status: chain_ids
+                .iter()
+                .cloned()
+                .map(|c| (c, LinkageStatus::Valid))
+                .collect(),
             audit: vec![],
         }
     }
@@ -73,7 +77,9 @@ impl LinkageLedger {
         if !degraded.is_empty() {
             // 排序保证断言确定性（HashMap 迭代序不稳定）
             degraded.sort();
-            self.audit.push(AuditEntry::BodyRefresh { degraded: degraded.clone() });
+            self.audit.push(AuditEntry::BodyRefresh {
+                degraded: degraded.clone(),
+            });
         }
         degraded
     }
@@ -85,7 +91,8 @@ impl LinkageLedger {
             && fingerprints[locator.paragraph_index] == locator.text_fingerprint;
         if ok {
             self.status.insert(cid.to_string(), LinkageStatus::Valid);
-            self.audit.push(AuditEntry::ClaimReverified { cid: cid.into() });
+            self.audit
+                .push(AuditEntry::ClaimReverified { cid: cid.into() });
         }
         ok
     }
@@ -95,12 +102,10 @@ impl LinkageLedger {
     /// （R3-M-2 后测试改走 refresh 检测路径；本 API 留供 M3 引擎接入时
     /// plan_reload 语义的显式登记面消费——保留不删。）
     #[allow(dead_code)]
-    pub fn detect_external_change(
-        &mut self,
-        cid: &str,
-    ) {
+    pub fn detect_external_change(&mut self, cid: &str) {
         self.status.insert(cid.to_string(), LinkageStatus::Stale);
-        self.audit.push(AuditEntry::ExternalChangeDetected { cid: cid.into() });
+        self.audit
+            .push(AuditEntry::ExternalChangeDetected { cid: cid.into() });
     }
 
     pub fn status_of(&self, cid: &str) -> Option<LinkageStatus> {
@@ -134,7 +139,10 @@ mod tests {
     use super::*;
 
     fn loc(i: usize, fp: &str) -> LinkLocator {
-        LinkLocator { paragraph_index: i, text_fingerprint: fp.to_string() }
+        LinkLocator {
+            paragraph_index: i,
+            text_fingerprint: fp.to_string(),
+        }
     }
 
     #[test]
@@ -145,7 +153,10 @@ mod tests {
         // 首版曾误记 af57dc42d2f3e988——教训：向量必须双实现计算而非记忆引用）
         assert_eq!(fnv64(b"a"), "af63dc4c8601ec8c");
         // 归一化后指纹与文本等价（空白剔除）
-        assert_eq!(text_fingerprint("投标 人须知"), text_fingerprint("投标人须知"));
+        assert_eq!(
+            text_fingerprint("投标 人须知"),
+            text_fingerprint("投标人须知")
+        );
     }
 
     #[test]

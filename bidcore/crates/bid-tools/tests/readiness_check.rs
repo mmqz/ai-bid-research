@@ -83,6 +83,9 @@ fn register_ev(s: &mut DomainStore, kind: EvidenceKind, title: &str, valid_until
             valid_until: valid_until.map(str::to_string),
             subject_name: "某建设工程有限公司".into(),
             scope: "水利水电工程施工".into(),
+            client: None,
+            amount_wan: None,
+            completed_on: None,
         })
         .unwrap();
     eid

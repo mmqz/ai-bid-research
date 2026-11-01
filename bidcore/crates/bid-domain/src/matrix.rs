@@ -17,7 +17,7 @@
 //! 重算，幂等）；人工裁决只经 [`DomainStore::set_matrix_override`]（不适用/偏离说明）
 //! 落 overrides 集合——派生输入不变则重算结果不变（可复现）。
 
-use crate::evidence::{EvidenceStatus, Evidence};
+use crate::evidence::{Evidence, EvidenceStatus};
 use crate::outline::OutlineNode;
 use crate::{DomainStore, ProjectStatus, Requirement, ToolError};
 use serde::{Deserialize, Serialize};
@@ -48,7 +48,7 @@ impl ResponseStatus {
 /// 矩阵行（T-2 规格 struct 的 Rust 落地）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MatrixRow {
-    pub id: String,                     // CMP-xxxx（store 单序列签发）
+    pub id: String, // CMP-xxxx（store 单序列签发）
     pub requirement_id: String,
     /// 响应章节（SEC id——从章节树 requirement_ids 反查）
     pub response_section: Option<String>,
@@ -101,7 +101,10 @@ pub fn derive_matrix_rows(
     // 绑定与章节的反查索引（一次建表，避免逐 REQ 全扫）
     let mut ev_by_req: HashMap<&str, Vec<&str>> = HashMap::new();
     for (ev_id, req_id) in bindings {
-        ev_by_req.entry(req_id.as_str()).or_default().push(ev_id.as_str());
+        ev_by_req
+            .entry(req_id.as_str())
+            .or_default()
+            .push(ev_id.as_str());
     }
     // 章节层级索引（PR #24 修复批次）：旧实现 and_modify 闭包内
     // `sections.iter().find(|x| x.id == *cur)` 是 O(S)——嵌套在
@@ -115,7 +118,8 @@ pub fn derive_matrix_rows(
         for rid in &s.requirement_ids {
             // 首个命中章节为响应位（叶子优先于父？——树内 REQ 唯一归属由 outline 聚合
             // 不变量保证：父聚合 = 子并集，父与子都含同一 REQ 时取**最深层**（叶子）
-            sec_by_req.entry(rid.as_str())
+            sec_by_req
+                .entry(rid.as_str())
                 .and_modify(|cur| {
                     let cur_level = level_by_sec.get(*cur).copied().unwrap_or(0);
                     if s.level > cur_level {
@@ -125,34 +129,36 @@ pub fn derive_matrix_rows(
                 .or_insert_with(|| &s.id);
         }
     }
-    reqs.iter().map(|r| {
-        let evs = ev_by_req.get(r.id.as_str()).cloned().unwrap_or_default();
-        let sec = sec_by_req.get(r.id.as_str()).copied();
-        // 状态派生：override > 证据+章节
-        let (status, deviation) = match overrides.get(&r.id) {
-            Some(o) => (o.status, o.deviation.clone()),
-            None => {
-                let has_ev = !evs.is_empty();
-                let has_sec = sec.is_some();
-                let st = match (has_ev, has_sec) {
-                    (true, true) => ResponseStatus::Responded,
-                    (true, false) => ResponseStatus::Partial,
-                    _ => ResponseStatus::NotResponded,
-                };
-                (st, None)
+    reqs.iter()
+        .map(|r| {
+            let evs = ev_by_req.get(r.id.as_str()).cloned().unwrap_or_default();
+            let sec = sec_by_req.get(r.id.as_str()).copied();
+            // 状态派生：override > 证据+章节
+            let (status, deviation) = match overrides.get(&r.id) {
+                Some(o) => (o.status, o.deviation.clone()),
+                None => {
+                    let has_ev = !evs.is_empty();
+                    let has_sec = sec.is_some();
+                    let st = match (has_ev, has_sec) {
+                        (true, true) => ResponseStatus::Responded,
+                        (true, false) => ResponseStatus::Partial,
+                        _ => ResponseStatus::NotResponded,
+                    };
+                    (st, None)
+                }
+            };
+            let blocking = is_mandatory(&r.category) && status == ResponseStatus::NotResponded;
+            MatrixRow {
+                id: derived_cmp_id(&r.id),
+                requirement_id: r.id.clone(),
+                response_section: sec.map(|s| s.to_string()),
+                evidence_ids: evs.into_iter().map(|e| e.to_string()).collect(),
+                status,
+                deviation,
+                blocking,
             }
-        };
-        let blocking = is_mandatory(&r.category) && status == ResponseStatus::NotResponded;
-        MatrixRow {
-            id: derived_cmp_id(&r.id),
-            requirement_id: r.id.clone(),
-            response_section: sec.map(|s| s.to_string()),
-            evidence_ids: evs.into_iter().map(|e| e.to_string()).collect(),
-            status,
-            deviation,
-            blocking,
-        }
-    }).collect()
+        })
+        .collect()
 }
 
 // ---------------------------------------------------------------- DomainStore 扩面（T-2 矩阵操作）
@@ -175,7 +181,10 @@ impl DomainStore {
     /// 返回 (行数, blocking 行数)。
     pub fn build_matrix(&mut self) -> Result<(usize, usize), ToolError> {
         let p = self.project()?;
-        if matches!(p.status, ProjectStatus::Draft | ProjectStatus::FilesImported) {
+        if matches!(
+            p.status,
+            ProjectStatus::Draft | ProjectStatus::FilesImported
+        ) {
             return Err(ToolError::EState {
                 current: p.status,
                 attempted: "build_matrix",
@@ -187,8 +196,11 @@ impl DomainStore {
             });
         }
         let was_first_build = p.status == ProjectStatus::RequirementsExtracted;
-        let bindings: Vec<(String, String)> = self.evidence_bindings.iter()
-            .map(|b| (b.evidence_id.clone(), b.requirement_id.clone())).collect();
+        let bindings: Vec<(String, String)> = self
+            .evidence_bindings
+            .iter()
+            .map(|b| (b.evidence_id.clone(), b.requirement_id.clone()))
+            .collect();
         let overrides = self.matrix_overrides.clone();
         let rows = derive_matrix_rows(&self.requirements, &bindings, &self.sections, &overrides);
         let blocking = rows.iter().filter(|r| r.blocking).count();
@@ -210,10 +222,12 @@ impl DomainStore {
     }
 
     /// 人工覆写（不适用/偏离——NOT_APPLICABLE 必须给理由，诚实状态）。
-    pub fn set_matrix_override(&mut self, requirement_id: String,
-                               status: ResponseStatus, deviation: Option<String>)
-        -> Result<(), ToolError>
-    {
+    pub fn set_matrix_override(
+        &mut self,
+        requirement_id: String,
+        status: ResponseStatus,
+        deviation: Option<String>,
+    ) -> Result<(), ToolError> {
         self.project()?;
         if status == ResponseStatus::NotApplicable
             && deviation.as_deref().map(str::trim).unwrap_or("").is_empty()
@@ -227,9 +241,14 @@ impl DomainStore {
                 what: format!("requirement {requirement_id} 不存在"),
             });
         }
-        self.matrix_overrides.insert(requirement_id.clone(), MatrixOverride {
-            requirement_id, status, deviation,
-        });
+        self.matrix_overrides.insert(
+            requirement_id.clone(),
+            MatrixOverride {
+                requirement_id,
+                status,
+                deviation,
+            },
+        );
         if let Some(p) = self.project.as_mut() {
             p.content_version += 1;
         }
@@ -247,9 +266,16 @@ impl DomainStore {
                 reason: "矩阵未构建（先 build_matrix——未对账不得导出）".into(),
             });
         }
-        Ok(self.matrix.iter()
+        Ok(self
+            .matrix
+            .iter()
             .filter(|r| r.blocking)
-            .map(|r| format!("{}（{}）: 必选未响应——R-03/R-04 闸门", r.requirement_id, r.id))
+            .map(|r| {
+                format!(
+                    "{}（{}）: 必选未响应——R-03/R-04 闸门",
+                    r.requirement_id, r.id
+                )
+            })
             .collect())
     }
 
@@ -260,7 +286,11 @@ impl DomainStore {
             Ok(())
         } else {
             Err(ToolError::EUnprocessable {
-                reason: format!("导出被阻断：{} 条必选未响应（{}）", blockers.len(), blockers.join("; ")),
+                reason: format!(
+                    "导出被阻断：{} 条必选未响应（{}）",
+                    blockers.len(),
+                    blockers.join("; ")
+                ),
             })
         }
     }
@@ -268,27 +298,42 @@ impl DomainStore {
     /// 只读派生视图（get_compliance_matrix 工具面——不落库不 bump 版本，
     /// 与 build_matrix 同一派生真源；EVIDENCE 过滤：EXPIRED/SUPERSEDED 证据不计入响应面）。
     pub fn matrix_view(&self) -> Vec<MatrixRow> {
-        let live_bindings: Vec<(String, String)> = self.evidence_bindings.iter()
-            .filter(|b| self.evidences.iter().any(|e| {
-                e.id == b.evidence_id && matches!(e.status, EvidenceStatus::Active | EvidenceStatus::Expiring)
-            }))
+        let live_bindings: Vec<(String, String)> = self
+            .evidence_bindings
+            .iter()
+            .filter(|b| {
+                self.evidences.iter().any(|e| {
+                    e.id == b.evidence_id
+                        && matches!(e.status, EvidenceStatus::Active | EvidenceStatus::Expiring)
+                })
+            })
             .map(|b| (b.evidence_id.clone(), b.requirement_id.clone()))
             .collect();
         let overrides = self.matrix_overrides.clone();
-        derive_matrix_rows(&self.requirements, &live_bindings, &self.sections, &overrides)
+        derive_matrix_rows(
+            &self.requirements,
+            &live_bindings,
+            &self.sections,
+            &overrides,
+        )
     }
 }
 
 /// 证据列组装素材（契约 §4 `rows[].evidence:[{ev_id, title, status, valid_until}]`）。
 pub fn evidence_column(evidences: &[Evidence], ev_ids: &[String]) -> Vec<serde_json::Value> {
-    ev_ids.iter().filter_map(|id| {
-        evidences.iter().find(|e| &e.id == id).map(|e| serde_json::json!({
-            "ev_id": e.id,
-            "title": e.title,
-            "status": e.status.as_str(),
-            "valid_until": e.valid_until,
-        }))
-    }).collect()
+    ev_ids
+        .iter()
+        .filter_map(|id| {
+            evidences.iter().find(|e| &e.id == id).map(|e| {
+                serde_json::json!({
+                    "ev_id": e.id,
+                    "title": e.title,
+                    "status": e.status.as_str(),
+                    "valid_until": e.valid_until,
+                })
+            })
+        })
+        .collect()
 }
 
 // ---------------------------------------------------------------- 测试
@@ -303,29 +348,52 @@ mod tests {
         // 去重键 = 锚点（file|locator|excerpt）——合成件必须锤唯一锚点，否则
         // set_requirements 的 dedupe_hash 幂等合并会把空锚件归并为一条
         Requirement {
-            id: id.into(), category: category.into(), clause_no: None,
+            id: id.into(),
+            category: category.into(),
+            clause_no: None,
             anchors: vec![crate::Anchor {
-                file: "A".into(), kind: "para".into(),
+                file: "A".into(),
+                kind: "para".into(),
                 locator: format!("第三章 > {id}"),
                 excerpt: format!("{id} 条款原文（合成矩阵件）"),
             }],
-            params: HashMap::new(), source_file: "A".into(),
+            params: HashMap::new(),
+            source_file: "A".into(),
         }
     }
 
     fn sec(id: &str, level: u8, reqs: &[&str]) -> OutlineNode {
         OutlineNode {
-            id: id.into(), parent_id: None, title: id.into(), level, order: level as u32,
+            id: id.into(),
+            parent_id: None,
+            title: id.into(),
+            level,
+            order: level as u32,
             requirement_ids: reqs.iter().map(|s| s.to_string()).collect(),
-            target_chars: 100, status: SectionStatus::Pending, dirty: false,
-            content: None, content_attempt: 0,
+            target_chars: 100,
+            status: SectionStatus::Pending,
+            dirty: false,
+            content: None,
+            content_attempt: 0,
         }
     }
 
     fn store_with_matrix_base(n_reqs: usize) -> DomainStore {
         let mut s = DomainStore::new();
-        s.create_project("矩阵项目", "C-MTX", "明标", "mtx-key").unwrap();
-        s.upsert_file("A.docx", "招标文件", "sha-m", 5, 1, 50, 0, ParseStatus::Ok, "").unwrap();
+        s.create_project("矩阵项目", "C-MTX", "明标", "mtx-key")
+            .unwrap();
+        s.upsert_file(
+            "A.docx",
+            "招标文件",
+            "sha-m",
+            5,
+            1,
+            50,
+            0,
+            ParseStatus::Ok,
+            "",
+        )
+        .unwrap();
         let cats = ["资格条件", "否决项", "评分项", "技术参数", "商务要求"];
         let reqs: Vec<Requirement> = (0..n_reqs)
             .map(|i| req(&format!("REQ-{:04}", i + 3), cats[i % cats.len()]))
@@ -338,10 +406,10 @@ mod tests {
     #[test]
     fn derive_covers_four_states_and_blocking() {
         let reqs = vec![
-            req("REQ-0001", "资格条件"),  // 无绑定无章节 → NOT_RESPONDED + blocking
-            req("REQ-0002", "评分项"),    // 有证据无章节 → PARTIAL（不阻断）
-            req("REQ-0003", "技术参数"),  // 证据+章节 → RESPONDED
-            req("REQ-0004", "商务要求"),  // override 不适用（带理由）
+            req("REQ-0001", "资格条件"), // 无绑定无章节 → NOT_RESPONDED + blocking
+            req("REQ-0002", "评分项"),   // 有证据无章节 → PARTIAL（不阻断）
+            req("REQ-0003", "技术参数"), // 证据+章节 → RESPONDED
+            req("REQ-0004", "商务要求"), // override 不适用（带理由）
         ];
         let bindings = vec![
             ("EV-0009".to_string(), "REQ-0002".to_string()),
@@ -349,17 +417,24 @@ mod tests {
         ];
         let sections = vec![sec("SEC-0011", 1, &["REQ-0003"])];
         let mut overrides = HashMap::new();
-        overrides.insert("REQ-0004".to_string(), MatrixOverride {
-            requirement_id: "REQ-0004".into(),
-            status: ResponseStatus::NotApplicable,
-            deviation: Some("本地化服务条款不适用于本项目（招标文件 §8.3 豁免面）".into()),
-        });
+        overrides.insert(
+            "REQ-0004".to_string(),
+            MatrixOverride {
+                requirement_id: "REQ-0004".into(),
+                status: ResponseStatus::NotApplicable,
+                deviation: Some("本地化服务条款不适用于本项目（招标文件 §8.3 豁免面）".into()),
+            },
+        );
         let rows = derive_matrix_rows(&reqs, &bindings, &sections, &overrides);
         assert_eq!(rows.len(), 4);
         assert_eq!(rows[0].id, "CMP-0001", "id = REQ 后缀镜像派生（稳定）");
         assert_eq!(rows[0].status, ResponseStatus::NotResponded);
         assert!(rows[0].blocking, "资格条件未响应 → blocking");
-        assert_eq!(rows[1].status, ResponseStatus::Partial, "有证据无章节 → 部分");
+        assert_eq!(
+            rows[1].status,
+            ResponseStatus::Partial,
+            "有证据无章节 → 部分"
+        );
         assert!(!rows[1].blocking, "评分项未完成不阻断导出");
         assert_eq!(rows[2].status, ResponseStatus::Responded);
         assert_eq!(rows[2].response_section.as_deref(), Some("SEC-0011"));
@@ -376,7 +451,10 @@ mod tests {
         assert_eq!(rows, 12_000, "12,000 条 REQ 全部有行（T-2 验收）");
         // 5 类轮转：资格条件+否决项 = 2/5 必选，全未响应
         let expect_blocking = 12_000 * 2 / 5;
-        assert_eq!(blocking, expect_blocking, "必选类（资格+否决）未响应全 blocking");
+        assert_eq!(
+            blocking, expect_blocking,
+            "必选类（资格+否决）未响应全 blocking"
+        );
         // 幂等重建：无变化不 bump
         let v = s.content_version();
         let (rows2, blocking2) = s.build_matrix().unwrap();
@@ -388,23 +466,32 @@ mod tests {
         // 全部绑定证据 + 章节响应 → blocking 清零 → 放行
         for r in s.requirements().to_vec() {
             s.evidence_bindings.push(EvidenceBinding {
-                evidence_id: "EV-0003".into(), requirement_id: r.id,
+                evidence_id: "EV-0003".into(),
+                requirement_id: r.id,
             });
         }
         // EV-0003 需在台账（matrix_view 活证据过滤）——build_matrix 用全量绑定（含过期证据
         // 由 R-03 绑定时刻把关，视图层过滤），此处直接放行验证闸门翻转
-        s.set_matrix_override("REQ-0003".into(), ResponseStatus::Responded, None).ok();
+        s.set_matrix_override("REQ-0003".into(), ResponseStatus::Responded, None)
+            .ok();
         // 章节树真正落 store（PR #24 修复批次）：旧代码 `let _ = sections;`
         // 构造完即丢弃——「绑定+章节全响应」的验收意图从未被检验（blocking=0
         // 实际全靠绑定→PARTIAL 不阻断达成，章节位恒缺）。set_outline 过树校验
         // + REQ 存在性门后，绑定（→有证据）× 章节（→有响应位）合力达成
         // RESPONDED，闸门放行才名副其实。
         let sections: Vec<OutlineNode> = ["资格条件", "否决项", "评分项", "技术参数", "商务要求"]
-            .iter().enumerate()
+            .iter()
+            .enumerate()
             .map(|(i, t)| {
-                let mut n = sec(&format!("SEC-{:04}", i + 10), 1,
-                    &s.requirements().iter().filter(|r| r.category == *t)
-                        .map(|r| r.id.as_str()).collect::<Vec<_>>());
+                let mut n = sec(
+                    &format!("SEC-{:04}", i + 10),
+                    1,
+                    &s.requirements()
+                        .iter()
+                        .filter(|r| r.category == *t)
+                        .map(|r| r.id.as_str())
+                        .collect::<Vec<_>>(),
+                );
                 n.order = i as u32 + 10; // 文档序全局唯一（sec 默认 order=level，5 节点会撞号）
                 n
             })
@@ -419,17 +506,34 @@ mod tests {
     #[test]
     fn override_validation_and_unbuilt_gate() {
         let mut s = store_with_matrix_base(5);
-        let err = s.set_matrix_override("REQ-0003".into(), ResponseStatus::NotApplicable, None).unwrap_err();
+        let err = s
+            .set_matrix_override("REQ-0003".into(), ResponseStatus::NotApplicable, None)
+            .unwrap_err();
         assert_eq!(err.code(), "E_UNPROCESSABLE", "不适用无理由拒");
-        let err = s.set_matrix_override("REQ-9999".into(), ResponseStatus::NotApplicable, Some("理由".into())).unwrap_err();
+        let err = s
+            .set_matrix_override(
+                "REQ-9999".into(),
+                ResponseStatus::NotApplicable,
+                Some("理由".into()),
+            )
+            .unwrap_err();
         assert_eq!(err.code(), "E_NOTFOUND", "幽灵 REQ 拒");
         // 矩阵未建 → 导出拒（未对账不得导出）
         let err = s.check_export_ready().unwrap_err();
         assert!(format!("{err:?}").contains("矩阵未构建"));
         // override 生效路径
-        s.set_matrix_override("REQ-0003".into(), ResponseStatus::NotApplicable, Some("豁免理由".into())).unwrap();
+        s.set_matrix_override(
+            "REQ-0003".into(),
+            ResponseStatus::NotApplicable,
+            Some("豁免理由".into()),
+        )
+        .unwrap();
         let _ = s.build_matrix().unwrap();
-        let row = s.matrix().iter().find(|r| r.requirement_id == "REQ-0003").unwrap();
+        let row = s
+            .matrix()
+            .iter()
+            .find(|r| r.requirement_id == "REQ-0003")
+            .unwrap();
         assert_eq!(row.status, ResponseStatus::NotApplicable);
     }
 
@@ -438,21 +542,54 @@ mod tests {
     fn matrix_view_filters_dead_evidence_bindings() {
         let mut s = store_with_matrix_base(3);
         // 台账：EV-A Active / EV-B Expired
-        for (id, status) in [("EV-A", EvidenceStatus::Active), ("EV-B", EvidenceStatus::Expired)] {
+        for (id, status) in [
+            ("EV-A", EvidenceStatus::Active),
+            ("EV-B", EvidenceStatus::Expired),
+        ] {
             s.evidences.push(crate::evidence::Evidence {
-                id: id.into(), kind: crate::evidence::EvidenceKind::Certificate,
-                title: format!("证-{id}"), source_file: "f.pdf".into(), source_sha256: id.into(),
-                locator: crate::locator::EngineLocator::PdfPageText { page: 1, text_fingerprint: "fnv64:1".into() },
-                fingerprint: "fnv64:1".into(), valid_from: None, valid_until: Some("2020-01-01".into()),
-                subject_name: "S".into(), scope: "".into(), version: 1, status,
+                id: id.into(),
+                kind: crate::evidence::EvidenceKind::Certificate,
+                title: format!("证-{id}"),
+                source_file: "f.pdf".into(),
+                source_sha256: id.into(),
+                locator: crate::locator::EngineLocator::PdfPageText {
+                    page: 1,
+                    text_fingerprint: "fnv64:1".into(),
+                },
+                fingerprint: "fnv64:1".into(),
+                valid_from: None,
+                valid_until: Some("2020-01-01".into()),
+                subject_name: "S".into(),
+                scope: "".into(),
+                client: None,
+                amount_wan: None,
+                completed_on: None,
+                version: 1,
+                status,
             });
         }
-        s.evidence_bindings.push(EvidenceBinding { evidence_id: "EV-A".into(), requirement_id: "REQ-0003".into() });
-        s.evidence_bindings.push(EvidenceBinding { evidence_id: "EV-B".into(), requirement_id: "REQ-0004".into() });
+        s.evidence_bindings.push(EvidenceBinding {
+            evidence_id: "EV-A".into(),
+            requirement_id: "REQ-0003".into(),
+        });
+        s.evidence_bindings.push(EvidenceBinding {
+            evidence_id: "EV-B".into(),
+            requirement_id: "REQ-0004".into(),
+        });
         let view = s.matrix_view();
-        let r3 = view.iter().find(|r| r.requirement_id == "REQ-0003").unwrap();
-        let r4 = view.iter().find(|r| r.requirement_id == "REQ-0004").unwrap();
-        assert_eq!(r3.evidence_ids, vec!["EV-A".to_string()], "活证据计入响应面");
+        let r3 = view
+            .iter()
+            .find(|r| r.requirement_id == "REQ-0003")
+            .unwrap();
+        let r4 = view
+            .iter()
+            .find(|r| r.requirement_id == "REQ-0004")
+            .unwrap();
+        assert_eq!(
+            r3.evidence_ids,
+            vec!["EV-A".to_string()],
+            "活证据计入响应面"
+        );
         assert_eq!(r4.evidence_ids.len(), 0, "过期证据绑定被视图过滤（R-03）");
         assert_eq!(r4.status, ResponseStatus::NotResponded, "死绑定不算响应");
         // 视图不污染 id 序列（派生 id 零序列消耗）

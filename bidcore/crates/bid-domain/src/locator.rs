@@ -172,10 +172,7 @@ pub enum EngineLocator {
         text_fingerprint: String,
     },
     /// PDF 页文本（1 起页号）。
-    PdfPageText {
-        page: u32,
-        text_fingerprint: String,
-    },
+    PdfPageText { page: u32, text_fingerprint: String },
     /// Canvas 画布对象。
     CanvasObject {
         object_id: String,
@@ -188,7 +185,9 @@ impl EngineLocator {
     pub fn engine(&self) -> EngineKind {
         match self {
             EngineLocator::XlsxCell { .. } | EngineLocator::XlsxRegion { .. } => EngineKind::Xlsx,
-            EngineLocator::DocxParagraph { .. } | EngineLocator::DocxTableCell { .. } => EngineKind::Docx,
+            EngineLocator::DocxParagraph { .. } | EngineLocator::DocxTableCell { .. } => {
+                EngineKind::Docx
+            }
             EngineLocator::MarkdownBlock { .. } => EngineKind::Markdown,
             EngineLocator::PdfPageText { .. } => EngineKind::Pdf,
             EngineLocator::CanvasObject { .. } => EngineKind::Canvas,
@@ -198,13 +197,27 @@ impl EngineLocator {
     /// 定位器的定位时刻内容指纹（各变体的指纹字段投影——判内容变更的对照面）。
     pub fn fingerprint(&self) -> &str {
         match self {
-            EngineLocator::XlsxCell { value_fingerprint, .. } => value_fingerprint,
-            EngineLocator::XlsxRegion { region_fingerprint, .. } => region_fingerprint,
-            EngineLocator::DocxParagraph { text_fingerprint, .. }
-            | EngineLocator::DocxTableCell { text_fingerprint, .. }
-            | EngineLocator::MarkdownBlock { text_fingerprint, .. }
-            | EngineLocator::PdfPageText { text_fingerprint, .. } => text_fingerprint,
-            EngineLocator::CanvasObject { object_fingerprint, .. } => object_fingerprint,
+            EngineLocator::XlsxCell {
+                value_fingerprint, ..
+            } => value_fingerprint,
+            EngineLocator::XlsxRegion {
+                region_fingerprint, ..
+            } => region_fingerprint,
+            EngineLocator::DocxParagraph {
+                text_fingerprint, ..
+            }
+            | EngineLocator::DocxTableCell {
+                text_fingerprint, ..
+            }
+            | EngineLocator::MarkdownBlock {
+                text_fingerprint, ..
+            }
+            | EngineLocator::PdfPageText {
+                text_fingerprint, ..
+            } => text_fingerprint,
+            EngineLocator::CanvasObject {
+                object_fingerprint, ..
+            } => object_fingerprint,
         }
     }
 }
@@ -239,9 +252,16 @@ mod tests {
     fn cell_coord_domain() {
         // 合法面
         assert_eq!(CellCoord::parse("A1").unwrap().0, "A1");
-        assert_eq!(CellCoord::parse("c7").unwrap().0, "C7", "小写输入规范化为大写存储");
+        assert_eq!(
+            CellCoord::parse("c7").unwrap().0,
+            "C7",
+            "小写输入规范化为大写存储"
+        );
         // 域上界恰过：XFD = 16384 列，行 1_048_576
-        assert!(CellCoord::parse("XFD1048576").is_ok(), "XFD1048576 是域上界，必须恰过");
+        assert!(
+            CellCoord::parse("XFD1048576").is_ok(),
+            "XFD1048576 是域上界，必须恰过"
+        );
         // 域外拒绝
         assert!(CellCoord::parse("XFE1").is_err(), "列超 XFD 拒");
         assert!(CellCoord::parse("A1048577").is_err(), "行超 1048576 拒");
@@ -260,7 +280,10 @@ mod tests {
         let a3 = CellCoord::parse("A3").unwrap();
         assert!(validate_region(&a1, &b2).is_ok(), "A1..B2 合法");
         assert!(validate_region(&a1, &a3).is_ok(), "同列跨行合法");
-        assert!(validate_region(&b2, &a1).is_err(), "B2..A1 逆序拒（先行后列）");
+        assert!(
+            validate_region(&b2, &a1).is_err(),
+            "B2..A1 逆序拒（先行后列）"
+        );
         assert!(validate_region(&a3, &a1).is_err(), "A3..A1 同列逆序拒");
     }
 
@@ -274,18 +297,33 @@ mod tests {
             formula_fingerprint: None,
         };
         assert_eq!(x.engine(), EngineKind::Xlsx);
-        let p = EngineLocator::DocxParagraph { paragraph_index: 3, text_fingerprint: "fnv64:cc".into() };
+        let p = EngineLocator::DocxParagraph {
+            paragraph_index: 3,
+            text_fingerprint: "fnv64:cc".into(),
+        };
         assert_eq!(p.engine(), EngineKind::Docx);
         assert_eq!(
-            EngineLocator::PdfPageText { page: 1, text_fingerprint: "fnv64:ff".into() }.engine(),
+            EngineLocator::PdfPageText {
+                page: 1,
+                text_fingerprint: "fnv64:ff".into()
+            }
+            .engine(),
             EngineKind::Pdf
         );
         assert_eq!(
-            EngineLocator::MarkdownBlock { block_id: "b1".into(), text_fingerprint: "fnv64:11".into() }.engine(),
+            EngineLocator::MarkdownBlock {
+                block_id: "b1".into(),
+                text_fingerprint: "fnv64:11".into()
+            }
+            .engine(),
             EngineKind::Markdown
         );
         assert_eq!(
-            EngineLocator::CanvasObject { object_id: "o1".into(), object_fingerprint: "fnv64:22".into() }.engine(),
+            EngineLocator::CanvasObject {
+                object_id: "o1".into(),
+                object_fingerprint: "fnv64:22".into()
+            }
+            .engine(),
             EngineKind::Canvas
         );
     }
@@ -319,31 +357,48 @@ mod tests {
             r#"{"kind":"xlsx_region","sheet":"Sheet1","start":"A1","end":"B2","region_fingerprint":"fnv64:ab"}"#
         );
         // DocxParagraph（mdcore 实证形态）
-        let p = EngineLocator::DocxParagraph { paragraph_index: 3, text_fingerprint: "fnv64:cc".into() };
+        let p = EngineLocator::DocxParagraph {
+            paragraph_index: 3,
+            text_fingerprint: "fnv64:cc".into(),
+        };
         assert_eq!(
             serde_json::to_string(&p).unwrap(),
             r#"{"kind":"docx_paragraph","paragraph_index":3,"text_fingerprint":"fnv64:cc"}"#
         );
         // DocxTableCell
-        let t = EngineLocator::DocxTableCell { table_index: 0, row: 1, col: 2, text_fingerprint: "fnv64:ee".into() };
+        let t = EngineLocator::DocxTableCell {
+            table_index: 0,
+            row: 1,
+            col: 2,
+            text_fingerprint: "fnv64:ee".into(),
+        };
         assert_eq!(
             serde_json::to_string(&t).unwrap(),
             r#"{"kind":"docx_table_cell","table_index":0,"row":1,"col":2,"text_fingerprint":"fnv64:ee"}"#
         );
         // MarkdownBlock
-        let m = EngineLocator::MarkdownBlock { block_id: "blk-9".into(), text_fingerprint: "fnv64:12".into() };
+        let m = EngineLocator::MarkdownBlock {
+            block_id: "blk-9".into(),
+            text_fingerprint: "fnv64:12".into(),
+        };
         assert_eq!(
             serde_json::to_string(&m).unwrap(),
             r#"{"kind":"markdown_block","block_id":"blk-9","text_fingerprint":"fnv64:12"}"#
         );
         // PdfPageText
-        let f = EngineLocator::PdfPageText { page: 12, text_fingerprint: "fnv64:34".into() };
+        let f = EngineLocator::PdfPageText {
+            page: 12,
+            text_fingerprint: "fnv64:34".into(),
+        };
         assert_eq!(
             serde_json::to_string(&f).unwrap(),
             r#"{"kind":"pdf_page_text","page":12,"text_fingerprint":"fnv64:34"}"#
         );
         // CanvasObject
-        let c = EngineLocator::CanvasObject { object_id: "obj-3".into(), object_fingerprint: "fnv64:56".into() };
+        let c = EngineLocator::CanvasObject {
+            object_id: "obj-3".into(),
+            object_fingerprint: "fnv64:56".into(),
+        };
         assert_eq!(
             serde_json::to_string(&c).unwrap(),
             r#"{"kind":"canvas_object","object_id":"obj-3","object_fingerprint":"fnv64:56"}"#

@@ -29,9 +29,13 @@ pub enum ExportPhase {
 pub enum ExportQueryView {
     NotStarted,
     /// 渲染完成、确认未落库：进度面可见 preview_sha；产物面为空
-    Exporting { preview_sha: String },
+    Exporting {
+        preview_sha: String,
+    },
     /// 确认落库：产物面可见 artifact_sha
-    Exported { artifact_sha: String },
+    Exported {
+        artifact_sha: String,
+    },
 }
 
 #[derive(Debug)]
@@ -49,7 +53,11 @@ impl Default for ExportGate {
 
 impl ExportGate {
     pub fn new() -> Self {
-        Self { state: ExportPhase::ReadyToExport, rendered_sha: None, artifact_sha: None }
+        Self {
+            state: ExportPhase::ReadyToExport,
+            rendered_sha: None,
+            artifact_sha: None,
+        }
     }
 
     pub fn state(&self) -> ExportPhase {
@@ -139,7 +147,10 @@ mod tests {
         let _sha = gate.render(b"partial");
         assert_eq!(gate.state(), ExportPhase::Exporting);
         assert!(!gate.is_exported());
-        assert!(gate.artifact_sha().is_none(), "无落库就不该有 sha——虚假成功条件");
+        assert!(
+            gate.artifact_sha().is_none(),
+            "无落库就不该有 sha——虚假成功条件"
+        );
     }
 
     #[test]

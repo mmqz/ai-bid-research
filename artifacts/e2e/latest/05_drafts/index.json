@@ -2,7 +2,7 @@
   "chapters": [
     {
       "attempt": 1,
-      "chars": 1131,
+      "chars": 1156,
       "citations": [
         "REQ-0001",
         "REQ-0003",
@@ -15,7 +15,7 @@
     },
     {
       "attempt": 1,
-      "chars": 1037,
+      "chars": 1062,
       "citations": [
         "REQ-0016",
         "REQ-0017",
@@ -28,7 +28,7 @@
     },
     {
       "attempt": 1,
-      "chars": 647,
+      "chars": 672,
       "citations": [
         "REQ-0057",
         "REQ-0058",
@@ -38,7 +38,7 @@
     },
     {
       "attempt": 1,
-      "chars": 777,
+      "chars": 802,
       "citations": [
         "REQ-0096",
         "REQ-0097",
@@ -49,7 +49,7 @@
     },
     {
       "attempt": 1,
-      "chars": 898,
+      "chars": 923,
       "citations": [
         "REQ-0100",
         "REQ-0101",
@@ -61,7 +61,7 @@
     },
     {
       "attempt": 1,
-      "chars": 646,
+      "chars": 671,
       "citations": [
         "REQ-0106",
         "REQ-0107",
@@ -71,7 +71,7 @@
     },
     {
       "attempt": 1,
-      "chars": 464,
+      "chars": 489,
       "citations": [
         "REQ-0109",
         "REQ-0110"
@@ -80,7 +80,7 @@
     },
     {
       "attempt": 1,
-      "chars": 487,
+      "chars": 512,
       "citations": [
         "REQ-0114",
         "REQ-0115"
@@ -89,7 +89,7 @@
     },
     {
       "attempt": 1,
-      "chars": 1182,
+      "chars": 1207,
       "citations": [
         "REQ-0002",
         "REQ-0009",
@@ -102,7 +102,7 @@
     },
     {
       "attempt": 1,
-      "chars": 1191,
+      "chars": 1216,
       "citations": [
         "REQ-0028",
         "REQ-0029",
@@ -115,7 +115,7 @@
     },
     {
       "attempt": 1,
-      "chars": 1027,
+      "chars": 1052,
       "citations": [
         "REQ-0036",
         "REQ-0037",
@@ -128,7 +128,7 @@
     },
     {
       "attempt": 1,
-      "chars": 1031,
+      "chars": 1056,
       "citations": [
         "REQ-0042",
         "REQ-0043",
@@ -141,7 +141,7 @@
     },
     {
       "attempt": 1,
-      "chars": 1015,
+      "chars": 1040,
       "citations": [
         "REQ-0048",
         "REQ-0049",
@@ -154,7 +154,7 @@
     },
     {
       "attempt": 1,
-      "chars": 1127,
+      "chars": 1152,
       "citations": [
         "REQ-0054",
         "REQ-0055",
@@ -167,7 +167,7 @@
     },
     {
       "attempt": 1,
-      "chars": 1042,
+      "chars": 1067,
       "citations": [
         "REQ-0067",
         "REQ-0068",
@@ -180,7 +180,7 @@
     },
     {
       "attempt": 1,
-      "chars": 1029,
+      "chars": 1054,
       "citations": [
         "REQ-0073",
         "REQ-0074",
@@ -193,7 +193,7 @@
     },
     {
       "attempt": 1,
-      "chars": 844,
+      "chars": 869,
       "citations": [
         "REQ-0079",
         "REQ-0111",
@@ -204,7 +204,7 @@
     },
     {
       "attempt": 1,
-      "chars": 1204,
+      "chars": 1229,
       "citations": [
         "REQ-0004",
         "REQ-0005",
@@ -217,7 +217,7 @@
     },
     {
       "attempt": 1,
-      "chars": 600,
+      "chars": 625,
       "citations": [
         "REQ-0020",
         "REQ-0103"
@@ -226,7 +226,7 @@
     },
     {
       "attempt": 1,
-      "chars": 797,
+      "chars": 822,
       "citations": [
         "REQ-0021",
         "REQ-0022",
@@ -237,7 +237,7 @@
     },
     {
       "attempt": 1,
-      "chars": 1011,
+      "chars": 1036,
       "citations": [
         "REQ-0061",
         "REQ-0062",
@@ -249,7 +249,7 @@
     },
     {
       "attempt": 1,
-      "chars": 1146,
+      "chars": 1280,
       "citations": [
         "REQ-0081",
         "REQ-0082",
@@ -262,7 +262,7 @@
     },
     {
       "attempt": 1,
-      "chars": 1127,
+      "chars": 1261,
       "citations": [
         "REQ-0087",
         "REQ-0088",
@@ -275,7 +275,7 @@
     },
     {
       "attempt": 1,
-      "chars": 630,
+      "chars": 764,
       "citations": [
         "REQ-0093",
         "REQ-0094",

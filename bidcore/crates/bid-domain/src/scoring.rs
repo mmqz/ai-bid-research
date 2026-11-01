@@ -743,22 +743,49 @@ pub struct SectionScorer {
 
 /// 证据词面（「是否引用了相关证据」——业绩/资质/证明/附件引用形态）。
 const EVIDENCE_WORDS: &[&str] = &[
-    "业绩", "合同", "案例", "获奖", "证书", "资质", "认证", "资信", "证明",
-    "复印件", "扫描件", "详见", "参见", "附件",
+    "业绩",
+    "合同",
+    "案例",
+    "获奖",
+    "证书",
+    "资质",
+    "认证",
+    "资信",
+    "证明",
+    "复印件",
+    "扫描件",
+    "详见",
+    "参见",
+    "附件",
 ];
 
 /// 具体性单位表（数字+单位形态——「数字+单位」出现 ≥2 处即具体）。
 const SPECIFIC_UNITS: &[&str] = &[
-    "万元", "亿", "台", "套", "件", "人", "年", "日历天", "%", "Gb", "GB",
-    "MB", "小时", "分钟", "天", "平方米", "公里", "家",
+    "万元",
+    "亿",
+    "台",
+    "套",
+    "件",
+    "人",
+    "年",
+    "日历天",
+    "%",
+    "Gb",
+    "GB",
+    "MB",
+    "小时",
+    "分钟",
+    "天",
+    "平方米",
+    "公里",
+    "家",
 ];
 
 /// 段级单字剥离集（前导/尾随循环剥——虚词与计分字：
 /// 「含响应时限承诺」→「响应时限承诺」、「资格且无在建项目的加」→「资格且无在建项目」）。
 const STRIP_CHARS: &[char] = &[
-    '的', '与', '和', '及', '或', '含', '按', '须', '应', '为', '在', '等',
-    '个', '项', '分', '级', '上', '中', '下', '以', '内', '外', '其', '该', '本',
-    '每', '得', '加', '计', '扣', '减', '起',
+    '的', '与', '和', '及', '或', '含', '按', '须', '应', '为', '在', '等', '个', '项', '分', '级',
+    '上', '中', '下', '以', '内', '外', '其', '该', '本', '每', '得', '加', '计', '扣', '减', '起',
 ];
 
 /// 整词停用（计分副词碎片——「最多得」剥尾后形态）。
@@ -780,10 +807,35 @@ fn extract_keyword_groups(criteria: &str) -> Vec<Vec<String>> {
     let mut groups: Vec<Vec<String>> = Vec::new();
     // 1. 标点/空白/ASCII 数字序列切段
     for seg in criteria.split(|c: char| {
-        c.is_whitespace() || c.is_ascii_digit()
-            || matches!(c, '，' | '。' | '；' | '：' | ';' | '、' | '（' | '）'
-                | '(' | ')' | '/' | '「' | '」' | '《' | '》' | '！' | '？'
-                | '+' | '=' | '×' | '－' | '—' | '-' | '.' | '·')
+        c.is_whitespace()
+            || c.is_ascii_digit()
+            || matches!(
+                c,
+                '，' | '。'
+                    | '；'
+                    | '：'
+                    | ';'
+                    | '、'
+                    | '（'
+                    | '）'
+                    | '('
+                    | ')'
+                    | '/'
+                    | '「'
+                    | '」'
+                    | '《'
+                    | '》'
+                    | '！'
+                    | '？'
+                    | '+'
+                    | '='
+                    | '×'
+                    | '－'
+                    | '—'
+                    | '-'
+                    | '.'
+                    | '·'
+            )
     }) {
         // 2. 连词切（与/和/及/或——「技术方案完整性与针对性」→ 两词）
         for piece in seg.split(['与', '和', '及', '或']) {
@@ -871,7 +923,10 @@ fn is_price_item(item: &ScoringItem) -> bool {
 impl SectionScorer {
     /// 从评分树构造（`project_terms` = 项目专名锚词，可空）。
     pub fn new(tree: ScoringTree, project_terms: Vec<String>) -> Self {
-        Self { tree, project_terms }
+        Self {
+            tree,
+            project_terms,
+        }
     }
 
     /// 四维判定（纯规则——覆盖度/字数/证据/具体性）。
@@ -884,11 +939,18 @@ impl SectionScorer {
             .iter()
             .filter(|g| g.iter().any(|w| content.contains(w.as_str())))
             .count();
-        let coverage = if groups.is_empty() { 1.0 } else { hits as f64 / groups.len() as f64 };
+        let coverage = if groups.is_empty() {
+            1.0
+        } else {
+            hits as f64 / groups.len() as f64
+        };
         let min_chars = item.max_score.unwrap_or(10.0) * WORDS_PER_POINT;
         let n_chars = content.chars().filter(|c| !c.is_whitespace()).count();
         let evidence = EVIDENCE_WORDS.iter().any(|w| content.contains(w));
-        let specificity = self.project_terms.iter().any(|t| content.contains(t.as_str()))
+        let specificity = self
+            .project_terms
+            .iter()
+            .any(|t| content.contains(t.as_str()))
             || count_number_unit(content) >= 2;
         Dimension {
             coverage,
@@ -1052,7 +1114,9 @@ impl SectionScorer {
                 }
             },
             None => {
-                notes.push("NO_PRICE_INPUT: 未提供报价——价格分未计入（total 不含价格面）".to_string());
+                notes.push(
+                    "NO_PRICE_INPUT: 未提供报价——价格分未计入（total 不含价格面）".to_string(),
+                );
                 0.0
             }
         };
@@ -1080,7 +1144,12 @@ impl SectionScorer {
     fn reachable_leaves(&self) -> Vec<&ScoringItem> {
         let mut out = Vec::new();
         let mut seen: HashSet<String> = HashSet::new();
-        let mut stack: Vec<String> = self.tree.roots.iter().map(|r| r.requirement_id.clone()).collect();
+        let mut stack: Vec<String> = self
+            .tree
+            .roots
+            .iter()
+            .map(|r| r.requirement_id.clone())
+            .collect();
         while let Some(id) = stack.pop() {
             if !seen.insert(id.clone()) {
                 continue;
@@ -1101,7 +1170,11 @@ impl SectionScorer {
         // 保首现序（DFS 栈序不保序——按 order 重排）
         let mut ordered = Vec::new();
         for oid in &self.tree.order {
-            if let Some(item) = self.tree.index.get(oid.strip_prefix("__DUP__").unwrap_or(oid)) {
+            if let Some(item) = self
+                .tree
+                .index
+                .get(oid.strip_prefix("__DUP__").unwrap_or(oid))
+            {
                 if out.iter().any(|o| o.requirement_id == item.requirement_id) {
                     ordered.push(item);
                 }
@@ -1728,16 +1801,27 @@ mod tests {
         );
         let joined = long.iter().map(|g| g.join("|")).collect::<Vec<_>>();
         // 「近三年完成的合同额」9 字 → 整段保留；「以上类似工程业绩」剥前导后 → 「类似工程业绩」
-        assert!(joined.contains(&"近三年完成的合同额".to_string()), "{joined:?}");
+        assert!(
+            joined.contains(&"近三年完成的合同额".to_string()),
+            "{joined:?}"
+        );
         assert!(joined.contains(&"类似工程业绩".to_string()), "{joined:?}");
         // 「最多得」→ 剥尾「得」→「最多」→ 整词停用滤除；「个得」→ 剥空滤除
-        assert!(!joined.iter().any(|j| j.contains("最多") || j.contains("个得")), "{joined:?}");
+        assert!(
+            !joined
+                .iter()
+                .any(|j| j.contains("最多") || j.contains("个得")),
+            "{joined:?}"
+        );
         // 任何关键词 ≤12 字（长段已滑窗化，无整段长串）
         assert!(long
             .iter()
             .all(|g| g.iter().all(|w| w.chars().count() <= 12)));
         // 数字不混入关键词（数字是分隔符）
-        assert!(!long.iter().any(|g| g.iter().any(|w| w.contains('5'))), "{joined:?}");
+        assert!(
+            !long.iter().any(|g| g.iter().any(|w| w.contains('5'))),
+            "{joined:?}"
+        );
         // >12 字段 → 多窗口组（组内任一命中即组命中）
         let g14 = extract_keyword_groups("拟派项目经理具有同类项目管理业绩的每个 1 分，最多 2 分");
         assert!(!g14.is_empty() && g14[0].len() > 1, "长段窗口组：{:?}", g14);
@@ -1750,30 +1834,30 @@ mod tests {
     /// issue #94 §五验收形态的评分表构造器：
     /// 技术分 30（三子项各 10）/ 商务分 20（两客观子项各 10）/ 价格分 40（Ratio 口径）。
     fn b2_form_reqs() -> Vec<Requirement> {
-        let req = |id: &str, score: f64, parent: Option<&str>, section: Option<&str>,
-                       criteria: &str| {
-            let mut params = HashMap::new();
-            params.insert("score".to_string(), serde_json::json!(score));
-            if let Some(p) = parent {
-                params.insert("parent".to_string(), serde_json::json!(p));
-            }
-            if let Some(s) = section {
-                params.insert("section".to_string(), serde_json::json!(s));
-            }
-            Requirement {
-                id: id.into(),
-                category: "评分项".into(),
-                clause_no: None,
-                anchors: vec![crate::Anchor {
-                    file: "A".into(),
-                    kind: "para".into(),
-                    locator: "第四章 评标办法".into(),
-                    excerpt: criteria.into(),
-                }],
-                params,
-                source_file: "A".into(),
-            }
-        };
+        let req =
+            |id: &str, score: f64, parent: Option<&str>, section: Option<&str>, criteria: &str| {
+                let mut params = HashMap::new();
+                params.insert("score".to_string(), serde_json::json!(score));
+                if let Some(p) = parent {
+                    params.insert("parent".to_string(), serde_json::json!(p));
+                }
+                if let Some(s) = section {
+                    params.insert("section".to_string(), serde_json::json!(s));
+                }
+                Requirement {
+                    id: id.into(),
+                    category: "评分项".into(),
+                    clause_no: None,
+                    anchors: vec![crate::Anchor {
+                        file: "A".into(),
+                        kind: "para".into(),
+                        locator: "第四章 评标办法".into(),
+                        excerpt: criteria.into(),
+                    }],
+                    params,
+                    source_file: "A".into(),
+                }
+            };
         vec![
             req("T-TECH", 30.0, None, None, "技术分（30 分）"),
             req("T1", 10.0, Some("T-TECH"), Some("SEC-01"), "技术方案完整性与针对性 10 分"),
@@ -1795,7 +1879,9 @@ mod tests {
             "本章节针对某市第一人民医院智慧病房物联网平台建设项目（ZHYY-2026-GK-018）展开论述。{}。",
             keywords.join("、")
         );
-        s.push_str("具体而言：覆盖 6 个病区 320 张床位，部署物联网网关 180 台，核心链路可用性 99.9%。");
+        s.push_str(
+            "具体而言：覆盖 6 个病区 320 张床位，部署物联网网关 180 台，核心链路可用性 99.9%。",
+        );
         s.push_str("同类项目业绩与合同证明材料详见附件（编号 EV-2023-001 至 EV-2023-005）。");
         // 填充到达标线以上——填充不含判定特征（不增关键词/证据/具体性）
         while s.chars().filter(|c| !c.is_whitespace()).count() < min_len {
@@ -1818,7 +1904,10 @@ mod tests {
     fn grade_tier_four_dimensions() {
         let scorer = SectionScorer::new(
             derive_scoring_tree(&b2_form_reqs()),
-            vec!["某市第一人民医院".to_string(), "ZHYY-2026-GK-018".to_string()],
+            vec![
+                "某市第一人民医院".to_string(),
+                "ZHYY-2026-GK-018".to_string(),
+            ],
         );
         let t1 = scorer.tree.index.get("T1").unwrap();
         // 优：全覆盖 + 字数 + 证据 + 具体性
@@ -1835,9 +1924,7 @@ mod tests {
         let d = scorer.assess(t1, &filler_section(700));
         assert_eq!(SectionScorer::grade(&d), GradeTier::Poor, "{d:?}");
         // 良：覆盖 100% + 字数 + 证据、无具体性（无项目名/数字单位）
-        let mut good = String::from(
-            "本章论述技术方案完整性与针对性，相关业绩合同详见附件。",
-        );
+        let mut good = String::from("本章论述技术方案完整性与针对性，相关业绩合同详见附件。");
         while good.chars().count() < 600 {
             good.push_str("技术方案完整性与针对性持续深化论证。");
         }
@@ -1858,8 +1945,16 @@ mod tests {
         );
         let bad = scorer.score_section("SEC-01", &filler_section(700));
         // 优 9.5 vs 差 2.75（10 分项）——3.5 倍差距
-        assert!((good.estimated - 9.5).abs() < 0.01, "优档 = 9.5，got {}", good.estimated);
-        assert!((bad.estimated - 2.75).abs() < 0.01, "凑字数 = 2.75，got {}", bad.estimated);
+        assert!(
+            (good.estimated - 9.5).abs() < 0.01,
+            "优档 = 9.5，got {}",
+            good.estimated
+        );
+        assert!(
+            (bad.estimated - 2.75).abs() < 0.01,
+            "凑字数 = 2.75，got {}",
+            bad.estimated
+        );
         assert!(good.estimated > 3.0 * bad.estimated, "差距须显著");
         // covered/missing 清单
         assert_eq!(good.covered_items, vec!["T1".to_string()]);
@@ -1867,12 +1962,19 @@ mod tests {
         assert_eq!(bad.missing_items, vec!["T1".to_string()]);
         assert!(bad.covered_items.is_empty());
         // rationale 可追溯（四维明细 + 档位 + 估分算式）
-        assert!(good.rationale.contains("覆盖 2/2=100%"), "\n{}", good.rationale);
+        assert!(
+            good.rationale.contains("覆盖 2/2=100%"),
+            "\n{}",
+            good.rationale
+        );
         assert!(good.rationale.contains("字数"), "字数明细");
         assert!(good.rationale.contains("证据 ✓"), "证据明细");
         assert!(good.rationale.contains("具体性 ✓"), "具体性明细");
         assert!(good.rationale.contains("优（95.0%）"), "档位+比例");
-        assert!(good.rationale.contains("10.00×0.950=9.50"), "估分算式可复核");
+        assert!(
+            good.rationale.contains("10.00×0.950=9.50"),
+            "估分算式可复核"
+        );
     }
 
     /// score_document：三段聚合 + B1 价格分接线 + 无报价诚实登记。
@@ -1888,9 +1990,18 @@ mod tests {
             "类似工程业绩与体系认证的证明材料齐全，可随时核验。".repeat(25)
         );
         let sections = vec![
-            ("SEC-01".to_string(), excellent_section(&["技术方案完整性", "针对性"], 600)),
-            ("SEC-02".to_string(), excellent_section(&["项目实施方案", "进度保障措施"], 600)),
-            ("SEC-03".to_string(), excellent_section(&["项目团队配置", "人员资历"], 600)),
+            (
+                "SEC-01".to_string(),
+                excellent_section(&["技术方案完整性", "针对性"], 600),
+            ),
+            (
+                "SEC-02".to_string(),
+                excellent_section(&["项目实施方案", "进度保障措施"], 600),
+            ),
+            (
+                "SEC-03".to_string(),
+                excellent_section(&["项目团队配置", "人员资历"], 600),
+            ),
             ("SEC-10".to_string(), comm_good),
         ];
         // 价格分（B1 AveragePrice 0.95 + Ratio——synth-tender 4.1 同款规则，满分 40）
@@ -1902,11 +2013,19 @@ mod tests {
         };
         let ds = scorer.score_document(
             &sections,
-            Some(PriceInput { spec: &spec, bid_price: 1600.0, others: vec![1500.0, 1600.0, 1700.0, 1800.0] }),
+            Some(PriceInput {
+                spec: &spec,
+                bid_price: 1600.0,
+                others: vec![1500.0, 1600.0, 1700.0, 1800.0],
+            }),
         );
         // 手工：基准 = mean(1600,1500,1600,1700,1800)=1640 ×0.95 = 1558；
         //      价格分 = 1558/1600 × 40 = 38.95
-        assert!((ds.price - 38.95).abs() < 0.01, "价格分调 B1：got {}", ds.price);
+        assert!(
+            (ds.price - 38.95).abs() < 0.01,
+            "价格分调 B1：got {}",
+            ds.price
+        );
         // 技术 = 3 × 9.5 = 28.5；商务（客观项提及性估计）= 2 × 9.5 = 19
         assert!((ds.technical - 28.5).abs() < 0.01, "got {}", ds.technical);
         assert_eq!(ds.commercial, Some(19.0), "got {:?}", ds.commercial);
@@ -1915,10 +2034,22 @@ mod tests {
         // 价格类叶不做内容自评（rationale 登记）——SEC 里没映射价格项
         // 未报价面：诚实登记
         let ds2 = scorer.score_document(&sections, None);
-        assert!(ds2.notes.iter().any(|n| n.contains("NO_PRICE_INPUT")), "{:?}", ds2.notes);
-        assert!((ds2.total - 47.5).abs() < 0.01, "未报价 total 不含价格面，got {}", ds2.total);
+        assert!(
+            ds2.notes.iter().any(|n| n.contains("NO_PRICE_INPUT")),
+            "{:?}",
+            ds2.notes
+        );
+        assert!(
+            (ds2.total - 47.5).abs() < 0.01,
+            "未报价 total 不含价格面，got {}",
+            ds2.total
+        );
         // 明细面：breakdown 四章，SEC-10 两客观项
-        let sec10 = ds.breakdown.iter().find(|s| s.section_id == "SEC-10").unwrap();
+        let sec10 = ds
+            .breakdown
+            .iter()
+            .find(|s| s.section_id == "SEC-10")
+            .unwrap();
         assert_eq!(sec10.item_scores.len(), 2);
         assert!(sec10.item_scores.iter().all(|i| i.is_objective));
         assert!(sec10.rationale.contains("客观项"), "客观项局限说明可追溯");
@@ -1937,9 +2068,18 @@ mod tests {
             "证明材料齐全可核验。".repeat(48)
         );
         let sections = vec![
-            ("SEC-01".to_string(), excellent_section(&["技术方案完整性", "针对性"], 600)),
-            ("SEC-02".to_string(), excellent_section(&["项目实施方案", "进度保障措施"], 600)),
-            ("SEC-03".to_string(), excellent_section(&["项目团队配置", "人员资历"], 600)),
+            (
+                "SEC-01".to_string(),
+                excellent_section(&["技术方案完整性", "针对性"], 600),
+            ),
+            (
+                "SEC-02".to_string(),
+                excellent_section(&["项目实施方案", "进度保障措施"], 600),
+            ),
+            (
+                "SEC-03".to_string(),
+                excellent_section(&["项目团队配置", "人员资历"], 600),
+            ),
             ("SEC-10".to_string(), comm_good),
         ];
         let spec = crate::pricing::PriceScoreSpec {
@@ -1950,14 +2090,23 @@ mod tests {
         };
         let ds = scorer.score_document(
             &sections,
-            Some(PriceInput { spec: &spec, bid_price: 1600.0, others: vec![1500.0, 1600.0, 1700.0, 1800.0] }),
+            Some(PriceInput {
+                spec: &spec,
+                bid_price: 1600.0,
+                others: vec![1500.0, 1600.0, 1700.0, 1800.0],
+            }),
         );
         // 手工（人肉按档位规则推）：理想标书 = 优档 95% × 主观 30 = 28.5；
         // 客观项提及性估计 95% × 20 = 19；价格分 = (1640×0.95)/1600×40 = 38.95
         // → 总分 86.45
         let manual_total = 86.45;
         let rel = ((ds.total - manual_total).abs() / manual_total * 100.0).round();
-        assert!(rel < 10.0, "差距 {rel}% ≥ 10%：engine={} manual={}", ds.total, manual_total);
+        assert!(
+            rel < 10.0,
+            "差距 {rel}% ≥ 10%：engine={} manual={}",
+            ds.total,
+            manual_total
+        );
         // 半成品标书（一章凑字数 + 商务半数缺）：手工 =
         //   技术 9.5+9.5+2.75 = 21.75；商务 9.5+2.75 = 12.25；价格 38.95 → 72.95
         let half_comm = format!(
@@ -1965,24 +2114,51 @@ mod tests {
             "其他证明材料后续补充。".repeat(50)
         );
         let half = vec![
-            ("SEC-01".to_string(), excellent_section(&["技术方案完整性", "针对性"], 600)),
-            ("SEC-02".to_string(), excellent_section(&["项目实施方案", "进度保障措施"], 600)),
+            (
+                "SEC-01".to_string(),
+                excellent_section(&["技术方案完整性", "针对性"], 600),
+            ),
+            (
+                "SEC-02".to_string(),
+                excellent_section(&["项目实施方案", "进度保障措施"], 600),
+            ),
             ("SEC-03".to_string(), filler_section(700)),
             ("SEC-10".to_string(), half_comm),
         ];
         let ds2 = scorer.score_document(
             &half,
-            Some(PriceInput { spec: &spec, bid_price: 1600.0, others: vec![1500.0, 1600.0, 1700.0, 1800.0] }),
+            Some(PriceInput {
+                spec: &spec,
+                bid_price: 1600.0,
+                others: vec![1500.0, 1600.0, 1700.0, 1800.0],
+            }),
         );
         let manual2 = 72.95;
         let rel2 = ((ds2.total - manual2).abs() / manual2 * 100.0).round();
-        assert!(rel2 < 10.0, "半成品差距 {rel2}%：engine={} manual={}", ds2.total, manual2);
+        assert!(
+            rel2 < 10.0,
+            "半成品差距 {rel2}%：engine={} manual={}",
+            ds2.total,
+            manual2
+        );
         // 理想 vs 半成品差距显著（issue §五验收 2 的文档级形态）
-        assert!(ds.total - ds2.total > 10.0, "文档级差距 {} 须显著", ds.total - ds2.total);
+        assert!(
+            ds.total - ds2.total > 10.0,
+            "文档级差距 {} 须显著",
+            ds.total - ds2.total
+        );
         // rationale 全链可追溯（issue §五验收 3）
         for s in &ds.breakdown {
-            assert!(s.rationale.contains("覆盖"), "{} rationale 缺覆盖明细", s.section_id);
-            assert!(s.rationale.contains("→"), "{} rationale 缺档位判定", s.section_id);
+            assert!(
+                s.rationale.contains("覆盖"),
+                "{} rationale 缺覆盖明细",
+                s.section_id
+            );
+            assert!(
+                s.rationale.contains("→"),
+                "{} rationale 缺档位判定",
+                s.section_id
+            );
         }
         eprintln!("---- PR2 验收对照（issue #94 §五形态）----");
         eprintln!("  理想标书：manual=86.45 engine={} (差 {}%)", ds.total, rel);
@@ -1998,15 +2174,24 @@ mod tests {
         // 4.3 六子 → SEC-C1；价格 4.1 无 section——价格类跳过）
         let mut reqs = synth_tender_reqs();
         let sec_map = [
-            ("SYN-A-042a", "SEC-T1"), ("SYN-A-042b", "SEC-T1"), ("SYN-A-042c", "SEC-T1"),
-            ("SYN-A-042d", "SEC-T1"), ("SYN-A-044a", "SEC-T2"), ("SYN-A-044b", "SEC-T2"),
-            ("SYN-A-044c", "SEC-T2"), ("SYN-A-043a", "SEC-C1"), ("SYN-A-043b", "SEC-C1"),
-            ("SYN-A-043c", "SEC-C1"), ("SYN-A-043d", "SEC-C1"), ("SYN-A-043e", "SEC-C1"),
+            ("SYN-A-042a", "SEC-T1"),
+            ("SYN-A-042b", "SEC-T1"),
+            ("SYN-A-042c", "SEC-T1"),
+            ("SYN-A-042d", "SEC-T1"),
+            ("SYN-A-044a", "SEC-T2"),
+            ("SYN-A-044b", "SEC-T2"),
+            ("SYN-A-044c", "SEC-T2"),
+            ("SYN-A-043a", "SEC-C1"),
+            ("SYN-A-043b", "SEC-C1"),
+            ("SYN-A-043c", "SEC-C1"),
+            ("SYN-A-043d", "SEC-C1"),
+            ("SYN-A-043e", "SEC-C1"),
             ("SYN-A-043f", "SEC-C1"),
         ];
         for r in &mut reqs {
             if let Some((_, sec)) = sec_map.iter().find(|(id, _)| *id == r.id) {
-                r.params.insert("section".to_string(), serde_json::json!(sec));
+                r.params
+                    .insert("section".to_string(), serde_json::json!(sec));
             }
         }
         let scorer = SectionScorer::new(
@@ -2015,14 +2200,38 @@ mod tests {
         );
         // 理想技术章节（4.2 四项关键词全命中——30 分项字数线 1500 → 1600 字）
         // + 理想团队章节（4.4 三项细则原文引用）+ 理想商务章节（4.3 六项原文引用）
-        let tech = excellent_section(&["技术方案完整性", "针对性", "项目实施方案", "进度保障措施",
-            "售后服务方案", "响应时限承诺", "信息安全", "等保符合性方案"], 1600);
-        let team = excellent_section(&["项目负责人具备一级注册建造师（机电工程）资格且无在建项目",
-            "项目团队具有高级网络工程师或高级信息系统项目管理师职称证书",
-            "拟派项目经理具有同类项目管理业绩"], 600);
-        let comm = excellent_section(&["近三年完成的合同额 500 万元（含）以上类似工程业绩，每提供 1 个得 2 分",
-            "企业认证体系（ISO9001）", "企业认证体系（ISO27001）", "银行资信等级 AAA 级",
-            "类似项目获省级以上奖项", "拟派项目团队中级以上职称人员"], 600);
+        let tech = excellent_section(
+            &[
+                "技术方案完整性",
+                "针对性",
+                "项目实施方案",
+                "进度保障措施",
+                "售后服务方案",
+                "响应时限承诺",
+                "信息安全",
+                "等保符合性方案",
+            ],
+            1600,
+        );
+        let team = excellent_section(
+            &[
+                "项目负责人具备一级注册建造师（机电工程）资格且无在建项目",
+                "项目团队具有高级网络工程师或高级信息系统项目管理师职称证书",
+                "拟派项目经理具有同类项目管理业绩",
+            ],
+            600,
+        );
+        let comm = excellent_section(
+            &[
+                "近三年完成的合同额 500 万元（含）以上类似工程业绩，每提供 1 个得 2 分",
+                "企业认证体系（ISO9001）",
+                "企业认证体系（ISO27001）",
+                "银行资信等级 AAA 级",
+                "类似项目获省级以上奖项",
+                "拟派项目团队中级以上职称人员",
+            ],
+            600,
+        );
         let sections = vec![
             ("SEC-T1".to_string(), tech),
             ("SEC-T2".to_string(), team),
@@ -2039,7 +2248,11 @@ mod tests {
         // 价格分 = 1453.5/1500 × 30 = 29.07
         let ds = scorer.score_document(
             &sections,
-            Some(PriceInput { spec: &spec, bid_price: 1500.0, others: vec![1480.0, 1520.0, 1560.0, 1590.0] }),
+            Some(PriceInput {
+                spec: &spec,
+                bid_price: 1500.0,
+                others: vec![1480.0, 1520.0, 1560.0, 1590.0],
+            }),
         );
         assert!((ds.price - 29.07).abs() < 0.01, "B1 接线：got {}", ds.price);
         // 手工：技术主观叶（042a-d 30+10+8+7=55 主观 + 044 三子 8 客观计商务面）
@@ -2049,16 +2262,27 @@ mod tests {
         assert!((ds.technical - 52.25).abs() < 0.05, "got {}", ds.technical);
         assert_eq!(ds.commercial, Some(21.85), "got {:?}", ds.commercial);
         eprintln!("---- PR2 synth-tender 全链 ----");
-        eprintln!("  technical={} commercial={:?} price={} total={}",
-            ds.technical, ds.commercial, ds.price, ds.total);
+        eprintln!(
+            "  technical={} commercial={:?} price={} total={}",
+            ds.technical, ds.commercial, ds.price, ds.total
+        );
         for s in &ds.breakdown {
             eprintln!("  [{}] est={}/max={}", s.section_id, s.estimated, s.max);
             for it in &s.item_scores {
-                eprintln!("    {} {} {} est={}", it.item_id, it.tier.label(), it.coverage, it.estimated);
+                eprintln!(
+                    "    {} {} {} est={}",
+                    it.item_id,
+                    it.tier.label(),
+                    it.coverage,
+                    it.estimated
+                );
             }
         }
         // 档位差距面：凑字数技术章 vs 理想技术章
         let bad = scorer.score_section("SEC-T1", &filler_section(3000));
-        assert!(bad.estimated < ds.breakdown[0].estimated / 2.0, "凑字数须显著低分");
+        assert!(
+            bad.estimated < ds.breakdown[0].estimated / 2.0,
+            "凑字数须显著低分"
+        );
     }
 }

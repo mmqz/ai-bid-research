@@ -89,6 +89,9 @@ fn register_ev(svc: &mut BidService, kind: EvidenceKind, title: &str) -> String 
             valid_until: None,
             subject_name: "某建设工程有限公司".into(),
             scope: "水利水电工程施工".into(),
+            client: None,
+            amount_wan: None,
+            completed_on: None,
         })
         .unwrap();
     eid

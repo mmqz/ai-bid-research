@@ -56,7 +56,7 @@ pub struct Section {
 #[derive(Debug, Clone)]
 pub struct Conflict {
     pub versions: Vec<(String, i64)>, // (source, value)
-    pub gt_ids: Vec<String>,        // 关联 GT（R3-P2-2：门禁从冲突记录自身取，不耦合最近 spec）
+    pub gt_ids: Vec<String>,          // 关联 GT（R3-P2-2：门禁从冲突记录自身取，不耦合最近 spec）
     pub resolved: bool,
     pub final_value: Option<i64>,
     pub rule: String,
@@ -118,9 +118,9 @@ pub enum AddendumEvent {
 /// 与 Python SEMUL 的硬编码事件对齐；M2+ 的补遗解析器将产出该结构）。
 #[derive(Debug, Clone)]
 pub struct AddendumSpec {
-    pub new_model: String,           // GT-18 v2 型号
-    pub new_eval_date: String,       // 开标日变更
-    pub control_price: i64,          // 控制价新口径
+    pub new_model: String,            // GT-18 v2 型号
+    pub new_eval_date: String,        // 开标日变更
+    pub control_price: i64,           // 控制价新口径
     pub conflict_gt_ids: Vec<String>, // 冲突关联 GT（GT-21/GT-08）
 }
 
@@ -131,16 +131,22 @@ impl ImpactEngine {
         let mut reqs = HashMap::new();
         let mut matrix = HashMap::new();
         let mut put = |gt: &str, clause: &str, cat: &str, policy: &str| {
-            reqs.insert(gt.to_string(), ReqV2 {
-                clause_no: clause.into(),
-                category: cat.into(),
-                params: HashMap::new(),
-            });
-            matrix.insert(gt.to_string(), MatrixRow {
-                policy: policy.into(),
-                score_subitem: None,
-                control_price_caliber: None,
-            });
+            reqs.insert(
+                gt.to_string(),
+                ReqV2 {
+                    clause_no: clause.into(),
+                    category: cat.into(),
+                    params: HashMap::new(),
+                },
+            );
+            matrix.insert(
+                gt.to_string(),
+                MatrixRow {
+                    policy: policy.into(),
+                    score_subitem: None,
+                    control_price_caliber: None,
+                },
+            );
         };
         put("GT-01", "3.2.1", "资格条件", "eligible");
         put("GT-02", "3.2.2", "资格条件", "eligible");
@@ -152,34 +158,57 @@ impl ImpactEngine {
         put("GT-08", "3.7.2.2", "否决项", "price_reject");
 
         let mut bindings = HashMap::new();
-        bindings.insert("GT-01".into(), Binding {
-            ev_files: vec!["EV-01-营业执照.pdf".into()],
-            valid_until: None, status: BindingStatus::Valid,
-        });
-        bindings.insert("GT-02".into(), Binding {
-            ev_files: vec!["EV-02-电子与智能化工程专业承包二级资质证书.pdf".into()],
-            valid_until: Some("2026-11-25".into()), status: BindingStatus::Valid,
-        });
-        bindings.insert("GT-05".into(), Binding {
-            ev_files: vec!["EV-06-财务审计报告-2025年度.pdf".into()],
-            valid_until: None, status: BindingStatus::Valid,
-        });
-        bindings.insert("GT-06".into(), Binding {
-            ev_files: vec!["EV-07-无失信记录承诺函.pdf".into()],
-            valid_until: None, status: BindingStatus::Valid,
-        });
-        bindings.insert("GT-13".into(), Binding {
-            ev_files: vec!["EV-13-安全生产许可证.pdf".into()],
-            valid_until: Some("2025-08-01".into()), status: BindingStatus::Valid,
-        });
+        bindings.insert(
+            "GT-01".into(),
+            Binding {
+                ev_files: vec!["EV-01-营业执照.pdf".into()],
+                valid_until: None,
+                status: BindingStatus::Valid,
+            },
+        );
+        bindings.insert(
+            "GT-02".into(),
+            Binding {
+                ev_files: vec!["EV-02-电子与智能化工程专业承包二级资质证书.pdf".into()],
+                valid_until: Some("2026-11-25".into()),
+                status: BindingStatus::Valid,
+            },
+        );
+        bindings.insert(
+            "GT-05".into(),
+            Binding {
+                ev_files: vec!["EV-06-财务审计报告-2025年度.pdf".into()],
+                valid_until: None,
+                status: BindingStatus::Valid,
+            },
+        );
+        bindings.insert(
+            "GT-06".into(),
+            Binding {
+                ev_files: vec!["EV-07-无失信记录承诺函.pdf".into()],
+                valid_until: None,
+                status: BindingStatus::Valid,
+            },
+        );
+        bindings.insert(
+            "GT-13".into(),
+            Binding {
+                ev_files: vec!["EV-13-安全生产许可证.pdf".into()],
+                valid_until: Some("2025-08-01".into()),
+                status: BindingStatus::Valid,
+            },
+        );
 
         let mut sections = HashMap::new();
         let mut put_sec = |id: &str, related: &[&str]| {
-            sections.insert(id.to_string(), Section {
-                status: "DRAFTED".into(),
-                dirty: false,
-                related: related.iter().map(|s| s.to_string()).collect(),
-            });
+            sections.insert(
+                id.to_string(),
+                Section {
+                    status: "DRAFTED".into(),
+                    dirty: false,
+                    related: related.iter().map(|s| s.to_string()).collect(),
+                },
+            );
         };
         put_sec("资格响应", &["GT-01", "GT-02", "GT-05", "GT-06"]);
         put_sec("技术方案-网络与安全", &["GT-18"]);
@@ -190,7 +219,11 @@ impl ImpactEngine {
 
         Self {
             content_version: 1,
-            reqs, bindings, matrix, sections, conflicts: HashMap::new(),
+            reqs,
+            bindings,
+            matrix,
+            sections,
+            conflicts: HashMap::new(),
             eval_date: "2026-11-15".into(),
             imported: HashMap::new(),
             recheck_log: vec![],
@@ -209,48 +242,95 @@ impl ImpactEngine {
         let mut reqs = HashMap::new();
         let mut matrix = HashMap::new();
         let mut bindings = HashMap::new();
-        let mut put = |gt: &str, clause: &str, cat: &str, policy: &str,
+        let mut put = |gt: &str,
+                       clause: &str,
+                       cat: &str,
+                       policy: &str,
                        param: Option<(&str, serde_json::Value)>| {
             let mut params = HashMap::new();
             if let Some((k, v)) = param {
                 params.insert(k.to_string(), v);
             }
-            reqs.insert(gt.to_string(), ReqV2 {
-                clause_no: clause.into(),
-                category: cat.into(),
-                params,
-            });
-            matrix.insert(gt.to_string(), MatrixRow {
-                policy: policy.into(),
-                score_subitem: None,
-                control_price_caliber: None,
-            });
+            reqs.insert(
+                gt.to_string(),
+                ReqV2 {
+                    clause_no: clause.into(),
+                    category: cat.into(),
+                    params,
+                },
+            );
+            matrix.insert(
+                gt.to_string(),
+                MatrixRow {
+                    policy: policy.into(),
+                    score_subitem: None,
+                    control_price_caliber: None,
+                },
+            );
         };
-        put("GT-B01", "一、项目基本情况", "商务要求", "amount_response",
-            Some(("budget", serde_json::json!(1_080_000))));
-        put("GT-Q01", "二、申请人资格要求-2", "资格条件", "eligible", None);
-        put("GT-Q02", "一、项目基本情况-联合体", "否决项", "consortium_reject", None);
-        put("GT-S01", "四、实施要求-节点1", "技术需求", "milestone",
-            Some(("milestone_date", serde_json::json!("2026-07-31"))));
-        put("GT-S02", "四、实施要求-节点2", "技术需求", "milestone",
-            Some(("milestone_date", serde_json::json!("2026-08-30"))));
-        put("GT-S03", "四、实施要求-节点3", "技术需求", "milestone",
-            Some(("milestone_date", serde_json::json!("2026-09-23"))));
+        put(
+            "GT-B01",
+            "一、项目基本情况",
+            "商务要求",
+            "amount_response",
+            Some(("budget", serde_json::json!(1_080_000))),
+        );
+        put(
+            "GT-Q01",
+            "二、申请人资格要求-2",
+            "资格条件",
+            "eligible",
+            None,
+        );
+        put(
+            "GT-Q02",
+            "一、项目基本情况-联合体",
+            "否决项",
+            "consortium_reject",
+            None,
+        );
+        put(
+            "GT-S01",
+            "四、实施要求-节点1",
+            "技术需求",
+            "milestone",
+            Some(("milestone_date", serde_json::json!("2026-07-31"))),
+        );
+        put(
+            "GT-S02",
+            "四、实施要求-节点2",
+            "技术需求",
+            "milestone",
+            Some(("milestone_date", serde_json::json!("2026-08-30"))),
+        );
+        put(
+            "GT-S03",
+            "四、实施要求-节点3",
+            "技术需求",
+            "milestone",
+            Some(("milestone_date", serde_json::json!("2026-09-23"))),
+        );
         // 公告可证的绑定：中小企业声明函（资格面）；本项目公告无带有效期的
         // 资质证书条款——R-date 重检真实运行但零翻转（不虚构到期证据）
-        bindings.insert("GT-Q01".into(), Binding {
-            ev_files: vec!["中小企业声明函.pdf".into()],
-            valid_until: None,
-            status: BindingStatus::Valid,
-        });
+        bindings.insert(
+            "GT-Q01".into(),
+            Binding {
+                ev_files: vec!["中小企业声明函.pdf".into()],
+                valid_until: None,
+                status: BindingStatus::Valid,
+            },
+        );
 
         let mut sections = HashMap::new();
         let mut put_sec = |id: &str, related: &[&str]| {
-            sections.insert(id.to_string(), Section {
-                status: "DRAFTED".into(),
-                dirty: false,
-                related: related.iter().map(|s| s.to_string()).collect(),
-            });
+            sections.insert(
+                id.to_string(),
+                Section {
+                    status: "DRAFTED".into(),
+                    dirty: false,
+                    related: related.iter().map(|s| s.to_string()).collect(),
+                },
+            );
         };
         put_sec("技术方案-实施计划", &["GT-S01", "GT-S02", "GT-S03"]);
         put_sec("商务报价", &["GT-B01"]);
@@ -258,7 +338,11 @@ impl ImpactEngine {
 
         Self {
             content_version: 1,
-            reqs, bindings, matrix, sections, conflicts: HashMap::new(),
+            reqs,
+            bindings,
+            matrix,
+            sections,
+            conflicts: HashMap::new(),
             eval_date: "2026-08-03".into(), // 递交截止=开标=基准日（招标公告原文）
             imported: HashMap::new(),
             recheck_log: vec![],
@@ -273,7 +357,11 @@ impl ImpactEngine {
             if let Some(vu) = &b.valid_until {
                 if vu.as_str() < eval.as_str() && b.status != BindingStatus::Expired {
                     b.status = BindingStatus::Expired;
-                    let cat = self.reqs.get(gt).map(|r| r.category.clone()).unwrap_or_default();
+                    let cat = self
+                        .reqs
+                        .get(gt)
+                        .map(|r| r.category.clone())
+                        .unwrap_or_default();
                     if let Some(row) = self.matrix.get_mut(gt) {
                         if cat == "资格条件" {
                             row.policy = "not_eligible".into();
@@ -317,7 +405,8 @@ impl ImpactEngine {
     }
 
     pub fn dirty_sections(&self) -> Vec<String> {
-        let mut v: Vec<String> = self.sections
+        let mut v: Vec<String> = self
+            .sections
             .iter()
             .filter(|(_, s)| s.dirty)
             .map(|(k, _)| k.clone())
@@ -338,7 +427,10 @@ impl ImpactEngine {
         params.insert("model_v2".into(), serde_json::json!(spec.new_model));
         params.insert("current_model".into(), serde_json::json!(spec.new_model));
         let events = vec![
-            AddendumEvent::ClauseModified { gt_id: "GT-18".into(), params },
+            AddendumEvent::ClauseModified {
+                gt_id: "GT-18".into(),
+                params,
+            },
             AddendumEvent::VersionConflict {
                 conflict_id: "CONFLICT-01".into(),
                 versions: vec![
@@ -348,7 +440,9 @@ impl ImpactEngine {
                 gt_ids: spec.conflict_gt_ids.clone(),
                 rule: "补遗优先（后到有效版本覆盖）".into(),
             },
-            AddendumEvent::EvalDateChanged { new_date: spec.new_eval_date.clone() },
+            AddendumEvent::EvalDateChanged {
+                new_date: spec.new_eval_date.clone(),
+            },
         ];
         self.import_events(fname, sha256, &events)
     }
@@ -362,7 +456,10 @@ impl ImpactEngine {
         events: &[AddendumEvent],
     ) -> ImportImpact {
         if self.imported.get(fname).map(|s| s.as_str()) == Some(sha256) {
-            return ImportImpact { idempotent_noop: true, ..Default::default() };
+            return ImportImpact {
+                idempotent_noop: true,
+                ..Default::default()
+            };
         }
         self.imported.insert(fname.into(), sha256.into());
         self.content_version += 1;
@@ -382,14 +479,22 @@ impl ImpactEngine {
                     impact.recheck_bindings.push(gt_id.clone());
                 }
                 // (b) R-conf：双版本登记
-                AddendumEvent::VersionConflict { conflict_id, versions, gt_ids, rule } => {
-                    self.conflicts.insert(conflict_id.clone(), Conflict {
-                        versions: versions.clone(),
-                        gt_ids: gt_ids.clone(),
-                        resolved: false,
-                        final_value: None,
-                        rule: rule.clone(),
-                    });
+                AddendumEvent::VersionConflict {
+                    conflict_id,
+                    versions,
+                    gt_ids,
+                    rule,
+                } => {
+                    self.conflicts.insert(
+                        conflict_id.clone(),
+                        Conflict {
+                            versions: versions.clone(),
+                            gt_ids: gt_ids.clone(),
+                            resolved: false,
+                            final_value: None,
+                            rule: rule.clone(),
+                        },
+                    );
                     impact.conflicts.push(conflict_id.clone());
                     for gt in gt_ids {
                         impact.dirty_matrix.push(gt.clone());
@@ -398,7 +503,8 @@ impl ImpactEngine {
                 // (c) R-date：开标日变更 → 全项目有效期重检
                 AddendumEvent::EvalDateChanged { new_date } => {
                     self.eval_date = new_date.clone();
-                    let before: HashMap<String, BindingStatus> = self.bindings
+                    let before: HashMap<String, BindingStatus> = self
+                        .bindings
                         .iter()
                         .map(|(k, v)| (k.clone(), v.status.clone()))
                         .collect();
@@ -461,7 +567,8 @@ impl ImpactEngine {
             if v.dirty {
                 return Err(AcceptBlock::Dirty);
             }
-            let unresolved: Vec<String> = self.conflicts
+            let unresolved: Vec<String> = self
+                .conflicts
                 .iter()
                 .filter(|(_, c)| !c.resolved)
                 .filter(|(_, c)| v.related.iter().any(|g| c.gt_ids.contains(g)))
@@ -499,17 +606,29 @@ impl ImpactEngine {
         dirty
     }
 
-    pub fn clause_add(&mut self, gt: &str, category: &str, clause_no: &str, section_id: Option<&str>) -> Vec<String> {
-        self.reqs.insert(gt.into(), ReqV2 {
-            clause_no: clause_no.into(),
-            category: category.into(),
-            params: HashMap::new(),
-        });
-        self.matrix.insert(gt.into(), MatrixRow {
-            policy: "new_row".into(),
-            score_subitem: None,
-            control_price_caliber: None,
-        });
+    pub fn clause_add(
+        &mut self,
+        gt: &str,
+        category: &str,
+        clause_no: &str,
+        section_id: Option<&str>,
+    ) -> Vec<String> {
+        self.reqs.insert(
+            gt.into(),
+            ReqV2 {
+                clause_no: clause_no.into(),
+                category: category.into(),
+                params: HashMap::new(),
+            },
+        );
+        self.matrix.insert(
+            gt.into(),
+            MatrixRow {
+                policy: "new_row".into(),
+                score_subitem: None,
+                control_price_caliber: None,
+            },
+        );
         let mut dirty = vec![];
         if let Some(sec) = section_id {
             if let Some(v) = self.sections.get_mut(sec) {

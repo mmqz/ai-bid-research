@@ -61,7 +61,10 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         "score_section" => score_section(svc, args),
         "score_document" => score_document(svc, args),
         // ---- M0 骨架：以下工具待各自里程碑接线 ----
-        "search_evidence" => Err(ToolError::unimplemented(name, "M2-b（双通道检索——#59 已降级可选，素材库上来再启）")),
+        "search_evidence" => Err(ToolError::unimplemented(
+            name,
+            "M2-b（双通道检索——#59 已降级可选，素材库上来再启）",
+        )),
         other => Err(ToolError::ENotFound {
             what: format!("未接入的工具 {other}"),
         }),
@@ -72,15 +75,27 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
 
 /// 契约 §2 `files[].kind` 枚举（MCP 壳校验面；服务层不重复——运行器自有
 /// 类别如「证据」不受此限，见 service.rs 分层说明）。
-const TENDER_FILE_KINDS: [&str; 7] =
-    ["招标文件", "附件", "图纸", "补遗", "答疑", "评分办法", "格式模板"];
+const TENDER_FILE_KINDS: [&str; 7] = [
+    "招标文件",
+    "附件",
+    "图纸",
+    "补遗",
+    "答疑",
+    "评分办法",
+    "格式模板",
+];
 
 fn req_str(v: &Value, key: &str, at: &str) -> Result<String, ToolError> {
-    let s = v.get(key).and_then(Value::as_str).ok_or_else(|| ToolError::EUnprocessable {
-        what: format!("{at}: {key} 缺失或非字符串"),
-    })?;
+    let s = v
+        .get(key)
+        .and_then(Value::as_str)
+        .ok_or_else(|| ToolError::EUnprocessable {
+            what: format!("{at}: {key} 缺失或非字符串"),
+        })?;
     if s.trim().is_empty() {
-        return Err(ToolError::EUnprocessable { what: format!("{at}: {key} 不得为空白") });
+        return Err(ToolError::EUnprocessable {
+            what: format!("{at}: {key} 不得为空白"),
+        });
     }
     Ok(s.to_string())
 }
@@ -89,17 +104,24 @@ fn opt_str(v: &Value, key: &str, at: &str) -> Result<Option<String>, ToolError> 
     match v.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::String(s)) => Ok(Some(s.clone())),
-        Some(_) => Err(ToolError::EUnprocessable { what: format!("{at}: {key} 须为字符串") }),
+        Some(_) => Err(ToolError::EUnprocessable {
+            what: format!("{at}: {key} 须为字符串"),
+        }),
     }
 }
 
 fn opt_u64(v: &Value, key: &str, at: &str) -> Result<Option<u64>, ToolError> {
     match v.get(key) {
         None | Some(Value::Null) => Ok(None),
-        Some(Value::Number(n)) => n.as_u64().map(Some).ok_or_else(|| ToolError::EUnprocessable {
+        Some(Value::Number(n)) => n
+            .as_u64()
+            .map(Some)
+            .ok_or_else(|| ToolError::EUnprocessable {
+                what: format!("{at}: {key} 须为非负整数"),
+            }),
+        Some(_) => Err(ToolError::EUnprocessable {
             what: format!("{at}: {key} 须为非负整数"),
         }),
-        Some(_) => Err(ToolError::EUnprocessable { what: format!("{at}: {key} 须为非负整数") }),
     }
 }
 
@@ -107,10 +129,15 @@ fn opt_u64(v: &Value, key: &str, at: &str) -> Result<Option<u64>, ToolError> {
 fn opt_f64(v: &Value, key: &str, at: &str) -> Result<Option<f64>, ToolError> {
     match v.get(key) {
         None | Some(Value::Null) => Ok(None),
-        Some(Value::Number(n)) => n.as_f64().map(Some).ok_or_else(|| ToolError::EUnprocessable {
+        Some(Value::Number(n)) => n
+            .as_f64()
+            .map(Some)
+            .ok_or_else(|| ToolError::EUnprocessable {
+                what: format!("{at}: {key} 须为数值"),
+            }),
+        Some(_) => Err(ToolError::EUnprocessable {
             what: format!("{at}: {key} 须为数值"),
         }),
-        Some(_) => Err(ToolError::EUnprocessable { what: format!("{at}: {key} 须为数值") }),
     }
 }
 
@@ -128,7 +155,9 @@ fn opt_f64_array(v: &Value, key: &str, at: &str) -> Result<Option<Vec<f64>>, Too
             })
             .collect::<Result<Vec<f64>, _>>()
             .map(Some),
-        Some(_) => Err(ToolError::EUnprocessable { what: format!("{at}: {key} 须为数值数组") }),
+        Some(_) => Err(ToolError::EUnprocessable {
+            what: format!("{at}: {key} 须为数值数组"),
+        }),
     }
 }
 
@@ -162,7 +191,10 @@ fn route_project(svc: &BidService, project_id: &str, tool: &str) -> Result<(), T
     let proj = svc.store().project().map_err(ToolError::from)?;
     if proj.id != project_id {
         return Err(ToolError::ENotFound {
-            what: format!("project 不存在：{project_id}（当前服务态项目：{}）——{tool}", proj.id),
+            what: format!(
+                "project 不存在：{project_id}（当前服务态项目：{}）——{tool}",
+                proj.id
+            ),
         });
     }
     Ok(())
@@ -191,13 +223,11 @@ fn get_bid_project_state(svc: &mut BidService, args: Value) -> ToolResult {
         Some(Value::String(raw)) => parse_status(raw).ok_or_else(|| ToolError::EUnprocessable {
             what: format!("无法识别的 project_status：{raw}（合法值见 bid-domain ProjectStatus）"),
         })?,
-        None | Some(Value::Null) => svc
-            .store()
-            .project()
-            .map_err(ToolError::from)?
-            .status,
+        None | Some(Value::Null) => svc.store().project().map_err(ToolError::from)?.status,
         Some(_) => {
-            return Err(ToolError::EUnprocessable { what: "project_status 须为字符串".into() });
+            return Err(ToolError::EUnprocessable {
+                what: "project_status 须为字符串".into(),
+            });
         }
     };
 
@@ -264,7 +294,9 @@ fn create_bid_project(svc: &mut BidService, args: Value) -> ToolResult {
                 "warnings": [],
             }));
         }
-        svc.store().guard_tool("create_bid_project").map_err(ToolError::from)?;
+        svc.store()
+            .guard_tool("create_bid_project")
+            .map_err(ToolError::from)?;
     }
     // 转发（领域：external_key 幂等创建；tender_notice_ref 即招标公告编号 → code 位；
     // T-8：经服务层包装——持久化在场时写后自动落盘）
@@ -273,7 +305,9 @@ fn create_bid_project(svc: &mut BidService, args: Value) -> ToolResult {
         .map_err(ToolError::from)?;
     let mut warnings = Vec::new();
     if deadline < today_ymd() {
-        warnings.push(format!("BID_DEADLINE_PAST: 投标截止 {bid_deadline} 已过（契约 §1：创建即警告，不阻断）"));
+        warnings.push(format!(
+            "BID_DEADLINE_PAST: 投标截止 {bid_deadline} 已过（契约 §1：创建即警告，不阻断）"
+        ));
     }
     out["project_version"] = json!(svc.store().content_version());
     out["request_id"] = json!(next_request_id());
@@ -301,13 +335,13 @@ fn parse_ymd(s: &str) -> Option<(i64, u32, u32)> {
 fn civil_from_days(z: i64) -> (i64, u32, u32) {
     let z = z + 719_468;
     let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
-    let doe = z - era * 146_097;                                  // [0, 146096]
+    let doe = z - era * 146_097; // [0, 146096]
     let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365; // [0, 399]
     let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);            // [0, 365]
-    let mp = (5 * doy + 2) / 153;                                 // [0, 11]
-    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;                // [1, 31]
-    let m = (if mp < 10 { mp + 3 } else { mp - 9 }) as u32;       // [1, 12]
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100); // [0, 365]
+    let mp = (5 * doy + 2) / 153; // [0, 11]
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32; // [1, 31]
+    let m = (if mp < 10 { mp + 3 } else { mp - 9 }) as u32; // [1, 12]
     (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
@@ -349,28 +383,43 @@ fn import_tender_files(svc: &mut BidService, args: Value) -> ToolResult {
             Some(k) if TENDER_FILE_KINDS.contains(&k.as_str()) => k,
             Some(k) => {
                 return Err(ToolError::EUnprocessable {
-                    what: format!("{at}: kind 非法：{k}（合法值：{}）", TENDER_FILE_KINDS.join("|")),
+                    what: format!(
+                        "{at}: kind 非法：{k}（合法值：{}）",
+                        TENDER_FILE_KINDS.join("|")
+                    ),
                 });
             }
             None => "附件".to_string(), // 契约 §2 kind 可选——缺省归通用附件
         };
         let expected_pages = opt_u64(f, "expected_pages", &at)?;
-        specs.push(ImportSpec { upload_ref: PathBuf::from(upload_ref), filename, kind, expected_pages });
+        specs.push(ImportSpec {
+            upload_ref: PathBuf::from(upload_ref),
+            filename,
+            kind,
+            expected_pages,
+        });
     }
 
     // ---- 项目路由（E_NOTFOUND）
     let proj = svc.store().project().map_err(ToolError::from)?;
     if proj.id != project_id {
         return Err(ToolError::ENotFound {
-            what: format!("project 不存在：{project_id}（当前服务态项目：{}）", proj.id),
+            what: format!(
+                "project 不存在：{project_id}（当前服务态项目：{}）",
+                proj.id
+            ),
         });
     }
     let status_before = proj.status;
 
     // ---- 状态机裁决（guard_tool——本层不自行判断）
-    svc.store().guard_tool("import_tender_files").map_err(ToolError::from)?;
+    svc.store()
+        .guard_tool("import_tender_files")
+        .map_err(ToolError::from)?;
     // ---- 乐观并发（project_version 缺省 = 内部步骤语义，跳过检查）
-    svc.store().check_version(project_version).map_err(ToolError::from)?;
+    svc.store()
+        .check_version(project_version)
+        .map_err(ToolError::from)?;
 
     // ---- 转发业务（服务层：sha256 幂等 + 解析 + DomainStore 落库 + 失败登记；
     // T-8：持久化在场时写后自动落盘——落盘失败与业务失败同报，不吞面）
@@ -413,7 +462,11 @@ fn import_tender_files(svc: &mut BidService, args: Value) -> ToolResult {
             item_errors.push(format!("{}: {e}", o.filename));
         }
     }
-    let status_after = svc.store().project().map(|p| p.status.as_str()).unwrap_or("DRAFT");
+    let status_after = svc
+        .store()
+        .project()
+        .map(|p| p.status.as_str())
+        .unwrap_or("DRAFT");
     let mut warnings = Vec::new();
     if report.new_records > 0 && status_before != ProjectStatus::Draft {
         // 契约 §2：非 DRAFT 追加新文件 → 允许但标 dirty（纯 no-op 重放不标——
@@ -486,11 +539,16 @@ fn missing_in_run(found: &mut Vec<Vec<u64>>, out: &mut Vec<Value>, file_id: &str
             let (x, y) = (a[a.len() - 1], b[b.len() - 1]);
             if y > x + 1 && y - x <= 50 {
                 // 防伪缺号：跳章（y - x > 50）多为主线切换而非真缺（P2 评测口径）
-                let missing: Vec<String> = ((x + 1)..y).map(|n| {
-                    let mut seg = a[..a.len() - 1].to_vec();
-                    seg.push(n);
-                    seg.iter().map(|d| d.to_string()).collect::<Vec<_>>().join(".")
-                }).collect();
+                let missing: Vec<String> = ((x + 1)..y)
+                    .map(|n| {
+                        let mut seg = a[..a.len() - 1].to_vec();
+                        seg.push(n);
+                        seg.iter()
+                            .map(|d| d.to_string())
+                            .collect::<Vec<_>>()
+                            .join(".")
+                    })
+                    .collect();
                 out.push(json!({
                     "file_id": file_id,
                     "expected_clause_nos": missing,
@@ -512,7 +570,9 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
         });
     }
     if args.get("options").map(Value::is_object).unwrap_or(true) == false {
-        return Err(ToolError::EUnprocessable { what: "options 必须为对象".into() });
+        return Err(ToolError::EUnprocessable {
+            what: "options 必须为对象".into(),
+        });
     }
     let project_version = opt_u64(&args, "project_version", "extract_requirements")?;
 
@@ -520,17 +580,27 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
     let proj = svc.store().project().map_err(ToolError::from)?;
     if proj.id != project_id {
         return Err(ToolError::ENotFound {
-            what: format!("project 不存在：{project_id}（当前服务态项目：{}）", proj.id),
+            what: format!(
+                "project 不存在：{project_id}（当前服务态项目：{}）",
+                proj.id
+            ),
         });
     }
-    svc.store().guard_tool("extract_requirements").map_err(ToolError::from)?;
-    svc.store().check_version(project_version).map_err(ToolError::from)?;
+    svc.store()
+        .guard_tool("extract_requirements")
+        .map_err(ToolError::from)?;
+    svc.store()
+        .check_version(project_version)
+        .map_err(ToolError::from)?;
 
     // ---- 前置：导入面必须有成功解析件（空抽取面 = E_STATE 语义前置）
     let parsed_empty = svc.parsed().is_empty();
     if parsed_empty {
         return Err(ToolError::EState {
-            what: format!("{} 态无已解析文件——先 import_tender_files", proj.status.as_str()),
+            what: format!(
+                "{} 态无已解析文件——先 import_tender_files",
+                proj.status.as_str()
+            ),
         });
     }
 
@@ -554,11 +624,7 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
 
     // ---- 冲突检测（最小面）：补遗（C-）与主文件（A-）同条款号不同文本 → 双向登记
     let mut conflicts: Vec<Value> = Vec::new();
-    let main_names: Vec<&str> = svc
-        .parsed()
-        .iter()
-        .map(|p| p.name.as_str())
-        .collect();
+    let main_names: Vec<&str> = svc.parsed().iter().map(|p| p.name.as_str()).collect();
     // 补遗件名集合（C- 前缀——B5 最小冲突面：主文件 × 补遗同条款号异文）
     let addenda_names: Vec<String> = svc
         .parsed()
@@ -575,8 +641,15 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
                         && r.clause_no.as_deref() == Some(no.as_str())
                 }) {
                     let (ex_ad, ex_main) = (
-                        r_ad.anchors.first().map(|a| a.excerpt.as_str()).unwrap_or(""),
-                        r_main.anchors.first().map(|a| a.excerpt.as_str()).unwrap_or(""),
+                        r_ad.anchors
+                            .first()
+                            .map(|a| a.excerpt.as_str())
+                            .unwrap_or(""),
+                        r_main
+                            .anchors
+                            .first()
+                            .map(|a| a.excerpt.as_str())
+                            .unwrap_or(""),
                     );
                     if ex_ad != ex_main {
                         conflicts.push(json!({
@@ -592,12 +665,11 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
 
     // ---- 落库（幂等合并 + 状态转换 FILES_IMPORTED → REQUIREMENTS_EXTRACTED；
     // T-8：经服务层包装——持久化在场时写后自动落盘）
-    let (total, added) = svc
-        .set_requirements(reqs)
-        .map_err(ToolError::from)?;
+    let (total, added) = svc.set_requirements(reqs).map_err(ToolError::from)?;
 
     // ---- counts 组装
-    let mut by_category: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+    let mut by_category: std::collections::BTreeMap<&str, usize> =
+        std::collections::BTreeMap::new();
     for r in svc.store().requirements() {
         *by_category.entry(category_key(&r.category)).or_insert(0) += 1;
     }
@@ -684,8 +756,10 @@ fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
     // 只读工具零状态副作用：matrix_view 派生不落库不 bump（与 build_matrix 同源）。
     // 反查索引（一次建表——12k 行量级禁逐行 find 的 O(N²)）。
     let view = svc.store().matrix_view();
-    let row_by_req: HashMap<&str, &bid_domain::matrix::MatrixRow> =
-        view.iter().map(|m| (m.requirement_id.as_str(), m)).collect();
+    let row_by_req: HashMap<&str, &bid_domain::matrix::MatrixRow> = view
+        .iter()
+        .map(|m| (m.requirement_id.as_str(), m))
+        .collect();
     let reqs = svc.store().requirements();
     let mut matched: Vec<usize> = Vec::with_capacity(reqs.len());
     for (i, r) in reqs.iter().enumerate() {
@@ -695,7 +769,10 @@ fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
             }
         }
         // T-2 四态（派生：override > 证据+章节）；旧 B5 字面量 unanswered → NOT_RESPONDED
-        let status = row_by_req.get(r.id.as_str()).map(|m| m.status.as_str()).unwrap_or("NOT_RESPONDED");
+        let status = row_by_req
+            .get(r.id.as_str())
+            .map(|m| m.status.as_str())
+            .unwrap_or("NOT_RESPONDED");
         if let Some(s) = &filter_status {
             if status != s {
                 continue;
@@ -709,39 +786,44 @@ fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
     let page = cursor::slice(&window, &fp, total_rows)?;
 
     // ---- 本页行组装（仅窗口内的行构建 JSON——大结果不付全量序列化成本）
-    let rows: Vec<Value> = matched[page.start..page.end].iter().map(|&i| {
-        let r = &reqs[i];
-        let row = row_by_req.get(r.id.as_str());
-        let status = row.map(|m| m.status.as_str()).unwrap_or("NOT_RESPONDED");
-        let anchor = r.anchors.first();
-        // 契约 §4 evidence 列接真值（T-1 绑定 + 台账状态/有效期随行——过期证据
-        // 绑定已被 matrix_view 过滤，不进响应面）
-        let evidence = match row {
-            Some(m) => bid_domain::matrix::evidence_column(svc.store().evidences(), &m.evidence_ids),
-            None => vec![],
-        };
-        json!({
-            "cmp_id": format!("CMP-{:04}", i + 1),
-            "requirement": {
-                "id": r.id,
-                "clause_no": r.clause_no,
-                "category": r.category,
-                "category_key": category_key(&r.category),
-                "statement": anchor.map(|a| a.excerpt.as_str()).unwrap_or(""),
-                "mandatory": r.category == "否决项" || r.category == "资格条件",
-                "source_anchor": anchor.map(|a| json!({
-                    "file": a.file, "kind": a.kind, "locator": a.locator, "excerpt": a.excerpt,
-                })),
-                "params": r.params,
-            },
-            "status": status,
-            "evidence": evidence,
-            "gap": Value::Null,
-            "response_policy": "default",
-            "draft_section_id": row.and_then(|m| m.response_section.clone()),
-            "blocking": row.map(|m| m.blocking).unwrap_or(false),
+    let rows: Vec<Value> = matched[page.start..page.end]
+        .iter()
+        .map(|&i| {
+            let r = &reqs[i];
+            let row = row_by_req.get(r.id.as_str());
+            let status = row.map(|m| m.status.as_str()).unwrap_or("NOT_RESPONDED");
+            let anchor = r.anchors.first();
+            // 契约 §4 evidence 列接真值（T-1 绑定 + 台账状态/有效期随行——过期证据
+            // 绑定已被 matrix_view 过滤，不进响应面）
+            let evidence = match row {
+                Some(m) => {
+                    bid_domain::matrix::evidence_column(svc.store().evidences(), &m.evidence_ids)
+                }
+                None => vec![],
+            };
+            json!({
+                "cmp_id": format!("CMP-{:04}", i + 1),
+                "requirement": {
+                    "id": r.id,
+                    "clause_no": r.clause_no,
+                    "category": r.category,
+                    "category_key": category_key(&r.category),
+                    "statement": anchor.map(|a| a.excerpt.as_str()).unwrap_or(""),
+                    "mandatory": r.category == "否决项" || r.category == "资格条件",
+                    "source_anchor": anchor.map(|a| json!({
+                        "file": a.file, "kind": a.kind, "locator": a.locator, "excerpt": a.excerpt,
+                    })),
+                    "params": r.params,
+                },
+                "status": status,
+                "evidence": evidence,
+                "gap": Value::Null,
+                "response_policy": "default",
+                "draft_section_id": row.and_then(|m| m.response_section.clone()),
+                "blocking": row.map(|m| m.blocking).unwrap_or(false),
+            })
         })
-    }).collect();
+        .collect();
 
     let mut warnings: Vec<String> = Vec::new();
     if svc.store().requirements().is_empty() {
@@ -778,8 +860,12 @@ fn parse_evidence_kind(s: &str, at: &str) -> Result<EvidenceKind, ToolError> {
         return Ok(k);
     }
     for k in [
-        EvidenceKind::Qualification, EvidenceKind::Performance, EvidenceKind::Personnel,
-        EvidenceKind::Certificate, EvidenceKind::ProductDoc, EvidenceKind::SolutionModule,
+        EvidenceKind::Qualification,
+        EvidenceKind::Performance,
+        EvidenceKind::Personnel,
+        EvidenceKind::Certificate,
+        EvidenceKind::ProductDoc,
+        EvidenceKind::SolutionModule,
         EvidenceKind::Contract,
     ] {
         if k.as_str() == s {
@@ -843,7 +929,10 @@ fn list_evidence(svc: &mut BidService, args: Value) -> ToolResult {
     route_project(svc, &project_id, "list_evidence")?;
 
     // ---- 过滤（先过滤后分页）+ id 字典序（确定全序）
-    let mut matched: Vec<&bid_domain::evidence::Evidence> = svc.store().evidences().iter()
+    let mut matched: Vec<&bid_domain::evidence::Evidence> = svc
+        .store()
+        .evidences()
+        .iter()
         .filter(|e| kind.map_or(true, |k| e.kind == k))
         .filter(|e| status.map_or(true, |st| e.status == st))
         .collect();
@@ -852,14 +941,19 @@ fn list_evidence(svc: &mut BidService, args: Value) -> ToolResult {
 
     // ---- 切片 + 行组装（仅窗口内构建）
     let page = cursor::slice(&window, &fp, total)?;
-    let items: Vec<Value> = matched[page.start..page.end].iter().map(|e| json!({
-        "id": e.id,
-        "kind": kind_machine(e.kind),
-        "title": e.title,
-        "status": e.status.as_str(),
-        "subject_name": e.subject_name,
-        "valid_until": e.valid_until,
-    })).collect();
+    let items: Vec<Value> = matched[page.start..page.end]
+        .iter()
+        .map(|e| {
+            json!({
+                "id": e.id,
+                "kind": kind_machine(e.kind),
+                "title": e.title,
+                "status": e.status.as_str(),
+                "subject_name": e.subject_name,
+                "valid_until": e.valid_until,
+            })
+        })
+        .collect();
 
     Ok(json!({
         "items": items,
@@ -876,7 +970,9 @@ fn list_evidence(svc: &mut BidService, args: Value) -> ToolResult {
 fn parse_task_status(s: &str) -> Result<bid_domain::assignment::TaskStatus, ToolError> {
     serde_json::from_value::<bid_domain::assignment::TaskStatus>(Value::String(s.to_string()))
         .map_err(|_| ToolError::EUnprocessable {
-            what: format!("list_tasks: filters.status 非法：{s}（合法值：ASSIGNED|IN_PROGRESS|DONE）"),
+            what: format!(
+                "list_tasks: filters.status 非法：{s}（合法值：ASSIGNED|IN_PROGRESS|DONE）"
+            ),
         })
 }
 
@@ -911,12 +1007,17 @@ fn list_tasks(svc: &mut BidService, args: Value) -> ToolResult {
     let matched = svc.store().list_tasks(f_owner.as_deref(), status);
     let total = matched.len();
     let page = cursor::slice(&window, &fp, total)?;
-    let items: Vec<Value> = matched[page.start..page.end].iter().map(|a| json!({
-        "target_id": a.target_id,
-        "owner": a.owner,
-        "deadline": a.deadline,
-        "status": a.status.as_str(),
-    })).collect();
+    let items: Vec<Value> = matched[page.start..page.end]
+        .iter()
+        .map(|a| {
+            json!({
+                "target_id": a.target_id,
+                "owner": a.owner,
+                "deadline": a.deadline,
+                "status": a.status.as_str(),
+            })
+        })
+        .collect();
 
     Ok(json!({
         "items": items,
@@ -928,7 +1029,6 @@ fn list_tasks(svc: &mut BidService, args: Value) -> ToolResult {
         "request_id": next_request_id(),
     }))
 }
-
 
 // ---------------------------------------------------------------- save_version
 
@@ -965,8 +1065,10 @@ fn save_version(args: Value) -> ToolResult {
     let root = mang_snap::find_root(&path);
     // mang-snap 失败码（empty/too_large/denied/io）都是调用方可理解的面——
     // 契约枚举无 E_INTERNAL，统一 E_UNPROCESSABLE 并在 what 里带核心层码位
-    let saved = mang_snap::save(&root, &path, mang_snap::Kind::Ai, message).map_err(|e| ToolError::EUnprocessable {
-        what: format!("save_version: {}（snap:{})", e.message, e.code),
+    let saved = mang_snap::save(&root, &path, mang_snap::Kind::Ai, message).map_err(|e| {
+        ToolError::EUnprocessable {
+            what: format!("save_version: {}（snap:{})", e.message, e.code),
+        }
     })?;
     Ok(json!({
         "ok": true,
@@ -1043,23 +1145,35 @@ fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
     let proj = svc.store().project().map_err(ToolError::from)?;
     if proj.id != project_id {
         return Err(ToolError::ENotFound {
-            what: format!("project 不存在：{project_id}（当前服务态项目：{}）", proj.id),
+            what: format!(
+                "project 不存在：{project_id}（当前服务态项目：{}）",
+                proj.id
+            ),
         });
     }
     svc.store().guard_tool(TOOL).map_err(ToolError::from)?;
-    let version = svc.store().check_version(project_version).map_err(ToolError::from)?;
+    let version = svc
+        .store()
+        .check_version(project_version)
+        .map_err(ToolError::from)?;
 
     // ---- 前置：章节树必须已建（无纲即无起草对象——契约 §6 前置的本地化）
     if svc.store().sections().is_empty() {
         return Err(ToolError::EState {
-            what: format!("{} 态无章节树——先经 store 推导大纲（derive_and_set_outline）再起草", proj.status.as_str()),
+            what: format!(
+                "{} 态无章节树——先经 store 推导大纲（derive_and_set_outline）再起草",
+                proj.status.as_str()
+            ),
         });
     }
 
     // ---- 幂等前置：(section_id, instructions_hash, content_version) 命中 → 直返首次结果
     // external 稿的正文是第一输入（同章节同指令不同稿 = 不同请求）——幂等键
     // 追加 content 指纹；同稿重提仍命中（CAS 同内容 no-op 语义一致）
-    let mut ikey = format!("draft:{section_id}:{}", instructions_hash(instructions.as_deref()));
+    let mut ikey = format!(
+        "draft:{section_id}:{}",
+        instructions_hash(instructions.as_deref())
+    );
     if let Some(c) = &external_content {
         ikey.push_str(&format!(":ext-{}", content_hash(c)));
     }
@@ -1078,60 +1192,67 @@ fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
     //   real  = 无 key → E_UNPROCESSABLE（显式要求真实生成而配置缺失，要响亮）
     //   mock  = 强制确定性生成（e2e/复算面——无告警，是显式选择）
     //   external = content 手稿直注（引擎不生成只提交——与 mock/real 提交面一致）
-    let llm_cfg = bid_tools::llm::LlmConfig::resolve(svc.workspace_dir().as_deref())
-        .map_err(|e| ToolError::EUnprocessable {
-            what: format!("LLM 配置无效（.mang/llm.json 或 BID_LLM_*）: {e}"),
+    let llm_cfg =
+        bid_tools::llm::LlmConfig::resolve(svc.workspace_dir().as_deref()).map_err(|e| {
+            ToolError::EUnprocessable {
+                what: format!("LLM 配置无效（.mang/llm.json 或 BID_LLM_*）: {e}"),
+            }
         })?;
     let mut gen_warnings: Vec<String> = Vec::new();
     let gen_kind;
-    let mut gen: Box<dyn bid_tools::draft::SectionGenerator> = if let Some(content) = external_content {
-        gen_kind = "external";
-        gen_warnings.push(
-            "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、\
-             CAS 写入、状态推进、落盘与 mock/real 完全同路径".into(),
-        );
-        Box::new(bid_tools::draft::ExternalGenerator { content })
-    } else {
-        match generator_mode.as_deref() {
-            Some("mock") => {
-                gen_kind = "mock";
-                Box::new(bid_tools::draft::MockGenerator)
-            }
-            Some("real") => match llm_cfg {
-                Some(cfg) => {
-                    gen_kind = "real";
-                    Box::new(bid_tools::llm::RealGenerator::new(cfg, svc.workspace_dir()))
-                }
-                None => {
-                    return Err(ToolError::EUnprocessable {
-                        what: "generator=real 但未配置 api_key（.mang/llm.json 或 BID_LLM_API_KEY）\
-                               ——要么配置 key，要么用 auto/mock".into(),
-                    })
-                }
-            },
-            _ => match llm_cfg {
-                Some(cfg) => {
-                    gen_kind = "real";
-                    Box::new(bid_tools::llm::RealGenerator::new(cfg, svc.workspace_dir()))
-                }
-                None => {
+    let mut gen: Box<dyn bid_tools::draft::SectionGenerator> =
+        if let Some(content) = external_content {
+            gen_kind = "external";
+            gen_warnings.push(
+                "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、\
+             CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+                    .into(),
+            );
+            Box::new(bid_tools::draft::ExternalGenerator { content })
+        } else {
+            match generator_mode.as_deref() {
+                Some("mock") => {
                     gen_kind = "mock";
-                    gen_warnings.push(
-                        "未配置 LLM api_key——降级 mock 生成（内容为确定性模板，非真实 AI）；\
-                         配置 .mang/llm.json 或 BID_LLM_API_KEY 后走真实生成".into(),
-                    );
                     Box::new(bid_tools::draft::MockGenerator)
                 }
-            },
-        }
-    };
-    let outcome = svc.draft_section(
-        &section_id,
-        req_ids.as_deref(),
-        ev_ids.as_deref(),
-        instructions.as_deref(),
-        gen.as_mut(),
-    ).map_err(ToolError::from)?;
+                Some("real") => match llm_cfg {
+                    Some(cfg) => {
+                        gen_kind = "real";
+                        Box::new(bid_tools::llm::RealGenerator::new(cfg, svc.workspace_dir()))
+                    }
+                    None => return Err(ToolError::EUnprocessable {
+                        what:
+                            "generator=real 但未配置 api_key（.mang/llm.json 或 BID_LLM_API_KEY）\
+                               ——要么配置 key，要么用 auto/mock"
+                                .into(),
+                    }),
+                },
+                _ => match llm_cfg {
+                    Some(cfg) => {
+                        gen_kind = "real";
+                        Box::new(bid_tools::llm::RealGenerator::new(cfg, svc.workspace_dir()))
+                    }
+                    None => {
+                        gen_kind = "mock";
+                        gen_warnings.push(
+                            "未配置 LLM api_key——降级 mock 生成（内容为确定性模板，非真实 AI）；\
+                         配置 .mang/llm.json 或 BID_LLM_API_KEY 后走真实生成"
+                                .into(),
+                        );
+                        Box::new(bid_tools::draft::MockGenerator)
+                    }
+                },
+            }
+        };
+    let outcome = svc
+        .draft_section(
+            &section_id,
+            req_ids.as_deref(),
+            ev_ids.as_deref(),
+            instructions.as_deref(),
+            gen.as_mut(),
+        )
+        .map_err(ToolError::from)?;
     let mut warnings = outcome.warnings;
     warnings.append(&mut gen_warnings);
 
@@ -1182,7 +1303,10 @@ fn check_bid_quality(svc: &mut BidService, args: Value) -> ToolResult {
     let proj = svc.store().project().map_err(ToolError::from)?;
     if proj.id != project_id {
         return Err(ToolError::ENotFound {
-            what: format!("project 不存在：{project_id}（当前服务态项目：{}）", proj.id),
+            what: format!(
+                "project 不存在：{project_id}（当前服务态项目：{}）",
+                proj.id
+            ),
         });
     }
     svc.store().guard_tool(TOOL).map_err(ToolError::from)?;
@@ -1196,18 +1320,18 @@ fn check_bid_quality(svc: &mut BidService, args: Value) -> ToolResult {
 
     // ---- 报告构建（assembler 在场时并入 failed.json 失败明细）
     let mut warnings: Vec<String> = Vec::new();
-    let asm = svc.workspace_dir().map(|dir| {
-        match bid_tools::assembly::ChapterAssembler::open(&dir) {
-            Ok(a) => Some(a),
-            Err(e) => {
-                warnings.push(format!(
-                    "章节工作区打开失败（{}）——失败明细未并入报告", e
-                ));
-                None
-            }
-        }
-    })
-    .flatten();
+    let asm = svc
+        .workspace_dir()
+        .map(
+            |dir| match bid_tools::assembly::ChapterAssembler::open(&dir) {
+                Ok(a) => Some(a),
+                Err(e) => {
+                    warnings.push(format!("章节工作区打开失败（{}）——失败明细未并入报告", e));
+                    None
+                }
+            },
+        )
+        .flatten();
     let report = bid_tools::quality::build_quality_report(svc.store(), asm.as_ref());
 
     // ---- 落盘（workspace 在场；纯内存态降级返回 + 告警）
@@ -1297,7 +1421,9 @@ fn score_price(_svc: &mut BidService, args: Value) -> ToolResult {
             if bid_price.is_none() {
                 return Err(ToolError::from(e));
             }
-            warnings.push(format!("最优报价反推失败（{e:?}）——竞争报价不足或方法无界，试算结果仍有效"));
+            warnings.push(format!(
+                "最优报价反推失败（{e:?}）——竞争报价不足或方法无界，试算结果仍有效"
+            ));
             (None, None)
         }
     };
@@ -1305,22 +1431,36 @@ fn score_price(_svc: &mut BidService, args: Value) -> ToolResult {
     // ---- 人读分析（确定性拼装——方法口径 + 最优 + 当前试算）
     use bid_domain::pricing::{DiscountBase, PriceScoreMethod};
     let method_desc = match &spec.method {
-        PriceScoreMethod::BenchmarkPrice { coefficient } =>
-            format!("基准价法：评标基准价 = 控制价 × {coefficient}"),
-        PriceScoreMethod::LowestPrice =>
-            "最低价法：评标基准价 = 全部有效报价（含己方）的最低值".to_string(),
-        PriceScoreMethod::AveragePrice { coefficient } =>
-            format!("平均价法：评标基准价 = 有效报价（含己方）算术平均 × {coefficient}"),
-        PriceScoreMethod::Composite { trim_high, trim_low, budget_weight, .. } =>
-            format!("复合法：剔高 {trim_high}/剔低 {trim_low} 后均价与控制价按 {budget_weight} 加权"),
+        PriceScoreMethod::BenchmarkPrice { coefficient } => {
+            format!("基准价法：评标基准价 = 控制价 × {coefficient}")
+        }
+        PriceScoreMethod::LowestPrice => {
+            "最低价法：评标基准价 = 全部有效报价（含己方）的最低值".to_string()
+        }
+        PriceScoreMethod::AveragePrice { coefficient } => {
+            format!("平均价法：评标基准价 = 有效报价（含己方）算术平均 × {coefficient}")
+        }
+        PriceScoreMethod::Composite {
+            trim_high,
+            trim_low,
+            budget_weight,
+            ..
+        } => format!(
+            "复合法：剔高 {trim_high}/剔低 {trim_low} 后均价与控制价按 {budget_weight} 加权"
+        ),
         PriceScoreMethod::DiscountRate { base } => match base {
-            DiscountBase::Fixed(r) =>
-                format!("下浮率法：基准下浮率固定 {r}（下浮率 =（控制价−报价）/控制价）"),
-            DiscountBase::FieldAverage =>
-                "下浮率法：基准下浮率 = 全场有效报价的平均下浮率".to_string(),
+            DiscountBase::Fixed(r) => {
+                format!("下浮率法：基准下浮率固定 {r}（下浮率 =（控制价−报价）/控制价）")
+            }
+            DiscountBase::FieldAverage => {
+                "下浮率法：基准下浮率 = 全场有效报价的平均下浮率".to_string()
+            }
         },
     };
-    let mut analysis = format!("评标办法：{method_desc}；价格分满分 {} 分。", spec.max_score);
+    let mut analysis = format!(
+        "评标办法：{method_desc}；价格分满分 {} 分。",
+        spec.max_score
+    );
     if let (Some(op), Some(sc)) = (optimal, at_optimal) {
         analysis.push_str(&format!(
             "最优报价 {op:.2}（期望得分 {sc:.2}/{}，命中基准价）。",
@@ -1330,7 +1470,11 @@ fn score_price(_svc: &mut BidService, args: Value) -> ToolResult {
     if let Some(d) = &detail {
         analysis.push_str(&format!(
             "当前报价（bid_price={:.2}）：基准价 {:.2}，偏离 {:+.2}%，扣 {:.2} 分，得分 {:.2}。",
-            bid_price.unwrap_or(0.0), d.benchmark, d.deviation * 100.0, d.deduction, d.score
+            bid_price.unwrap_or(0.0),
+            d.benchmark,
+            d.deviation * 100.0,
+            d.deduction,
+            d.score
         ));
     }
     if others.is_empty() {
@@ -1370,20 +1514,28 @@ fn score_section(svc: &mut BidService, args: Value) -> ToolResult {
     let project_version = opt_u64(&args, "project_version", TOOL)?;
     route_guard(svc, &project_id, TOOL, project_version)?;
     // 前置：章节在场 + 已起草
-    let node = svc.store().sections().iter().find(|n| n.id == section_id).cloned()
+    let node = svc
+        .store()
+        .sections()
+        .iter()
+        .find(|n| n.id == section_id)
+        .cloned()
         .ok_or_else(|| ToolError::ENotFound {
             what: format!("section {section_id} 不存在（先 build_outline）"),
         })?;
     let content = node.content.clone().ok_or_else(|| {
-        let has_child = svc.store().sections().iter()
+        let has_child = svc
+            .store()
+            .sections()
+            .iter()
             .any(|n| n.parent_id.as_deref() == Some(section_id.as_str()));
         ToolError::EUnprocessable {
             what: if has_child {
-                format!(
-                    "{section_id} 是结构节点（有子）——正文只住叶，请对叶章节自评"
-                )
+                format!("{section_id} 是结构节点（有子）——正文只住叶，请对叶章节自评")
             } else {
-                format!("section {section_id} 未起草——先 draft_response_section（无正文的自评无意义）")
+                format!(
+                    "section {section_id} 未起草——先 draft_response_section（无正文的自评无意义）"
+                )
             },
         }
     })?;
@@ -1421,14 +1573,24 @@ fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
         return Err(ToolError::EState {
             what: format!(
                 "{} 态无章节树——先 build_outline 再自评",
-                svc.store().project().map(|p| p.status.as_str()).unwrap_or("?")
+                svc.store()
+                    .project()
+                    .map(|p| p.status.as_str())
+                    .unwrap_or("?")
             ),
         });
     }
     // 已起草叶 → (section_id, content)（正文只住叶——与 assemble/export 同口径）
-    let parents: std::collections::HashSet<&str> = svc.store().sections().iter()
-        .filter_map(|n| n.parent_id.as_deref()).collect();
-    let sections: Vec<(String, String)> = svc.store().sections().iter()
+    let parents: std::collections::HashSet<&str> = svc
+        .store()
+        .sections()
+        .iter()
+        .filter_map(|n| n.parent_id.as_deref())
+        .collect();
+    let sections: Vec<(String, String)> = svc
+        .store()
+        .sections()
+        .iter()
         .filter(|n| !parents.contains(n.id.as_str()))
         .filter_map(|n| n.content.clone().map(|c| (n.id.clone(), c)))
         .collect();
@@ -1450,19 +1612,24 @@ fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
         }
         None => None,
     };
-    let price_input = spec_opt.as_ref().map(|spec| bid_domain::scoring::PriceInput {
-        spec,
-        bid_price: bid_price.unwrap_or(0.0),
-        others,
-    });
+    let price_input = spec_opt
+        .as_ref()
+        .map(|spec| bid_domain::scoring::PriceInput {
+            spec,
+            bid_price: bid_price.unwrap_or(0.0),
+            others,
+        });
     let (scorer, items) = build_scorer(svc.store());
     let doc = scorer.score_document(&sections, price_input);
     // ---- by_item + target：全量非硬门可达叶（叶 = 未被任何项引用为 parent）
-    let parent_ids: std::collections::HashSet<&str> = items.iter()
-        .filter_map(|i| i.parent_id.as_deref()).collect();
+    let parent_ids: std::collections::HashSet<&str> = items
+        .iter()
+        .filter_map(|i| i.parent_id.as_deref())
+        .collect();
     let mut by_item: Vec<Value> = Vec::new();
     let mut target = 0.0f64;
-    for it in items.iter()
+    for it in items
+        .iter()
         .filter(|i| !i.is_hard_gate && !parent_ids.contains(i.requirement_id.as_str()))
     {
         let max = it.max_score.unwrap_or(0.0);
@@ -1480,7 +1647,9 @@ fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
             }));
             continue;
         }
-        let est = doc.breakdown.iter()
+        let est = doc
+            .breakdown
+            .iter()
             .flat_map(|s| s.item_scores.iter())
             .find(|isc| isc.item_id == it.requirement_id);
         by_item.push(json!({
@@ -1526,8 +1695,11 @@ fn build_scorer(
     bid_domain::scoring::SectionScorer,
     Vec<bid_domain::scoring::ScoringItem>,
 ) {
-    let parents: std::collections::HashSet<&str> = store.sections().iter()
-        .filter_map(|n| n.parent_id.as_deref()).collect();
+    let parents: std::collections::HashSet<&str> = store
+        .sections()
+        .iter()
+        .filter_map(|n| n.parent_id.as_deref())
+        .collect();
     let mut leaf_of: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
     for n in store.sections() {
         if !parents.contains(n.id.as_str()) {
@@ -1660,9 +1832,11 @@ fn opt_str_array(v: &Value, key: &str, at: &str) -> Result<Option<Vec<String>>, 
             for item in a {
                 match item.as_str() {
                     Some(s) => out.push(s.to_string()),
-                    None => return Err(ToolError::EUnprocessable {
-                        what: format!("{at}: {key} 须为字符串数组"),
-                    }),
+                    None => {
+                        return Err(ToolError::EUnprocessable {
+                            what: format!("{at}: {key} 须为字符串数组"),
+                        })
+                    }
                 }
             }
             Ok(Some(out))
@@ -1695,6 +1869,64 @@ fn content_hash(s: &str) -> String {
 
 // ---------------------------------------------------------------- §8 export_bid_document（#59 阶段 2）
 
+/// #117 任务 1：从 export_bid_document 的 profile 参数里解析投标决策
+/// （报价面——bid_amount + price_breakdown）。类型不对 → 响亮拒（静默吞
+/// 掉拼错的字段 = 导出一份不自知的标书）。
+fn parse_export_decision(profile: &Value) -> Result<bid_tools::export::ExportDecision, ToolError> {
+    const TOOL: &str = "export_bid_document";
+    let mut d = bid_tools::export::ExportDecision::default();
+    match profile.get("bid_amount") {
+        None | Some(Value::Null) => {}
+        Some(v) if v.is_number() => d.bid_amount = v.as_f64(),
+        Some(_) => {
+            return Err(ToolError::EUnprocessable {
+                what: format!("{TOOL}: profile.bid_amount 须为数值（元，如 15800000）"),
+            })
+        }
+    }
+    match profile.get("price_breakdown") {
+        None | Some(Value::Null) => {}
+        Some(v) if v.is_array() => {
+            for (i, item) in v.as_array().unwrap().iter().enumerate() {
+                let at = format!("{TOOL}: profile.price_breakdown[{i}]");
+                let get_str = |k: &str| -> Result<String, ToolError> {
+                    item.get(k)
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                        .filter(|s| !s.trim().is_empty())
+                        .ok_or_else(|| ToolError::EUnprocessable {
+                            what: format!("{at}: {k} 必填（非空字符串）"),
+                        })
+                };
+                let get_num = |k: &str| -> Result<f64, ToolError> {
+                    item.get(k)
+                        .and_then(Value::as_f64)
+                        .ok_or_else(|| ToolError::EUnprocessable {
+                            what: format!("{at}: {k} 必填（数值）"),
+                        })
+                };
+                d.price_breakdown.push(bid_tools::export::PriceItem {
+                    item: get_str("item")?,
+                    unit: get_str("unit")?,
+                    quantity: get_num("quantity")?,
+                    unit_price: get_num("unit_price")?,
+                    note: item
+                        .get("note")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_string(),
+                });
+            }
+        }
+        Some(_) => return Err(ToolError::EUnprocessable {
+            what: format!(
+                "{TOOL}: profile.price_breakdown 须为数组（逐项 item/unit/quantity/unit_price）"
+            ),
+        }),
+    }
+    Ok(d)
+}
+
 /// `export_bid_document` —— 导出（契约 §8 + Lead #59 阶段 2 指令）。
 ///
 /// 壳层职责：参数校验 → 项目路由 → 状态机裁决（Drafting+ / EXPORTED——
@@ -1704,6 +1936,10 @@ fn content_hash(s: &str) -> String {
 /// format：`"docx"`（PDF 是阶段 7 的 LibreOffice 通道——本面诚实拒，不产
 /// 半吊子）。暗标：`profile.dark_bid` + `profile.bidder_name`（公司名 →
 /// 「投标人」；bidder 缺失响亮 warning 不静默）。
+///
+/// #117 任务 1：`profile.bid_amount`（投标总报价，元）+ `profile.price_breakdown`
+/// （分项报价数组）——投标决策随导出显式给出，进幂等键；缺省 → 表格/格式件
+/// 相应栏落【待填】+ 告警。表格接线详见 `bid_tools::export::build_export_extras`。
 fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
     const TOOL: &str = "export_bid_document";
     // ---- 参数校验（契约 §8 in）
@@ -1712,20 +1948,39 @@ fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
     let output_path = req_str(&args, "output_path", TOOL)?;
     let project_version = opt_u64(&args, "project_version", TOOL)?;
     // profile：{ dark_bid?: bool, bidder_name?: string, template? }
-    let profile = args.get("profile").filter(|v| v.is_object() || v.is_null()).cloned();
-    let dark_bid = profile.as_ref()
-        .and_then(|p| p.get("dark_bid")).and_then(Value::as_bool).unwrap_or(false);
-    let bidder_name = profile.as_ref()
-        .and_then(|p| p.get("bidder_name")).and_then(Value::as_str).map(str::to_string);
+    let profile = args
+        .get("profile")
+        .filter(|v| v.is_object() || v.is_null())
+        .cloned();
+    let dark_bid = profile
+        .as_ref()
+        .and_then(|p| p.get("dark_bid"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let bidder_name = profile
+        .as_ref()
+        .and_then(|p| p.get("bidder_name"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
     // options：tracked_changes / watermark（阶段 7 面占位——truthy 才告警未支持）
     let mut warnings_pre: Vec<String> = Vec::new();
     if let Some(opts) = args.get("options").filter(|v| v.is_object()) {
-        if opts.get("tracked_changes").and_then(Value::as_bool).unwrap_or(false) {
-            warnings_pre.push("options.tracked_changes 暂不支持（阶段 7 面）——按普通模式导出".into());
+        if opts
+            .get("tracked_changes")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            warnings_pre
+                .push("options.tracked_changes 暂不支持（阶段 7 面）——按普通模式导出".into());
         }
         // #86 摩擦 #14：仅 truthy 告警（watermark:false 是显式关闭，不该叫）
-        if opts.get("watermark").and_then(Value::as_bool).unwrap_or(false) {
-            warnings_pre.push("options.watermark 暂不支持（阶段 7 PDF 通道面）——按无水印导出".into());
+        if opts
+            .get("watermark")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            warnings_pre
+                .push("options.watermark 暂不支持（阶段 7 PDF 通道面）——按无水印导出".into());
         }
     }
 
@@ -1742,7 +1997,11 @@ fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
     }
     // 输出路径安全面：必须落在工作区内（防 ../ 逃逸——导出产物不该写任意盘位）
     let out = std::path::PathBuf::from(&output_path);
-    if out.is_absolute() || out.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+    if out.is_absolute()
+        || out
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
         return Err(ToolError::EUnprocessable {
             what: format!("output_path 须为工作区相对路径（不得绝对路径/含 ..）：{output_path}"),
         });
@@ -1752,16 +2011,37 @@ fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
     let proj = svc.store().project().map_err(ToolError::from)?;
     if proj.id != project_id {
         return Err(ToolError::ENotFound {
-            what: format!("project 不存在：{project_id}（当前服务态项目：{}）", proj.id),
+            what: format!(
+                "project 不存在：{project_id}（当前服务态项目：{}）",
+                proj.id
+            ),
         });
     }
     svc.store().guard_tool(TOOL).map_err(ToolError::from)?;
-    svc.store().check_version(project_version).map_err(ToolError::from)?;
+    svc.store()
+        .check_version(project_version)
+        .map_err(ToolError::from)?;
 
-    // ---- 幂等前置：(project_id, content_version, format, dark_bid, output_path)
-    //      相同 → 直返首次结果（产物 sha 已在首次导出对账；重放零 IO）
+    // ---- #117 任务 1：投标决策（报价面）——从 profile 解析，进幂等键（不同的
+    //      报价决策 ≠ 同一次导出，不能吃旧缓存）
+    let decision = parse_export_decision(profile.as_ref().unwrap_or(&Value::Null))?;
+    let decision_fp = {
+        // 短指纹（前 8 hex）：决策相同 → 同键；决策不同 → 不同键
+        use sha2::Digest;
+        let json = serde_json::to_string(&decision).unwrap_or_default();
+        let digest = sha2::Sha256::digest(json.as_bytes());
+        digest
+            .iter()
+            .take(4)
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>()
+    };
+
+    // ---- 幂等前置：(project_id, content_version, format, dark_bid, output_path, decision)
+    //      相同 → 直返首次结果（产物 sha 已在首次导出对账；重放零 IO）。
+    //      #117：决策指纹入键——换了报价重导是新导出（否则返回旧报价的缓存）。
     let ikey = format!(
-        "export:{project_id}:{}:{format}:{}:{output_path}",
+        "export:{project_id}:{}:{format}:{}:{output_path}:{decision_fp}",
         svc.store().content_version(),
         dark_bid,
     );
@@ -1774,22 +2054,38 @@ fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
     }
 
     // ---- 转发业务（服务层：双前置门 + format-spec + 导出 + 推进 EXPORTED）
-    if dark_bid && bidder_name.as_deref().map(str::trim).unwrap_or("").is_empty() {
+    if dark_bid
+        && bidder_name
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or("")
+            .is_empty()
+    {
         warnings_pre.push(
-            "暗标模式但 profile.bidder_name 缺失——正文未做公司名脱敏（补 bidder_name 后重导）".into(),
+            "暗标模式但 profile.bidder_name 缺失——正文未做公司名脱敏（补 bidder_name 后重导）"
+                .into(),
         );
     }
-    let anonymize = if dark_bid { bidder_name.as_deref() } else { None };
-    let ws = svc.workspace_dir().ok_or_else(|| ToolError::EUnprocessable {
-        what: "导出需要持久化服务态（BidService::open 建立的工作区）——纯内存态无章内容可导".into(),
-    })?;
+    let anonymize = if dark_bid {
+        bidder_name.as_deref()
+    } else {
+        None
+    };
+    let ws = svc
+        .workspace_dir()
+        .ok_or_else(|| ToolError::EUnprocessable {
+            what: "导出需要持久化服务态（BidService::open 建立的工作区）——纯内存态无章内容可导"
+                .into(),
+        })?;
     let abs_out = ws.join(&out);
     if let Some(parent) = abs_out.parent() {
         std::fs::create_dir_all(parent).map_err(|e| ToolError::EUnprocessable {
             what: format!("输出目录创建失败（{}）: {e}", parent.display()),
         })?;
     }
-    let outcome = svc.export_document(&format, anonymize, &abs_out).map_err(ToolError::from)?;
+    let outcome = svc
+        .export_document(&format, anonymize, &abs_out, &decision)
+        .map_err(ToolError::from)?;
 
     // ---- 契约 §8 out 组装
     let bytes = std::fs::metadata(&abs_out).map(|m| m.len()).unwrap_or(0);
@@ -1804,6 +2100,10 @@ fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
         "chapters_written": outcome.report.chapters_written,
         "total_chars": outcome.report.total_chars,
         "toc_field_present": outcome.report.toc_field_present,
+        "tables_written": outcome.report.tables_written,
+        "table_kinds": outcome.report.table_kinds,
+        "forms_written": outcome.report.forms_written,
+        "form_titles": outcome.report.form_titles,
         "content_version_snapshot": svc.store().content_version(),
         "project_status": svc.store().project().map(|p| p.status.as_str()).unwrap_or("UNKNOWN"),
         "precheck": { "blockers": 0, "waived": [] },  // 双前置门已过（失败路径在 Err 面）
@@ -1842,7 +2142,10 @@ fn validate_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
     let profile = opt_str(&args, "rules_profile", TOOL)?.unwrap_or_else(|| "standard".into());
     let mut pre_warnings: Vec<String> = Vec::new();
     if profile == "dark_bid" {
-        pre_warnings.push("rules_profile=dark_bid 的暗标禁字清单扫描在阶段 7 词表面——本轮按 standard 规则集执行".into());
+        pre_warnings.push(
+            "rules_profile=dark_bid 的暗标禁字清单扫描在阶段 7 词表面——本轮按 standard 规则集执行"
+                .into(),
+        );
     } else if profile != "standard" {
         return Err(ToolError::EUnprocessable {
             what: format!("rules_profile={profile} 非法（standard | dark_bid）"),
@@ -1861,11 +2164,16 @@ fn validate_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
     let proj = svc.store().project().map_err(ToolError::from)?;
     if proj.id != project_id {
         return Err(ToolError::ENotFound {
-            what: format!("project 不存在：{project_id}（当前服务态项目：{}）", proj.id),
+            what: format!(
+                "project 不存在：{project_id}（当前服务态项目：{}）",
+                proj.id
+            ),
         });
     }
     svc.store().guard_tool(TOOL).map_err(ToolError::from)?;
-    svc.store().check_version(project_version).map_err(ToolError::from)?;
+    svc.store()
+        .check_version(project_version)
+        .map_err(ToolError::from)?;
 
     // ---- 前置：章节树必须已建（无纲无校验对象）
     if svc.store().sections().is_empty() {
@@ -1875,21 +2183,33 @@ fn validate_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
     }
 
     // ---- 转发业务（纯只读诊断 + 推进 VALIDATING）
-    let report = svc.validate_document(scope_sections.as_deref()).map_err(ToolError::from)?;
+    let report = svc
+        .validate_document(scope_sections.as_deref())
+        .map_err(ToolError::from)?;
 
     // ---- 契约 §7 out（Lead 形状：ok + errors + warnings + findings + counts）
-    let errors: Vec<Value> = report.findings.iter()
+    let errors: Vec<Value> = report
+        .findings
+        .iter()
         .filter(|f| f.severity != "MINOR")
-        .map(|f| json!({
-            "rule_code": f.rule_code,
-            "severity": f.severity,
-            "section_id": f.section_id,
-            "requirement_id": f.requirement_id,
-            "message": f.message,
-        }))
+        .map(|f| {
+            json!({
+                "rule_code": f.rule_code,
+                "severity": f.severity,
+                "section_id": f.section_id,
+                "requirement_id": f.requirement_id,
+                "message": f.message,
+            })
+        })
         .collect();
     let mut warnings = pre_warnings;
-    warnings.extend(report.findings.iter().filter(|f| f.severity == "MINOR").map(|f| f.message.clone()));
+    warnings.extend(
+        report
+            .findings
+            .iter()
+            .filter(|f| f.severity == "MINOR")
+            .map(|f| f.message.clone()),
+    );
     let out = json!({
         "ok": report.ok,
         "errors": errors,
@@ -2117,6 +2437,20 @@ fn register_evidence(svc: &mut BidService, args: Value) -> ToolResult {
 
     route_guard(svc, &project_id, TOOL, project_version)?;
 
+    // #117 任务 1：业绩类证据的业务面（可选——发包人/合同金额/完成日期；
+    // 业绩一览表的真源。非字符串/非数值 → 响亮拒，不静默吞）
+    let client = opt_str(&args, "client", TOOL)?;
+    let amount_wan = match args.get("amount_wan") {
+        None | Some(Value::Null) => None,
+        Some(v) if v.is_number() => v.as_f64(),
+        Some(_) => {
+            return Err(ToolError::EUnprocessable {
+                what: format!("{TOOL}: amount_wan 须为数值（万元）"),
+            })
+        }
+    };
+    let completed_on = opt_str(&args, "completed_on", TOOL)?;
+
     let spec = bid_domain::evidence::EvidenceSpec {
         kind,
         title,
@@ -2128,6 +2462,9 @@ fn register_evidence(svc: &mut BidService, args: Value) -> ToolResult {
         valid_until,
         subject_name,
         scope,
+        client,
+        amount_wan,
+        completed_on,
     };
     let (ev_id, deduplicated) = svc.register_evidence(spec).map_err(ToolError::from)?;
     let status = svc

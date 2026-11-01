@@ -50,6 +50,9 @@ fn evidence_spec() -> EvidenceSpec {
         valid_until: Some("2025-08-01".into()),
         subject_name: "智慧园区科技有限公司".into(),
         scope: "全国".into(),
+        client: None,
+        amount_wan: None,
+        completed_on: None,
     }
 }
 
@@ -111,6 +114,9 @@ fn restart_resumes_full_service_state() {
             locator: EngineLocator::PdfPageText { page: 1, text_fingerprint: "fnv64:01".into() },
             fingerprint: "fnv64:01".into(), valid_from: None, valid_until: None,
             subject_name: "智慧园区科技有限公司".into(), scope: "全国".into(),
+            client: None,
+            amount_wan: None,
+            completed_on: None,
         }).unwrap().0;
         assert_ne!(ev2, ev_id, "重启后新 id 不与既有证据碰撞");
 

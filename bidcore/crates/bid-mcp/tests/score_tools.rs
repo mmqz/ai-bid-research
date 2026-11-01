@@ -223,6 +223,7 @@ fn score_price_param_validation_is_loud() {
 
 /// 章节自评主链：起草后可评（价格类叶跳过内容自评 + 技术项四维判定 +
 /// 大纲联结让 params.section 缺省的评分项仍映射到章节）。
+#[test]
 fn score_section_on_drafted_leaf() {
     let (mut svc, pid) = svc_drafted("score-sec-main", true);
     // 【#126 语义变更后的口径】评分项**不进正文**（outline.rs:324——评分方法是

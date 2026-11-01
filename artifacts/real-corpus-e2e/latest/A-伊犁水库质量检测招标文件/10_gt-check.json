@@ -1,0 +1,10 @@
+{
+  "covered_L1": 114,
+  "gt_file": "A-05_伊犁州奎屯东郊水库质量检测_招标文件.pdf",
+  "gt_true": 116,
+  "l1_recall": 0.9827586206896551,
+  "veto_cls_L2": 107,
+  "veto_precision": 0.9622641509433962,
+  "veto_req": 106,
+  "veto_tp": 102
+}

@@ -1,0 +1,10 @@
+{
+  "covered_L1": 105,
+  "gt_file": "A-04_某水利工程施工标段_施工招标文件.pdf",
+  "gt_true": 105,
+  "l1_recall": 1.0,
+  "veto_cls_L2": 92,
+  "veto_precision": 0.9423076923076923,
+  "veto_req": 104,
+  "veto_tp": 98
+}

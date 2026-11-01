@@ -105,6 +105,12 @@ fn svc_drafted(tag: &str, draft_all: bool) -> (BidService, String) {
         svc.store_mut().bind_evidence(&eid, rid, "2026-12-31").unwrap();
     }
     let _ = svc.store_mut().build_matrix().unwrap();
+    // L3 无补遗阻塞的人工出口（#131）：基座只导入招标文件（无补遗件），
+    // #118 合入时漏适配本套件——AddendumWaiver 门确认无补遗后起草放行。
+    use bid_domain::review::{Decision, Gate};
+    svc.store_mut()
+        .record_review(Gate::AddendumWaiver, "human:score-tool-test", Decision::Approved, vec![])
+        .unwrap();
     if draft_all {
         let parents: std::collections::HashSet<String> = svc.store().sections().iter()
             .filter_map(|n| n.parent_id.clone()).collect();

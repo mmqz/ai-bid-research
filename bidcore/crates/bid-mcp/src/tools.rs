@@ -1323,6 +1323,14 @@ fn check_bid_quality(svc: &mut BidService, args: Value) -> ToolResult {
     }
 
     // ---- 报告构建（assembler 在场时并入 failed.json 失败明细）
+    //
+    // B3 三维度评分接线（#131 任务 3 发现的真实性缺口）：此前本工具走
+    // 旧调用面 build_quality_report（ctx=None）——specificity / substance /
+    // score / duplication 四面全 None，评分器只在 quality_integrate 测试里
+    // 接过，MCP 生产路径从未评过（真实语料 3 件全链的质量报告 score 全
+    // null 即此缺口的现场）。ctx 构造与测试同源：ProjectContext::from_store
+    // + SectionScorer（derive_scoring_tree——真实评分项 REQ 驱动，无评分项
+    // 的真实件 scorer 空树，评分面诚实 None 化不伪装）。
     let mut warnings: Vec<String> = Vec::new();
     let asm = svc
         .workspace_dir()
@@ -1336,7 +1344,19 @@ fn check_bid_quality(svc: &mut BidService, args: Value) -> ToolResult {
             },
         )
         .flatten();
-    let report = bid_tools::quality::build_quality_report(svc.store(), asm.as_ref());
+    use bid_domain::scoring::{derive_scoring_tree, SectionScorer};
+    use bid_tools::quality::{ProjectContext, QualityContext};
+    let project_ctx = ProjectContext::from_store(svc.store());
+    let scorer = SectionScorer::new(
+        derive_scoring_tree(svc.store().requirements()),
+        project_ctx.scorer_terms(),
+    );
+    let ctx = QualityContext {
+        scorer: &scorer,
+        project: &project_ctx,
+    };
+    let report =
+        bid_tools::quality::build_quality_report_with(svc.store(), asm.as_ref(), Some(&ctx));
 
     // ---- 落盘（workspace 在场；纯内存态降级返回 + 告警）
     let artifact = match svc.workspace_dir() {
@@ -2586,15 +2606,17 @@ fn bind_evidence(svc: &mut BidService, args: Value) -> ToolResult {
     Ok(data)
 }
 
-/// 三门名解析（契约 §12——Gate::as_str 单一真源）。
+/// 四门名解析（契约 §12——Gate::as_str 单一真源；第四门 addendum_waiver
+/// 为 #131 真实语料验证落地：L3 无补遗阻塞的人工确认出口）。
 fn parse_gate(s: &str, at: &str) -> Result<bid_domain::review::Gate, ToolError> {
     use bid_domain::review::Gate;
     match s {
         "matrix_approval" => Ok(Gate::MatrixApproval),
         "outline_approval" => Ok(Gate::OutlineApproval),
         "pre_export_confirm" => Ok(Gate::PreExportConfirm),
+        "addendum_waiver" => Ok(Gate::AddendumWaiver),
         other => Err(ToolError::EUnprocessable {
-            what: format!("{at}: gate 非法：{other}（合法值：matrix_approval|outline_approval|pre_export_confirm）"),
+            what: format!("{at}: gate 非法：{other}（合法值：matrix_approval|outline_approval|pre_export_confirm|addendum_waiver）"),
         }),
     }
 }
@@ -2679,6 +2701,7 @@ fn record_review_gate(svc: &mut BidService, args: Value) -> ToolResult {
         (Gate::MatrixApproval, "matrix_approval"),
         (Gate::OutlineApproval, "outline_approval"),
         (Gate::PreExportConfirm, "pre_export_confirm"),
+        (Gate::AddendumWaiver, "addendum_waiver"),
     ]
     .iter()
     .filter(|(g, _)| svc.store().gate_approved(*g))

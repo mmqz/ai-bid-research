@@ -607,8 +607,14 @@ fn missing_addendum(store: &DomainStore) -> Option<Blocker> {
         .filter(|f| is_addendum_file(&f.kind, &f.name))
         .collect();
 
-    // ② 一件补遗都没有
+    // ② 一件补遗都没有——L3 阻塞的人工出口：AddendumWaiver 门 Approved
+    //    = 人工确认本项目无补遗（#131 真实语料验证：此前该确认通路不存在，
+    //    单件真实招标文件被死锁——阻塞提示语承诺的「明确确认无补遗后再
+    //    继续」在此落地）。导入补遗件后本分支不再触发，waiver 自然失效。
     if addenda.is_empty() {
+        if store.gate_approved(bid_domain::review::Gate::AddendumWaiver) {
+            return None;
+        }
         return Some(Blocker::MissingAddendum {
             files: Vec::new(),
             reason: AddendumIssue::NotProvided,

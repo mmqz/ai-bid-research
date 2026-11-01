@@ -56,6 +56,23 @@ fn re_negative_list() -> &'static Regex {
     })
 }
 
+/// 「未被列入」正面证明句式剥离（fix/e76d9de-red-tests）：
+/// corpus-A 3.2.6「投标人须提供未被列入失信被执行人、重大税收违法
+/// 案件当事人名单的书面承诺及信用中国网站查询记录截图」是资格面
+/// **正面证明要求**，但 re_negative_list 裸词「失信」误命中把它判
+/// 否决项（GT-06 资格裁决冲突——e2e_m1 TC-01 实锤，2a0e311 上即红
+/// 的既有缺口；re_negative_list 设计意图注释明说「正面资格要求
+/// （应具备/须提供）不在此面」，本剥离兑现该意图）。副作用面：
+/// 「列入失信名单的，否决其投标」类反面情形无「未/不曾」前缀，
+/// 剥离不命中，否决语义保留不变。
+fn re_not_listed() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"[未不曾][曾被]?列入[^，。;；]{0,40}")
+            .unwrap()
+    })
+}
+
 /// 否决语境开启句：冒号前的总括句（其后列举条目继承否决语义）。
 fn re_veto_context_open() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
@@ -112,10 +129,12 @@ fn strip_exceptions(text: &str) -> String {
     re_exception_clause().replace_all(text, "").into_owned()
 }
 
-/// 强否决判定：处置短语或负面清单词命中（例外从句剥离后）。
-/// 正面资格要求（应具备资质/须提供报表）不会命中此面。
+/// 强否决判定：处置短语或负面清单词命中（例外从句 + 「未被列入」
+/// 正面证明句式剥离后）。正面资格要求（应具备资质/须提供报表/
+/// 须提供未列入名单证明）不会命中此面。
 pub fn is_veto(text: &str) -> bool {
     let stripped = strip_exceptions(text);
+    let stripped = re_not_listed().replace_all(&stripped, "");
     re_veto_strong().is_match(&stripped) || re_negative_list().is_match(&stripped)
 }
 

@@ -35,11 +35,24 @@ pub fn extract_requirements(files: &[ParsedFile]) -> Vec<Requirement> {
     // 修法：抽取前统一 NFKC 归一化（U+2F00-2FDF 全部映射回标准汉字）。
     // 注意 NFKC **不能**修 U+2E80-2EFF（CJK 部首补充，如 ⻚U+2EDA）；
     // 这类残留 246 字已登记为已知限制（见 issue 补充）。
+    //
+    // 【fix/e76d9de-red-tests】归一化只作**判定域**：normalize_file_nfkc 实际
+    // 调用的是 norm_n1（NFKC + **去全部空白**）——直接把整份产物换成归一化
+    // 副本会把 REQ 数据面打碎：
+    //   - 摘录保真：「第 9 项」→「第9项」、「，」→「,」（synth T1 坑位
+    //     contains 失配）；
+    //   - GT 对照失配：real-corpus GT 按原文（含部首）标注，L1 红线
+    //     0.9717 → 0.2201（e76d9de 后 main 实测）；
+    //   - locator 结构解析破坏：table_key_of 吃去空白后的「…表3行1」把同
+    //     表两行判为异表 → 表格审查语境（review_ctx）被误重置 → 审查条目
+    //     丢失（table_row_veto_expansion 实测崩）。
+    // 溯源锚的既有设计承诺是「excerpt 原文（创建时固化）」——故判定吃
+    // 归一化视图（部首修复保留），**锚点摘录/locator 一律取原始块**。两
+    // 视图结构同构：normalize_file_nfkc 不增删块，idx 一一对应。
     let normalized: Vec<ParsedFile> = files.iter().map(normalize_file_nfkc).collect();
-    let files: &[ParsedFile] = &normalized;
     let mut reqs: Vec<Requirement> = Vec::new();
     let mut seq = 0usize;
-    for f in files {
+    for (f, raw) in normalized.iter().zip(files.iter()) {
         // 主文件/补遗按块形态分发：DOCX 块（Para/TableRow）→ docx 版；PDF 块
         //（PdfLine/OcrLine）→ pdf 版（真实招标文件主文件为 PDF 的常态面）
         let is_pdf_blocks = f
@@ -48,13 +61,13 @@ pub fn extract_requirements(files: &[ParsedFile]) -> Vec<Requirement> {
             .any(|b| matches!(b.kind, BlockKind::PdfLine | BlockKind::OcrLine));
         match () {
             _ if f.name.starts_with("A-") && is_pdf_blocks =>
-                extract_main_pdf(f, &mut reqs, &mut seq),
+                extract_main_pdf(f, raw, &mut reqs, &mut seq),
             _ if f.name.starts_with("C-") && is_pdf_blocks =>
-                extract_main_pdf(f, &mut reqs, &mut seq),
-            _ if f.name.starts_with("A-") => extract_main_docx(f, &mut reqs, &mut seq),
-            _ if f.name.starts_with("C-") => extract_main_docx(f, &mut reqs, &mut seq), // 补遗同构（增量面属 V2）
-            _ if f.name.starts_with("B1") => extract_b1_lines(f, &mut reqs, &mut seq),
-            _ if f.name.starts_with("B2") => extract_b2_ocr(f, &mut reqs, &mut seq),
+                extract_main_pdf(f, raw, &mut reqs, &mut seq),
+            _ if f.name.starts_with("A-") => extract_main_docx(f, raw, &mut reqs, &mut seq),
+            _ if f.name.starts_with("C-") => extract_main_docx(f, raw, &mut reqs, &mut seq), // 补遗同构（增量面属 V2）
+            _ if f.name.starts_with("B1") => extract_b1_lines(f, raw, &mut reqs, &mut seq),
+            _ if f.name.starts_with("B2") => extract_b2_ocr(f, raw, &mut reqs, &mut seq),
             _ => {} // B3 图纸目录/证据件：无条款抽取面（证据入库走 chunk 索引）
         }
     }
@@ -139,7 +152,7 @@ fn pend_head_form(
         && !itemish.is_match(&para)
 }
 
-fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize) {
+fn extract_main_pdf(f: &ParsedFile, raw: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize) {
     let re_clause = Regex::new(r"^(\d+(?:\.\d+)+)\s*").unwrap();
     // 真实文件驱动修正（P2）：真实水利招标文件用阿拉伯数字章节（"第2章 投标人
     // 须知"）——与合成夹具/政采范本的中文数字（"第三章"）并存，双通道容忍空格
@@ -386,7 +399,7 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
     let para_anchors = |start: usize, end: usize| -> Vec<Anchor> {
         (start..=end).filter_map(|k| {
             if matches!(blocks[k].kind, BlockKind::PdfLine | BlockKind::OcrLine) {
-                Some(anchor(f, &blocks[k]))
+                Some(anchor(raw, &blocks[k]))
             } else {
                 None
             }
@@ -671,7 +684,7 @@ fn category_for(chapter: &str, subsection: &str) -> &'static str {
 ///   其后列举条目（（N）/N、）继承否决语义，至新编号条款终止
 /// - TableRow：不限前附表——拼接文本命中强否决 → 否决项 REQ
 ///   （BJ 示范文本否决条款大量在须知/审查表格内，L1 miss 主体）
-fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize) {
+fn extract_main_docx(f: &ParsedFile, raw: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize) {
     use crate::veto_lexicon as vl;
     let mut last_numbered_head: Option<String> = None; // 表格行收养最近的编号段（5.x 参数表上下文）
     let re_clause = Regex::new(r"^(\d+(?:\.\d+)+)\s*").unwrap();
@@ -705,7 +718,13 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                     // 新编号条款：语境终止（本条自身若再开启则重启）
                     veto_ctx = false;
                     last_numbered_head = Some(m[1].to_string());
-                    let (chapter, subsection) = split_locator(&b.locator);
+                    // 结构解析在原文域（fix/e76d9de-red-tests）：norm 视图的
+                    // locator 空白被去除（「章 > 节」→「章>节」），split_once
+                    // (" > ") 失效 → chapter 吞下整段 → 新增关键词「评标」
+                    // 双字误命中「开标、评标与否决条款」类节名（corpus-A
+                    // 3.7.1 开标时间程序条款误判评分项实锤）。
+                    let rb = raw.blocks.iter().find(|x| x.idx == b.idx).unwrap_or(b);
+                    let (chapter, subsection) = split_locator(&rb.locator);
                     // B6·G1 跨行合并（#123 任务 1）：吸收后续无编号续行——
                     // docx 解析按段产出，分页符/软换行把一条条款切成多段
                     // （synth T4 实锤：3.7.2(8) docx 拆 2 条 REQ），前半句
@@ -715,7 +734,7 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                     // 同纪律）。
                     let mut grp_end = bi;
                     let mut grp_text = t.to_string();
-                    let mut grp_anchors = vec![anchor(f, b)];
+                    let mut grp_anchors = vec![anchor(raw, b)];
                     for j in (bi + 1)..blocks.len() {
                         let nb = &blocks[j];
                         if !matches!(nb.kind, BlockKind::Para) {
@@ -736,7 +755,7 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                             break;
                         }
                         grp_text.push_str(nt);
-                        grp_anchors.push(anchor(f, nb));
+                        grp_anchors.push(anchor(raw, nb));
                         grp_end = j;
                     }
                     let mut params = HashMap::new();
@@ -784,61 +803,66 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                 } else if vl::is_veto(t) {
                     // 无编号普通段：强否决信号 → 否决项 REQ（真实示范文本
                     // 大量无编号条款：资格负面清单/审查表导语——L1 修复面）
-                    push_req(reqs, seq, "否决项", None, vec![anchor(f, b)], HashMap::new(), &f.name);
+                    push_req(reqs, seq, "否决项", None, vec![anchor(raw, b)], HashMap::new(), &f.name);
                     if vl::opens_veto_context(t) {
                         veto_ctx = true;
                     }
                 } else if vl::is_qual(t) {
-                    push_req(reqs, seq, "资格条件", None, vec![anchor(f, b)], HashMap::new(), &f.name);
+                    push_req(reqs, seq, "资格条件", None, vec![anchor(raw, b)], HashMap::new(), &f.name);
                     veto_ctx = false;
                 } else if veto_ctx && vl::is_list_item(t) {
                     // 语境传播：否决总括句后的列举条目（（N）/N、/①）继承否决语义。
                     // 仅列举标志继承——非列举普通段一律终止（防语境流污染
                     // 到后续无关条款，修正规则/澄清通知类模板误报面）
-                    push_req(reqs, seq, "否决项", None, vec![anchor(f, b)], HashMap::new(), &f.name);
+                    push_req(reqs, seq, "否决项", None, vec![anchor(raw, b)], HashMap::new(), &f.name);
                 } else {
                     veto_ctx = false;
                 }
             }
             BlockKind::TableRow => {
+                // 结构解析在**原文域**（fix/e76d9de-red-tests）：归一化视图的
+                // locator 空白已被 norm_n1 去除（「… 表3 行1」→「…表3行1」），
+                // table_key_of 的同表判定与 row_no_of 的行号提取都会错乱
+                // （同表判异 → 表格审查语境被误重置，审查条目丢失）。
+                let rb = raw.blocks.iter().find(|x| x.idx == b.idx).unwrap_or(b);
                 // 表切换检测（locator 表号变化）
-                let tbl_key = table_key_of(&b.locator);
+                let tbl_key = table_key_of(&rb.locator);
                 if cur_table.as_deref() != Some(tbl_key.as_str()) {
                     cur_table = Some(tbl_key);
                     review_ctx = false;
                 }
                 let joined = b.cells.join("");
-                if b.locator.contains("前附表") && (joined.contains("否决") || b.text.contains("否决")) {
+                if rb.locator.contains("前附表") && (joined.contains("否决") || b.text.contains("否决")) {
                     // 前附表否决行：条款号 = 前附表-{序号}（序号列为准；缺序号回退 XML 行号）
                     let item = b.cells.iter()
                         .find(|c| c.chars().all(|x| x.is_ascii_digit()) && !c.is_empty())
                         .and_then(|c| c.parse::<usize>().ok())
-                        .unwrap_or_else(|| row_no_of(&b.locator));
+                        .unwrap_or_else(|| row_no_of(&rb.locator));
                     push_req(reqs, seq, "否决项", Some(format!("前附表-{item}")),
-                             vec![anchor(f, b)], HashMap::new(), &f.name);
+                             vec![anchor(raw, b)], HashMap::new(), &f.name);
                 } else if (vl::is_veto(&joined) || (veto_ctx && vl::is_list_item(&joined)))
                     && !vl::is_placeholder(&joined) {
                     // P0-B：表格行否决面扩展（不限前附表）——BJ 示范文本
                     // 否决条款大量在须知表格/审查表内。条款号 = 行号定位
-                    push_req(reqs, seq, "否决项", Some(format!("表-{}", row_no_of(&b.locator))),
-                             vec![anchor(f, b)], HashMap::new(), &f.name);
+                    push_req(reqs, seq, "否决项", Some(format!("表-{}", row_no_of(&rb.locator))),
+                             vec![anchor(raw, b)], HashMap::new(), &f.name);
                 } else if review_ctx && !joined.trim().is_empty() && joined.chars().count() >= 4
                     && !vl::is_placeholder(&joined) && vl::is_review_standard(&joined) {
                     // 审查表条目：评审标准/资格审查表内的行（无否决词的
                     // 隐含否决面——「不符合评审标准的否决其投标」）
-                    push_req(reqs, seq, "否决项", Some(format!("表-{}", row_no_of(&b.locator))),
-                             vec![anchor(f, b)], HashMap::new(), &f.name);
+                    push_req(reqs, seq, "否决项", Some(format!("表-{}", row_no_of(&rb.locator))),
+                             vec![anchor(raw, b)], HashMap::new(), &f.name);
                 } else if vl::opens_review_context(&joined) || vl::opens_review_context(&b.text) {
                     // 表格审查语境开启（评审标准表头/资格审查行）
                     review_ctx = true;
-                } else if (b.locator.contains("技术需求") || b.locator.contains("第五章"))
+                } else if (rb.locator.contains("技术需求") || rb.locator.contains("第五章"))
                     && re_model.is_match(&b.text)
                 {
                     // 参数表行：收养最近的 5.x 编号头作条款号
                     let mut params = HashMap::new();
                     fill_params(&b.text, &re_model, &re_amount, &re_date, &re_date_cn, &mut params);
                     push_req(reqs, seq, "技术参数", last_numbered_head.clone(),
-                             vec![anchor(f, b)], params, &f.name);
+                             vec![anchor(raw, b)], params, &f.name);
                 }
             }
             _ => {}
@@ -848,7 +872,7 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
 }
 
 /// B1 设备清单：含型号或中文大写日期的行 → 技术参数 REQ（到货/规格要求行）。
-fn extract_b1_lines(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize) {
+fn extract_b1_lines(f: &ParsedFile, raw: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize) {
     let re_model = model_regex();
     let re_date_cn = Regex::new(r"[〇一二三四五六七八九零]{4}年[〇一二三四五六七八九零]{1,2}月[〇一二三四五六七八九零]{1,3}日").unwrap();
     let re_amount = Regex::new(r"(\d+(?:\.\d+)?)\s*万\s*元").unwrap();
@@ -859,13 +883,13 @@ fn extract_b1_lines(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
         {
             let mut params = HashMap::new();
             fill_params(&b.text, &re_model, &re_amount, &re_date, &re_date_cn, &mut params);
-            push_req(reqs, seq, "技术参数", None, vec![anchor(f, b)], params, &f.name);
+            push_req(reqs, seq, "技术参数", None, vec![anchor(raw, b)], params, &f.name);
         }
     }
 }
 
 /// B2 扫描件：否决关键词 OCR 行 + 1 行续接窗 → 否决项 REQ（扫描件内条款不丢的抽取面）。
-fn extract_b2_ocr(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize) {
+fn extract_b2_ocr(f: &ParsedFile, raw: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize) {
     let keywords = ["否决", "签署", "盖章"];
     let blocks = &f.blocks;
     for (i, b) in blocks.iter().enumerate() {
@@ -876,11 +900,15 @@ fn extract_b2_ocr(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize) 
             continue;
         }
         // 种子行 + 下一行拼接（断行条款还原）；excerpt 同时携带两行原文
-        let mut excerpt = b.text.clone();
-        let mut locator = b.locator.clone();
+        // 数据出口在原文域（fix/e76d9de-red-tests）——摘录/locator 取
+        // 原始块（判定词面/行连接条件仍在归一化视图上）。
+        let rb = raw.blocks.iter().find(|x| x.idx == b.idx).unwrap_or(b);
+        let mut excerpt = rb.text.clone();
+        let mut locator = rb.locator.clone();
         if let Some(next) = blocks.get(i + 1) {
             if matches!(next.kind, BlockKind::OcrLine) && next.text.chars().count() >= 2 {
-                excerpt.push_str(&next.text);
+                let rn = raw.blocks.iter().find(|x| x.idx == next.idx).unwrap_or(next);
+                excerpt.push_str(&rn.text);
                 locator.push_str(" + 行接");
             }
         }
@@ -923,9 +951,13 @@ fn push_req(reqs: &mut Vec<Requirement>, seq: &mut usize, category: &str,
     });
 }
 
-fn anchor(f: &ParsedFile, b: &Block) -> Anchor {
+fn anchor(raw: &ParsedFile, b: &Block) -> Anchor {
+    // 数据出口在**原文域**（fix/e76d9de-red-tests）：b 来自 NFKC 归一化
+    // 判定视图（norm_n1 会连空白一并去除），excerpt/locator 必须取原始块
+    // ——与 ParsedFile 结构同构（normalize_file_nfkc 不增删块，按 idx 回查）。
+    let rb = raw.blocks.iter().find(|x| x.idx == b.idx).unwrap_or(b);
     Anchor {
-        file: f.name.clone(),
+        file: raw.name.clone(),
         kind: match b.kind {
             BlockKind::Para => "para",
             BlockKind::TableRow => "table",
@@ -934,8 +966,8 @@ fn anchor(f: &ParsedFile, b: &Block) -> Anchor {
             BlockKind::XlsxRow => "xlsx_row",
         }
         .to_string(),
-        locator: b.locator.clone(),
-        excerpt: b.text.clone(), // 溯源锚原文（创建时固化）
+        locator: rb.locator.clone(),
+        excerpt: rb.text.clone(), // 溯源锚原文（创建时固化）
     }
 }
 

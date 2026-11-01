@@ -60,8 +60,12 @@ fn corpus_a_scoring_items_carry_real_weights() {
     //   报价超限价 / 技术偏离表 / 暗标身份标记 / 页数超 200 / 报价超控制价 /
     //   保证金 / 签署盖章 / 工期 90 天 / 补遗控制价 465 万 —— 9 条真否决
     //   失信承诺（#3，资格面误标）+ 开标出席（#8，弱信号）—— 2 条存疑
-    // 11/13 确定真：这是 L2 召回 0.0000 -> 0.8972 的直接来源，不是噪声。
-    assert_eq!(hard.len(), 13, "corpus-A 否决项 13 条（P0-B 后——旧实现漏 7 条真否决）");
+    // 【fix/e76d9de-red-tests】13 -> 12：3.2.6 失信承诺（「须提供未被列入
+    // 失信名单的书面承诺」）经 veto_lexicon 的「未被列入」正面证明剥离
+    // 归位**资格条件**——PR #45 核对时已注明「资格面误标」，本修复兑现
+    // 该注记（GT-06 的资格裁决同口径）；开标出席弱信号仍在否决面
+    // （宁多勿漏纪律），其余 11 条真否决不变。
+    assert_eq!(hard.len(), 12, "corpus-A 否决项 12 条（P0-B 后 13 条中失信承诺归位资格面）");
 
     // 三大项分值真值（价格 30 / 技术 55 / 商务 15——合计恰 100）
     let weights: Vec<f64> = scoring.iter().filter_map(|i| i.weight).collect();
@@ -80,9 +84,10 @@ fn corpus_a_scoring_items_carry_real_weights() {
 
     // store 硬门清单与 T-2 blocking 联动：否决项未响应 → check_export_ready 拒绝
     let hard_ids = svc.store().hard_gate_requirement_ids();
-    // 同上：P0-B 后硬门 6 -> 13（11 条真否决 + 2 条存疑）
-    assert_eq!(hard_ids.len(), 13, "硬门清单与 T-3 口径一致");
+    // 同上：【fix/e76d9de-red-tests】硬门 13 -> 12——失信承诺归位资格面
+    //（veto_lexicon「未被列入」正面证明剥离，PR #45 核对注记兑现）
+    assert_eq!(hard_ids.len(), 12, "硬门清单与 T-3 口径一致");
     svc.store_mut().build_matrix().unwrap();
     let err = svc.store().check_export_ready().unwrap_err();
-    assert_eq!(err.code(), "E_UNPROCESSABLE", "必选未响应（资格 6 + 否决 13）阻断导出");
+    assert_eq!(err.code(), "E_UNPROCESSABLE", "必选未响应（资格 7 + 否决 12）阻断导出");
 }

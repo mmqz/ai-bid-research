@@ -4,7 +4,7 @@
   "gt_true": 116,
   "l1_recall": 0.9827586206896551,
   "veto_cls_L2": 107,
-  "veto_precision": 0.9622641509433962,
-  "veto_req": 106,
-  "veto_tp": 102
+  "veto_precision": 0.9565217391304348,
+  "veto_req": 115,
+  "veto_tp": 110
 }

@@ -835,11 +835,31 @@ fn e2e_artifacts_synth_tender() {
         h1_titles.iter().any(|t| t == "附表"),
         "⑨.5 「附表」部分未以 Heading1 渲染（docx H1 集: {h1_titles:?}）"
     );
+    // 【fix/e76d9de-red-tests】#117 任务 2 的 ⑥c 回落部分入对账面：大纲无
+    // 「投标文件格式」锚定章时，七件格式件以独立 H1 部分「投标文件格式件」
+    // 落文末（synth-tender 大纲按 REQ category 分组为「格式要求」——#141
+    // 章节关键词扩展后的既定形态；export.rs FORMS_ANCHOR_KEYWORDS 故意不含
+    // 裸「格式」防误锚「格式要求」类条款章）。#127 P0-3 ① 的三原则不变：
+    //   1. 每个根章渲染为 H1（上方 for 断言）；
+    //   2. 根章之外的追加 H1 只允许「附表」/「投标文件格式件」——闭集，
+    //      未知追加 = 结构漂移，响亮红；
+    //   3. 总数对账 = 根章数 + 实际追加部分数（重复渲染红）。
+    let appended: Vec<&str> = h1_titles
+        .iter()
+        .map(|s| s.as_str())
+        .filter(|t| !outline_roots.contains(t))
+        .collect();
+    let allowed_appendix = ["附表", "投标文件格式件"];
+    assert!(
+        appended.iter().all(|t| allowed_appendix.contains(t)),
+        "⑨.5 根章之外的 H1 只允许 {allowed_appendix:?}（导出层闭集），实际: {appended:?}"
+    );
     assert_eq!(
         h1_titles.len(),
-        outline_roots.len() + 1,
-        "⑨.5 docx Heading1 段数 = outline 根章 {} + 附表 1，实际 {}: {h1_titles:?}",
+        outline_roots.len() + appended.len(),
+        "⑨.5 docx Heading1 段数 = outline 根章 {} + 追加部分 {}，实际 {}: {h1_titles:?}",
         outline_roots.len(),
+        appended.len(),
         h1_titles.len()
     );
     // 12 号产物数据（#117 任务 3——数字进报告，人工可核）
@@ -851,8 +871,11 @@ fn e2e_artifacts_synth_tender() {
         "form_titles_found": form_probes.iter().filter(|x| docx_xml.contains(*x)).count(),
         "price_total_matches_bid": docx_xml.contains("15,800,000.00"),
         "markdown_asterisk_leak": asterisk_actual,
-        // #127 P0-3 ①/③ 增量面
-        "heading1_vs_outline_roots": { "docx": h1_titles.len(), "outline": outline_roots.len() },
+        // #127 P0-3 ①/③ 增量面（appended = 导出层闭集「附表」/「投标文件格式件」）
+        "heading1_vs_outline_roots": {
+            "docx": h1_titles.len(), "outline": outline_roots.len(),
+            "appended": appended.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+        },
         "response_group_present": docx_xml.contains("资格与响应"),
         "matrix_blocking": blockers.len(),
     });

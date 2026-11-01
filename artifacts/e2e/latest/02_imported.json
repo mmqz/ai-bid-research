@@ -2,7 +2,7 @@
   "batch_abc_e": {
     "error": null,
     "totals": {
-      "chunks": 329,
+      "chunks": 341,
       "files": 4,
       "parse_failed": 0,
       "partial": 0
@@ -17,9 +17,7 @@
       "partial": 1
     }
   },
-  "pdf_chain": [
-    "chi_sim.traineddata"
-  ],
+  "pdf_chain": "full",
   "per_file": [
     {
       "chunks": 232,
@@ -55,13 +53,13 @@
       "tables": 0
     },
     {
-      "chunks": 1,
+      "chunks": 13,
       "deduplicated": false,
       "file_id": "TF-0005",
       "filename": "E-原招标公告盖章页-扫描件.pdf",
-      "ocr_tier": "none",
+      "ocr_tier": "ocr",
       "pages": 1,
-      "parse_status": "ok",
+      "parse_status": "ocr_required",
       "sha256": "796057319ba93433881e34e3b88a004b0d3371f5106012dec83dc76dbcd3b052",
       "tables": 0
     }

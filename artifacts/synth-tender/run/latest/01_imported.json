@@ -2,7 +2,7 @@
   "batch1_abc_e": {
     "error": null,
     "totals": {
-      "chunks": 329,
+      "chunks": 341,
       "files": 4,
       "parse_failed": 0,
       "partial": 0
@@ -17,10 +17,8 @@
       "partial": 1
     }
   },
-  "pdf_env": "missing",
-  "pdf_missing": [
-    "chi_sim.traineddata"
-  ],
+  "pdf_env": "full",
+  "pdf_missing": [],
   "per_file": {
     "A-招标文件.docx": {
       "chunks": 232,
@@ -50,11 +48,11 @@
       "parse_status": "failed"
     },
     "E-原招标公告盖章页-扫描件.pdf": {
-      "chunks": 1,
+      "chunks": 13,
       "errors": null,
-      "ocr_tier": "none",
+      "ocr_tier": "ocr",
       "pages": 1,
-      "parse_status": "ok"
+      "parse_status": "ocr_required"
     }
   }
 }

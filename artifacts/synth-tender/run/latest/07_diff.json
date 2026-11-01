@@ -97,8 +97,8 @@
       "will_extract": true
     },
     {
-      "actual_category": "否决项",
-      "category_diff": true,
+      "actual_category": "资格条件",
+      "category_diff": false,
       "engine_category": "否决项",
       "excerpt_key": "未被列入失信被执行人、重大税收违法案件当事人名单",
       "expect_occurrences": 1,
@@ -106,15 +106,15 @@
       "ideal_category": "资格条件",
       "matched": 1,
       "note": "G3：正面信用要求含「失信」被负面清单词误判否决项（is_qual 分支被 is_veto 抢先）",
-      "prediction_ok": true,
+      "prediction_ok": false,
       "source_file": "A-招标文件.docx",
       "syn_id": "SYN-A-007",
       "trap": null,
       "will_extract": true
     },
     {
-      "actual_category": "其他",
-      "category_diff": true,
+      "actual_category": "资格条件",
+      "category_diff": false,
       "engine_category": "资格条件",
       "excerpt_key": "在经营活动中没有重大违法记录",
       "expect_occurrences": 1,
@@ -1704,63 +1704,63 @@
       "source_file": "A-招标文件.docx"
     },
     {
-      "category": "其他",
+      "category": "商务要求",
       "clause_no": "6.1",
       "excerpt": "6.1 合同价格形式：固定总价合同，除招标文件约定的调整情形外不做调整。",
       "id": "REQ-0096",
       "source_file": "A-招标文件.docx"
     },
     {
-      "category": "其他",
+      "category": "商务要求",
       "clause_no": "6.2",
       "excerpt": "6.2 违约责任：逾期交付每日按合同总价 0.5‰ 计违约金，上限为合同总价的 ",
       "id": "REQ-0097",
       "source_file": "A-招标文件.docx"
     },
     {
-      "category": "其他",
+      "category": "商务要求",
       "clause_no": "6.3",
       "excerpt": "6.3 付款节点：合同签订生效后 10 个工作日内支付预付款 30%；全部设备到",
       "id": "REQ-0098",
       "source_file": "A-招标文件.docx"
     },
     {
-      "category": "其他",
+      "category": "商务要求",
       "clause_no": "6.4",
       "excerpt": "6.4 争议解决：协商不成的，提交项目所在地有管辖权的人民法院诉讼解决。",
       "id": "REQ-0099",
       "source_file": "A-招标文件.docx"
     },
     {
-      "category": "其他",
+      "category": "格式要求",
       "clause_no": "7.1",
       "excerpt": "7.1 投标函格式（略，按本章附件样例填写）：投标函须按样例格式签署并加盖单位公",
       "id": "REQ-0100",
       "source_file": "A-招标文件.docx"
     },
     {
-      "category": "其他",
+      "category": "格式要求",
       "clause_no": "7.2",
       "excerpt": "7.2 开标一览表、投标分项报价表格式（略）：开标一览表中的投标总报价须与投标函",
       "id": "REQ-0101",
       "source_file": "A-招标文件.docx"
     },
     {
-      "category": "其他",
+      "category": "格式要求",
       "clause_no": "7.3",
       "excerpt": "7.3 法定代表人身份证明及授权委托书格式（略）：授权委托书须载明授权事项、权限",
       "id": "REQ-0102",
       "source_file": "A-招标文件.docx"
     },
     {
-      "category": "其他",
+      "category": "格式要求",
       "clause_no": "7.5",
       "excerpt": "7.5 技术方案编制格式：技术方案按「总体方案—分项技术方案—实施方案—售后方案",
       "id": "REQ-0104",
       "source_file": "A-招标文件.docx"
     },
     {
-      "category": "其他",
+      "category": "格式要求",
       "clause_no": "7.6",
       "excerpt": "7.6 已标价工程量清单格式（略）：按第五章技术需求书的分项逐项报价，不得缺漏项",
       "id": "REQ-0105",
@@ -1789,13 +1789,13 @@
     }
   ],
   "summary": {
-    "category_diff": 6,
+    "category_diff": 4,
     "engine_reqs": 115,
     "expected_entries": 98,
     "extras_count": 31,
     "hit": 81,
     "miss": 17,
     "occurrence_diff": 1,
-    "prediction_ok": 96
+    "prediction_ok": 95
   }
 }

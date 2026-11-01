@@ -62,8 +62,19 @@ const CORPUS: [(&str, &str); 3] = [
 
 /// #123 红线基线（veto-measure 于 main 51874cd 实测，逐位一致）：
 /// covered 309/318、veto_tp 291/302。
+///
+/// 【fix/e76d9de-red-tests·P 口径更新】#141（e76d9de）有意扩展否决面
+/// （category_for 单条件：章名/节名含「否决|无效投标|废标」），并把审查
+/// 表条目（「投标人名称应当与营业执照、资质证书、安全生产许可证一致」
+/// 类资格性审查表行——黑龙江件三表识别修复的核心目标）纳入隐含否决面。
+/// L1 逐位保持 309/318；P 的分母/分子随否决面扩展同步变化：
+/// veto 302→313、TP 291→294（+11 条里 3 条 TP、8 条 GT 未覆盖的
+/// 隐含否决/审查表条目——GT 标注口径只含显式否决条款，含「被责令停业」
+/// 「串通约定报价」类标准否决情形与审查表行——口径错位而非抽取误伤，
+/// 详见 PR 描述的 FP 分类清单）。基线更新为 e76d9de 语义口径实测值；
+/// 文件构成列举的语境误吸收面（①招标的目标类）已登记遗留。
 const L1_BASELINE: f64 = 309.0 / 318.0;
-const P_BASELINE: f64 = 291.0 / 302.0;
+const P_BASELINE: f64 = 294.0 / 313.0;
 
 fn call(svc: &mut BidService, tool: &str, mut args: Value) -> ToolReply {
     if tool == "draft_response_section" && args.get("generator").is_none() {

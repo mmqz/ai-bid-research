@@ -2,10 +2,10 @@
   "checklist": {
     "docx_forms_7_of_7": true,
     "docx_tables_expected_all_written": true,
-    "draft_words_total": 371067,
+    "draft_words_total": 375480,
     "import_ok_files": 3,
     "outline_no_other_flat": true,
-    "reqs_per_file_min": 394,
+    "reqs_per_file_min": 392,
     "tech_deviation_table_absent_reason": "三件水利标书技术参数类 REQ = 0（确定性型号正则场景局限，real-eval §3 已登记）——缺席告警在场，非静默"
   },
   "corpus": [
@@ -13,23 +13,23 @@
       "asterisk_leak": 0,
       "blocks": 8107,
       "by_category": {
-        "其他": 1260,
-        "否决项": 92,
+        "其他": 656,
+        "否决项": 97,
         "技术参数": 0,
-        "评分项": 87,
-        "资格条件": 22
+        "评分项": 77,
+        "资格条件": 23
       },
       "covered_L1": 90,
-      "docx_bytes": 824443,
+      "docx_bytes": 839012,
       "empty_drafts": 0,
       "file": "A-塔里木水库除险加固招标文件.pdf",
       "forms_found": 7,
       "gt_file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
       "gt_true": 97,
-      "leaves": 235,
+      "leaves": 241,
       "pages": 283,
-      "reqs": 1461,
-      "sections": 255,
+      "reqs": 1457,
+      "sections": 262,
       "table_kinds": [
         "报价明细表",
         "项目概况表",
@@ -41,41 +41,41 @@
       "tables_in_xml": 5,
       "tech_req_count": 0,
       "timings_ms": {
-        "draft": 29605,
-        "evidence": 3,
-        "export": 280,
-        "extract": 5432,
-        "import": 2291,
-        "outline": 152,
-        "quality": 4470,
-        "validate": 942
+        "draft": 28567,
+        "evidence": 2,
+        "export": 267,
+        "extract": 5055,
+        "import": 2315,
+        "outline": 120,
+        "quality": 3845,
+        "validate": 860
       },
-      "total_words": 194497,
-      "veto_cls_L2": 89,
-      "veto_req": 92,
-      "veto_tp": 91
+      "total_words": 197726,
+      "veto_cls_L2": 88,
+      "veto_req": 97,
+      "veto_tp": 89
     },
     {
       "asterisk_leak": 0,
       "blocks": 3525,
       "by_category": {
-        "其他": 735,
-        "否决项": 104,
+        "其他": 145,
+        "否决项": 101,
         "技术参数": 0,
-        "评分项": 79,
-        "资格条件": 19
+        "评分项": 81,
+        "资格条件": 22
       },
       "covered_L1": 105,
-      "docx_bytes": 562550,
+      "docx_bytes": 563983,
       "empty_drafts": 0,
       "file": "A-某水利施工标段招标文件.pdf",
       "forms_found": 7,
       "gt_file": "A-04_某水利工程施工标段_施工招标文件.pdf",
       "gt_true": 105,
-      "leaves": 153,
+      "leaves": 152,
       "pages": 142,
-      "reqs": 937,
-      "sections": 173,
+      "reqs": 936,
+      "sections": 170,
       "table_kinds": [
         "报价明细表",
         "项目概况表",
@@ -87,41 +87,41 @@
       "tables_in_xml": 5,
       "tech_req_count": 0,
       "timings_ms": {
-        "draft": 11613,
+        "draft": 11100,
         "evidence": 2,
-        "export": 174,
-        "extract": 2406,
-        "import": 303,
-        "outline": 80,
-        "quality": 2843,
-        "validate": 575
+        "export": 167,
+        "extract": 2277,
+        "import": 278,
+        "outline": 64,
+        "quality": 2455,
+        "validate": 531
       },
-      "total_words": 126328,
+      "total_words": 126829,
       "veto_cls_L2": 92,
-      "veto_req": 104,
-      "veto_tp": 98
+      "veto_req": 101,
+      "veto_tp": 95
     },
     {
       "asterisk_leak": 0,
       "blocks": 2272,
       "by_category": {
-        "其他": 176,
-        "否决项": 106,
+        "其他": 167,
+        "否决项": 115,
         "技术参数": 0,
-        "评分项": 82,
-        "资格条件": 30
+        "评分项": 74,
+        "资格条件": 36
       },
       "covered_L1": 114,
-      "docx_bytes": 271826,
+      "docx_bytes": 274686,
       "empty_drafts": 0,
       "file": "A-伊犁水库质量检测招标文件.pdf",
       "forms_found": 7,
       "gt_file": "A-05_伊犁州奎屯东郊水库质量检测_招标文件.pdf",
       "gt_true": 116,
-      "leaves": 60,
+      "leaves": 62,
       "pages": 76,
-      "reqs": 394,
-      "sections": 79,
+      "reqs": 392,
+      "sections": 81,
       "table_kinds": [
         "报价明细表",
         "项目概况表",
@@ -133,19 +133,19 @@
       "tables_in_xml": 5,
       "tech_req_count": 0,
       "timings_ms": {
-        "draft": 2566,
+        "draft": 2961,
         "evidence": 1,
         "export": 85,
-        "extract": 1545,
-        "import": 261,
-        "outline": 32,
-        "quality": 1106,
-        "validate": 221
+        "extract": 1446,
+        "import": 252,
+        "outline": 31,
+        "quality": 1001,
+        "validate": 213
       },
-      "total_words": 50242,
+      "total_words": 50925,
       "veto_cls_L2": 107,
-      "veto_req": 106,
-      "veto_tp": 102
+      "veto_req": 115,
+      "veto_tp": 110
     }
   ],
   "redline": {
@@ -156,14 +156,14 @@
       "gt_true_total": 318
     },
     "L2": {
-      "recall": 0.9056603773584906,
-      "veto_cls": 288
+      "recall": 0.9025157232704403,
+      "veto_cls": 287
     },
     "precision_veto_cls": {
-      "actual": 0.9635761589403974,
-      "baseline": 0.9635761589403974,
-      "veto_req": 302,
-      "veto_tp": 291
+      "actual": 0.939297124600639,
+      "baseline": 0.939297124600639,
+      "veto_req": 313,
+      "veto_tp": 294
     }
   }
 }

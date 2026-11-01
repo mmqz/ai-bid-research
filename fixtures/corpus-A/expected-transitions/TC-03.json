@@ -25,8 +25,8 @@
       "kind": "count",
       "path": "matrix[category=否决项].explicit_policy",
       "op": "==",
-      "value": 5,
-      "note": ""
+      "value": 7,
+      "note": "【fix/e76d9de-red-tests】GT-24/25（暗标标记/页数超限）category 裁决对齐 PR #45 真否决核对口径：5 → 7（与 grade_policy 同源同步）"
     },
     {
       "kind": "policy",

@@ -126,7 +126,11 @@ pub fn grade_exact(db: &RunDb, fx: &Fixtures) -> DimOutcome {
 pub fn grade_policy(db: &RunDb, fx: &Fixtures) -> DimOutcome {
     let m = &db.matrix;
     let mut fails = vec![];
-    for (cat, want) in [("资格条件", 6), ("否决项", 5)] {
+    // 【fix/e76d9de-red-tests】数量与 GT 全表对齐：GT-24/25（暗标身份标记/
+    // 页数超限）category 裁决自「格式要求」改「否决项」——PR #45 逐条核对
+    // 口径（hard gate 13 成员）+ P0-B R3-S3-5 优先级链（强否决处置 > 章节
+    // 上下文）。GT 否决项 5 → 7（资格条件 6 不变）。
+    for (cat, want) in [("资格条件", 6), ("否决项", 7)] {
         let n = m.iter().filter(|r| r["category"] == cat && r["explicit_policy"].as_bool().unwrap_or(false)).count();
         if n != want {
             fails.push(json!({"check": format!("{cat}.explicit_policy"), "got": n, "want": want}));

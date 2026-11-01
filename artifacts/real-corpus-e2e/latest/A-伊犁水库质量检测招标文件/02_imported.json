@@ -1,0 +1,28 @@
+{
+  "file_ids": [
+    "TF-0002"
+  ],
+  "per_file": [
+    {
+      "chunks": 2272,
+      "deduplicated": false,
+      "file_id": "TF-0002",
+      "filename": "A-伊犁水库质量检测招标文件.pdf",
+      "ocr_tier": "none",
+      "pages": 76,
+      "parse_status": "ok",
+      "sha256": "815dfcf7ef5316c8005c4e2a7ef9017168beceddd84da6685f167d2dbbfe85a9",
+      "tables": 0
+    }
+  ],
+  "project_version": 2,
+  "request_id": "req-000407",
+  "status": "FILES_IMPORTED",
+  "totals": {
+    "chunks": 2272,
+    "files": 1,
+    "parse_failed": 0,
+    "partial": 0
+  },
+  "warnings": []
+}

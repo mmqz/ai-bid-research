@@ -3,8 +3,8 @@
   "gt_file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
   "gt_true": 97,
   "l1_recall": 0.9278350515463918,
-  "veto_cls_L2": 89,
-  "veto_precision": 0.9891304347826086,
-  "veto_req": 92,
-  "veto_tp": 91
+  "veto_cls_L2": 88,
+  "veto_precision": 0.9175257731958762,
+  "veto_req": 97,
+  "veto_tp": 89
 }

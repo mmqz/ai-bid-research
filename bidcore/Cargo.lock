@@ -229,6 +229,7 @@ dependencies = [
  "bid-domain",
  "bid-parse",
  "bid-tools",
+ "docx-rs",
  "mang-snap",
  "serde",
  "serde_json",

@@ -2,11 +2,11 @@
  "case": "01-initialize-and-tools",
  "transport": "mcp",
  "server_bin": "/tmp/shared-target/debug/bid-mcp-server",
- "server_sha256": "119b0970e641afbc66d2b600a86daabed4608743b51f8e3fde0b7057db8cdf0e",
+ "server_sha256": "742c95a83c0ebbe07640b19d3577c8c791da0ff598ab6b664b3b3c35a415bd67",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-01T15:18:28+00:00",
+ "started_at": "2026-11-01T15:27:06+00:00",
  "stages": [
   {
    "stage": "MCP 握手 + 工具清单",
@@ -64,5 +64,5 @@
  ],
  "payload_shapes": {},
  "ws": null,
- "finished_at": "2026-11-01T15:18:28+00:00"
+ "finished_at": "2026-11-01T15:27:06+00:00"
 }

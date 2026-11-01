@@ -249,7 +249,16 @@ fn score_section_on_drafted_leaf() {
     // 这里只钉形状（是数组）；评分项→章节的映射逻辑由 bid-domain 的
     // scoring 单测覆盖（那边不依赖 store 的全局 id 序列，可控）。
     assert!(r["item_scores"].is_array(), "item_scores 是数组: {r:?}");
-    assert!(r["rationale"].as_str().unwrap().contains("覆盖"), "可追溯理由在场");
+    // 可追溯理由必须非空。两条合法文案：
+    //   · 有映射项 → "[REQ-xxxx] 覆盖 h/H=xx% ..."
+    //   · 无映射项（#126 后评分项不进正文 → 本节无映射）→ "无映射到本章节的评分项..."
+    // 只钉「非空且可读」，不钉具体措辞（措辞演进不该红测试）。
+    let rationale = r["rationale"].as_str().unwrap_or("");
+    assert!(!rationale.trim().is_empty(), "可追溯理由非空: {r:?}");
+    assert!(
+        rationale.contains("覆盖") || rationale.contains("无映射"),
+        "理由要么是覆盖度明细、要么是「无映射」显式说明: {rationale}"
+    );
     // 逐项明细的 item_id 非空（映射面完整性）
     assert!(items.iter().all(|i| !i["item_id"].as_str().unwrap().is_empty()));
 }

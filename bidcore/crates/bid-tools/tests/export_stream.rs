@@ -571,10 +571,20 @@ fn report_manifest_serde_roundtrip() {
         duration_ms: Some(42),
         output_sha256: "deadbeef".into(),
         toc_field_present: true,
+        // #117 表格/格式件对账面（旧清单无这些字段 → serde default 兼容读入）
+        tables_written: 6,
+        table_kinds: vec!["技术参数偏离表".into()],
+        forms_written: 0,
+        form_titles: vec![],
     };
     let json = serde_json::to_string(&report).unwrap();
     let back: ExportReport = serde_json::from_str(&json).unwrap();
     assert_eq!(back, report);
+    // 旧版清单（无 #117 字段）→ default 兼容读入（加性演进面）
+    let legacy = r#"{"chapters_written":1,"total_chars":10,"duration_ms":null,
+        "output_sha256":"ab","toc_field_present":true}"#;
+    let old: ExportReport = serde_json::from_str(legacy).unwrap();
+    assert_eq!((old.tables_written, old.table_kinds.len()), (0, 0), "旧清单零表兼容");
     // manifest 字段名稳定（磁盘格式的兼容面）
     assert!(json.contains("\"chapters_written\":3"));
     assert!(json.contains("\"output_sha256\":\"deadbeef\""));

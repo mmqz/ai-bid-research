@@ -49,6 +49,61 @@ impl std::error::Error for FormError {}
 /// 主体信息在工作区里的缺省落盘名。
 pub const PROFILE_FILE: &str = "bidder-profile.json";
 
+/// 拟派人员的一条事实（#117 任务 1：人员配置表的数据面）。
+///
+/// 与 bid-tools `tables::PersonnelRow` 的分工：本结构是**主体信息里的
+/// 长期事实**（跟着投标人走，跨项目复用）；`PersonnelRow` 是**某次导出的
+/// 表格行**（本项响应口径）。`years = None` = 未知——渲染层落【待填】，
+/// 绝不落「0 年」（假值比缺值危险）。
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct PersonnelFact {
+    /// 岗位（项目经理/技术负责人/安全员…）。
+    #[serde(default)]
+    pub position: String,
+    /// 姓名（暗标场景由导出层脱敏）。
+    #[serde(default)]
+    pub name: String,
+    /// 职称/执业资格（如「高级工程师 / 一级建造师」）。
+    #[serde(default)]
+    pub title: String,
+    /// 专业。
+    #[serde(default)]
+    pub major: String,
+    /// 本专业年限（年；None = 未知）。
+    #[serde(default)]
+    pub years: Option<u32>,
+    /// 备注（在岗状态、社保等）。
+    #[serde(default)]
+    pub note: String,
+}
+
+/// 拟投入设备的一条事实（#117 任务 1：设备清单的数据面；口径同
+/// [`PersonnelFact`]——长期事实，`quantity = None` = 未知 → 【待填】）。
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct EquipmentFact {
+    /// 设备名称。
+    #[serde(default)]
+    pub name: String,
+    /// 型号规格。
+    #[serde(default)]
+    pub model: String,
+    /// 数量（None = 未知）。
+    #[serde(default)]
+    pub quantity: Option<u32>,
+    /// 单位（台/套/辆…）。
+    #[serde(default)]
+    pub unit: String,
+    /// 产地/品牌。
+    #[serde(default)]
+    pub origin: String,
+    /// 主要性能指标。
+    #[serde(default)]
+    pub spec: String,
+    /// 进场时间（如「合同签订后 7 日内」）。
+    #[serde(default)]
+    pub arrival: String,
+}
+
 /// 投标方主体信息（填表真源）。
 ///
 /// 字段取名对齐 issue #103 子任务 A 原文的 `BidderProfile`；
@@ -106,15 +161,26 @@ pub struct BidderProfile {
     /// 资质等级/类别（可空）。
     #[serde(default)]
     pub qualification: String,
+
+    // ---- #117 任务 1：表格数据面（人员配置表 / 设备清单表的真源——
+    //      主体信息里的长期事实，导出层据此生成表格；缺省 = 空表 + 告警，
+    //      不编造）
+    /// 拟派人员（人员配置表数据面；空 = 主体信息未录——导出时告警）。
+    #[serde(default)]
+    pub personnel: Vec<PersonnelFact>,
+    /// 拟投入设备（设备清单表数据面；空 = 主体信息未录——导出时告警）。
+    #[serde(default)]
+    pub equipment: Vec<EquipmentFact>,
 }
 
 /// 统一社会信用代码格式校验（18 位大写字母/数字，GB 32100-2015
 /// 字符集排除 I/O/Z；加权模 31 校验码留给数据源侧）。
 pub fn is_valid_credit_code(s: &str) -> bool {
     s.len() == 18
-        && s
-            .bytes()
-            .all(|b| b.is_ascii_digit() || ((b'A'..=b'Z').contains(&b) && b != b'I' && b != b'O' && b != b'Z'))
+        && s.bytes().all(|b| {
+            b.is_ascii_digit()
+                || ((b'A'..=b'Z').contains(&b) && b != b'I' && b != b'O' && b != b'Z')
+        })
 }
 
 /// 居民身份证号格式校验（18 位：17 位数字 + 1 位数字或 X）。
@@ -137,9 +203,14 @@ impl BidderProfile {
     /// 从工作区读取 bidder-profile.json。
     pub fn load(workspace: &Path) -> Result<Self, FormError> {
         let path = workspace.join(PROFILE_FILE);
-        let raw = fs::read_to_string(&path)
-            .map_err(|e| FormError::Io { path: path.clone(), message: e.to_string() })?;
-        serde_json::from_str(&raw).map_err(|e| FormError::Json { path, message: e.to_string() })
+        let raw = fs::read_to_string(&path).map_err(|e| FormError::Io {
+            path: path.clone(),
+            message: e.to_string(),
+        })?;
+        serde_json::from_str(&raw).map_err(|e| FormError::Json {
+            path,
+            message: e.to_string(),
+        })
     }
 
     /// 写回 bidder-profile.json（用于人工填表后回存）。
@@ -148,11 +219,18 @@ impl BidderProfile {
     /// 完整性的硬门在渲染侧（[`crate::forms`] 先调 [`BidderProfile::validate`]）。
     pub fn save(&self, workspace: &Path) -> Result<(), FormError> {
         let path = workspace.join(PROFILE_FILE);
-        let body = serde_json::to_string_pretty(self)
-            .map_err(|e| FormError::Json { path: path.clone(), message: e.to_string() })?;
-        fs::create_dir_all(workspace)
-            .map_err(|e| FormError::Io { path: workspace.to_path_buf(), message: e.to_string() })?;
-        fs::write(&path, body).map_err(|e| FormError::Io { path, message: e.to_string() })
+        let body = serde_json::to_string_pretty(self).map_err(|e| FormError::Json {
+            path: path.clone(),
+            message: e.to_string(),
+        })?;
+        fs::create_dir_all(workspace).map_err(|e| FormError::Io {
+            path: workspace.to_path_buf(),
+            message: e.to_string(),
+        })?;
+        fs::write(&path, body).map_err(|e| FormError::Io {
+            path,
+            message: e.to_string(),
+        })
     }
 
     /// 检查完整性（缺字段 → 列出缺什么）。
@@ -219,7 +297,9 @@ impl BidderProfile {
         // ---- 可选面：给了就必须合法
         if !self.agent.trim().is_empty() {
             if self.agent_id.trim().is_empty() {
-                out.push("缺「授权委托人身份证号」（agent_id：已填 agent，身份证号不能空）".to_string());
+                out.push(
+                    "缺「授权委托人身份证号」（agent_id：已填 agent，身份证号不能空）".to_string(),
+                );
             } else if !is_valid_id_card(&self.agent_id) {
                 out.push(format!(
                     "「授权委托人身份证号」格式不合法（agent_id={}：须为 18 位，末位可为 X）",
@@ -227,7 +307,9 @@ impl BidderProfile {
                 ));
             }
         }
-        if !self.established_on.trim().is_empty() && !crate::dates::is_valid_ymd(&self.established_on) {
+        if !self.established_on.trim().is_empty()
+            && !crate::dates::is_valid_ymd(&self.established_on)
+        {
             out.push(format!(
                 "「成立日期」格式不合法（established_on={}：须为 YYYY-MM-DD）",
                 self.established_on
@@ -299,13 +381,66 @@ mod tests {
             postcode: "230000".into(),
             established_on: "2005-06-18".into(),
             qualification: "建筑工程施工总承包二级".into(),
+            personnel: vec![],
+            equipment: vec![],
         }
+    }
+
+    /// #117：人员/设备事实随 profile 落盘往返（旧 JSON 无该两字段 → 空表，
+    /// 加性兼容面）。
+    #[test]
+    fn personnel_equipment_facts_roundtrip_and_default_absent() {
+        let mut p = complete();
+        p.personnel.push(PersonnelFact {
+            position: "项目经理".into(),
+            name: "王五".into(),
+            title: "高级工程师/一级建造师".into(),
+            major: "机电工程".into(),
+            years: Some(12),
+            note: "在岗".into(),
+        });
+        p.equipment.push(EquipmentFact {
+            name: "物联网关".into(),
+            model: "IoT-GW-3000".into(),
+            quantity: Some(48),
+            unit: "台".into(),
+            origin: "国产".into(),
+            spec: "LoRaWAN/RS485 双模".into(),
+            arrival: "合同签订后 7 日内".into(),
+        });
+        let dir = std::env::temp_dir().join(format!(
+            "party-facts-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        p.save(&dir).unwrap();
+        let back = BidderProfile::load(&dir).unwrap();
+        assert_eq!(back.personnel.len(), 1);
+        assert_eq!(back.personnel[0].years, Some(12));
+        assert_eq!(back.equipment[0].quantity, Some(48));
+        // 旧版 JSON（无 personnel/equipment 键）→ 空表加载，不报错
+        let legacy = r#"{ "company_name": "某公司" }"#;
+        let old: BidderProfile = serde_json::from_str(legacy).unwrap();
+        assert!(old.personnel.is_empty() && old.equipment.is_empty());
+        // 数值未知 = None（不是 0——导出层落【待填】）
+        let unknown = PersonnelFact {
+            years: None,
+            ..Default::default()
+        };
+        assert_eq!(unknown.years, None);
     }
 
     #[test]
     fn complete_profile_has_no_defects() {
         let p = complete();
-        assert!(p.validate().is_empty(), "完整资料应零缺陷: {:?}", p.validate());
+        assert!(
+            p.validate().is_empty(),
+            "完整资料应零缺陷: {:?}",
+            p.validate()
+        );
         assert!(p.is_valid());
         assert!(p.require_valid().is_ok());
         assert_eq!(p.signer_name(), "张三", "无委托人时由法定代表人签署");
@@ -358,14 +493,19 @@ mod tests {
         p.established_on = "2005/06/18".into();
         let defects = p.validate();
         assert_eq!(defects.len(), 5, "五项格式错误要全报出: {:?}", defects);
-        assert!(defects.iter().any(|d| d.contains("tax_no=91340100MA2RTXKJ")));
+        assert!(defects
+            .iter()
+            .any(|d| d.contains("tax_no=91340100MA2RTXKJ")));
         assert!(defects.iter().any(|d| d.contains("legal_rep_id=")));
         assert!(defects.iter().any(|d| d.contains("bank_account=12345")));
         assert!(defects.iter().any(|d| d.contains("agent_id")));
         assert!(defects.iter().any(|d| d.contains("established_on")));
 
         assert!(is_valid_credit_code("91340100MA2RTXKJ0E"));
-        assert!(!is_valid_credit_code("91340100MA2RTXKJ0I"), "信用代码不含 I");
+        assert!(
+            !is_valid_credit_code("91340100MA2RTXKJ0I"),
+            "信用代码不含 I"
+        );
         assert!(is_valid_id_card("34010419920202000X"));
         assert!(!is_valid_id_card("3401041992020200"));
         assert!(is_valid_bank_account("34001468608059999999"));

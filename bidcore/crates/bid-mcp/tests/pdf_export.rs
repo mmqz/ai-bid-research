@@ -100,6 +100,9 @@ fn svc_export_ready(tag: &str, n_reqs: usize, target_chars: u32) -> (BidService,
         locator: EngineLocator::DocxParagraph { paragraph_index: 0, text_fingerprint: "fnv64:p".into() },
         fingerprint: "fnv64:p".into(), valid_from: None, valid_until: None,
         subject_name: "投标人".into(), scope: "合成".into(),
+        client: None,
+        amount_wan: None,
+        completed_on: None,
     }).unwrap();
     let must: Vec<String> = svc.store().requirements().iter()
         // #110 任务 1 缺失回报闸：技术参数类也须证据佐证（否则 draft 拒生成）

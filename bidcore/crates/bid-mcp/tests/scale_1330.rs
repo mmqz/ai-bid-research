@@ -143,6 +143,9 @@ fn scale_500k_chars_full_pipeline_under_redlines() {
         fingerprint: "fnv64:s".into(),
         valid_from: None, valid_until: None,
         subject_name: "投标人".into(), scope: "合成".into(),
+        client: None,
+        amount_wan: None,
+        completed_on: None,
     }).unwrap();
     let must: Vec<String> = svc.store().requirements().iter()
         // #110 任务 1 缺失回报闸：技术参数类也须证据佐证（否则 draft 拒生成）

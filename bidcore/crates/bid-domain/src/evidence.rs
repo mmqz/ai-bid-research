@@ -96,8 +96,11 @@ impl EvidenceStatus {
         use EvidenceStatus::*;
         let allowed = matches!(
             (*self, to),
-            (Active, Expiring) | (Active, Expired) | (Active, Superseded)
-                | (Expiring, Expired) | (Expiring, Superseded)
+            (Active, Expiring)
+                | (Active, Expired)
+                | (Active, Superseded)
+                | (Expiring, Expired)
+                | (Expiring, Superseded)
                 | (Expired, Superseded)
         );
         if allowed {
@@ -110,19 +113,32 @@ impl EvidenceStatus {
 /// 证据台账记录（T-1 规格 struct 的 Rust 落地——字段对齐 issue #11 批次 v3）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Evidence {
-    pub id: String,               // EV-xxxx（store 单序列签发）
-    pub kind: EvidenceKind,       // 资质|业绩|人员|证书|产品资料|方案模块|合同
-    pub title: String,            // 证据标题（如「电子与智能化工程专业承包二级资质证书」）
-    pub source_file: String,      // 原文件名（TenderFile.name 引用）
-    pub source_sha256: String,    // 原文件 sha256（幂等/溯源面——引擎不做文件级指纹，标书侧算）
-    pub locator: EngineLocator,   // 引擎锚点（可回溯原文）
-    pub fingerprint: String,      // 定位时刻内容指纹（fnv64:xxxx——判内容变更）
+    pub id: String,                  // EV-xxxx（store 单序列签发）
+    pub kind: EvidenceKind,          // 资质|业绩|人员|证书|产品资料|方案模块|合同
+    pub title: String,               // 证据标题（如「电子与智能化工程专业承包二级资质证书」）
+    pub source_file: String,         // 原文件名（TenderFile.name 引用）
+    pub source_sha256: String,       // 原文件 sha256（幂等/溯源面——引擎不做文件级指纹，标书侧算）
+    pub locator: EngineLocator,      // 引擎锚点（可回溯原文）
+    pub fingerprint: String,         // 定位时刻内容指纹（fnv64:xxxx——判内容变更）
     pub valid_from: Option<String>,  // ISO YYYY-MM-DD（None = 不适用）
     pub valid_until: Option<String>, // ISO YYYY-MM-DD（有效期——R-03 禁绑判定面）
-    pub subject_name: String,     // 主体名称（与投标人比对——不符告警）
-    pub scope: String,            // 适用范围（专业/区域/金额上限）
-    pub version: u32,             // 换版代数（同主体同证新版本 = 旧版 Superseded）
+    pub subject_name: String,        // 主体名称（与投标人比对——不符告警）
+    pub scope: String,               // 适用范围（专业/区域/金额上限）
+    pub version: u32,                // 换版代数（同主体同证新版本 = 旧版 Superseded）
     pub status: EvidenceStatus,
+
+    // ---- #117 任务 1：业绩类证据的业务面（业绩一览表数据源）。
+    //      `None` = 未录入（渲染层落【待填】，绝不落 0/空白）；
+    //      非业绩类证据不消费这三面（serde default + skip——旧快照零影响）。
+    /// 发包人/建设单位（业绩合同甲方）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client: Option<String>,
+    /// 合同金额（万元；None = 未录入）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub amount_wan: Option<f64>,
+    /// 完成/竣工日期（ISO YYYY-MM-DD 或「2024.06」口径；None = 未录入）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completed_on: Option<String>,
 }
 
 /// 证据 ↔ 条款绑定（最小面——T-2 MatrixRow 落地后由矩阵行消费）。
@@ -145,6 +161,10 @@ pub struct EvidenceSpec {
     pub valid_until: Option<String>,
     pub subject_name: String,
     pub scope: String,
+    // ---- #117 任务 1：业绩业务面（None = 未录入；非业绩类证据不消费）
+    pub client: Option<String>,
+    pub amount_wan: Option<f64>,
+    pub completed_on: Option<String>,
 }
 
 // ---------------------------------------------------------------- 纯逻辑面
@@ -198,7 +218,10 @@ fn validate_spec(spec: &EvidenceSpec) -> Result<(), ToolError> {
     fingerprint_algorithm(&spec.fingerprint)
         .map_err(|e| un(format!("证据内容指纹格式非法: {e}")))?;
     validate_locator(&spec.locator).map_err(un)?;
-    for (label, d) in [("valid_from", &spec.valid_from), ("valid_until", &spec.valid_until)] {
+    for (label, d) in [
+        ("valid_from", &spec.valid_from),
+        ("valid_until", &spec.valid_until),
+    ] {
         if let Some(v) = d {
             if !dates::is_valid_ymd(v) {
                 return Err(un(format!("{label} 非法 ISO 日期: {v:?}")));
@@ -216,15 +239,13 @@ fn validate_spec(spec: &EvidenceSpec) -> Result<(), ToolError> {
 /// 定位器结构校验（坐标域 + 区域端点序——构造面防线的最后一环）。
 pub fn validate_locator(loc: &EngineLocator) -> Result<(), String> {
     match loc {
-        EngineLocator::XlsxCell { cell, .. } => {
-            CellCoordLike::validate(cell)
-        }
-        EngineLocator::XlsxRegion { start, end, .. } => {
-            CellCoordLike::validate(start)
-                .and_then(|_| CellCoordLike::validate(end))
-                .and_then(|_| crate::locator::validate_region(start, end)
-                    .map_err(|e| format!("区域端点逆序: {e:?}")))
-        }
+        EngineLocator::XlsxCell { cell, .. } => CellCoordLike::validate(cell),
+        EngineLocator::XlsxRegion { start, end, .. } => CellCoordLike::validate(start)
+            .and_then(|_| CellCoordLike::validate(end))
+            .and_then(|_| {
+                crate::locator::validate_region(start, end)
+                    .map_err(|e| format!("区域端点逆序: {e:?}"))
+            }),
         _ => Ok(()),
     }
 }
@@ -242,7 +263,12 @@ impl CellCoordLike {
 // ---------------------------------------------------------------- DomainStore 扩面（T-1 台账操作）
 /// 语义幂等键：同主体 + 同证 + 同范围 = 同一证据语义位（换证 = 该位上版本递增）。
 fn semantic_key(ev: &Evidence) -> (EvidenceKind, String, String, String) {
-    (ev.kind, ev.title.clone(), ev.subject_name.clone(), ev.scope.clone())
+    (
+        ev.kind,
+        ev.title.clone(),
+        ev.subject_name.clone(),
+        ev.scope.clone(),
+    )
 }
 
 impl DomainStore {
@@ -252,9 +278,12 @@ impl DomainStore {
     }
 
     pub fn evidence(&self, id: &str) -> Result<&Evidence, ToolError> {
-        self.evidences.iter().find(|e| e.id == id).ok_or_else(|| ToolError::ENotFound {
-            what: format!("evidence {id} 不存在"),
-        })
+        self.evidences
+            .iter()
+            .find(|e| e.id == id)
+            .ok_or_else(|| ToolError::ENotFound {
+                what: format!("evidence {id} 不存在"),
+            })
     }
 
     pub fn evidence_bindings(&self) -> &[EvidenceBinding] {
@@ -274,9 +303,16 @@ impl DomainStore {
     pub fn register_evidence(&mut self, spec: EvidenceSpec) -> Result<(String, bool), ToolError> {
         self.project()?; // 台账挂在项目下（M1 单项目存储）
         validate_spec(&spec)?;
-        let key = (spec.kind, spec.title.clone(), spec.subject_name.clone(), spec.scope.clone());
+        let key = (
+            spec.kind,
+            spec.title.clone(),
+            spec.subject_name.clone(),
+            spec.scope.clone(),
+        );
         // 语义位查重：同 key 的最新非 Superseded 记录（rfind——从尾向头找最新版）
-        if let Some(existing) = self.evidences.iter()
+        if let Some(existing) = self
+            .evidences
+            .iter()
             .rfind(|e| semantic_key(e) == key && e.status != EvidenceStatus::Superseded)
         {
             let same_payload = existing.fingerprint == spec.fingerprint
@@ -304,6 +340,9 @@ impl DomainStore {
                 valid_until: spec.valid_until,
                 subject_name: spec.subject_name,
                 scope: spec.scope,
+                client: spec.client,
+                amount_wan: spec.amount_wan,
+                completed_on: spec.completed_on,
                 version: old_version + 1,
                 status: EvidenceStatus::Active,
             });
@@ -326,6 +365,9 @@ impl DomainStore {
             valid_until: spec.valid_until,
             subject_name: spec.subject_name,
             scope: spec.scope,
+            client: spec.client,
+            amount_wan: spec.amount_wan,
+            completed_on: spec.completed_on,
             version: 1,
             status: EvidenceStatus::Active,
         });
@@ -352,7 +394,12 @@ impl DomainStore {
             if let Some(target) = validity_flip(ev.valid_until.as_deref(), bid_open_date) {
                 let before = ev.status;
                 if ev.status.degrade_to(target) {
-                    flipped.push(format!("{}: {} -> {}", ev.id, before.as_str(), ev.status.as_str()));
+                    flipped.push(format!(
+                        "{}: {} -> {}",
+                        ev.id,
+                        before.as_str(),
+                        ev.status.as_str()
+                    ));
                 }
             }
         }
@@ -368,9 +415,12 @@ impl DomainStore {
     ///
     /// 携带开标日做即时有效性裁决（绑定时刻 = 评标口径，与 [`Self::apply_validity`]
     /// 同一翻转函数，状态变化立即生效）。重复绑定 → 幂等 no-op（true）。
-    pub fn bind_evidence(&mut self, ev_id: &str, requirement_id: &str, bid_open_date: &str)
-        -> Result<bool, ToolError>
-    {
+    pub fn bind_evidence(
+        &mut self,
+        ev_id: &str,
+        requirement_id: &str,
+        bid_open_date: &str,
+    ) -> Result<bool, ToolError> {
         self.project()?;
         if !dates::is_valid_ymd(bid_open_date) {
             return Err(ToolError::EUnprocessable {
@@ -383,7 +433,9 @@ impl DomainStore {
             });
         }
         // 即时有效性裁决（开标日口径）
-        if let Some(target) = self.evidences.iter()
+        if let Some(target) = self
+            .evidences
+            .iter()
             .find(|e| e.id == ev_id)
             .and_then(|e| validity_flip(e.valid_until.as_deref(), bid_open_date))
         {
@@ -399,7 +451,9 @@ impl DomainStore {
                 ),
             });
         }
-        if self.evidence_bindings.iter()
+        if self
+            .evidence_bindings
+            .iter()
             .any(|b| b.evidence_id == ev_id && b.requirement_id == requirement_id)
         {
             return Ok(true); // 幂等重放
@@ -416,7 +470,8 @@ impl DomainStore {
 
     /// 台账主体核验：全部主体不符项的告警清单（导入对账面——不阻断）。
     pub fn subject_warnings(&self, bidder_name: &str) -> Vec<String> {
-        self.evidences.iter()
+        self.evidences
+            .iter()
             .filter(|e| e.status != EvidenceStatus::Superseded)
             .filter_map(|e| subject_warning(e, bidder_name))
             .collect()
@@ -424,7 +479,8 @@ impl DomainStore {
 
     /// 绑定可用性快照（矩阵构建输入——T-2 将消费）：可绑证据 id 清单。
     pub fn bindable_evidence_ids(&self, bid_open_date: &str) -> Vec<String> {
-        self.evidences.iter()
+        self.evidences
+            .iter()
             .filter(|e| {
                 validity_flip(e.valid_until.as_deref(), bid_open_date)
                     .is_none_or(|t| t != EvidenceStatus::Expired) // 未翻转或翻转目标非 Expired
@@ -444,14 +500,32 @@ mod tests {
     /// 台账基座：项目 + 已抽条款（绑定需要 REQ 存在）。
     fn store_with_reqs() -> DomainStore {
         let mut s = DomainStore::new();
-        s.create_project("测试项目", "ZFCG-2026-GK-0311", "明标", "ext-key-ev").unwrap();
-        s.upsert_file("A-招标文件.docx", "招标文件", "aa", 31, 12, 120, 0,
-                      crate::ParseStatus::Ok, "").unwrap();
+        s.create_project("测试项目", "ZFCG-2026-GK-0311", "明标", "ext-key-ev")
+            .unwrap();
+        s.upsert_file(
+            "A-招标文件.docx",
+            "招标文件",
+            "aa",
+            31,
+            12,
+            120,
+            0,
+            crate::ParseStatus::Ok,
+            "",
+        )
+        .unwrap();
         let reqs = vec![crate::Requirement {
-            id: "REQ-0002".into(), category: "资格条件".into(), clause_no: Some("3.2.2".into()),
-            anchors: vec![crate::Anchor { file: "A".into(), kind: "para".into(),
-                locator: "第三章".into(), excerpt: "具备安全生产许可证".into() }],
-            params: std::collections::HashMap::new(), source_file: "A".into(),
+            id: "REQ-0002".into(),
+            category: "资格条件".into(),
+            clause_no: Some("3.2.2".into()),
+            anchors: vec![crate::Anchor {
+                file: "A".into(),
+                kind: "para".into(),
+                locator: "第三章".into(),
+                excerpt: "具备安全生产许可证".into(),
+            }],
+            params: std::collections::HashMap::new(),
+            source_file: "A".into(),
         }];
         s.set_requirements(reqs).unwrap();
         s
@@ -464,12 +538,18 @@ mod tests {
             title: "安全生产许可证".into(),
             source_file: "EV-13-安全生产许可证.pdf".into(),
             source_sha256: "cafebabe01".into(),
-            locator: EngineLocator::PdfPageText { page: 1, text_fingerprint: "fnv64:13".into() },
+            locator: EngineLocator::PdfPageText {
+                page: 1,
+                text_fingerprint: "fnv64:13".into(),
+            },
             fingerprint: "fnv64:13".into(),
             valid_from: Some("2022-08-01".into()),
             valid_until: Some("2025-08-01".into()),
             subject_name: "智慧园区科技有限公司".into(),
             scope: "全国".into(),
+            client: None,
+            amount_wan: None,
+            completed_on: None,
         }
     }
 
@@ -480,12 +560,18 @@ mod tests {
             title: "电子与智能化工程专业承包二级资质证书".into(),
             source_file: "EV-02-电子与智能化工程专业承包二级资质证书.pdf".into(),
             source_sha256: "cafebabe02".into(),
-            locator: EngineLocator::PdfPageText { page: 1, text_fingerprint: "fnv64:02".into() },
+            locator: EngineLocator::PdfPageText {
+                page: 1,
+                text_fingerprint: "fnv64:02".into(),
+            },
             fingerprint: "fnv64:02".into(),
             valid_from: Some("2021-11-25".into()),
             valid_until: Some("2026-11-25".into()),
             subject_name: "智慧园区科技有限公司".into(),
             scope: "全国".into(),
+            client: None,
+            amount_wan: None,
+            completed_on: None,
         }
     }
 
@@ -500,7 +586,10 @@ mod tests {
         let mut s = Active;
         assert!(s.degrade_to(Expiring), "Active→Expiring 放行");
         assert!(s.degrade_to(Expired), "Expiring→Expired 放行");
-        assert!(s.degrade_to(Superseded), "Expired→Superseded 放行（过期件换版淘汰）");
+        assert!(
+            s.degrade_to(Superseded),
+            "Expired→Superseded 放行（过期件换版淘汰）"
+        );
         assert_eq!(s, Superseded);
         // 上升全拒
         let mut e = Expired;
@@ -512,7 +601,10 @@ mod tests {
         assert!(!a.degrade_to(Active), "同态迁移 = 无变化");
         // 跨级跳（Active→Expired 直接过期）合法——补遗把开标日提前的场景
         let mut a2 = Active;
-        assert!(a2.degrade_to(Expired), "Active→Expired 跨级放行（开标日提前）");
+        assert!(
+            a2.degrade_to(Expired),
+            "Active→Expired 跨级放行（开标日提前）"
+        );
     }
 
     // ============================ GT 驱动测试（corpus-A evidence-links.jsonl 黄金数据） ============================
@@ -525,15 +617,27 @@ mod tests {
         let (ev_id, _) = s.register_evidence(gt02_spec()).unwrap();
         // @2026-11-15：valid_until(11-25) ≥ 开标日 → 未过期；且 < 开标日+90 天 → Expiring（可绑）
         let flipped = s.apply_validity("2026-11-15").unwrap();
-        assert_eq!(flipped, vec!["EV-0003: ACTIVE -> EXPIRING".to_string()],
-            "GT-02 @2026-11-15 → Expiring（10 天内到期，可绑 = eligible）");
-        assert!(s.evidence(&ev_id).unwrap().status.can_bind(), "Expiring 可绑");
+        assert_eq!(
+            flipped,
+            vec!["EV-0003: ACTIVE -> EXPIRING".to_string()],
+            "GT-02 @2026-11-15 → Expiring（10 天内到期，可绑 = eligible）"
+        );
+        assert!(
+            s.evidence(&ev_id).unwrap().status.can_bind(),
+            "Expiring 可绑"
+        );
         // 幂等：同日再裁决不动
-        assert!(s.apply_validity("2026-11-15").unwrap().is_empty(), "同态迁移被拒（幂等）");
+        assert!(
+            s.apply_validity("2026-11-15").unwrap().is_empty(),
+            "同态迁移被拒（幂等）"
+        );
         // @2026-11-27：valid_until(11-25) < 开标日 → Expired
         let flipped2 = s.apply_validity("2026-11-27").unwrap();
-        assert_eq!(flipped2, vec!["EV-0003: EXPIRING -> EXPIRED".to_string()],
-            "GT-02 @2026-11-27 → EXPIRED");
+        assert_eq!(
+            flipped2,
+            vec!["EV-0003: EXPIRING -> EXPIRED".to_string()],
+            "GT-02 @2026-11-27 → EXPIRED"
+        );
         assert!(!s.evidence(&ev_id).unwrap().status.can_bind(), "过期禁绑");
     }
 
@@ -544,11 +648,16 @@ mod tests {
         let mut s = store_with_reqs();
         let (ev_id, _) = s.register_evidence(gt13_spec()).unwrap();
         // 直接绑定（携带开标日做即时裁决——不经 apply_validity 前置）
-        let err = s.bind_evidence(&ev_id, "REQ-0002", "2026-11-15").unwrap_err();
+        let err = s
+            .bind_evidence(&ev_id, "REQ-0002", "2026-11-15")
+            .unwrap_err();
         assert_eq!(err.code(), "E_UNPROCESSABLE", "GT-13 过期禁绑 → R-03");
         assert!(format!("{err:?}").contains("禁止绑定"));
-        assert_eq!(s.evidence(&ev_id).unwrap().status, EvidenceStatus::Expired,
-            "绑定尝试本身已触发即时翻转（开标日口径）");
+        assert_eq!(
+            s.evidence(&ev_id).unwrap().status,
+            EvidenceStatus::Expired,
+            "绑定尝试本身已触发即时翻转（开标日口径）"
+        );
         assert!(s.evidence_bindings().is_empty(), "拒绝路径零绑定残留");
     }
 
@@ -558,7 +667,9 @@ mod tests {
         let mut s = store_with_reqs();
         let (ev_id, _) = s.register_evidence(gt02_spec()).unwrap();
         // REQ 不存在 → E_NOTFOUND
-        let err = s.bind_evidence(&ev_id, "REQ-9999", "2026-11-15").unwrap_err();
+        let err = s
+            .bind_evidence(&ev_id, "REQ-9999", "2026-11-15")
+            .unwrap_err();
         assert_eq!(err.code(), "E_NOTFOUND");
         assert!(s.evidence_bindings().is_empty());
         // 正常绑定（2026-11-15 → Expiring 可绑）
@@ -614,15 +725,24 @@ mod tests {
             title: "营业执照".into(),
             source_file: "EV-01-营业执照.pdf".into(),
             source_sha256: "cafebabe01x".into(),
-            locator: EngineLocator::PdfPageText { page: 1, text_fingerprint: "fnv64:01".into() },
+            locator: EngineLocator::PdfPageText {
+                page: 1,
+                text_fingerprint: "fnv64:01".into(),
+            },
             fingerprint: "fnv64:01".into(),
-            valid_from: None, valid_until: None,
+            valid_from: None,
+            valid_until: None,
             subject_name: "智慧园区科技有限公司".into(),
             scope: "全国".into(),
+            client: None,
+            amount_wan: None,
+            completed_on: None,
         };
         let (id, _) = s.register_evidence(spec).unwrap();
-        assert!(s.apply_validity("2099-01-01").unwrap().is_empty(),
-            "无 valid_until → 任何评标基准日都不翻转（GT-01 eligible 语义）");
+        assert!(
+            s.apply_validity("2099-01-01").unwrap().is_empty(),
+            "无 valid_until → 任何评标基准日都不翻转（GT-01 eligible 语义）"
+        );
         assert_eq!(s.evidence(&id).unwrap().status, EvidenceStatus::Active);
         s.bind_evidence(&id, "REQ-0002", "2099-01-01").unwrap();
         assert_eq!(s.evidence_bindings().len(), 1, "长期件可绑");
@@ -637,10 +757,15 @@ mod tests {
         s.register_evidence(spec).unwrap();
         let warns = s.subject_warnings("智慧园区科技有限公司");
         assert_eq!(warns.len(), 1);
-        assert!(warns[0].contains("EVIDENCE_SUBJECT_MISMATCH"), "告警码可被调用方分支");
+        assert!(
+            warns[0].contains("EVIDENCE_SUBJECT_MISMATCH"),
+            "告警码可被调用方分支"
+        );
         assert!(warns[0].contains("集团"), "主体名双呈现（人工裁决素材）");
         // 一致时零告警
-        assert!(s.subject_warnings("智慧园区科技集团股份有限公司").is_empty());
+        assert!(s
+            .subject_warnings("智慧园区科技集团股份有限公司")
+            .is_empty());
     }
 
     /// 登记参数校验面（诚实状态——非法输入 E_UNPROCESSABLE，零入库）。
@@ -655,24 +780,33 @@ mod tests {
         assert_eq!(err.code(), "E_UNPROCESSABLE", "指纹缺前缀拒");
         assert_eq!(s.evidences().len(), n_before, "拒绝路径零入库");
         // 其余校验分支
-        let mut sp1 = gt13_spec(); sp1.valid_until = Some("2026-13-40".into());
+        let mut sp1 = gt13_spec();
+        sp1.valid_until = Some("2026-13-40".into());
         assert!(s.register_evidence(sp1).is_err(), "非法 ISO 日期拒");
-        let mut sp2 = gt13_spec(); sp2.valid_from = Some("2026-01-01".into()); sp2.valid_until = Some("2025-01-01".into());
+        let mut sp2 = gt13_spec();
+        sp2.valid_from = Some("2026-01-01".into());
+        sp2.valid_until = Some("2025-01-01".into());
         assert!(s.register_evidence(sp2).is_err(), "from > until 拒");
-        let mut sp3 = gt13_spec(); sp3.title = "  ".into();
+        let mut sp3 = gt13_spec();
+        sp3.title = "  ".into();
         assert!(s.register_evidence(sp3).is_err(), "空标题拒");
-        let mut sp4 = gt13_spec(); sp4.subject_name = String::new();
+        let mut sp4 = gt13_spec();
+        sp4.subject_name = String::new();
         assert!(s.register_evidence(sp4).is_err(), "空主体拒");
         let mut sp5 = gt13_spec();
         sp5.locator = EngineLocator::XlsxRegion {
             sheet: "报价表".into(),
-            start: CellCoord("B2".into()), end: CellCoord("A1".into()), // 逆序区域
+            start: CellCoord("B2".into()),
+            end: CellCoord("A1".into()), // 逆序区域
             region_fingerprint: "fnv64:xx".into(),
         };
         assert!(s.register_evidence(sp5).is_err(), "区域端点逆序拒");
         // 台账前置：无项目 → E_NOTFOUND
         let mut empty = DomainStore::new();
-        assert!(matches!(empty.register_evidence(gt13_spec()), Err(ToolError::ENotFound { .. })));
+        assert!(matches!(
+            empty.register_evidence(gt13_spec()),
+            Err(ToolError::ENotFound { .. })
+        ));
     }
 
     /// bindable 快照面：T-2 矩阵构建的输入（GT-02 可绑 / GT-13 不可绑并存的判定）。

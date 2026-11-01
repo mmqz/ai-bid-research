@@ -139,6 +139,9 @@ fn evidence_store(n: usize) -> (BidService, String) {
                 valid_until: Some(valid_until.into()),
                 subject_name: "投标人甲".into(),
                 scope: "全类型".into(),
+                client: None,
+                amount_wan: None,
+                completed_on: None,
             })
             .unwrap();
         }
@@ -162,6 +165,9 @@ fn evidence_store(n: usize) -> (BidService, String) {
                 valid_until: Some("2027-06-01".into()),
                 subject_name: "投标人甲".into(),
                 scope: "全类型".into(),
+                client: None,
+                amount_wan: None,
+                completed_on: None,
             })
             .unwrap();
     }

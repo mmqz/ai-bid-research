@@ -97,7 +97,11 @@ pub fn import_files(
     parsed: &mut Vec<ParsedFile>,
     specs: &[ImportSpec],
 ) -> ImportReport {
-    let mut report = ImportReport { per_file: Vec::with_capacity(specs.len()), item_failures: 0, new_records: 0 };
+    let mut report = ImportReport {
+        per_file: Vec::with_capacity(specs.len()),
+        item_failures: 0,
+        new_records: 0,
+    };
     for spec in specs {
         // 不可读 upload_ref：无文件身份——不落库（空 sha 会污染幂等键空间），逐件失败登记
         let sha = match sha256_file(&spec.upload_ref) {
@@ -159,10 +163,12 @@ pub fn import_files(
         // docs/b3-3-r3-acceptance-report.md（嵌套表 mdcore#39 已修复）。
         let ext = file_extension(&spec.upload_ref, &spec.filename);
         let parsed_result = match ext.as_str() {
-            "docx" => bid_engine::parse_docx_via_engine(&spec.upload_ref)
-                .map_err(|e| e.to_string()),
-            "xlsx" => bid_engine::parse_xlsx_via_engine(&spec.upload_ref)
-                .map_err(|e| e.to_string()),
+            "docx" => {
+                bid_engine::parse_docx_via_engine(&spec.upload_ref).map_err(|e| e.to_string())
+            }
+            "xlsx" => {
+                bid_engine::parse_xlsx_via_engine(&spec.upload_ref).map_err(|e| e.to_string())
+            }
             // B3-5：pdf 引擎通道（pdfium 文本层）——扫描件（MappingGap）或
             // 无 pdfium（EngineFailed）回退旧 pdftotext/OCR 路径（映射表 §3）
             "pdf" => bid_engine::parse_pdf_via_engine(&spec.upload_ref)
@@ -171,12 +177,24 @@ pub fn import_files(
         };
         match parsed_result {
             Ok(p) => {
-                let status = if p.has_text_layer { ParseStatus::Ok } else { ParseStatus::OcrRequired };
+                let status = if p.has_text_layer {
+                    ParseStatus::Ok
+                } else {
+                    ParseStatus::OcrRequired
+                };
                 let chunks = p.blocks.len();
                 let (ocr_blocks, pages, tables) = (p.ocr_blocks, p.pages, p.tables);
                 let summary = p.parse_summary.clone();
                 let (fid, _) = match store.upsert_file(
-                    &spec.filename, &spec.kind, &sha, pages, tables, chunks, ocr_blocks, status, &summary,
+                    &spec.filename,
+                    &spec.kind,
+                    &sha,
+                    pages,
+                    tables,
+                    chunks,
+                    ocr_blocks,
+                    status,
+                    &summary,
                 ) {
                     Ok(v) => v,
                     Err(e) => {
@@ -185,7 +203,10 @@ pub fn import_files(
                             file_id: None,
                             filename: spec.filename.clone(),
                             sha256: sha.clone(),
-                            pages, tables, chunks, ocr_blocks,
+                            pages,
+                            tables,
+                            chunks,
+                            ocr_blocks,
                             ocr_tier: ocr_tier_of(status, ocr_blocks),
                             parse_status: status,
                             deduplicated: false,
@@ -224,7 +245,15 @@ pub fn import_files(
             Err(e) => {
                 // R3-S2-4 / R-01：失败件显式登记（Failed + 禁引）+ 继续——不整批中止
                 let (fid, _) = match store.upsert_file(
-                    &spec.filename, &spec.kind, &sha, 0, 0, 0, 0, ParseStatus::Failed, &e,
+                    &spec.filename,
+                    &spec.kind,
+                    &sha,
+                    0,
+                    0,
+                    0,
+                    0,
+                    ParseStatus::Failed,
+                    &e,
                 ) {
                     Ok(v) => v,
                     Err(e2) => {
@@ -233,7 +262,10 @@ pub fn import_files(
                             file_id: None,
                             filename: spec.filename.clone(),
                             sha256: sha.clone(),
-                            pages: 0, tables: 0, chunks: 0, ocr_blocks: 0,
+                            pages: 0,
+                            tables: 0,
+                            chunks: 0,
+                            ocr_blocks: 0,
                             ocr_tier: "n/a",
                             parse_status: ParseStatus::Failed,
                             deduplicated: false,
@@ -285,7 +317,11 @@ pub struct BidService {
 impl BidService {
     #[must_use]
     pub fn new() -> Self {
-        Self { store: DomainStore::new(), parsed: vec![], persist: None }
+        Self {
+            store: DomainStore::new(),
+            parsed: vec![],
+            persist: None,
+        }
     }
 
     /// 打开（或首启创建）持久化服务态：目录有 `db.json` 则恢复（重启续跑——
@@ -298,11 +334,19 @@ impl BidService {
         };
         let store = match snap {
             Some(s) => DomainStore::restore(s).map_err(|e| {
-                crate::store_io::StoreIoError::Corrupt(format!("域语义不完整: {} {:?}", e.code(), e))
+                crate::store_io::StoreIoError::Corrupt(format!(
+                    "域语义不完整: {} {:?}",
+                    e.code(),
+                    e
+                ))
             })?,
             None => DomainStore::new(),
         };
-        Ok(Self { store, parsed, persist: Some(sf) })
+        Ok(Self {
+            store,
+            parsed,
+            persist: Some(sf),
+        })
     }
 
     /// 显式落盘（幂等纯 IO——外部对账/退出前钩子用；写路径已自动 checkpoint）。
@@ -340,15 +384,23 @@ impl BidService {
     }
 
     /// `create_bid_project` 业务执行（T-8：持久化在场时写后自动落盘）。
-    pub fn create_project(&mut self, name: &str, code: &str, mode: &str,
-                          external_key: &str) -> Result<(String, serde_json::Value), ToolError> {
+    pub fn create_project(
+        &mut self,
+        name: &str,
+        code: &str,
+        mode: &str,
+        external_key: &str,
+    ) -> Result<(String, serde_json::Value), ToolError> {
         let r = self.store.create_project(name, code, mode, external_key)?;
         self.auto_checkpoint()?;
         Ok(r)
     }
 
     /// `extract_requirements` 落库半边（T-8：持久化在场时写后自动落盘）。
-    pub fn set_requirements(&mut self, reqs: Vec<Requirement>) -> Result<(usize, usize), ToolError> {
+    pub fn set_requirements(
+        &mut self,
+        reqs: Vec<Requirement>,
+    ) -> Result<(usize, usize), ToolError> {
         let r = self.store.set_requirements(reqs)?;
         self.auto_checkpoint()?;
         Ok(r)
@@ -425,16 +477,11 @@ impl BidService {
         gate: bid_domain::review::Gate,
         reviewer: &str,
         decision: bid_domain::review::Decision,
-        findings: Vec<(
-            bid_domain::review::Severity,
-            String,
-            String,
-            Option<String>,
-        )>,
+        findings: Vec<(bid_domain::review::Severity, String, String, Option<String>)>,
     ) -> Result<bid_domain::review::ReviewReceipt, ToolError> {
-        let receipt =
-            self.store
-                .record_review(gate, reviewer, decision, findings)?;
+        let receipt = self
+            .store
+            .record_review(gate, reviewer, decision, findings)?;
         self.auto_checkpoint()?;
         Ok(receipt)
     }
@@ -447,7 +494,7 @@ impl BidService {
         Ok(report)
     }
 
-    /// `export_bid_document` 业务半边（#59 阶段 2）。
+    /// `export_bid_document` 业务半边（#59 阶段 2 + #117 任务 1 表格接线）。
     ///
     /// 步骤：
     /// 1. **双前置门**（防废标的最后关口——fail-closed）：
@@ -456,8 +503,12 @@ impl BidService {
     /// 2. format-spec 解析：`.mang/format-spec.json` 在场 → 读盘校验；
     ///    缺失 → `derive_from_requirements`（从格式条款提取；零命中 → 基线
     ///    + warning，Lead 铁律「不硬编码」的降级面）；
+    /// 2b. #117：主体信息装载（工作区 bidder-profile.json；缺档 → 空档 +
+    ///    响亮告警——人员/设备表与格式件字段落【待填】，不编造）+ 表格/
+    ///    格式件附加件派生（store + profile + 投标决策 → [`crate::export::
+    ///    build_export_extras`]）；
     /// 3. `DocumentExporter::export_with`（S-6 既有导出面 + format-spec 应用
-    ///    + 暗标脱敏）；
+    ///    + 暗标脱敏 + #117 表格注入/附表）；
     /// 4. 状态推进 EXPORTED（合法链补齐——Drafting 起的完整链）；
     /// 5. checkpoint。
     ///
@@ -468,6 +519,7 @@ impl BidService {
         format: &str,
         anonymize: Option<&str>,
         output_path: &std::path::Path,
+        decision: &crate::export::ExportDecision,
     ) -> Result<crate::export::ExportOutcome, ToolError> {
         // ---- 0. format 面（docx 直达；pdf 走 docx 链 + soffice 转换——
         //      其他诚实拒）
@@ -490,12 +542,42 @@ impl BidService {
         let anonymize_effective = match anonymize {
             Some(bidder) if bidder.trim().is_empty() => {
                 warnings.push(
-                    "暗标模式但 bidder_name 为空——正文未做公司名脱敏（补 bidder_name 后重导）".into(),
+                    "暗标模式但 bidder_name 为空——正文未做公司名脱敏（补 bidder_name 后重导）"
+                        .into(),
                 );
                 None
             }
             other => other,
         };
+
+        // ---- 2b. #117 任务 1：主体信息 + 表格/格式件附加件
+        //      （bidder-profile.json 是人工填表真源——工作区在位就消费；
+        //      缺档/字段缺 → 【待填】+ 告警，绝不编造）
+        let ws_for_profile = self.workspace_dir();
+        let (profile, profile_warn) = match &ws_for_profile {
+            Some(ws) => match bid_domain::party::BidderProfile::load(ws) {
+                Ok(p) => (p, None),
+                Err(bid_domain::party::FormError::Io { .. }) => (
+                    bid_domain::party::BidderProfile::default(),
+                    Some("主体信息未建档（工作区无 bidder-profile.json）——人员/设备表与格式件字段将落【待填】".to_string()),
+                ),
+                Err(e) => {
+                    return Err(ToolError::EUnprocessable {
+                        reason: format!("bidder-profile.json 解析失败: {e}"),
+                    })
+                }
+            },
+            None => (
+                bid_domain::party::BidderProfile::default(),
+                Some("纯内存态无工作区——主体信息不可用，人员/设备表与格式件字段将落【待填】".to_string()),
+            ),
+        };
+        if let Some(w) = profile_warn {
+            warnings.push(w);
+        }
+        let (extras, extras_warnings) =
+            crate::export::build_export_extras(&self.store, &profile, decision);
+        warnings.extend(extras_warnings);
 
         // ---- 3. 导出（S-6 既有面 + 选项）。pdf 面：docx 落工作区临时位 →
         //      soffice 转换（阶段 7 Lead 路线 A：LibreOffice headless 保真度
@@ -505,15 +587,19 @@ impl BidService {
             self.store.sections(),
             self.store.evidences(),
         );
-        let dir = self.workspace_dir().ok_or_else(|| ToolError::EUnprocessable {
-            reason: "导出需要持久化工作区（BidService::open 建立的服务态才有章内容可导）".into(),
-        })?;
+        let dir = self
+            .workspace_dir()
+            .ok_or_else(|| ToolError::EUnprocessable {
+                reason: "导出需要持久化工作区（BidService::open 建立的服务态才有章内容可导）"
+                    .into(),
+            })?;
         // 路径逃逸校验（拿到工作区后才可判前缀）
         validate_output_path(&dir, output_path)?;
         let opts = crate::export::ExportOptions {
             format_spec: Some(&spec),
             project_name: self.store.project()?.name.clone(),
             anonymize: anonymize_effective,
+            extras: Some(&extras),
         };
         let (docx_path, final_path) = if format == "pdf" {
             // docx 先落工作区内部位（out/.pdf-staging/{stem}.docx——不入用户
@@ -522,8 +608,14 @@ impl BidService {
             std::fs::create_dir_all(&staging).map_err(|e| ToolError::EUnprocessable {
                 reason: format!("PDF staging 目录创建失败: {e}"),
             })?;
-            let stem = output_path.file_stem().and_then(|s| s.to_str()).unwrap_or("标书");
-            (staging.join(format!("{stem}.docx")), output_path.to_path_buf())
+            let stem = output_path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("标书");
+            (
+                staging.join(format!("{stem}.docx")),
+                output_path.to_path_buf(),
+            )
         } else {
             (output_path.to_path_buf(), output_path.to_path_buf())
         };
@@ -558,7 +650,10 @@ impl BidService {
             }
             // 报告的 sha 面对最终产物（pdf）——docx 的 sha 是中间件
             let sha = sha256_of(&final_path)?;
-            crate::export::ExportReport { output_sha256: sha, ..report }
+            crate::export::ExportReport {
+                output_sha256: sha,
+                ..report
+            }
         } else {
             report
         };
@@ -611,9 +706,10 @@ impl BidService {
         if let Some(dir) = self.workspace_dir() {
             let spec_path = dir.join(".mang").join("format-spec.json");
             if spec_path.is_file() {
-                let raw = std::fs::read_to_string(&spec_path).map_err(|e| ToolError::EUnprocessable {
-                    reason: format!("format-spec.json 读取失败: {e}"),
-                })?;
+                let raw =
+                    std::fs::read_to_string(&spec_path).map_err(|e| ToolError::EUnprocessable {
+                        reason: format!("format-spec.json 读取失败: {e}"),
+                    })?;
                 let spec: crate::format_spec::FormatSpec = serde_json::from_str(&raw)
                     .map_err(|e| ToolError::EUnprocessable {
                         reason: format!("format-spec.json 解析失败（schema 见 docs / format_spec.rs serde 面）: {e}"),
@@ -621,7 +717,9 @@ impl BidService {
                 validate(&spec).map_err(|e| ToolError::EUnprocessable {
                     reason: format!("format-spec.json 域校验失败: {e}"),
                 })?;
-                warnings.push("format-spec 从 .mang/format-spec.json 装载（手写 spec 优先于条款提取）".into());
+                warnings.push(
+                    "format-spec 从 .mang/format-spec.json 装载（手写 spec 优先于条款提取）".into(),
+                );
                 return Ok(spec);
             }
         }
@@ -654,7 +752,10 @@ impl Default for BidService {
 /// 拒绝形态：
 ///   - 任意位置的父级分量 `..`（逃出工作区）
 ///   - 绝对路径且不以工作区为前缀（写到盘上任意位置 = 任意写权限）
-fn validate_output_path(workspace: &std::path::Path, output: &std::path::Path) -> Result<(), ToolError> {
+fn validate_output_path(
+    workspace: &std::path::Path,
+    output: &std::path::Path,
+) -> Result<(), ToolError> {
     for comp in output.components() {
         if matches!(comp, std::path::Component::ParentDir) {
             return Err(ToolError::EUnprocessable {
@@ -698,7 +799,10 @@ fn advance_project_to_exported(store: &mut DomainStore) -> Result<(), ToolError>
         ReadyToExport => &[Exported],
         Exported => &[],
         Draft | FilesImported | RequirementsExtracted | MatrixReady | EvidenceBound => {
-            return Err(ToolError::EState { current: cur, attempted: "advance_project_status" });
+            return Err(ToolError::EState {
+                current: cur,
+                attempted: "advance_project_status",
+            });
         }
     };
     for to in steps {
@@ -743,20 +847,22 @@ fn which_software(name: &str) -> Option<std::path::PathBuf> {
 ///   （soffice 的用户锁会让并发转换串行化甚至死锁——隔离后并发安全）；
 /// - 页眉页脚页码 / 中文字体嵌入：Writer 渲染管线承载（docx 的 sectPr/
 ///   header/footer/字体声明 → PDF 对象流——非嵌入中文由系统字体子集化）。
-fn convert_to_pdf(docx: &std::path::Path, out_pdf: &std::path::Path)
-    -> Result<(), String>
-{
+fn convert_to_pdf(docx: &std::path::Path, out_pdf: &std::path::Path) -> Result<(), String> {
     let soffice = which_software("soffice")
         .or_else(|| which_software("libreoffice"))
-        .ok_or_else(|| "soffice/libreoffice 不在 PATH（环境缺失——SKIP 面，非业务失败）".to_string())?;
+        .ok_or_else(|| {
+            "soffice/libreoffice 不在 PATH（环境缺失——SKIP 面，非业务失败）".to_string()
+        })?;
     let outdir = out_pdf.parent().unwrap_or(std::path::Path::new("."));
     std::fs::create_dir_all(outdir).map_err(|e| format!("输出目录创建失败: {e}"))?;
     // profile 隔离位（每次调用独立——并发安全；用 pid+nanos 防撞）
     let profile = std::env::temp_dir().join(format!(
         "bid-soffice-{}-{}",
         std::process::id(),
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos()).unwrap_or(0),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0),
     ));
     let conv_out = profile.join("out");
     std::fs::create_dir_all(&conv_out).map_err(|e| format!("转换目录创建失败: {e}"))?;
@@ -769,8 +875,10 @@ fn convert_to_pdf(docx: &std::path::Path, out_pdf: &std::path::Path)
         .arg("--headless")
         .arg("--norestore")
         .arg(format!("-env:UserInstallation={profile_url}"))
-        .arg("--convert-to").arg("pdf")
-        .arg("--outdir").arg(&conv_out)
+        .arg("--convert-to")
+        .arg("pdf")
+        .arg("--outdir")
+        .arg(&conv_out)
         .arg(docx)
         .output()
         .map_err(|e| format!("soffice 启动失败: {e}"))?;
@@ -791,13 +899,19 @@ fn convert_to_pdf(docx: &std::path::Path, out_pdf: &std::path::Path)
     if !produced.is_file() {
         // 诊断面：soffice 的 convert 消息打在 stdout（含它实际写的路径）——
         // 「声称成功但产物缺失」时带出实际落点
-        let ls = std::fs::read_dir(&conv_out).ok()
-            .map(|rd| rd.filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().into_owned())
-                .collect::<Vec<_>>().join(", "))
+        let ls = std::fs::read_dir(&conv_out)
+            .ok()
+            .map(|rd| {
+                rd.filter_map(|e| e.ok())
+                    .map(|e| e.file_name().to_string_lossy().into_owned())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            })
             .unwrap_or_default();
         return Err(format!(
             "soffice 声称成功但产物缺失（期望 {}；outdir 内容: [{}]；stdout: {}；stderr: {}）",
-            produced.display(), ls,
+            produced.display(),
+            ls,
             stdout.chars().take(300).collect::<String>(),
             stderr.chars().take(200).collect::<String>()
         ));

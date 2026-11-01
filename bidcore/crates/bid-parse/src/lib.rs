@@ -40,6 +40,7 @@ pub mod numbering;
 pub mod nesting;
 pub mod pdf;
 pub mod pdf_text;
+pub mod review_table;
 pub mod veto_lexicon;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

@@ -655,6 +655,207 @@ fn e2e_artifacts_synth_tender() {
         "⑨ 负偏离告警在场: {:?}",
         export_docx["warnings"]
     );
+    // #117 任务 2 验收线：七件格式件全部进 docx（forms_written 由导出器
+    // 对账——深入 XML 的断言见下方 ⑨.5）
+    assert_eq!(
+        export_docx["forms_written"],
+        json!(7),
+        "⑨ 七件格式件全部进 docx: {:?}",
+        export_docx["form_titles"]
+    );
+    for title in [
+        "附件一、投标函",
+        "附件二、法定代表人身份证明书",
+        "附件三、授权委托书",
+        "附件四、投标保证金退还申请",
+        "附件五、资格声明",
+        "附件六、无重大违法记录声明",
+        "附件七、廉洁承诺书",
+    ] {
+        assert!(
+            export_docx["form_titles"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|t| t == title),
+            "⑨ 格式件缺 {:?}: {:?}",
+            title,
+            export_docx["form_titles"]
+        );
+    }
+
+    // ---- ⑨.5 #117 任务 3：产物 XML 深断言（不信任工具返回值——直接解包
+    //      docx 数字节；失败信息带实际 vs 期望，issue 验收线逐条落）
+    let docx_xml = docx_document_xml(std::path::Path::new(&docx_url));
+    let tech_req_count = reqs.iter().filter(|r| r.category == "技术参数").count();
+    // (a) <w:tbl> == 6
+    let tables_actual = count_occurrences(&docx_xml, "<w:tbl>");
+    assert_eq!(
+        tables_actual, 6,
+        "⑨.5 docx 真表格数：实际 {tables_actual} vs 期望 6（六表应全部成 <w:tbl>，不是 markdown 残文本）"
+    );
+    // (b) 七件格式件关键词（docx 正文面）
+    let form_probes = [
+        "附件一、投标函",
+        "附件二、法定代表人身份证明书",
+        "附件三、授权委托书",
+        "附件四、投标保证金退还申请",
+        "附件五、资格声明",
+        "附件六、无重大违法记录声明",
+        "附件七、廉洁承诺书",
+    ];
+    for probe in form_probes {
+        assert!(
+            docx_xml.contains(probe),
+            "⑨.5 格式件关键词「{probe}」不在 document.xml（实际命中 {}/7）",
+            form_probes.iter().filter(|x| docx_xml.contains(*x)).count()
+        );
+    }
+    // (c) 技术参数偏离表行数 ≥ 技术参数 REQ 数（每 REQ 至少一行）
+    let dev_rows = table_rows_after(&docx_xml, "技术参数偏离表");
+    assert!(
+        dev_rows >= tech_req_count,
+        "⑨.5 偏离表数据行：实际 {dev_rows} vs 期望 ≥ {tech_req_count}（技术参数 REQ 数）"
+    );
+    // (d) 负偏离整行标红：1 行 × 5 格 = 5 个红 run（e2e 植入恰 1 条负偏离）
+    let red_actual = count_occurrences(&docx_xml, "<w:color w:val=\"FF0000\" />");
+    assert_eq!(
+        red_actual, 5,
+        "⑨.5 红色 run 数：实际 {red_actual} vs 期望 5（负偏离行整行 5 格标红）"
+    );
+    // (e) 报价合计与 bid_amount 一致（评标否决点：报价不唯一）
+    assert!(
+        docx_xml.contains("15,800,000.00"),
+        "⑨.5 报价明细表合计 15,800,000.00 不在 document.xml（与 bid_amount 不一致）"
+    );
+    // (f) 表格标题不带 markdown 星号（渲染面干净）
+    let asterisk_actual = count_occurrences(&docx_xml, "**");
+    assert_eq!(
+        asterisk_actual, 0,
+        "⑨.5 markdown 星号字面量：实际 {asterisk_actual} vs 期望 0（表格标题应渲染为粗体段）"
+    );
+    // (g) 投标函大写金额（确定性换写）
+    assert!(
+        docx_xml.contains("壹仟伍佰捌拾万元整"),
+        "⑨.5 投标函大写金额「壹仟伍佰捌拾万元整」不在 document.xml"
+    );
+    // (h) #127 P0-3 ①：格式件区真实性（防关键词假阳性——「附件一、投标函」
+    //     出现在正文引用里也算 contains 命中；真格式件是 **Heading2 样式段**，
+    //     且其后正文不是「针对 [REQ-」的响应句式（那是章节正文的形态）
+    for probe in ["附件一、投标函", "附件三、授权委托书"] {
+        let idx = docx_xml.find(probe).unwrap_or_else(|| panic!("⑨.5 {probe} 不在 docx"));
+        // 标题所在段落必须带 Heading2 样式（append_form 的渲染口径）。
+        // 段落开标签形态：`<w:p w14:paraId="…">`（导出层统一重排 paraId——
+        // 全部带属性，无 `<w:p>` 裸形态；带空格查找不误中 `<w:pPr>`）
+        let para_start = docx_xml[..idx]
+            .rfind("<w:p ")
+            .or_else(|| docx_xml[..idx].rfind("<w:p>"))
+            .unwrap();
+        let para = &docx_xml[para_start..idx + probe.len()];
+        assert!(
+            para.contains("Heading2"),
+            "⑨.5 {probe} 的段落必须是 Heading2（真格式件标题，非正文引用）"
+        );
+        // 标题后 400 字符内不是「针对 [REQ-」句式（格式件正文形态分界）
+        let after = &docx_xml[idx + probe.len()..idx + probe.len() + 400];
+        assert!(
+            !after.contains("针对 [REQ-"),
+            "⑨.5 {probe} 后紧跟响应句式（格式件区被章节正文污染）"
+        );
+    }
+    // (i) #127 P0-3 ③：否决项不进正文（P0-1 语义）——「否决项」不得以
+    //     章节标题形态出现（正文提及「否决情形」词是合法的承诺话术）
+    for node in svc.store().sections() {
+        assert!(
+            !node.title.contains("否决项"),
+            "⑨.5 章节标题不得是「否决项」（P0-1：评标规则不进正文）: {}",
+            node.title
+        );
+    }
+    // 「资格与响应」组在场（否决项/资格条件的响应去向——P0-1 验收线）
+    assert!(
+        svc.store().sections().iter().any(|n| n.title.contains("资格与响应")),
+        "⑨.5 「资格与响应」组不在大纲（否决项/资格条件的响应章节缺失）"
+    );
+    assert!(
+        docx_xml.contains("资格与响应"),
+        "⑨.5 「资格与响应」标题不在 docx（响应组未渲染）"
+    );
+    // 合规矩阵 blocker == 0（e2e 全素材就绪——有 blocker = 废标风险直传产物）
+    let blockers: Vec<_> = svc
+        .store()
+        .matrix()
+        .iter()
+        .filter(|r| r.blocking)
+        .collect();
+    assert!(
+        blockers.is_empty(),
+        "⑨.5 合规矩阵存在 {} 条 blocking（废标风险直传产物）: {:?}",
+        blockers.len(),
+        blockers.iter().map(|r| &r.requirement_id).collect::<Vec<_>>()
+    );
+    // (j) #127 P0-3 ①：章节数与 outline 一致——docx 的 Heading1 段**文本集** ==
+    //     outline 根章标题集 + 「附表」（标题级对账，比计数强——防错位重排；
+    //     段内可含 pageBreakBefore 等排版属性，故按段提取文本而非精确串匹配）
+    let h1_titles: Vec<String> = docx_xml
+        .split("<w:p ")
+        .filter(|seg| seg.contains("w:val=\"Heading1\""))
+        .filter_map(|seg| {
+            // 段内全部 <w:t> 文本拼接（标题可能被多 run 切分）
+            let end = seg.find("</w:p>").unwrap_or(seg.len());
+            let body = &seg[..end];
+            let mut s = String::new();
+            let mut rest = body;
+            while let Some(t) = rest.find("<w:t") {
+                let after = &rest[t..];
+                let open_end = after.find('>').unwrap_or(after.len());
+                let close = after[open_end..].find("</w:t>").unwrap_or(after.len());
+                s.push_str(&after[open_end + 1..open_end + close]);
+                rest = &rest[t + open_end + 1 + close..];
+            }
+            if s.is_empty() { None } else { Some(s) }
+        })
+        .collect();
+    let outline_roots: Vec<&str> = svc
+        .store()
+        .sections()
+        .iter()
+        .filter(|n| n.parent_id.is_none())
+        .map(|n| n.title.as_str())
+        .collect();
+    assert!(!outline_roots.is_empty(), "⑨.5 outline 根章非空（空大纲何谈对账）");
+    for title in &outline_roots {
+        assert!(
+            h1_titles.iter().any(|t| t == title),
+            "⑨.5 根章「{title}」未以 Heading1 渲染（docx H1 集: {h1_titles:?}）"
+        );
+    }
+    // 附表 = 根章之外的导出层追加部分（无锚定表格的回落）
+    assert!(
+        h1_titles.iter().any(|t| t == "附表"),
+        "⑨.5 「附表」部分未以 Heading1 渲染（docx H1 集: {h1_titles:?}）"
+    );
+    assert_eq!(
+        h1_titles.len(),
+        outline_roots.len() + 1,
+        "⑨.5 docx Heading1 段数 = outline 根章 {} + 附表 1，实际 {}: {h1_titles:?}",
+        outline_roots.len(),
+        h1_titles.len()
+    );
+    // 12 号产物数据（#117 任务 3——数字进报告，人工可核）
+    let export_check = json!({
+        "source": "07_export.docx/word/document.xml",
+        "tables_total": { "expected": 6, "actual": tables_actual },
+        "tech_deviation_rows": { "expected_min": tech_req_count, "actual": dev_rows },
+        "red_runs": { "expected": 5, "actual": red_actual },
+        "form_titles_found": form_probes.iter().filter(|x| docx_xml.contains(*x)).count(),
+        "price_total_matches_bid": docx_xml.contains("15,800,000.00"),
+        "markdown_asterisk_leak": asterisk_actual,
+        // #127 P0-3 ①/③ 增量面
+        "heading1_vs_outline_roots": { "docx": h1_titles.len(), "outline": outline_roots.len() },
+        "response_group_present": docx_xml.contains("资格与响应"),
+        "matrix_blocking": blockers.len(),
+    });
     let (pdf_url, pdf_size, pdf_note) = if soffice_ok {
         let e = ok_result(call(
             &mut svc,
@@ -790,6 +991,7 @@ fn e2e_artifacts_synth_tender() {
     }
     write_json(&art.join("09_validation.json"), &validation);
     write_json(&art.join("11_self-score.json"), &self_score);
+    write_json(&art.join("12_export-check.json"), &export_check);
 
     // 10_report.md —— 耗时/字数/警告（人读总结）
     let mut rep = String::new();
@@ -859,7 +1061,11 @@ fn e2e_artifacts_synth_tender() {
     ));
     rep.push_str("| 09 | 09_validation.json | 合规校验 |\n");
     rep.push_str("| 11 | 11_self-score.json | 整本自评（B2 接线：技术/商务/价格/逐项明细；无报价 → price=null） |\n");
+    rep.push_str("| 12 | 12_export-check.json | 产物 XML 深检（#117 任务 3：<w:tbl> 数/偏离表行数/红 run/格式件关键词/报价一致性） |\n");
     rep.push_str("| 10 | 10_report.md | 本报告 |\n");
+    rep.push_str(&format!(
+        "- 产物深检（#117）：<w:tbl> {tables_actual}/6｜偏离表 {dev_rows} 行（≥{tech_req_count} REQ）｜红 run {red_actual}/5｜格式件 7/7｜报价合计=bid_amount｜星号残留 {asterisk_actual}\n"
+    ));
     std::fs::write(art.join("10_report.md"), rep).unwrap();
     tim.mark("10_产物落盘", &t);
 
@@ -889,6 +1095,35 @@ fn e2e_artifacts_synth_tender() {
         leaves.len()
     );
     println!("产物: {}", art.display());
+}
+
+/// #117 任务 3：解包 docx 取 word/document.xml（e2e 断言的真源——不信任
+/// 工具返回值，直接看产物字节）。
+fn docx_document_xml(path: &std::path::Path) -> String {
+    use std::io::Read;
+    let f = std::fs::File::open(path).unwrap_or_else(|e| panic!("打开 docx 失败（{e}）: {}", path.display()));
+    let mut zip = zip::ZipArchive::new(f).expect("docx 是合法 zip 包");
+    let mut xml = String::new();
+    for i in 0..zip.len() {
+        if zip.by_index(i).unwrap().name() == "word/document.xml" {
+            zip.by_index(i).unwrap().read_to_string(&mut xml).unwrap();
+        }
+    }
+    assert!(!xml.is_empty(), "document.xml 必须在包内: {}", path.display());
+    xml
+}
+
+fn count_occurrences(hay: &str, needle: &str) -> usize {
+    hay.matches(needle).count()
+}
+
+/// 表格 XML 数据行数：从标题定位到其后第一张 `<w:tbl>`，数 `<w:tr>` 减表头。
+fn table_rows_after(hay: &str, title: &str) -> usize {
+    let idx = hay.find(title).unwrap_or_else(|| panic!("表格标题「{title}」不在 document.xml"));
+    let seg = &hay[idx..];
+    let end = seg.find("</w:tbl>").unwrap_or_else(|| panic!("「{title}」后无表格"));
+    // 表头也占一行 <w:tr>——数据行 = 全部行 - 1
+    seg[..end].matches("<w:tr>").count().saturating_sub(1)
 }
 
 fn asm_committed(ws: &std::path::Path) -> usize {

@@ -835,11 +835,17 @@ fn e2e_artifacts_synth_tender() {
         h1_titles.iter().any(|t| t == "附表"),
         "⑨.5 「附表」部分未以 Heading1 渲染（docx H1 集: {h1_titles:?}）"
     );
+    // #117 任务 2 起，导出层在文末再追加「投标文件格式件」部分（大纲无对应的
+    // 情况——题目「投标文件格式」章不在 synth 夹具里）。所以 H1 总数 =
+    // 根章 + 附表 + 格式件（格式件在世时）。
+    let forms_part_present = h1_titles.iter().any(|t| t == "投标文件格式件");
+    let expected_h1 = outline_roots.len() + 1 + usize::from(forms_part_present);
     assert_eq!(
         h1_titles.len(),
-        outline_roots.len() + 1,
-        "⑨.5 docx Heading1 段数 = outline 根章 {} + 附表 1，实际 {}: {h1_titles:?}",
+        expected_h1,
+        "⑨.5 docx Heading1 段数 = outline 根章 {} + 附表 1 + 格式件 {}，实际 {}: {h1_titles:?}",
         outline_roots.len(),
+        usize::from(forms_part_present),
         h1_titles.len()
     );
     // 12 号产物数据（#117 任务 3——数字进报告，人工可核）

@@ -8,6 +8,7 @@
 //!   评标办法→评分项；技术需求→技术参数；商务要求→商务要求；
 //!   须知+资格→资格条件；须知+否决→否决项；须知+编制→格式要求；其余→其他。
 
+use crate::clause;
 use crate::{Block, BlockKind, ParsedFile};
 use bid_domain::{Anchor, Requirement};
 use regex::Regex;
@@ -594,8 +595,14 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
     // 表格审查语境（评审标准/资格审查表内行；表切换重置）
     let mut review_ctx = false;
     let mut cur_table: Option<String> = None;
+    // 章节头形态（G1 续行吸收的硬断点——与 PDF 侧 re_chapter 同口径；
+    // 编号头之外，「第X章/篇/部分」标题也开新语义单元，不得当续行吸收）
+    let re_chapter_line = Regex::new(r"^第\s*[0-9一二三四五六七八九十百]+\s*(章|篇|部分)").unwrap();
 
-    for b in &f.blocks {
+    let blocks = &f.blocks;
+    let mut bi = 0usize;
+    while bi < blocks.len() {
+    let b = &blocks[bi];
         match b.kind {
             BlockKind::Para => {
                 // 表格流结束：审查语境随表终止
@@ -607,8 +614,41 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                     veto_ctx = false;
                     last_numbered_head = Some(m[1].to_string());
                     let (chapter, subsection) = split_locator(&b.locator);
+                    // B6·G1 跨行合并（#123 任务 1）：吸收后续无编号续行——
+                    // docx 解析按段产出，分页符/软换行把一条条款切成多段
+                    // （synth T4 实锤：3.7.2(8) docx 拆 2 条 REQ），前半句
+                    // 判定**内容不全**。续行仅在无独立编号/强信号时吸收
+                    // （子项（N）/强词段保持独立 REQ——任务书规则 1：编号
+                    // 行开新条）；excerpt 逐行保真（与 PDF 侧 para_anchors
+                    // 同纪律）。
+                    let mut grp_end = bi;
+                    let mut grp_text = t.to_string();
+                    let mut grp_anchors = vec![anchor(f, b)];
+                    for j in (bi + 1)..blocks.len() {
+                        let nb = &blocks[j];
+                        if !matches!(nb.kind, BlockKind::Para) {
+                            break;
+                        }
+                        let nt = nb.text.trim();
+                        // 任务书规则 1：任何编号形态（4.2/（一）/①/一、/1./a)）
+                        // 都开新条款——续行吸收到「首个编号形态」为止
+                        // （clause_boundary 为 G1 的边界判定单一真源）。
+                        if nt.is_empty()
+                            || clause::clause_boundary(nt).is_some()
+                            || re_chapter_line.is_match(nt)
+                            || vl::is_placeholder(nt)
+                            || vl::is_veto(nt)
+                            || vl::is_qual(nt)
+                            || vl::is_list_item(nt)
+                        {
+                            break;
+                        }
+                        grp_text.push_str(nt);
+                        grp_anchors.push(anchor(f, nb));
+                        grp_end = j;
+                    }
                     let mut params = HashMap::new();
-                    fill_params(t, &re_model, &re_amount, &re_date, &re_date_cn, &mut params);
+                    fill_params(&grp_text, &re_model, &re_amount, &re_date, &re_date_cn, &mut params);
                     // R3-S3-5 优先级链（DOCX 版，对齐 extract_main_pdf）：
                     // 强否决短语 > 资格面 > 章节上下文——编号否决条款
                     // （如"3.4.2 …将被否决"）不得落"其他"（漏否决=废标风险）
@@ -629,22 +669,24 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                     // 零扰动面：corpus-A/BJ 实测「形态+否决并存」除 GT 那
                     // 1 条 true 外为 0——纯增益修复。
                     let ctx_cat = category_for(chapter, subsection);
-                    let cat = if ctx_cat == "评分项" && re_score_shape.is_match(t) && !vl::is_veto(t) {
+                    let cat = if ctx_cat == "评分项" && re_score_shape.is_match(&grp_text) && !vl::is_veto(&grp_text) {
                         "评分项"
-                    } else if vl::is_veto(t) {
+                    } else if vl::is_veto(&grp_text) {
                         "否决项"
                     } else if ctx_cat == "评分项" {
                         "评分项"
-                    } else if vl::is_qual(t) {
+                    } else if vl::is_qual(&grp_text) {
                         "资格条件"
                     } else {
                         ctx_cat
                     };
                     push_req(reqs, seq, cat, Some(m[1].to_string()),
-                             vec![anchor(f, b)], params, &f.name);
-                    if vl::opens_veto_context(t) {
+                             grp_anchors, params, &f.name);
+                    if vl::opens_veto_context(&grp_text) {
                         veto_ctx = true;
                     }
+                    // 吸收的续行块已并入本条（防止下方循环重复消费）
+                    bi = grp_end;
                 } else if vl::is_placeholder(t) {
                     // 待填占位（□复选/下划线留白）不抽
                 } else if vl::is_veto(t) {
@@ -709,6 +751,7 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
             }
             _ => {}
         }
+        bi += 1;
     }
 }
 

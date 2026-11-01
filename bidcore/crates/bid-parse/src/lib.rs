@@ -26,6 +26,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+pub mod clause;
 pub mod env_preflight;
 pub mod extract;
 pub mod guard;

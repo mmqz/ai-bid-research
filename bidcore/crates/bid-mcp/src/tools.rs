@@ -1256,6 +1256,42 @@ fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
     let mut warnings = outcome.warnings;
     warnings.append(&mut gen_warnings);
 
+    // ---- 配额账面（issue：Agent 无从得知本节该写多少字——24 条 MINOR 字数
+    // 偏离的根因）。给 Agent 三个数：target_chars（目标）/ written_chars（已写）
+    // / remaining（还差）；外加 min_segments = 按 SEGMENT_CHARS 折算的批次数。
+    //
+    // 口径：target_chars 取【本节叶节点配额】（父 = 子配额和，叶才是内容单元）；
+    // written_chars 取本次起草后的正文字符数（含重写后的全量）。
+    const SEGMENT_CHARS: u64 = 4000; // 单次生成的安全字数量（模型上下文漂移阈值）
+    let quota = svc
+        .store()
+        .sections()
+        .iter()
+        .find(|n| n.id == section_id)
+        .map(|n| {
+            let target = u64::from(n.target_chars);
+            let written = n
+                .content
+                .as_deref()
+                .map(|c| c.chars().count() as u64)
+                .unwrap_or(0);
+            let remaining = target.saturating_sub(written);
+            serde_json::json!({
+                "target_chars": target,
+                "written_chars": written,
+                "remaining": remaining,
+                // 按 4000 字/批折算还需要几次「续写」；已达标 = 0
+                "min_segments": target.div_ceil(SEGMENT_CHARS),
+                "remaining_segments": remaining.div_ceil(SEGMENT_CHARS),
+                // 完成度（0-100；>100 表示超配额，Agent 应精简）
+                "progress_pct": if target == 0 {
+                    serde_json::Value::Null
+                } else {
+                    serde_json::json!(written * 100 / target)
+                },
+            })
+        })
+        .unwrap_or(serde_json::Value::Null);
     // ---- 契约 §6 out 组装
     let out = json!({
         "section_id": outcome.section_id,
@@ -1274,6 +1310,7 @@ fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
         // #127 P0-2：起草指令 + 缺失回报的留档账面（与正文分离——正文渲染
         // 面零「起草指令/缺失回报」字样；Agent/人工从这里看本章起草时的
         // 指令与素材缺口，随 chapters/{id}.json 持久化）
+        "quota": quota,
         "draft_note": outcome.draft_note,
         "section_status": "DRAFTED",
         "project_status": svc.store().project().map(|p| p.status.as_str()).unwrap_or("UNKNOWN"),

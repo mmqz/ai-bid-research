@@ -1,0 +1,3464 @@
+{
+ "case": "02-full-pipeline",
+ "transport": "linejson",
+ "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
+ "server_sha256": "134e9939d46742d229bba97ead748a2a2878c620af44258bac1968e7cd1029cd",
+ "python": "3.12.16",
+ "mcp_sdk": "1.27.0",
+ "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
+ "started_at": "2026-11-01T11:41:53+00:00",
+ "stages": [
+  {
+   "stage": "P0 create_bid_project（含幂等重放）",
+   "tool": "create_bid_project",
+   "args": {
+    "external_key": "mcp-e2e-pipeline"
+   },
+   "result": {
+    "first": {
+     "project_id": "PRJ-0001",
+     "project_version": 1,
+     "request_id": "req-000001",
+     "status": "DRAFT",
+     "warnings": []
+    },
+    "replay": {
+     "deduplicated": true,
+     "project_id": "PRJ-0001",
+     "project_version": 1,
+     "request_id": "req-000002",
+     "status": "DRAFT",
+     "warnings": []
+    },
+    "note": "首建响应无 deduplicated 字段——契约 §1 out 只承诺 project_id/status"
+   },
+   "checks": [
+    {
+     "desc": "P0: project_id 前缀 PRJ-",
+     "pass": true
+    },
+    {
+     "desc": "P0: status=DRAFT",
+     "pass": true
+    },
+    {
+     "desc": "P0: 首建非重放（deduplicated 缺席或 false）",
+     "pass": true
+    },
+    {
+     "desc": "P0: warnings 为空（截止日未过）",
+     "pass": true
+    },
+    {
+     "desc": "P0: 同 key 重放 → 原 project_id",
+     "pass": true
+    },
+    {
+     "desc": "P0: 重放 deduplicated=true（契约幂等面）",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": 3.3557900001142116
+  },
+  {
+   "stage": "P1 import_tender_files",
+   "tool": "import_tender_files",
+   "args": {
+    "files": [
+     "A-招标文件.docx",
+     "C-补遗文件01.docx",
+     "evidence/EV-01-营业执照.pdf",
+     "evidence/EV-02-电子与智能化工程专业承包二级资质证书.pdf"
+    ]
+   },
+   "result": {
+    "file_ids": [
+     "TF-0002",
+     "TF-0003",
+     "TF-0004",
+     "TF-0005"
+    ],
+    "per_file": [
+     {
+      "chunks": 182,
+      "deduplicated": false,
+      "file_id": "TF-0002",
+      "filename": "A-招标文件.docx",
+      "ocr_tier": "none",
+      "pages": 0,
+      "parse_status": "ok",
+      "sha256": "e1a2c6f1665306b26c1d7c846cce74f9af02b7cade5bd548cb73f7448ed0d996",
+      "tables": 6
+     },
+     {
+      "chunks": 11,
+      "deduplicated": false,
+      "file_id": "TF-0003",
+      "filename": "C-补遗文件01.docx",
+      "ocr_tier": "none",
+      "pages": 0,
+      "parse_status": "ok",
+      "sha256": "c0f0e3da2f3dbb1ac864be3c85c53544cabcab728e1e9854b3b03ec70e04c1f0",
+      "tables": 0
+     },
+     {
+      "chunks": 8,
+      "deduplicated": false,
+      "file_id": "TF-0004",
+      "filename": "evidence/EV-01-营业执照.pdf",
+      "ocr_tier": "none",
+      "pages": 1,
+      "parse_status": "ok",
+      "sha256": "b1b4811b9c1b96e1bff95a49dcba07434cd391d7939e82b7453d18142b80258c",
+      "tables": 0
+     },
+     {
+      "chunks": 7,
+      "deduplicated": false,
+      "file_id": "TF-0005",
+      "filename": "evidence/EV-02-电子与智能化工程专业承包二级资质证书.pdf",
+      "ocr_tier": "none",
+      "pages": 1,
+      "parse_status": "ok",
+      "sha256": "60a2e9ce86ccab9bb8ad89be98bcfd8e802ee8d9ff6e20ce7ea4f2e23964c7b6",
+      "tables": 0
+     }
+    ],
+    "project_version": 5,
+    "request_id": "req-000003",
+    "status": "FILES_IMPORTED",
+    "totals": {
+     "chunks": 208,
+     "files": 4,
+     "parse_failed": 0,
+     "partial": 0
+    },
+    "warnings": []
+   },
+   "checks": [
+    {
+     "desc": "P1: totals.files >= 4",
+     "pass": true
+    },
+    {
+     "desc": "P1: parse_failed == 0",
+     "pass": true
+    },
+    {
+     "desc": "P1: partial == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": 242.10941699993782
+  },
+  {
+   "stage": "P2 extract_requirements",
+   "tool": "extract_requirements",
+   "args": {},
+   "result": {
+    "conflicts": [],
+    "counts": {
+     "added": 121,
+     "by_category": {
+      "commercial": 3,
+      "format": 2,
+      "other": 11,
+      "qualification": 6,
+      "scoring": 4,
+      "tech_param": 82,
+      "veto": 13
+     },
+     "total": 121
+    },
+    "missing_sequence": [],
+    "project_version": 6,
+    "request_id": "req-000004",
+    "status": "REQUIREMENTS_EXTRACTED",
+    "warnings": [
+     "ENGINE_PATH: A-招标文件.docx 经引擎路径解析（已知缺口：嵌套表 mdcore#39 / 域边界 mdcore#40——docs/b3-3-acceptance-report.md §6）"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P2: counts.total >= 5（GT 25 埋点件）",
+     "pass": true
+    },
+    {
+     "desc": "P2: by_category 非空",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": 63.005407999753515
+  },
+  {
+   "stage": "P3 build_outline",
+   "tool": "build_outline",
+   "args": {},
+   "result": {
+    "counts": {
+     "leaves": 23,
+     "matrix_blocking": 19,
+     "matrix_rows": 121,
+     "requirements": 121,
+     "sections": 30,
+     "total_target_chars": 11500
+    },
+    "project_version": 8,
+    "request_id": "req-000005",
+    "status": "MATRIX_READY"
+   },
+   "checks": [
+    {
+     "desc": "P3: sections >= 2",
+     "pass": true
+    },
+    {
+     "desc": "P3: matrix_rows >= 5",
+     "pass": true
+    },
+    {
+     "desc": "P3: status=MATRIX_READY",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": 7.427073000144446
+  },
+  {
+   "stage": "P3 get_compliance_matrix",
+   "tool": "get_compliance_matrix",
+   "args": {
+    "limit": 1000
+   },
+   "result": {
+    "total": 121,
+    "rows_head": [
+     {
+      "blocking": true,
+      "cmp_id": "CMP-0001",
+      "draft_section_id": "SEC-0007",
+      "evidence": [],
+      "gap": null,
+      "requirement": {
+       "category": "否决项",
+       "category_key": "veto",
+       "clause_no": null,
+       "id": "REQ-0001",
+       "mandatory": true,
+       "params": {},
+       "source_anchor": {
+        "excerpt": "本项目预算金额：设备采购预算 350 万元（含税）；最高限价（招标控制价）：人民币 480 万元（含税），投标报价超过最高限价的作否决投标处理。",
+        "file": "A-招标文件.docx",
+        "kind": "para",
+        "locator": "第一章 招标公告"
+       },
+       "statement": "本项目预算金额：设备采购预算 350 万元（含税）；最高限价（招标控制价）：人民币 480 万元（含税），投标报价超过最高限价的作否决投标处理。"
+      },
+      "response_policy": "default",
+      "status": "NOT_RESPONDED"
+     },
+     {
+      "blocking": true,
+      "cmp_id": "CMP-0002",
+      "draft_section_id": "SEC-0007",
+      "evidence": [],
+      "gap": null,
+      "requirement": {
+       "category": "否决项",
+       "category_key": "veto",
+       "clause_no": "前附表-10",
+       "id": "REQ-0002",
+       "mandatory": true,
+       "params": {},
+       "source_anchor": {
+        "excerpt": "10 否决条款提示 未按本表第 9 项规定格式填写技术偏离表的，其投标作否决投标处理",
+        "file": "A-招标文件.docx",
+        "kind": "table",
+        "locator": "第二章 投标人须知前附表 表1 行11"
+       },
+       "statement": "10 否决条款提示 未按本表第 9 项规定格式填写技术偏离表的，其投标作否决投标处理"
+      },
+      "response_policy": "default",
+      "status": "NOT_RESPONDED"
+     },
+     {
+      "blocking": false,
+      "cmp_id": "CMP-0003",
+      "draft_section_id": "SEC-0012",
+      "evidence": [],
+      "gap": null,
+      "requirement": {
+       "category": "其他",
+       "category_key": "other",
+       "clause_no": "3.1.1",
+       "id": "REQ-0003",
+       "mandatory": false,
+       "params": {},
+       "source_anchor": {
+        "excerpt": "3.1.1 适用范围：本须知适用于本项目投标、开标、评标、定标及合同签订全过程。",
+        "file": "A-招标文件.docx",
+        "kind": "para",
+        "locator": "第三章 投标人须知 > 一、总则"
+       },
+       "statement": "3.1.1 适用范围：本须知适用于本项目投标、开标、评标、定标及合同签订全过程。"
+      },
+      "response_policy": "default",
+      "status": "NOT_RESPONDED"
+     }
+    ],
+    "n_blocking": 19
+   },
+   "checks": [
+    {
+     "desc": "P3: 矩阵行数 >= 5",
+     "pass": true
+    },
+    {
+     "desc": "P3: total 与 rows 一致",
+     "pass": true
+    },
+    {
+     "desc": "P3: 至少 1 个可起草章节",
+     "pass": true
+    },
+    {
+     "desc": "P3: 必绑类目 REQ 非空",
+     "pass": true
+    },
+    {
+     "desc": "P3: 建纲后 blocking 行 = 19（未绑证据，预期 >0 或 =0）",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": 7.320319999962521,
+   "extra": {
+    "sections": {
+     "SEC-0007": [
+      "REQ-0001",
+      "REQ-0002",
+      "REQ-0005",
+      "REQ-0006",
+      "REQ-0007",
+      "REQ-0008"
+     ],
+     "SEC-0012": [
+      "REQ-0003",
+      "REQ-0004",
+      "REQ-0015",
+      "REQ-0018",
+      "REQ-0024"
+     ],
+     "SEC-0008": [
+      "REQ-0009",
+      "REQ-0010",
+      "REQ-0013",
+      "REQ-0014",
+      "REQ-0016",
+      "REQ-0017"
+     ],
+     "SEC-0018": [
+      "REQ-0011",
+      "REQ-0012"
+     ],
+     "SEC-0009": [
+      "REQ-0019",
+      "REQ-0020",
+      "REQ-0021",
+      "REQ-0022",
+      "REQ-0023",
+      "REQ-0051"
+     ],
+     "SEC-0020": [
+      "REQ-0029",
+      "REQ-0030",
+      "REQ-0031",
+      "REQ-0032",
+      "REQ-0033",
+      "REQ-0034"
+     ],
+     "SEC-0021": [
+      "REQ-0035",
+      "REQ-0036",
+      "REQ-0037",
+      "REQ-0038",
+      "REQ-0039",
+      "REQ-0040"
+     ],
+     "SEC-0022": [
+      "REQ-0041",
+      "REQ-0042",
+      "REQ-0043",
+      "REQ-0044",
+      "REQ-0055",
+      "REQ-0056"
+     ],
+     "SEC-0035": [
+      "REQ-0045",
+      "REQ-0046",
+      "REQ-0047"
+     ],
+     "SEC-0014": [
+      "REQ-0048",
+      "REQ-0049",
+      "REQ-0050"
+     ],
+     "SEC-0016": [
+      "REQ-0052",
+      "REQ-0053",
+      "REQ-0054"
+     ],
+     "SEC-0023": [
+      "REQ-0057",
+      "REQ-0058",
+      "REQ-0059",
+      "REQ-0060",
+      "REQ-0061",
+      "REQ-0062"
+     ],
+     "SEC-0024": [
+      "REQ-0063",
+      "REQ-0064",
+      "REQ-0065",
+      "REQ-0066",
+      "REQ-0067",
+      "REQ-0068"
+     ],
+     "SEC-0025": [
+      "REQ-0069",
+      "REQ-0070",
+      "REQ-0071",
+      "REQ-0072",
+      "REQ-0073",
+      "REQ-0074"
+     ],
+     "SEC-0026": [
+      "REQ-0075",
+      "REQ-0076",
+      "REQ-0077",
+      "REQ-0078",
+      "REQ-0079",
+      "REQ-0080"
+     ],
+     "SEC-0027": [
+      "REQ-0081",
+      "REQ-0082",
+      "REQ-0083",
+      "REQ-0084",
+      "REQ-0085",
+      "REQ-0086"
+     ],
+     "SEC-0028": [
+      "REQ-0087",
+      "REQ-0088",
+      "REQ-0089",
+      "REQ-0090",
+      "REQ-0091",
+      "REQ-0092"
+     ],
+     "SEC-0029": [
+      "REQ-0093",
+      "REQ-0094",
+      "REQ-0095",
+      "REQ-0096",
+      "REQ-0097",
+      "REQ-0098"
+     ],
+     "SEC-0030": [
+      "REQ-0099",
+      "REQ-0100",
+      "REQ-0101",
+      "REQ-0102",
+      "REQ-0103",
+      "REQ-0104"
+     ],
+     "SEC-0031": [
+      "REQ-0105",
+      "REQ-0106",
+      "REQ-0107",
+      "REQ-0108",
+      "REQ-0109",
+      "REQ-0110"
+     ],
+     "SEC-0032": [
+      "REQ-0111",
+      "REQ-0112",
+      "REQ-0113",
+      "REQ-0114",
+      "REQ-0115",
+      "REQ-0116"
+     ],
+     "SEC-0033": [
+      "REQ-0117",
+      "REQ-0118",
+      "REQ-0119",
+      "REQ-0120"
+     ],
+     "SEC-0010": [
+      "REQ-0121"
+     ]
+    }
+   }
+  },
+  {
+   "stage": "P4 register_evidence",
+   "tool": "register_evidence",
+   "args": {
+    "kind": "qualification",
+    "source_file": "EV-02-电子与智能化工程专业承包二级资质证书.pdf"
+   },
+   "result": {
+    "deduplicated": false,
+    "ev_id": "EV-0036",
+    "hint": "新 EV 已签发（若为同 key 换版，旧记录已单向降级 SUPERSEDED；全新登记则无旧记录）",
+    "kind": "qualification",
+    "project_version": 9,
+    "request_id": "req-000007",
+    "status": "ACTIVE"
+   },
+   "checks": [
+    {
+     "desc": "P4: ev_id 前缀 EV-",
+     "pass": true
+    },
+    {
+     "desc": "P4: status=ACTIVE",
+     "pass": true
+    },
+    {
+     "desc": "P4: deduplicated=false（首登）",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": 6.415116999960446
+  },
+  {
+   "stage": "P4 bind_evidence",
+   "tool": "bind_evidence",
+   "args": {
+    "ev_id": "EV-0036",
+    "n_reqs": 101
+   },
+   "result": {
+    "bound_new": 101,
+    "ev_id": "EV-0036",
+    "matrix": {
+     "blocking": 0,
+     "rows": 121
+    },
+    "project_version": 111,
+    "replayed": 0,
+    "request_id": "req-000008",
+    "requested": 101,
+    "status": "MATRIX_READY"
+   },
+   "checks": [
+    {
+     "desc": "P4: bound_new + replayed == 请求数",
+     "pass": true
+    },
+    {
+     "desc": "P4: 绑后 blocking == 0（否则导出闸会拒）",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": 7.190951999746176
+  },
+  {
+   "stage": "G3 record_review_gate ×3",
+   "tool": "record_review_gate",
+   "args": {
+    "gates": [
+     "matrix_approval",
+     "outline_approval",
+     "pre_export_confirm"
+    ]
+   },
+   "result": {
+    "gates_approved": [
+     "matrix_approval",
+     "outline_approval",
+     "pre_export_confirm"
+    ],
+    "project_version": 114,
+    "receipt": {
+     "decision": "APPROVED",
+     "finding_ids": [],
+     "gate": "pre_export_confirm",
+     "review_id": "REV-0039",
+     "reviewer": "human:mcp-e2e",
+     "spawned_rt_ids": []
+    },
+    "request_id": "req-000011",
+    "status": "MATRIX_READY"
+   },
+   "checks": [
+    {
+     "desc": "G3: 三门全过 ('matrix_approval', 'outline_approval', 'pre_export_confirm')",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": 19.740017999993142
+  },
+  {
+   "stage": "P5 draft(external) SEC-0007",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0007",
+    "chars": 344
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0007-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 120,
+    "request_id": "req-000012",
+    "section_id": "SEC-0007",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 7,
+     "cited_ids": [
+      "REQ-0001",
+      "REQ-0002",
+      "REQ-0005",
+      "REQ-0006",
+      "REQ-0007",
+      "REQ-0008",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 344
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0007]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0007]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0007]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0007]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0007]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0007]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0012",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0012",
+    "chars": 256
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0012-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 124,
+    "request_id": "req-000013",
+    "section_id": "SEC-0012",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 5,
+     "cited_ids": [
+      "REQ-0003",
+      "REQ-0004",
+      "REQ-0015",
+      "REQ-0018",
+      "REQ-0024"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 256
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0012]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0012]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0012]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0012]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0012]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0012]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0008",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0008",
+    "chars": 344
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0008-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 128,
+    "request_id": "req-000014",
+    "section_id": "SEC-0008",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 7,
+     "cited_ids": [
+      "REQ-0009",
+      "REQ-0010",
+      "REQ-0013",
+      "REQ-0014",
+      "REQ-0016",
+      "REQ-0017",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 344
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0008]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0008]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0008]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0008]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0008]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0008]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0018",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0018",
+    "chars": 121
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0018-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 132,
+    "request_id": "req-000015",
+    "section_id": "SEC-0018",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 2,
+     "cited_ids": [
+      "REQ-0011",
+      "REQ-0012"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 121
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0018]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0018]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0018]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0018]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0018]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0018]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0009",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0009",
+    "chars": 344
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0009-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 136,
+    "request_id": "req-000016",
+    "section_id": "SEC-0009",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 7,
+     "cited_ids": [
+      "REQ-0019",
+      "REQ-0020",
+      "REQ-0021",
+      "REQ-0022",
+      "REQ-0023",
+      "REQ-0051",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 344
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0009]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0009]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0009]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0009]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0009]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0009]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0020",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0020",
+    "chars": 344
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0020-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 140,
+    "request_id": "req-000017",
+    "section_id": "SEC-0020",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 7,
+     "cited_ids": [
+      "REQ-0029",
+      "REQ-0030",
+      "REQ-0031",
+      "REQ-0032",
+      "REQ-0033",
+      "REQ-0034",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 344
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0020]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0020]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0020]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0020]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0020]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0020]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0021",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0021",
+    "chars": 344
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0021-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 144,
+    "request_id": "req-000018",
+    "section_id": "SEC-0021",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 7,
+     "cited_ids": [
+      "REQ-0035",
+      "REQ-0036",
+      "REQ-0037",
+      "REQ-0038",
+      "REQ-0039",
+      "REQ-0040",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 344
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0021]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0021]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0021]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0021]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0021]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0021]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0022",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0022",
+    "chars": 344
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0022-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 148,
+    "request_id": "req-000019",
+    "section_id": "SEC-0022",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 7,
+     "cited_ids": [
+      "REQ-0041",
+      "REQ-0042",
+      "REQ-0043",
+      "REQ-0044",
+      "REQ-0055",
+      "REQ-0056",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 344
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0022]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0022]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0022]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0022]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0022]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0022]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0035",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0035",
+    "chars": 166
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0035-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 152,
+    "request_id": "req-000020",
+    "section_id": "SEC-0035",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 3,
+     "cited_ids": [
+      "REQ-0045",
+      "REQ-0046",
+      "REQ-0047"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 166
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0035]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0035]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0035]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0035]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0035]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0035]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0014",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0014",
+    "chars": 166
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0014-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 156,
+    "request_id": "req-000021",
+    "section_id": "SEC-0014",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 3,
+     "cited_ids": [
+      "REQ-0048",
+      "REQ-0049",
+      "REQ-0050"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 166
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0014]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0014]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0014]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0014]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0014]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0014]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0016",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0016",
+    "chars": 166
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0016-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 160,
+    "request_id": "req-000022",
+    "section_id": "SEC-0016",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 3,
+     "cited_ids": [
+      "REQ-0052",
+      "REQ-0053",
+      "REQ-0054"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 166
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0016]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0016]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0016]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0016]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0016]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0016]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0023",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0023",
+    "chars": 344
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0023-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 164,
+    "request_id": "req-000023",
+    "section_id": "SEC-0023",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 7,
+     "cited_ids": [
+      "REQ-0057",
+      "REQ-0058",
+      "REQ-0059",
+      "REQ-0060",
+      "REQ-0061",
+      "REQ-0062",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 344
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0023]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0023]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0023]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0023]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0023]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0023]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0024",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0024",
+    "chars": 344
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0024-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 168,
+    "request_id": "req-000024",
+    "section_id": "SEC-0024",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 7,
+     "cited_ids": [
+      "REQ-0063",
+      "REQ-0064",
+      "REQ-0065",
+      "REQ-0066",
+      "REQ-0067",
+      "REQ-0068",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 344
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0024]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0024]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0024]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0024]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0024]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0024]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0025",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0025",
+    "chars": 344
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0025-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 172,
+    "request_id": "req-000025",
+    "section_id": "SEC-0025",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 7,
+     "cited_ids": [
+      "REQ-0069",
+      "REQ-0070",
+      "REQ-0071",
+      "REQ-0072",
+      "REQ-0073",
+      "REQ-0074",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 344
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0025]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0025]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0025]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0025]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0025]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0025]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0026",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0026",
+    "chars": 344
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0026-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 176,
+    "request_id": "req-000026",
+    "section_id": "SEC-0026",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 7,
+     "cited_ids": [
+      "REQ-0075",
+      "REQ-0076",
+      "REQ-0077",
+      "REQ-0078",
+      "REQ-0079",
+      "REQ-0080",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 344
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0026]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0026]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0026]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0026]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0026]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0026]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0027",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0027",
+    "chars": 344
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0027-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 180,
+    "request_id": "req-000027",
+    "section_id": "SEC-0027",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 7,
+     "cited_ids": [
+      "REQ-0081",
+      "REQ-0082",
+      "REQ-0083",
+      "REQ-0084",
+      "REQ-0085",
+      "REQ-0086",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 344
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0027]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0027]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0027]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0027]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0027]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0027]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0028",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0028",
+    "chars": 344
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0028-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 184,
+    "request_id": "req-000028",
+    "section_id": "SEC-0028",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 7,
+     "cited_ids": [
+      "REQ-0087",
+      "REQ-0088",
+      "REQ-0089",
+      "REQ-0090",
+      "REQ-0091",
+      "REQ-0092",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 344
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0028]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0028]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0028]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0028]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0028]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0028]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0029",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0029",
+    "chars": 344
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0029-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 188,
+    "request_id": "req-000029",
+    "section_id": "SEC-0029",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 7,
+     "cited_ids": [
+      "REQ-0093",
+      "REQ-0094",
+      "REQ-0095",
+      "REQ-0096",
+      "REQ-0097",
+      "REQ-0098",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 344
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0029]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0029]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0029]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0029]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0029]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0029]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0030",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0030",
+    "chars": 344
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0030-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 192,
+    "request_id": "req-000030",
+    "section_id": "SEC-0030",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 7,
+     "cited_ids": [
+      "REQ-0099",
+      "REQ-0100",
+      "REQ-0101",
+      "REQ-0102",
+      "REQ-0103",
+      "REQ-0104",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 344
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0030]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0030]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0030]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0030]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0030]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0030]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0031",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0031",
+    "chars": 344
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0031-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 196,
+    "request_id": "req-000031",
+    "section_id": "SEC-0031",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 7,
+     "cited_ids": [
+      "REQ-0105",
+      "REQ-0106",
+      "REQ-0107",
+      "REQ-0108",
+      "REQ-0109",
+      "REQ-0110",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 344
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0031]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0031]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0031]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0031]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0031]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0031]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0032",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0032",
+    "chars": 344
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0032-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 200,
+    "request_id": "req-000032",
+    "section_id": "SEC-0032",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 7,
+     "cited_ids": [
+      "REQ-0111",
+      "REQ-0112",
+      "REQ-0113",
+      "REQ-0114",
+      "REQ-0115",
+      "REQ-0116",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 344
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0032]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0032]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0032]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0032]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0032]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0032]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0033",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0033",
+    "chars": 254
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0033-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 204,
+    "request_id": "req-000033",
+    "section_id": "SEC-0033",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 5,
+     "cited_ids": [
+      "REQ-0117",
+      "REQ-0118",
+      "REQ-0119",
+      "REQ-0120",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 254
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0033]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0033]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0033]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0033]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0033]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0033]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0010",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0010",
+    "chars": 119
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0010-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "project_status": "DRAFTING",
+    "project_version": 208,
+    "request_id": "req-000034",
+    "section_id": "SEC-0010",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 2,
+     "cited_ids": [
+      "REQ-0121",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 119
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0010]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0010]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0010]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0010]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0010]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0010]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 汇总",
+   "tool": null,
+   "args": {},
+   "result": {
+    "n_sections": 23,
+    "draft_stats": {
+     "SEC-0007": {
+      "words": 344,
+      "citations": 7,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0012": {
+      "words": 256,
+      "citations": 5,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0008": {
+      "words": 344,
+      "citations": 7,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0018": {
+      "words": 121,
+      "citations": 2,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0009": {
+      "words": 344,
+      "citations": 7,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0020": {
+      "words": 344,
+      "citations": 7,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0021": {
+      "words": 344,
+      "citations": 7,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0022": {
+      "words": 344,
+      "citations": 7,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0035": {
+      "words": 166,
+      "citations": 3,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0014": {
+      "words": 166,
+      "citations": 3,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0016": {
+      "words": 166,
+      "citations": 3,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0023": {
+      "words": 344,
+      "citations": 7,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0024": {
+      "words": 344,
+      "citations": 7,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0025": {
+      "words": 344,
+      "citations": 7,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0026": {
+      "words": 344,
+      "citations": 7,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0027": {
+      "words": 344,
+      "citations": 7,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0028": {
+      "words": 344,
+      "citations": 7,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0029": {
+      "words": 344,
+      "citations": 7,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0030": {
+      "words": 344,
+      "citations": 7,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0031": {
+      "words": 344,
+      "citations": 7,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0032": {
+      "words": 344,
+      "citations": 7,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0033": {
+      "words": 254,
+      "citations": 5,
+      "uncovered": [],
+      "unanchored": 0
+     },
+     "SEC-0010": {
+      "words": 119,
+      "citations": 2,
+      "uncovered": [],
+      "unanchored": 0
+     }
+    }
+   },
+   "checks": [
+    {
+     "desc": "P5: 全部章节起草完成（矩阵可见章节）",
+     "pass": true
+    },
+    {
+     "desc": "P5: project_status=DRAFTING",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P6 check_bid_quality",
+   "tool": "check_bid_quality",
+   "args": {},
+   "result": {
+    "artifact": {
+     "path": "/tmp/bid-mcp-e2e/full-pipeline/ws/artifacts/quality-report.json",
+     "size": 43434
+    },
+    "needs_human": {
+     "count": 23,
+     "head": [
+      "SEC-0007",
+      "SEC-0008",
+      "SEC-0009",
+      "SEC-0010",
+      "SEC-0012",
+      "SEC-0014",
+      "SEC-0016",
+      "SEC-0018",
+      "SEC-0020",
+      "SEC-0021",
+      "SEC-0022",
+      "SEC-0023"
+     ]
+    },
+    "project_id": "PRJ-0001",
+    "request_id": "req-000035",
+    "sections": {
+     "count": 23,
+     "head": [
+      {
+       "chars": 344,
+       "cited_evs": [
+        "EV-0036"
+       ],
+       "covered_reqs": [
+        "REQ-0001",
+        "REQ-0002",
+        "REQ-0005",
+        "REQ-0006",
+        "REQ-0007",
+        "REQ-0008"
+       ],
+       "dup_with": [
+        [
+         "SEC-0010",
+         0.6667
+        ],
+        [
+         "SEC-0018",
+         0.3333
+        ],
+        [
+         "SEC-0033",
+         0.3333
+        ]
+       ],
+       "error": null,
+       "ghost_reqs": [],
+       "needs_human": true,
+       "requirement_ids": [
+        "REQ-0001",
+        "REQ-0002",
+        "REQ-0005",
+        "REQ-0006",
+        "REQ-0007",
+        "REQ-0008"
+       ],
+       "score": {
+        "covered_items": [],
+        "estimated": 0.0,
+        "item_scores": [],
+        "max": 0.0,
+        "missing_items": [],
+        "rationale": "无映射到本章节的评分项（section_id=SEC-0007——评分项 section 映射面为空，人工核对面）",
+        "section_id": "SEC-0007"
+       },
+       "section_id": "SEC-0007",
+       "specificity": {
+        "boilerplate_ratio": 0.0,
+        "concrete_params": 0,
+        "has_project_name": false,
+        "has_tenderer_name": false,
+        "score": 0.25
+       },
+       "status": "DRAFTED",
+       "substance": {
+        "empty_sentence_ratio": 0.0,
+        "score": 0.95,
+        "verifiable_claims": 7
+       },
+       "target_chars": 500,
+       "title": "资格与响应（第1块）",
+       "unanchored_claims": 0,
+       "uncited_evs": [],
+       "uncovered_reqs": [],
+       "unknown_citations": [],
+       "within_band": false
+      },
+      {
+       "chars": 344,
+       "cited_evs": [
+        "EV-0036"
+       ],
+       "covered_reqs": [
+        "REQ-0009",
+        "REQ-0010",
+        "REQ-0013",
+        "REQ-0014",
+        "REQ-0016",
+        "REQ-0017"
+       ],
+       "dup_with": [
+        [
+         "SEC-0010",
+         0.6667
+        ],
+        [
+         "SEC-0018",
+         0.3333
+        ],
+        [
+         "SEC-0033",
+         0.3333
+        ]
+       ],
+       "error": null,
+       "ghost_reqs": [],
+       "needs_human": true,
+       "requirement_ids": [
+        "REQ-0009",
+        "REQ-0010",
+        "REQ-0013",
+        "REQ-0014",
+        "REQ-0016",
+        "REQ-0017"
+       ],
+       "score": {
+        "covered_items": [],
+        "estimated": 0.0,
+        "item_scores": [],
+        "max": 0.0,
+        "missing_items": [],
+        "rationale": "无映射到本章节的评分项（section_id=SEC-0008——评分项 section 映射面为空，人工核对面）",
+        "section_id": "SEC-0008"
+       },
+       "section_id": "SEC-0008",
+       "specificity": {
+        "boilerplate_ratio": 0.0,
+        "concrete_params": 0,
+        "has_project_name": false,
+        "has_tenderer_name": false,
+        "score": 0.25
+       },
+       "status": "DRAFTED",
+       "substance": {
+        "empty_sentence_ratio": 0.0,
+        "score": 0.95,
+        "verifiable_claims": 7
+       },
+       "target_chars": 500,
+       "title": "资格与响应（第2块）",
+       "unanchored_claims": 0,
+       "uncited_evs": [],
+       "uncovered_reqs": [],
+       "unknown_citations": [],
+       "within_band": false
+      },
+      {
+       "chars": 344,
+       "cited_evs": [
+        "EV-0036"
+       ],
+       "covered_reqs": [
+        "REQ-0019",
+        "REQ-0020",
+        "REQ-0021",
+        "REQ-0022",
+        "REQ-0023",
+        "REQ-0051"
+       ],
+       "dup_with": [
+        [
+         "SEC-0010",
+         0.6667
+        ],
+        [
+         "SEC-0033",
+         0.3333
+        ],
+        [
+         "SEC-0018",
+         0.3333
+        ]
+       ],
+       "error": null,
+       "ghost_reqs": [],
+       "needs_human": true,
+       "requirement_ids": [
+        "REQ-0019",
+        "REQ-0020",
+        "REQ-0021",
+        "REQ-0022",
+        "REQ-0023",
+        "REQ-0051"
+       ],
+       "score": {
+        "covered_items": [],
+        "estimated": 0.0,
+        "item_scores": [],
+        "max": 0.0,
+        "missing_items": [],
+        "rationale": "无映射到本章节的评分项（section_id=SEC-0009——评分项 section 映射面为空，人工核对面）",
+        "section_id": "SEC-0009"
+       },
+       "section_id": "SEC-0009",
+       "specificity": {
+        "boilerplate_ratio": 0.0,
+        "concrete_params": 0,
+        "has_project_name": false,
+        "has_tenderer_name": false,
+        "score": 0.25
+       },
+       "status": "DRAFTED",
+       "substance": {
+        "empty_sentence_ratio": 0.0,
+        "score": 0.95,
+        "verifiable_claims": 7
+       },
+       "target_chars": 500,
+       "title": "资格与响应（第3块）",
+       "unanchored_claims": 0,
+       "uncited_evs": [],
+       "uncovered_reqs": [],
+       "unknown_citations": [],
+       "within_band": false
+      },
+      {
+       "chars": 119,
+       "cited_evs": [
+        "EV-0036"
+       ],
+       "covered_reqs": [
+        "REQ-0121"
+       ],
+       "dup_with": {
+        "count": 22,
+        "head": [
+         [
+          "SEC-0029",
+          0.6667
+         ],
+         [
+          "SEC-0008",
+          0.6667
+         ],
+         [
+          "SEC-0032",
+          0.6667
+         ],
+         [
+          "SEC-0028",
+          0.6667
+         ],
+         [
+          "SEC-0007",
+          0.6667
+         ],
+         [
+          "SEC-0020",
+          0.6667
+         ],
+         [
+          "SEC-0031",
+          0.6667
+         ],
+         [
+          "SEC-0009",
+          0.6667
+         ],
+         [
+          "SEC-0033",
+          0.6667
+         ],
+         [
+          "SEC-0023",
+          0.6667
+         ],
+         [
+          "SEC-0030",
+          0.6667
+         ],
+         [
+          "SEC-0021",
+          0.6667
+         ]
+        ]
+       },
+       "error": null,
+       "ghost_reqs": [],
+       "needs_human": true,
+       "requirement_ids": [
+        "REQ-0121"
+       ],
+       "score": {
+        "covered_items": [],
+        "estimated": 0.0,
+        "item_scores": [],
+        "max": 0.0,
+        "missing_items": [],
+        "rationale": "无映射到本章节的评分项（section_id=SEC-0010——评分项 section 映射面为空，人工核对面）",
+        "section_id": "SEC-0010"
+       },
+       "section_id": "SEC-0010",
+       "specificity": {
+        "boilerplate_ratio": 0.0,
+        "concrete_params": 0,
+        "has_project_name": false,
+        "has_tenderer_name": false,
+        "score": 0.25
+       },
+       "status": "DRAFTED",
+       "substance": {
+        "empty_sentence_ratio": 0.0,
+        "score": 0.7,
+        "verifiable_claims": 2
+       },
+       "target_chars": 500,
+       "title": "资格与响应（第4块）",
+       "unanchored_claims": 0,
+       "uncited_evs": [],
+       "uncovered_reqs": [],
+       "unknown_citations": [],
+       "within_band": false
+      },
+      {
+       "chars": 256,
+       "cited_evs": [],
+       "covered_reqs": [
+        "REQ-0003",
+        "REQ-0004",
+        "REQ-0015",
+        "REQ-0018",
+        "REQ-0024"
+       ],
+       "dup_with": [
+        [
+         "SEC-0010",
+         0.3333
+        ],
+        [
+         "SEC-0018",
+         0.3333
+        ]
+       ],
+       "error": null,
+       "ghost_reqs": [],
+       "needs_human": true,
+       "requirement_ids": [
+        "REQ-0003",
+        "REQ-0004",
+        "REQ-0015",
+        "REQ-0018",
+        "REQ-0024"
+       ],
+       "score": {
+        "covered_items": [],
+        "estimated": 0.0,
+        "item_scores": [],
+        "max": 0.0,
+        "missing_items": [],
+        "rationale": "无映射到本章节的评分项（section_id=SEC-0012——评分项 section 映射面为空，人工核对面）",
+        "section_id": "SEC-0012"
+       },
+       "section_id": "SEC-0012",
+       "specificity": {
+        "boilerplate_ratio": 0.0,
+        "concrete_params": 0,
+        "has_project_name": false,
+        "has_tenderer_name": false,
+        "score": 0.25
+       },
+       "status": "DRAFTED",
+       "substance": {
+        "empty_sentence_ratio": 0.0,
+        "score": 0.85,
+        "verifiable_claims": 5
+       },
+       "target_chars": 500,
+       "title": "第三章 投标人须知",
+       "unanchored_claims": 0,
+       "uncited_evs": [],
+       "uncovered_reqs": [],
+       "unknown_citations": [],
+       "within_band": false
+      },
+      {
+       "chars": 166,
+       "cited_evs": [],
+       "covered_reqs": [
+        "REQ-0048",
+        "REQ-0049",
+        "REQ-0050"
+       ],
+       "dup_with": [
+        [
+         "SEC-0018",
+         0.3333
+        ],
+        [
+         "SEC-0010",
+         0.3333
+        ]
+       ],
+       "error": null,
+       "ghost_reqs": [],
+       "needs_human": true,
+       "requirement_ids": [
+        "REQ-0048",
+        "REQ-0049",
+        "REQ-0050"
+       ],
+       "score": {
+        "covered_items": [],
+        "estimated": 0.0,
+        "item_scores": [],
+        "max": 0.0,
+        "missing_items": [],
+        "rationale": "无映射到本章节的评分项（section_id=SEC-0014——评分项 section 映射面为空，人工核对面）",
+        "section_id": "SEC-0014"
+       },
+       "section_id": "SEC-0014",
+       "specificity": {
+        "boilerplate_ratio": 0.0,
+        "concrete_params": 0,
+        "has_project_name": false,
+        "has_tenderer_name": false,
+        "score": 0.25
+       },
+       "status": "DRAFTED",
+       "substance": {
+        "empty_sentence_ratio": 0.0,
+        "score": 0.75,
+        "verifiable_claims": 3
+       },
+       "target_chars": 500,
+       "title": "第七章 投标文件格式",
+       "unanchored_claims": 0,
+       "uncited_evs": [],
+       "uncovered_reqs": [],
+       "unknown_citations": [],
+       "within_band": false
+      },
+      {
+       "chars": 166,
+       "cited_evs": [],
+       "covered_reqs": [
+        "REQ-0052",
+        "REQ-0053",
+        "REQ-0054"
+       ],
+       "dup_with": [
+        [
+         "SEC-0010",
+         0.3333
+        ],
+        [
+         "SEC-0018",
+         0.3333
+        ]
+       ],
+       "error": null,
+       "ghost_reqs": [],
+       "needs_human": true,
+       "requirement_ids": [
+        "REQ-0052",
+        "REQ-0053",
+        "REQ-0054"
+       ],
+       "score": {
+        "covered_items": [],
+        "estimated": 0.0,
+        "item_scores": [],
+        "max": 0.0,
+        "missing_items": [],
+        "rationale": "无映射到本章节的评分项（section_id=SEC-0016——评分项 section 映射面为空，人工核对面）",
+        "section_id": "SEC-0016"
+       },
+       "section_id": "SEC-0016",
+       "specificity": {
+        "boilerplate_ratio": 0.0,
+        "concrete_params": 0,
+        "has_project_name": false,
+        "has_tenderer_name": false,
+        "score": 0.25
+       },
+       "status": "DRAFTED",
+       "substance": {
+        "empty_sentence_ratio": 0.0,
+        "score": 0.75,
+        "verifiable_claims": 3
+       },
+       "target_chars": 500,
+       "title": "第八章 合同主要条款（摘要）",
+       "unanchored_claims": 0,
+       "uncited_evs": [],
+       "uncovered_reqs": [],
+       "unknown_citations": [],
+       "within_band": false
+      },
+      {
+       "chars": 121,
+       "cited_evs": [],
+       "covered_reqs": [
+        "REQ-0011",
+        "REQ-0012"
+       ],
+       "dup_with": {
+        "count": 22,
+        "head": [
+         [
+          "SEC-0009",
+          0.3333
+         ],
+         [
+          "SEC-0012",
+          0.3333
+         ],
+         [
+          "SEC-0024",
+          0.3333
+         ],
+         [
+          "SEC-0032",
+          0.3333
+         ],
+         [
+          "SEC-0025",
+          0.3333
+         ],
+         [
+          "SEC-0020",
+          0.3333
+         ],
+         [
+          "SEC-0026",
+          0.3333
+         ],
+         [
+          "SEC-0022",
+          0.3333
+         ],
+         [
+          "SEC-0027",
+          0.3333
+         ],
+         [
+          "SEC-0030",
+          0.3333
+         ],
+         [
+          "SEC-0023",
+          0.3333
+         ],
+         [
+          "SEC-0007",
+          0.3333
+         ]
+        ]
+       },
+       "error": null,
+       "ghost_reqs": [],
+       "needs_human": true,
+       "requirement_ids": [
+        "REQ-0011",
+        "REQ-0012"
+       ],
+       "score": {
+        "covered_items": [],
+        "estimated": 0.0,
+        "item_scores": [],
+        "max": 0.0,
+        "missing_items": [],
+        "rationale": "无映射到本章节的评分项（section_id=SEC-0018——评分项 section 映射面为空，人工核对面）",
+        "section_id": "SEC-0018"
+       },
+       "section_id": "SEC-0018",
+       "specificity": {
+        "boilerplate_ratio": 0.0,
+        "concrete_params": 0,
+        "has_project_name": false,
+        "has_tenderer_name": false,
+        "score": 0.25
+       },
+       "status": "DRAFTED",
+       "substance": {
+        "empty_sentence_ratio": 0.0,
+        "score": 0.7,
+        "verifiable_claims": 2
+       },
+       "target_chars": 500,
+       "title": "格式要求",
+       "unanchored_claims": 0,
+       "uncited_evs": [],
+       "uncovered_reqs": [],
+       "unknown_citations": [],
+       "within_band": false
+      },
+      {
+       "chars": 344,
+       "cited_evs": [
+        "EV-0036"
+       ],
+       "covered_reqs": [
+        "REQ-0029",
+        "REQ-0030",
+        "REQ-0031",
+        "REQ-0032",
+        "REQ-0033",
+        "REQ-0034"
+       ],
+       "dup_with": [
+        [
+         "SEC-0010",
+         0.6667
+        ],
+        [
+         "SEC-0033",
+         0.3333
+        ],
+        [
+         "SEC-0018",
+         0.3333
+        ]
+       ],
+       "error": null,
+       "ghost_reqs": [],
+       "needs_human": true,
+       "requirement_ids": [
+        "REQ-0029",
+        "REQ-0030",
+        "REQ-0031",
+        "REQ-0032",
+        "REQ-0033",
+        "REQ-0034"
+       ],
+       "score": {
+        "covered_items": [],
+        "estimated": 0.0,
+        "item_scores": [],
+        "max": 0.0,
+        "missing_items": [],
+        "rationale": "无映射到本章节的评分项（section_id=SEC-0020——评分项 section 映射面为空，人工核对面）",
+        "section_id": "SEC-0020"
+       },
+       "section_id": "SEC-0020",
+       "specificity": {
+        "boilerplate_ratio": 0.0,
+        "concrete_params": 0,
+        "has_project_name": false,
+        "has_tenderer_name": false,
+        "score": 0.25
+       },
+       "status": "DRAFTED",
+       "substance": {
+        "empty_sentence_ratio": 0.0,
+        "score": 0.95,
+        "verifiable_claims": 7
+       },
+       "target_chars": 500,
+       "title": "技术参数（第1块）",
+       "unanchored_claims": 0,
+       "uncited_evs": [],
+       "uncovered_reqs": [],
+       "unknown_citations": [],
+       "within_band": false
+      },
+      {
+       "chars": 344,
+       "cited_evs": [
+        "EV-0036"
+       ],
+       "covered_reqs": [
+        "REQ-0035",
+        "REQ-0036",
+        "REQ-0037",
+        "REQ-0038",
+        "REQ-0039",
+        "REQ-0040"
+       ],
+       "dup_with": [
+        [
+         "SEC-0010",
+         0.6667
+        ],
+        [
+         "SEC-0018",
+         0.3333
+        ],
+        [
+         "SEC-0033",
+         0.3333
+        ]
+       ],
+       "error": null,
+       "ghost_reqs": [],
+       "needs_human": true,
+       "requirement_ids": [
+        "REQ-0035",
+        "REQ-0036",
+        "REQ-0037",
+        "REQ-0038",
+        "REQ-0039",
+        "REQ-0040"
+       ],
+       "score": {
+        "covered_items": [],
+        "estimated": 0.0,
+        "item_scores": [],
+        "max": 0.0,
+        "missing_items": [],
+        "rationale": "无映射到本章节的评分项（section_id=SEC-0021——评分项 section 映射面为空，人工核对面）",
+        "section_id": "SEC-0021"
+       },
+       "section_id": "SEC-0021",
+       "specificity": {
+        "boilerplate_ratio": 0.0,
+        "concrete_params": 0,
+        "has_project_name": false,
+        "has_tenderer_name": false,
+        "score": 0.25
+       },
+       "status": "DRAFTED",
+       "substance": {
+        "empty_sentence_ratio": 0.0,
+        "score": 0.95,
+        "verifiable_claims": 7
+       },
+       "target_chars": 500,
+       "title": "技术参数（第2块）",
+       "unanchored_claims": 0,
+       "uncited_evs": [],
+       "uncovered_reqs": [],
+       "unknown_citations": [],
+       "within_band": false
+      },
+      {
+       "chars": 344,
+       "cited_evs": [
+        "EV-0036"
+       ],
+       "covered_reqs": [
+        "REQ-0041",
+        "REQ-0042",
+        "REQ-0043",
+        "REQ-0044",
+        "REQ-0055",
+        "REQ-0056"
+       ],
+       "dup_with": [
+        [
+         "SEC-0010",
+         0.6667
+        ],
+        [
+         "SEC-0018",
+         0.3333
+        ],
+        [
+         "SEC-0033",
+         0.3333
+        ]
+       ],
+       "error": null,
+       "ghost_reqs": [],
+       "needs_human": true,
+       "requirement_ids": [
+        "REQ-0041",
+        "REQ-0042",
+        "REQ-0043",
+        "REQ-0044",
+        "REQ-0055",
+        "REQ-0056"
+       ],
+       "score": {
+        "covered_items": [],
+        "estimated": 0.0,
+        "item_scores": [],
+        "max": 0.0,
+        "missing_items": [],
+        "rationale": "无映射到本章节的评分项（section_id=SEC-0022——评分项 section 映射面为空，人工核对面）",
+        "section_id": "SEC-0022"
+       },
+       "section_id": "SEC-0022",
+       "specificity": {
+        "boilerplate_ratio": 0.0,
+        "concrete_params": 0,
+        "has_project_name": false,
+        "has_tenderer_name": false,
+        "score": 0.25
+       },
+       "status": "DRAFTED",
+       "substance": {
+        "empty_sentence_ratio": 0.0,
+        "score": 0.95,
+        "verifiable_claims": 7
+       },
+       "target_chars": 500,
+       "title": "技术参数（第3块）",
+       "unanchored_claims": 0,
+       "uncited_evs": [],
+       "uncovered_reqs": [],
+       "unknown_citations": [],
+       "within_band": false
+      },
+      {
+       "chars": 344,
+       "cited_evs": [
+        "EV-0036"
+       ],
+       "covered_reqs": [
+        "REQ-0057",
+        "REQ-0058",
+        "REQ-0059",
+        "REQ-0060",
+        "REQ-0061",
+        "REQ-0062"
+       ],
+       "dup_with": [
+        [
+         "SEC-0010",
+         0.6667
+        ],
+        [
+         "SEC-0033",
+         0.3333
+        ],
+        [
+         "SEC-0018",
+         0.3333
+        ]
+       ],
+       "error": null,
+       "ghost_reqs": [],
+       "needs_human": true,
+       "requirement_ids": [
+        "REQ-0057",
+        "REQ-0058",
+        "REQ-0059",
+        "REQ-0060",
+        "REQ-0061",
+        "REQ-0062"
+       ],
+       "score": {
+        "covered_items": [],
+        "estimated": 0.0,
+        "item_scores": [],
+        "max": 0.0,
+        "missing_items": [],
+        "rationale": "无映射到本章节的评分项（section_id=SEC-0023——评分项 section 映射面为空，人工核对面）",
+        "section_id": "SEC-0023"
+       },
+       "section_id": "SEC-0023",
+       "specificity": {
+        "boilerplate_ratio": 0.0,
+        "concrete_params": 0,
+        "has_project_name": false,
+        "has_tenderer_name": false,
+        "score": 0.25
+       },
+       "status": "DRAFTED",
+       "substance": {
+        "empty_sentence_ratio": 0.0,
+        "score": 0.95,
+        "verifiable_claims": 7
+       },
+       "target_chars": 500,
+       "title": "技术参数（第4块）",
+       "unanchored_claims": 0,
+       "uncited_evs": [],
+       "uncovered_reqs": [],
+       "unknown_citations": [],
+       "within_band": false
+      }
+     ]
+    },
+    "summary": {
+     "drafted": 23,
+     "failed": 0,
+     "out_of_band": 23,
+     "pending": 0,
+     "total": 23,
+     "unanchored_total": 0,
+     "uncovered_req_total": 0
+    },
+    "warnings": []
+   },
+   "checks": [
+    {
+     "desc": "P6: check_bid_quality 返回 ok 面",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": 191.22294999988299
+  },
+  {
+   "stage": "P7 validate_bid_document",
+   "tool": "validate_bid_document",
+   "args": {
+    "scope": "all"
+   },
+   "result": {
+    "counts": {
+     "blocker": 0,
+     "deterministic": 24,
+     "major": 0,
+     "minor": 24,
+     "model": 0
+    },
+    "errors": [],
+    "findings": {
+     "count": 24,
+     "head": [
+      {
+       "kind": "DETERMINISTIC",
+       "message": "章节「资格与响应（第1块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+       "requirement_id": null,
+       "rule_code": "W_CHARS_OFF_TARGET",
+       "section_id": "SEC-0007",
+       "severity": "MINOR"
+      },
+      {
+       "kind": "DETERMINISTIC",
+       "message": "章节「资格与响应（第2块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+       "requirement_id": null,
+       "rule_code": "W_CHARS_OFF_TARGET",
+       "section_id": "SEC-0008",
+       "severity": "MINOR"
+      },
+      {
+       "kind": "DETERMINISTIC",
+       "message": "章节「资格与响应（第3块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+       "requirement_id": null,
+       "rule_code": "W_CHARS_OFF_TARGET",
+       "section_id": "SEC-0009",
+       "severity": "MINOR"
+      },
+      {
+       "kind": "DETERMINISTIC",
+       "message": "章节「资格与响应（第4块）」字数 119 偏离配额 500（±20% 带外：[400, 600]）",
+       "requirement_id": null,
+       "rule_code": "W_CHARS_OFF_TARGET",
+       "section_id": "SEC-0010",
+       "severity": "MINOR"
+      },
+      {
+       "kind": "DETERMINISTIC",
+       "message": "章节「第三章 投标人须知」字数 256 偏离配额 500（±20% 带外：[400, 600]）",
+       "requirement_id": null,
+       "rule_code": "W_CHARS_OFF_TARGET",
+       "section_id": "SEC-0012",
+       "severity": "MINOR"
+      },
+      {
+       "kind": "DETERMINISTIC",
+       "message": "章节「第七章 投标文件格式」字数 166 偏离配额 500（±20% 带外：[400, 600]）",
+       "requirement_id": null,
+       "rule_code": "W_CHARS_OFF_TARGET",
+       "section_id": "SEC-0014",
+       "severity": "MINOR"
+      },
+      {
+       "kind": "DETERMINISTIC",
+       "message": "章节「第八章 合同主要条款（摘要）」字数 166 偏离配额 500（±20% 带外：[400, 600]）",
+       "requirement_id": null,
+       "rule_code": "W_CHARS_OFF_TARGET",
+       "section_id": "SEC-0016",
+       "severity": "MINOR"
+      },
+      {
+       "kind": "DETERMINISTIC",
+       "message": "章节「格式要求」字数 121 偏离配额 500（±20% 带外：[400, 600]）",
+       "requirement_id": null,
+       "rule_code": "W_CHARS_OFF_TARGET",
+       "section_id": "SEC-0018",
+       "severity": "MINOR"
+      },
+      {
+       "kind": "DETERMINISTIC",
+       "message": "章节「技术参数（第1块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+       "requirement_id": null,
+       "rule_code": "W_CHARS_OFF_TARGET",
+       "section_id": "SEC-0020",
+       "severity": "MINOR"
+      },
+      {
+       "kind": "DETERMINISTIC",
+       "message": "章节「技术参数（第2块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+       "requirement_id": null,
+       "rule_code": "W_CHARS_OFF_TARGET",
+       "section_id": "SEC-0021",
+       "severity": "MINOR"
+      },
+      {
+       "kind": "DETERMINISTIC",
+       "message": "章节「技术参数（第3块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+       "requirement_id": null,
+       "rule_code": "W_CHARS_OFF_TARGET",
+       "section_id": "SEC-0022",
+       "severity": "MINOR"
+      },
+      {
+       "kind": "DETERMINISTIC",
+       "message": "章节「技术参数（第4块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+       "requirement_id": null,
+       "rule_code": "W_CHARS_OFF_TARGET",
+       "section_id": "SEC-0023",
+       "severity": "MINOR"
+      }
+     ]
+    },
+    "ok": true,
+    "project_status": "VALIDATING",
+    "project_version": 209,
+    "request_id": "req-000036",
+    "sections_checked": 23,
+    "warnings": {
+     "count": 24,
+     "head": [
+      "章节「资格与响应（第1块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+      "章节「资格与响应（第2块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+      "章节「资格与响应（第3块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+      "章节「资格与响应（第4块）」字数 119 偏离配额 500（±20% 带外：[400, 600]）",
+      "章节「第三章 投标人须知」字数 256 偏离配额 500（±20% 带外：[400, 600]）",
+      "章节「第七章 投标文件格式」字数 166 偏离配额 500（±20% 带外：[400, 600]）",
+      "章节「第八章 合同主要条款（摘要）」字数 166 偏离配额 500（±20% 带外：[400, 600]）",
+      "章节「格式要求」字数 121 偏离配额 500（±20% 带外：[400, 600]）",
+      "章节「技术参数（第1块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+      "章节「技术参数（第2块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+      "章节「技术参数（第3块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+      "章节「技术参数（第4块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）"
+     ]
+    }
+   },
+   "checks": [
+    {
+     "desc": "P7: ok=true（BLOCKER 清零）",
+     "pass": true
+    },
+    {
+     "desc": "P7: counts.blocker == 0",
+     "pass": true
+    },
+    {
+     "desc": "P7: project_status=VALIDATING",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": 79.69909300027211
+  },
+  {
+   "stage": "P8 export_bid_document",
+   "tool": "export_bid_document",
+   "args": {
+    "format": "docx",
+    "output_path": "out/投标文件-技术标.docx"
+   },
+   "result": {
+    "artifact": {
+     "sha256": "bb7e2ff5aed4bfb0a8d95e28f6661e495228574bccc3aafa337c2535301fd52a",
+     "size": 169965,
+     "url": "/tmp/bid-mcp-e2e/full-pipeline/ws/out/投标文件-技术标.docx"
+    },
+    "chapters_written": 23,
+    "content_version_snapshot": 212,
+    "form_titles": [
+     "附件一、投标函",
+     "附件二、法定代表人身份证明书",
+     "附件三、授权委托书",
+     "附件四、投标保证金退还申请",
+     "附件五、资格声明",
+     "附件六、无重大违法记录声明",
+     "附件七、廉洁承诺书"
+    ],
+    "forms_written": 7,
+    "precheck": {
+     "blockers": 0,
+     "waived": []
+    },
+    "project_status": "EXPORTED",
+    "request_id": "req-000037",
+    "table_kinds": [
+     "技术参数偏离表",
+     "项目概况表"
+    ],
+    "tables_written": 2,
+    "toc_field_present": true,
+    "total_chars": 6752,
+    "warnings": {
+     "count": 14,
+     "head": [
+      "发现 2 条格式候选条款但无字号/字体/行距/边距可识别——按工程惯例基线导出",
+      "主体信息未建档（工作区无 bidder-profile.json）——人员/设备表与格式件字段将落【待填】",
+      "投标总报价未随导出给出（profile.bid_amount）——概况表/投标函报价栏将落【待填】",
+      "技术参数偏离表有 82/82 条 REQ 无参数响应账——响应列落【待填】、偏离列「不可比」（补录 set_param_responses 后自动判定）",
+      "无分项报价决策（profile.price_breakdown）——报价明细表未生成（招标文件 7.2/7.5 要求分项报价不得缺漏项）",
+      "证据台账无可用业绩证据——业绩一览表未生成（readiness 闸会拦业绩章起草，导出面在此如实回报）",
+      "主体信息未提供拟派人员（bidder-profile.json 的 personnel）——人员配置表未生成",
+      "主体信息未提供拟投入设备（bidder-profile.json 的 equipment）——设备清单表未生成",
+      "项目名称未显式给出（profile.project_name）——格式件使用内部项目名「MCP e2e mcp-e2e-pipeline——智慧园区弱电工程」（应核对招标文件官方项目名）",
+      "投标工期未随导出给出（profile.duration_days）——投标函工期栏将落【待填】",
+      "投标有效期未随导出给出（profile.validity_days）——投标函有效期栏将落【待填】",
+      "投标保证金金额未随导出给出（profile.deposit_amount）——退还申请金额栏将落【待填】"
+     ]
+    }
+   },
+   "checks": [
+    {
+     "desc": "P8: 产物 > 5KB",
+     "pass": true
+    },
+    {
+     "desc": "P8: sha256 在场",
+     "pass": true
+    },
+    {
+     "desc": "P8: chapters_written == 起草章数",
+     "pass": true
+    },
+    {
+     "desc": "P8: project_status=EXPORTED",
+     "pass": true
+    },
+    {
+     "desc": "P8: 产物落在工作区 out/",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": 41.80221499973413
+  },
+  {
+   "stage": "产物深检 docx",
+   "tool": null,
+   "args": {},
+   "result": {
+    "size": 169965,
+    "sha256": "bb7e2ff5aed4bfb0a8d95e28f6661e495228574bccc3aafa337c2535301fd52a"
+   },
+   "checks": [
+    {
+     "desc": "产物: TOC 域在位",
+     "pass": true
+    },
+    {
+     "desc": "产物: 正文探针句进文档",
+     "pass": true
+    },
+    {
+     "desc": "产物: 无字面 ** 泄漏（行内粗体已转 run）",
+     "pass": true
+    },
+    {
+     "desc": "产物: 无 md 井号标题泄漏",
+     "pass": true
+    },
+    {
+     "desc": "产物: styles.xml 中文字体面（w:eastAsia）",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "工作区落盘",
+   "tool": null,
+   "args": {},
+   "result": {
+    "n_chapters": 23,
+    "sample": {
+     "section_id": "SEC-0007",
+     "attempt": 1,
+     "char_count": 344,
+     "citations": [
+      "REQ-0001",
+      "REQ-0002",
+      "REQ-0005",
+      "REQ-0006",
+      "REQ-0007",
+      "REQ-0008"
+     ]
+    }
+   },
+   "checks": [
+    {
+     "desc": "落盘: chapters/*.json == 23 件",
+     "pass": true
+    },
+    {
+     "desc": "落盘: db.json（状态机持久化）在场",
+     "pass": true
+    },
+    {
+     "desc": "落盘: 章记录 attempt >= 1",
+     "pass": true
+    },
+    {
+     "desc": "落盘: 章记录 citations 非空",
+     "pass": true
+    },
+    {
+     "desc": "落盘: 章记录 draft_note 留档（#127）",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "重启续跑（新进程读同工作区）",
+   "tool": "get_bid_project_state",
+   "args": {},
+   "result": {
+    "allowed_next_tools": [
+     "get_compliance_matrix",
+     "search_evidence",
+     "get_bid_project_state",
+     "export_bid_document",
+     "check_bid_quality",
+     "record_review_gate",
+     "score_section",
+     "score_document"
+    ],
+    "status": "EXPORTED",
+    "terminal": true
+   },
+   "checks": [
+    {
+     "desc": "重启: EXPORTED 状态完整恢复",
+     "pass": true
+    },
+    {
+     "desc": "重启: terminal=true（状态机无后继迁移）",
+     "pass": true
+    },
+    {
+     "desc": "重启: 终态不再放行写面工具",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null,
+   "extra": {
+    "note": "EXPORTED 下 allowed_next_tools 含只读/幂等面工具（口径与 terminal 不同）"
+   }
+  }
+ ],
+ "payload_shapes": {},
+ "ws": "/tmp/bid-mcp-e2e/full-pipeline/ws",
+ "finished_at": "2026-11-01T11:41:55+00:00"
+}

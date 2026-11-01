@@ -1,0 +1,786 @@
+{
+ "case": "13-external-cas-version",
+ "transport": "linejson",
+ "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
+ "server_sha256": "134e9939d46742d229bba97ead748a2a2878c620af44258bac1968e7cd1029cd",
+ "python": "3.12.16",
+ "mcp_sdk": "1.27.0",
+ "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
+ "started_at": "2026-11-01T11:41:57+00:00",
+ "stages": [
+  {
+   "stage": "P0 create_bid_project（含幂等重放）",
+   "tool": "create_bid_project",
+   "args": {
+    "external_key": "mcp-e2e-cas"
+   },
+   "result": {
+    "first": {
+     "project_id": "PRJ-0001",
+     "project_version": 1,
+     "request_id": "req-000001",
+     "status": "DRAFT",
+     "warnings": []
+    },
+    "replay": {
+     "deduplicated": true,
+     "project_id": "PRJ-0001",
+     "project_version": 1,
+     "request_id": "req-000002",
+     "status": "DRAFT",
+     "warnings": []
+    },
+    "note": "首建响应无 deduplicated 字段——契约 §1 out 只承诺 project_id/status"
+   },
+   "checks": [
+    {
+     "desc": "P0: project_id 前缀 PRJ-",
+     "pass": true
+    },
+    {
+     "desc": "P0: status=DRAFT",
+     "pass": true
+    },
+    {
+     "desc": "P0: 首建非重放（deduplicated 缺席或 false）",
+     "pass": true
+    },
+    {
+     "desc": "P0: warnings 为空（截止日未过）",
+     "pass": true
+    },
+    {
+     "desc": "P0: 同 key 重放 → 原 project_id",
+     "pass": true
+    },
+    {
+     "desc": "P0: 重放 deduplicated=true（契约幂等面）",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": 3.3331310000903613
+  },
+  {
+   "stage": "P1 import_tender_files",
+   "tool": "import_tender_files",
+   "args": {
+    "files": [
+     "A-招标文件.docx",
+     "C-补遗文件01.docx",
+     "evidence/EV-01-营业执照.pdf",
+     "evidence/EV-02-电子与智能化工程专业承包二级资质证书.pdf"
+    ]
+   },
+   "result": {
+    "file_ids": [
+     "TF-0002",
+     "TF-0003",
+     "TF-0004",
+     "TF-0005"
+    ],
+    "per_file": [
+     {
+      "chunks": 182,
+      "deduplicated": false,
+      "file_id": "TF-0002",
+      "filename": "A-招标文件.docx",
+      "ocr_tier": "none",
+      "pages": 0,
+      "parse_status": "ok",
+      "sha256": "e1a2c6f1665306b26c1d7c846cce74f9af02b7cade5bd548cb73f7448ed0d996",
+      "tables": 6
+     },
+     {
+      "chunks": 11,
+      "deduplicated": false,
+      "file_id": "TF-0003",
+      "filename": "C-补遗文件01.docx",
+      "ocr_tier": "none",
+      "pages": 0,
+      "parse_status": "ok",
+      "sha256": "c0f0e3da2f3dbb1ac864be3c85c53544cabcab728e1e9854b3b03ec70e04c1f0",
+      "tables": 0
+     },
+     {
+      "chunks": 8,
+      "deduplicated": false,
+      "file_id": "TF-0004",
+      "filename": "evidence/EV-01-营业执照.pdf",
+      "ocr_tier": "none",
+      "pages": 1,
+      "parse_status": "ok",
+      "sha256": "b1b4811b9c1b96e1bff95a49dcba07434cd391d7939e82b7453d18142b80258c",
+      "tables": 0
+     },
+     {
+      "chunks": 7,
+      "deduplicated": false,
+      "file_id": "TF-0005",
+      "filename": "evidence/EV-02-电子与智能化工程专业承包二级资质证书.pdf",
+      "ocr_tier": "none",
+      "pages": 1,
+      "parse_status": "ok",
+      "sha256": "60a2e9ce86ccab9bb8ad89be98bcfd8e802ee8d9ff6e20ce7ea4f2e23964c7b6",
+      "tables": 0
+     }
+    ],
+    "project_version": 5,
+    "request_id": "req-000003",
+    "status": "FILES_IMPORTED",
+    "totals": {
+     "chunks": 208,
+     "files": 4,
+     "parse_failed": 0,
+     "partial": 0
+    },
+    "warnings": []
+   },
+   "checks": [
+    {
+     "desc": "P1: totals.files >= 4",
+     "pass": true
+    },
+    {
+     "desc": "P1: parse_failed == 0",
+     "pass": true
+    },
+    {
+     "desc": "P1: partial == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": 243.38729800001602
+  },
+  {
+   "stage": "P2 extract_requirements",
+   "tool": "extract_requirements",
+   "args": {},
+   "result": {
+    "conflicts": [],
+    "counts": {
+     "added": 121,
+     "by_category": {
+      "commercial": 3,
+      "format": 2,
+      "other": 11,
+      "qualification": 6,
+      "scoring": 4,
+      "tech_param": 82,
+      "veto": 13
+     },
+     "total": 121
+    },
+    "missing_sequence": [],
+    "project_version": 6,
+    "request_id": "req-000004",
+    "status": "REQUIREMENTS_EXTRACTED",
+    "warnings": [
+     "ENGINE_PATH: A-招标文件.docx 经引擎路径解析（已知缺口：嵌套表 mdcore#39 / 域边界 mdcore#40——docs/b3-3-acceptance-report.md §6）"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P2: counts.total >= 5（GT 25 埋点件）",
+     "pass": true
+    },
+    {
+     "desc": "P2: by_category 非空",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": 64.35097100029452
+  },
+  {
+   "stage": "P3 build_outline",
+   "tool": "build_outline",
+   "args": {},
+   "result": {
+    "counts": {
+     "leaves": 23,
+     "matrix_blocking": 19,
+     "matrix_rows": 121,
+     "requirements": 121,
+     "sections": 30,
+     "total_target_chars": 11500
+    },
+    "project_version": 8,
+    "request_id": "req-000005",
+    "status": "MATRIX_READY"
+   },
+   "checks": [
+    {
+     "desc": "P3: sections >= 2",
+     "pass": true
+    },
+    {
+     "desc": "P3: matrix_rows >= 5",
+     "pass": true
+    },
+    {
+     "desc": "P3: status=MATRIX_READY",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": 7.085816999733652
+  },
+  {
+   "stage": "P3 get_compliance_matrix",
+   "tool": "get_compliance_matrix",
+   "args": {
+    "limit": 1000
+   },
+   "result": {
+    "total": 121,
+    "rows_head": [
+     {
+      "blocking": true,
+      "cmp_id": "CMP-0001",
+      "draft_section_id": "SEC-0007",
+      "evidence": [],
+      "gap": null,
+      "requirement": {
+       "category": "否决项",
+       "category_key": "veto",
+       "clause_no": null,
+       "id": "REQ-0001",
+       "mandatory": true,
+       "params": {},
+       "source_anchor": {
+        "excerpt": "本项目预算金额：设备采购预算 350 万元（含税）；最高限价（招标控制价）：人民币 480 万元（含税），投标报价超过最高限价的作否决投标处理。",
+        "file": "A-招标文件.docx",
+        "kind": "para",
+        "locator": "第一章 招标公告"
+       },
+       "statement": "本项目预算金额：设备采购预算 350 万元（含税）；最高限价（招标控制价）：人民币 480 万元（含税），投标报价超过最高限价的作否决投标处理。"
+      },
+      "response_policy": "default",
+      "status": "NOT_RESPONDED"
+     },
+     {
+      "blocking": true,
+      "cmp_id": "CMP-0002",
+      "draft_section_id": "SEC-0007",
+      "evidence": [],
+      "gap": null,
+      "requirement": {
+       "category": "否决项",
+       "category_key": "veto",
+       "clause_no": "前附表-10",
+       "id": "REQ-0002",
+       "mandatory": true,
+       "params": {},
+       "source_anchor": {
+        "excerpt": "10 否决条款提示 未按本表第 9 项规定格式填写技术偏离表的，其投标作否决投标处理",
+        "file": "A-招标文件.docx",
+        "kind": "table",
+        "locator": "第二章 投标人须知前附表 表1 行11"
+       },
+       "statement": "10 否决条款提示 未按本表第 9 项规定格式填写技术偏离表的，其投标作否决投标处理"
+      },
+      "response_policy": "default",
+      "status": "NOT_RESPONDED"
+     },
+     {
+      "blocking": false,
+      "cmp_id": "CMP-0003",
+      "draft_section_id": "SEC-0012",
+      "evidence": [],
+      "gap": null,
+      "requirement": {
+       "category": "其他",
+       "category_key": "other",
+       "clause_no": "3.1.1",
+       "id": "REQ-0003",
+       "mandatory": false,
+       "params": {},
+       "source_anchor": {
+        "excerpt": "3.1.1 适用范围：本须知适用于本项目投标、开标、评标、定标及合同签订全过程。",
+        "file": "A-招标文件.docx",
+        "kind": "para",
+        "locator": "第三章 投标人须知 > 一、总则"
+       },
+       "statement": "3.1.1 适用范围：本须知适用于本项目投标、开标、评标、定标及合同签订全过程。"
+      },
+      "response_policy": "default",
+      "status": "NOT_RESPONDED"
+     }
+    ],
+    "n_blocking": 19
+   },
+   "checks": [
+    {
+     "desc": "P3: 矩阵行数 >= 5",
+     "pass": true
+    },
+    {
+     "desc": "P3: total 与 rows 一致",
+     "pass": true
+    },
+    {
+     "desc": "P3: 至少 1 个可起草章节",
+     "pass": true
+    },
+    {
+     "desc": "P3: 必绑类目 REQ 非空",
+     "pass": true
+    },
+    {
+     "desc": "P3: 建纲后 blocking 行 = 19（未绑证据，预期 >0 或 =0）",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": 8.513150999988284,
+   "extra": {
+    "sections": {
+     "SEC-0007": [
+      "REQ-0001",
+      "REQ-0002",
+      "REQ-0005",
+      "REQ-0006",
+      "REQ-0007",
+      "REQ-0008"
+     ],
+     "SEC-0012": [
+      "REQ-0003",
+      "REQ-0004",
+      "REQ-0015",
+      "REQ-0018",
+      "REQ-0024"
+     ],
+     "SEC-0008": [
+      "REQ-0009",
+      "REQ-0010",
+      "REQ-0013",
+      "REQ-0014",
+      "REQ-0016",
+      "REQ-0017"
+     ],
+     "SEC-0018": [
+      "REQ-0011",
+      "REQ-0012"
+     ],
+     "SEC-0009": [
+      "REQ-0019",
+      "REQ-0020",
+      "REQ-0021",
+      "REQ-0022",
+      "REQ-0023",
+      "REQ-0051"
+     ],
+     "SEC-0020": [
+      "REQ-0029",
+      "REQ-0030",
+      "REQ-0031",
+      "REQ-0032",
+      "REQ-0033",
+      "REQ-0034"
+     ],
+     "SEC-0021": [
+      "REQ-0035",
+      "REQ-0036",
+      "REQ-0037",
+      "REQ-0038",
+      "REQ-0039",
+      "REQ-0040"
+     ],
+     "SEC-0022": [
+      "REQ-0041",
+      "REQ-0042",
+      "REQ-0043",
+      "REQ-0044",
+      "REQ-0055",
+      "REQ-0056"
+     ],
+     "SEC-0035": [
+      "REQ-0045",
+      "REQ-0046",
+      "REQ-0047"
+     ],
+     "SEC-0014": [
+      "REQ-0048",
+      "REQ-0049",
+      "REQ-0050"
+     ],
+     "SEC-0016": [
+      "REQ-0052",
+      "REQ-0053",
+      "REQ-0054"
+     ],
+     "SEC-0023": [
+      "REQ-0057",
+      "REQ-0058",
+      "REQ-0059",
+      "REQ-0060",
+      "REQ-0061",
+      "REQ-0062"
+     ],
+     "SEC-0024": [
+      "REQ-0063",
+      "REQ-0064",
+      "REQ-0065",
+      "REQ-0066",
+      "REQ-0067",
+      "REQ-0068"
+     ],
+     "SEC-0025": [
+      "REQ-0069",
+      "REQ-0070",
+      "REQ-0071",
+      "REQ-0072",
+      "REQ-0073",
+      "REQ-0074"
+     ],
+     "SEC-0026": [
+      "REQ-0075",
+      "REQ-0076",
+      "REQ-0077",
+      "REQ-0078",
+      "REQ-0079",
+      "REQ-0080"
+     ],
+     "SEC-0027": [
+      "REQ-0081",
+      "REQ-0082",
+      "REQ-0083",
+      "REQ-0084",
+      "REQ-0085",
+      "REQ-0086"
+     ],
+     "SEC-0028": [
+      "REQ-0087",
+      "REQ-0088",
+      "REQ-0089",
+      "REQ-0090",
+      "REQ-0091",
+      "REQ-0092"
+     ],
+     "SEC-0029": [
+      "REQ-0093",
+      "REQ-0094",
+      "REQ-0095",
+      "REQ-0096",
+      "REQ-0097",
+      "REQ-0098"
+     ],
+     "SEC-0030": [
+      "REQ-0099",
+      "REQ-0100",
+      "REQ-0101",
+      "REQ-0102",
+      "REQ-0103",
+      "REQ-0104"
+     ],
+     "SEC-0031": [
+      "REQ-0105",
+      "REQ-0106",
+      "REQ-0107",
+      "REQ-0108",
+      "REQ-0109",
+      "REQ-0110"
+     ],
+     "SEC-0032": [
+      "REQ-0111",
+      "REQ-0112",
+      "REQ-0113",
+      "REQ-0114",
+      "REQ-0115",
+      "REQ-0116"
+     ],
+     "SEC-0033": [
+      "REQ-0117",
+      "REQ-0118",
+      "REQ-0119",
+      "REQ-0120"
+     ],
+     "SEC-0010": [
+      "REQ-0121"
+     ]
+    }
+   }
+  },
+  {
+   "stage": "P4 register_evidence",
+   "tool": "register_evidence",
+   "args": {
+    "kind": "qualification",
+    "source_file": "EV-02-电子与智能化工程专业承包二级资质证书.pdf"
+   },
+   "result": {
+    "deduplicated": false,
+    "ev_id": "EV-0036",
+    "hint": "新 EV 已签发（若为同 key 换版，旧记录已单向降级 SUPERSEDED；全新登记则无旧记录）",
+    "kind": "qualification",
+    "project_version": 9,
+    "request_id": "req-000007",
+    "status": "ACTIVE"
+   },
+   "checks": [
+    {
+     "desc": "P4: ev_id 前缀 EV-",
+     "pass": true
+    },
+    {
+     "desc": "P4: status=ACTIVE",
+     "pass": true
+    },
+    {
+     "desc": "P4: deduplicated=false（首登）",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": 6.789896000100271
+  },
+  {
+   "stage": "P4 bind_evidence",
+   "tool": "bind_evidence",
+   "args": {
+    "ev_id": "EV-0036",
+    "n_reqs": 101
+   },
+   "result": {
+    "bound_new": 101,
+    "ev_id": "EV-0036",
+    "matrix": {
+     "blocking": 0,
+     "rows": 121
+    },
+    "project_version": 111,
+    "replayed": 0,
+    "request_id": "req-000008",
+    "requested": 101,
+    "status": "MATRIX_READY"
+   },
+   "checks": [
+    {
+     "desc": "P4: bound_new + replayed == 请求数",
+     "pass": true
+    },
+    {
+     "desc": "P4: 绑后 blocking == 0（否则导出闸会拒）",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": 7.0842620002622425
+  },
+  {
+   "stage": "G3 record_review_gate ×3",
+   "tool": "record_review_gate",
+   "args": {
+    "gates": [
+     "matrix_approval",
+     "outline_approval",
+     "pre_export_confirm"
+    ]
+   },
+   "result": {
+    "gates_approved": [
+     "matrix_approval",
+     "outline_approval",
+     "pre_export_confirm"
+    ],
+    "project_version": 114,
+    "receipt": {
+     "decision": "APPROVED",
+     "finding_ids": [],
+     "gate": "pre_export_confirm",
+     "review_id": "REV-0039",
+     "reviewer": "human:mcp-e2e",
+     "spawned_rt_ids": []
+    },
+    "request_id": "req-000011",
+    "status": "MATRIX_READY"
+   },
+   "checks": [
+    {
+     "desc": "G3: 三门全过 ('matrix_approval', 'outline_approval', 'pre_export_confirm')",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": 19.875949999914155
+  },
+  {
+   "stage": "④ draft #1（内容 A）",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0007",
+    "chars": 344
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0007-v1",
+    "draft_note": "起草指令：外部手稿——CAS 版本递增验证",
+    "project_status": "DRAFTING",
+    "project_version": 120,
+    "request_id": "req-000012",
+    "section_id": "SEC-0007",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 7,
+     "cited_ids": [
+      "REQ-0001",
+      "REQ-0002",
+      "REQ-0005",
+      "REQ-0006",
+      "REQ-0007",
+      "REQ-0008",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 344
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "④: 首稿成功",
+     "pass": true
+    },
+    {
+     "desc": "④: 首稿 version >= 1",
+     "pass": true
+    },
+    {
+     "desc": "④: content_ref 带版本号",
+     "pass": true
+    },
+    {
+     "desc": "④: 非重放（deduplicated 缺省/false）",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "④ draft #2（内容 B ≠ A）",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0007",
+    "chars": 380
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0007-v2",
+    "draft_note": "起草指令：外部手稿——CAS 版本递增验证",
+    "project_status": "DRAFTING",
+    "project_version": 121,
+    "request_id": "req-000013",
+    "section_id": "SEC-0007",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 7,
+     "cited_ids": [
+      "REQ-0001",
+      "REQ-0002",
+      "REQ-0005",
+      "REQ-0006",
+      "REQ-0007",
+      "REQ-0008",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 380
+    },
+    "version": 2,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "④: 换稿重写成功",
+     "pass": true
+    },
+    {
+     "desc": "④: 版本递增（v1 → v2）",
+     "pass": true
+    },
+    {
+     "desc": "④: project_version 递增",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "④ draft #3（内容 B 重放）",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0007",
+    "chars": 380
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0007-v2",
+    "deduplicated": true,
+    "draft_note": "起草指令：外部手稿——CAS 版本递增验证",
+    "project_status": "DRAFTING",
+    "project_version": 121,
+    "request_id": "req-000013",
+    "section_id": "SEC-0007",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 7,
+     "cited_ids": [
+      "REQ-0001",
+      "REQ-0002",
+      "REQ-0005",
+      "REQ-0006",
+      "REQ-0007",
+      "REQ-0008",
+      "EV-0036"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 380
+    },
+    "version": 2,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "④: 同稿重提 → deduplicated=true",
+     "pass": true
+    },
+    {
+     "desc": "④: 幂等重放版本不变",
+     "pass": true
+    },
+    {
+     "desc": "④: 重放零副作用（project_version 不变）",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "④ 白盒：chapters 落盘复查",
+   "tool": null,
+   "args": {},
+   "result": {
+    "attempt": 2,
+    "char_count": 380
+   },
+   "checks": [
+    {
+     "desc": "④: 落盘 attempt == v2",
+     "pass": true
+    },
+    {
+     "desc": "④: 落盘内容为最新稿 B",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  }
+ ],
+ "payload_shapes": {},
+ "ws": "/tmp/bid-mcp-e2e/external-cas-version/ws",
+ "finished_at": "2026-11-01T11:41:57+00:00"
+}

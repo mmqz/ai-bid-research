@@ -1,0 +1,44 @@
+{
+ "case": "00-environment",
+ "transport": "linejson",
+ "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
+ "server_sha256": "134e9939d46742d229bba97ead748a2a2878c620af44258bac1968e7cd1029cd",
+ "python": "3.12.16",
+ "mcp_sdk": "1.27.0",
+ "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
+ "started_at": "2026-11-01T11:41:53+00:00",
+ "stages": [
+  {
+   "stage": "环境留档",
+   "tool": null,
+   "args": {},
+   "result": {
+    "transport_resolved": "linejson",
+    "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
+    "server_sha256": "134e9939d46742d229bba97ead748a2a2878c620af44258bac1968e7cd1029cd",
+    "python": "3.12.16",
+    "mcp_sdk": "1.27.0",
+    "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
+    "rustc": "(rustc 不在 PATH)"
+   },
+   "checks": [
+    {
+     "desc": "环境: server 二进制在场",
+     "pass": true
+    },
+    {
+     "desc": "环境: fixtures/corpus-A 真件在场",
+     "pass": true
+    },
+    {
+     "desc": "环境: mcp Python SDK 已安装",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  }
+ ],
+ "payload_shapes": {},
+ "ws": null,
+ "finished_at": "2026-11-01T11:41:53+00:00"
+}

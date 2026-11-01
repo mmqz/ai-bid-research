@@ -1,0 +1,24 @@
+{
+  "form_titles_found": 7,
+  "heading1_vs_outline_roots": {
+    "docx": 11,
+    "outline": 10
+  },
+  "markdown_asterisk_leak": 0,
+  "matrix_blocking": 0,
+  "price_total_matches_bid": true,
+  "red_runs": {
+    "actual": 5,
+    "expected": 5
+  },
+  "response_group_present": true,
+  "source": "07_export.docx/word/document.xml",
+  "tables_total": {
+    "actual": 6,
+    "expected": 6
+  },
+  "tech_deviation_rows": {
+    "actual": 15,
+    "expected_min": 15
+  }
+}

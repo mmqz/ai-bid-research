@@ -35,10 +35,36 @@ fn err_parts(reply: &ToolReply) -> (String, String) {
 
 /// REQ 夹具（评分项带 score 客观位；否决项；技术参数）。
 fn mk_req(id: &str, category: &str, excerpt: &str, score: Option<f64>) -> bid_domain::Requirement {
+    mk_req_at(id, category, excerpt, score, None)
+}
+
+/// 带章节归属的版本。
+///
+/// **为什么需要**（#126 后的必要面）：评分项不进正文 → 不在任何叶的
+/// requirement_ids 里 → `tools.rs::build_scorer` 的 `leaf_of` 反查落空 →
+/// 评分项拿不到 section → `score_section` 的 item_scores 为空。
+///
+/// 真实场景里评分项靠招标文件的「评分表 ↔ 章节」对应关系显式关联，
+/// 这里用 `sec` 参数如实建模。
+///
+/// 注：`sec` 必须在【首次 set_requirements 时】就给——
+/// domain 的 `set_requirements` 只允许 FILES_IMPORTED / REQUIREMENTS_EXTRACTED
+/// 两态，建纲（prepare_outline_and_matrix）后状态已到 MATRIX_READY，
+/// 再改就会被 EState 拒（实测 `EState { current: MatrixReady, ... }`）。
+fn mk_req_at(
+    id: &str,
+    category: &str,
+    excerpt: &str,
+    score: Option<f64>,
+    sec: Option<&str>,
+) -> bid_domain::Requirement {
     use bid_domain::{Anchor, Requirement};
     let mut params = std::collections::HashMap::new();
     if let Some(s) = score {
         params.insert("score".to_string(), serde_json::json!(s));
+    }
+    if let Some(s) = sec {
+        params.insert("section".to_string(), serde_json::json!(s));
     }
     Requirement {
         id: id.into(),
@@ -56,7 +82,8 @@ fn mk_req(id: &str, category: &str, excerpt: &str, score: Option<f64>) -> bid_do
 }
 
 /// 「建纲 + mock 起草全部叶」服务态（synth 形态：1 价格评分项 + 1 技术评分项
-/// + 1 否决项 + 1 技术参数——评分项 params **不带 section**，验证大纲联结）。
+/// + 1 否决项 + 1 技术参数——评分项 params **带 section**（指向 SEC-0001），
+/// 因为 #126 后评分项不进正文，不显式映射就拿不到 item_scores）。
 fn svc_drafted(tag: &str, draft_all: bool) -> (BidService, String) {
     let mut svc = BidService::new();
     let pid = ok_result(call(&mut svc, "create_bid_project", json!({
@@ -67,12 +94,12 @@ fn svc_drafted(tag: &str, draft_all: bool) -> (BidService, String) {
         bid_domain::ParseStatus::Ok, "",
     ).unwrap();
     svc.set_requirements(vec![
-        mk_req("REQ-0001", "评分项",
+        mk_req_at("REQ-0001", "评分项",
             "4.1 价格分（30 分）：以通过初步评审的有效投标报价的算术平均值下浮 5% 为基准价，价格分＝（基准价／投标报价）×30",
-            Some(30.0)),
-        mk_req("REQ-0002", "评分项",
+            Some(30.0), Some("SEC-0001")),
+        mk_req_at("REQ-0002", "评分项",
             "4.2 技术分：技术方案完整性与针对性 20 分，方案须覆盖系统架构与设备选型",
-            Some(20.0)),
+            Some(20.0), Some("SEC-0001")),
         mk_req("REQ-0003", "否决项",
             "3.9 投标文件未按规定格式签署盖章的，作否决投标处理", None),
         mk_req("REQ-0004", "技术参数",
@@ -82,6 +109,31 @@ fn svc_drafted(tag: &str, draft_all: bool) -> (BidService, String) {
         .prepare_outline_and_matrix(OutlineSpec { target_total_chars: 6_000, max_reqs_per_leaf: 8 })
         .unwrap();
     assert!(n_sec >= 1);
+    // 【夹具前提】评分项的 params.section = "SEC-0001"（见上方 mk_req_at）——
+    // 这里锁定它确实是【叶】（评分项的自评挂在节上，节才有 item_scores）。
+    //
+    // 为什么必须在 set_requirements 时就给（不能在建纲后补）：
+    // domain 的 `set_requirements` 只允许 FILES_IMPORTED / REQUIREMENTS_EXTRACTED
+    // 两态，而 prepare_outline_and_matrix 内部已 build_matrix() → MATRIX_READY，
+    // 再改必被 EState 拒（实测 `EState { current: MatrixReady }`）。
+    {
+        let parents: std::collections::HashSet<String> = svc
+            .store()
+            .sections()
+            .iter()
+            .filter_map(|n| n.parent_id.clone())
+            .collect();
+        let sec1 = svc
+            .store()
+            .sections()
+            .iter()
+            .find(|n| n.id == "SEC-0001")
+            .expect("建纲后必有 SEC-0001");
+        assert!(
+            !parents.contains(&sec1.id),
+            "夹具前提失效：SEC-0001 是结构节点而非叶（评分项 section 指向它则自评落空）"
+        );
+    }
     // 【#126 后的必要补线】评分项不进正文 → 不在任何叶的 requirement_ids 里
     // → build_scorer 的 leaf_of 反查落空 → item_scores 为空。
     // 评分项要参与章节自评，必须在 params.section 里**显式**声明归属章节

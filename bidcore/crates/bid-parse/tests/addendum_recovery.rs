@@ -55,9 +55,45 @@ fn addendum_pdf_yields_text_through_public_parse_path() {
         assert!(all.contains(needle), "补遗应含「{label}」({needle})，实际：\n{all}");
     }
 
+    // 断言改为环境可移植：公共路径走「环境里可用的最好一条路」——
+    // 有 poppler → 「pdf 文本层」（pdf.rs 首选路）；pdfium+poppler 全缺 →
+    // 纯 Rust 兜底（自报「兜底」）。两条都是**诚实自报**：断言 summary 命中
+    // 任一已知标记即可（原断言硬要「兜底」，在有 poppler 的机器上把
+    // 走了首选路的成功解析误判为失败——环境敏感缺陷，issue #9 纪律：
+    // 环境差异不得伪装成业务回归）。兜底行为本身由下方
+    // addendum_fallback_recovers_and_self_reports 直接钉死（任何环境可复现）。
+    assert!(
+        parsed.parse_summary.contains("兜底") || parsed.parse_summary.contains("pdf 文本层"),
+        "parse_summary 必须诚实自报所走的路（「兜底」或「pdf 文本层」），实际：{}",
+        parsed.parse_summary
+    );
+}
+
+/// 兜底路径行为钉死：直接调 pdf_text::parse_via_fallback（不依赖外部工具
+/// 在位与否——任何环境都能验证兜底恢复 + 诚实自报）。
+#[test]
+fn addendum_fallback_recovers_and_self_reports() {
+    let Some(p) = require_fixture() else { return };
+    let parsed = bid_parse::pdf_text::parse_via_fallback(&p, "C-补遗文件.pdf")
+        .expect("C-补遗.pdf 应能走纯 Rust 兜底恢复");
+    assert!(parsed.has_text_layer, "兜底从文本层恢复");
+    let all: String = parsed
+        .blocks
+        .iter()
+        .map(|b| b.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    for (needle, label) in [
+        ("2026-11-30", "延期后的开标/截止时间"),
+        ("1580 万元", "调整后的控制价"),
+        ("回执确认函", "新增的否决条款"),
+        ("最多 4 分", "商务分修正"),
+    ] {
+        assert!(all.contains(needle), "兜底应含「{label}」({needle})，实际：\n{all}");
+    }
     assert!(
         parsed.parse_summary.contains("兜底"),
-        "从兜底路径来的解析必须在 summary 里自报，实际：{}",
+        "兜底路径必须在 summary 里自报（对账能区分正常链路/兜底），实际：{}",
         parsed.parse_summary
     );
 }

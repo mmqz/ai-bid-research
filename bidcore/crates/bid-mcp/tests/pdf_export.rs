@@ -77,6 +77,11 @@ fn svc_export_ready(tag: &str, n_reqs: usize, target_chars: u32) -> (BidService,
     svc.store_mut().upsert_file(
         "A-招标文件.docx", "招标文件", &format!("sha-pdf-{tag}"), 50, 5, 300, 0, ParseStatus::Ok, "",
     ).unwrap();
+    // #131 适配：补遗件（draft_tool.rs 同款）——否则 L3 MissingAddendum 闸
+    // 拦下全叶 draft 步（PDF 测试聚焦导出通道，不在补遗语义面上）
+    svc.store_mut().upsert_file(
+        "C-补遗文件01.docx", "补遗", &format!("sha-pdf-add-{tag}"), 20, 0, 100, 0, ParseStatus::Ok, "",
+    ).unwrap();
     let reqs: Vec<Requirement> = (0..n_reqs)
         .map(|i| Requirement {
             id: format!("REQ-{:04}", i + 1),

@@ -112,6 +112,12 @@ fn scale_500k_chars_full_pipeline_under_redlines() {
         "A-合成招标文件.docx", "招标文件", "sha-scale", 1330, 40, 8_000, 0,
         ParseStatus::Ok, "",
     ).unwrap();
+    // #131 适配：补遗件（draft_tool.rs 同款）——否则 L3 MissingAddendum 闸
+    // 拦下④起草步（规模测试聚焦调度/生成/落盘红线，不在补遗语义面上）
+    svc.store_mut().upsert_file(
+        "C-补遗文件01.docx", "补遗", "sha-scale-add", 30, 0, 400, 0,
+        ParseStatus::Ok, "",
+    ).unwrap();
     let reqs = synth_requirements(1_500);
     svc.set_requirements(reqs).unwrap();
     println!("[规模] ①建项+注入 1,500 REQ: {}ms", t0.elapsed().as_millis());

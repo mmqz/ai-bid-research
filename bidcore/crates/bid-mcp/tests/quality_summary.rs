@@ -214,8 +214,14 @@ fn summary_is_zero_not_null_when_no_duplication() {
 }
 
 /// target = 0（无配额）→ char_deviation_pct 为 null（无分母，不伪装 0.0）。
+///
+/// 构造说明：建纲路径**不会**产出 target=0 的树——`derive_outline` 给每个
+/// 叶子兜底 `MIN_LEAF_CHARS`(500)（target_total_chars=0 时配额仍被抬到
+/// 500/叶），所以零配额只能经 `set_outline` 直接落树。本用例验的是摘要
+/// 函数自身的除零面（壳层契约），不是建纲行为（那个面归 outline.rs）。
 #[test]
 fn char_deviation_is_null_when_target_is_zero() {
+    use bid_domain::outline::OutlineNode;
     let mut svc = BidService::new();
     let pid = ok_result(call(&mut svc, "create_bid_project", json!({
         "name": "零配额测试", "bid_deadline": "2026-12-31", "mode": "明标",
@@ -225,9 +231,23 @@ fn char_deviation_is_null_when_target_is_zero() {
         "A.docx", "招标文件", "sha-z", 5, 0, 20, 0, bid_domain::ParseStatus::Ok, "",
     ).unwrap();
     svc.set_requirements(vec![mk_req("REQ-0001", "提供服务")]).unwrap();
-    let _ = svc
-        .prepare_outline_and_matrix(OutlineSpec { target_total_chars: 0, max_reqs_per_leaf: 2 })
-        .unwrap();
+    // 手工落一棵 target_chars=0 的树（set_outline 是树的真相入口——
+    // 不走 derive 的兜底下限）
+    svc.store_mut().set_outline(vec![OutlineNode {
+        id: "SEC-0001".into(),
+        parent_id: None,
+        title: "服务方案".into(),
+        level: 1,
+        order: 1,
+        requirement_ids: vec!["REQ-0001".into()],
+        target_chars: 0,
+        content: None,
+        status: bid_domain::outline::SectionStatus::Pending,
+        content_attempt: 0,
+        dirty: false,
+    }]).unwrap();
+    // 建矩阵 + 推进到 MATRIX_READY（check_bid_quality 的状态门）
+    let _ = svc.store_mut().build_matrix().unwrap();
     let q = ok_result(call(&mut svc, "check_bid_quality", json!({ "project_id": &pid })));
     let sm = &q["summary"];
     assert_eq!(sm["char_target"], 0, "零配额: {sm}");

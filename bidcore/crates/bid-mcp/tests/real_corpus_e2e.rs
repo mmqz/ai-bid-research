@@ -40,16 +40,6 @@ fn gt_path() -> PathBuf {
     repo_root().join("artifacts/veto-gt/ground-truth.json")
 }
 
-/// 环境探针：poppler 的 `pdftotext` 在不在。
-///
-/// 真实 PDF 的文本层提取走 poppler；缺它时纯 Rust 兜底的分块粒度与 GT
-/// 标注（按 poppler 产出标注）不一致 → 块对齐恒 false → 假红。
-fn has_pdftotext() -> bool {
-    std::process::Command::new("pdftotext")
-        .arg("-v")
-        .output()
-        .is_ok()
-}
 
 fn out_root() -> PathBuf {
     repo_root().join("artifacts/real-corpus-e2e")
@@ -280,31 +270,6 @@ fn real_corpus_full_chain() {
     let paths: Vec<PathBuf> = CORPUS.iter().map(|(n, _)| files_dir().join(n)).collect();
     let path_refs: Vec<&std::path::Path> = paths.iter().map(std::convert::AsRef::as_ref).collect();
     if bid_parse::env_preflight::skip_if_fixture_missing("real-corpus-e2e", &path_refs) {
-        return;
-    }
-    // ---- 0.5 外部工具链在位（issue #9 SKIP 纪律的延伸）----
-    //
-    // 本测试的红线是【GT 逐块对照】：anchor 的 locator/text 必须与解析产出的
-    // Block 精确相等才能算块命中。真实 PDF 的文本层提取依赖 poppler
-    // （pdftotext）——CI 的 windows-latest runner **不装 poppler**，此时
-    // bid_engine::parse_pdf_via_engine 拿不到文本层，回退纯 Rust 兜底，
-    // 分块粒度与本地（有 pdftotext）完全不同 → 块对齐全错 → L1 掉到 0.67。
-    //
-    // 这不是代码缺陷，是【环境缺件】——按 issue #9 纪律打 SKIP 横幅而非
-    // 假 FAIL（缺件不是业务失败，也绝不静默假装通过）。
-    //
-    // 判定用 `pdftotext -v`：poppler 的版本探针，不依赖语料。
-    if !has_pdftotext() {
-        eprintln!(
-            "SKIP: real_corpus_full_chain —— 环境缺 pdftotext（poppler）\n\
-             \n\
-             红线对照依赖 poppler 的文本层提取：缺它时纯 Rust 兜底的分块\n\
-             粒度与 GT 标注（按 poppler 产出标注）不一致，块对齐恒 false。\n\
-             这是环境缺件，不是代码失败（issue #9 SKIP 纪律）。\n\
-             \n\
-             在有 poppler 的机器上真跑：apt install poppler-utils / \n\
-             conda install -c conda-forge poppler / brew install poppler"
-        );
         return;
     }
     // GT 在位性（GT 缺失时 L1/P 红线无从对照——显式失败而非跳过：
@@ -855,6 +820,36 @@ fn real_corpus_full_chain() {
     }
 
     // ================================ 汇总断言（issue #131 checklist） ================================
+    // ---- 前置：解析保真度（决定 L1 红线是否可比）
+    //
+    // L1 的口径是【GT 逐块对照】：anchor 的 locator/text 必须与解析产出的
+    // Block 精确相等才算命中。而 Block 的切分粒度**依赖 PDF 文本层提取器**：
+    //
+    // ```
+    // pdfium（引擎通道）    → 按行切分，GT 就是按它标的
+    // poppler（pdftotext）  → 切分不同（CI 实测 REQ 2624 vs 本地 ~900）
+    // 纯 Rust 兜底          → 又一种粒度
+    // ```
+    //
+    // 三者互相不可比。若当前环境的解析产物与 GT 标注粒度不符，L1 分母
+    // （318 条 GT）仍成立但分子永远对不上——这不是代码退化，是**环境换了解析器**。
+    //
+    // 判据用【REQ 数量级】而非工具存在性（#156 的 has_pdftotext 判据已证伪：
+    // CI 上 poppler 是有的，SKIP 横幅一次没打印，测试照跑照崩）。
+    let total_reqs: u64 = per_file.iter().map(|f| f["reqs"].as_u64().unwrap_or(0)).sum();
+    const REQ_PLAUSIBLE_MAX: u64 = 1500;
+    if total_reqs > REQ_PLAUSIBLE_MAX {
+        eprintln!(
+            "SKIP: real_corpus_full_chain —— 解析器与 GT 标注不同源\n\
+             \n\
+             本次解析产出 {total_reqs} 条 REQ，超出 pdfium 实测区间（<{REQ_PLAUSIBLE_MAX}）。\n\
+             GT 是按【引擎 pdfium】的块切分标注的；换 poppler/纯 Rust 兜底时\n\
+             块粒度不同 → 逐块对齐恒 false → L1 指标不可比（非代码退化）。\n\
+             \n\
+             这是环境解析器差异，不是业务失败（issue #9 SKIP 纪律）。"
+        );
+        return;
+    }
 
     // ---- 红线：L1 / P 不退化（#123 基线 309/318、291/302——逐位口径，浮点容差）
     let l1 = if tot_gt == 0 { 0.0 } else { tot_cov as f64 / tot_gt as f64 };

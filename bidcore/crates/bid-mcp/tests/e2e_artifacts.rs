@@ -518,13 +518,48 @@ fn e2e_artifacts_synth_tender() {
                 all_warnings.push(format!("{sid}: {s}"));
             }
         }
+        // #127 P0-2 验收线：正文与指令/缺失回报账面分离。
+        // (a) 正文零「起草指令：」「缺失回报：」标记（原缺陷：缺失回报
+        //     整段嵌在开篇括号里把句子劈断）。正文真源 = store 的
+        //     section.content（out 只有 content_ref——从工具返回读正文
+        //     是假绿）
+        let content = svc
+            .store()
+            .sections()
+            .iter()
+            .find(|n| n.id == *sid)
+            .and_then(|n| n.content.as_deref())
+            .unwrap_or("")
+            .to_string();
+        assert!(
+            !content.contains("起草指令") && !content.contains("缺失回报"),
+            "⑥ 正文不得含指令/缺失回报标记（P0-2）: {}",
+            &content.chars().take(80).collect::<String>()
+        );
+        // (b) 开篇句完整（不被括号劈断——「编制，共响应」连写）
+        if let Some(first_para) = content
+            .split("\n\n")
+            .find(|p| p.contains("本章节依据"))
+        {
+            assert!(
+                first_para.contains("编制，共响应"),
+                "⑥ 开篇句完整不断裂: {first_para}"
+            );
+        }
         draft_stats.push(json!({
             "section_id": sid, "words": r["stats"]["words"],
             "citations": r["stats"]["citations"],
             "unanchored_claims": r["stats"]["unanchored_claims"],
+            // (c) 账面在场（信息不丢——指令+缺失回报移到这里）
+            "draft_note_present": r["draft_note"].is_string(),
         }));
     }
     assert!(total_words > 500, "⑥ 总字数 {total_words}");
+    // (d) 全部章节的 draft_note 账面在场（e2e 每章都带指令 + 缺失回报）
+    assert!(
+        draft_stats.iter().all(|s| s["draft_note_present"] == json!(true)),
+        "⑥ draft_note 账面全覆盖（#127 P0-2 信息不丢）"
+    );
     tim.mark("06_起草(mock)", &t);
 
     // ---- ⑦ format-spec 提取（Lead 铁律：读招标文件，不硬编码）

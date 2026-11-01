@@ -1271,6 +1271,10 @@ fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
             // #68 阶段 2：覆盖度自动检查（issue §2.1——未回应 REQ 清单）
             "uncovered_requirements": outcome.uncovered_requirements,
         },
+        // #127 P0-2：起草指令 + 缺失回报的留档账面（与正文分离——正文渲染
+        // 面零「起草指令/缺失回报」字样；Agent/人工从这里看本章起草时的
+        // 指令与素材缺口，随 chapters/{id}.json 持久化）
+        "draft_note": outcome.draft_note,
         "section_status": "DRAFTED",
         "project_status": svc.store().project().map(|p| p.status.as_str()).unwrap_or("UNKNOWN"),
         "project_version": svc.store().content_version(),

@@ -1,5 +1,5 @@
 {
-  "leaves": 24,
+  "leaves": 22,
   "nodes": [
     {
       "id": "SEC-0007",
@@ -8,7 +8,7 @@
       "parent_id": null,
       "reqs": 6,
       "status": "PENDING",
-      "target_chars": 500,
+      "target_chars": 571,
       "title": "第一章 招标公告"
     },
     {
@@ -18,7 +18,7 @@
       "parent_id": "SEC-0007",
       "reqs": 6,
       "status": "PENDING",
-      "target_chars": 500,
+      "target_chars": 571,
       "title": "第一章 招标公告"
     },
     {
@@ -28,7 +28,7 @@
       "parent_id": null,
       "reqs": 9,
       "status": "PENDING",
-      "target_chars": 1000,
+      "target_chars": 1071,
       "title": "第三章 投标人须知"
     },
     {
@@ -38,7 +38,7 @@
       "parent_id": "SEC-0009",
       "reqs": 6,
       "status": "PENDING",
-      "target_chars": 500,
+      "target_chars": 571,
       "title": "第三章 投标人须知（第1块）"
     },
     {
@@ -156,10 +156,10 @@
       "level": 1,
       "order": 16,
       "parent_id": null,
-      "reqs": 52,
+      "reqs": 60,
       "status": "PENDING",
-      "target_chars": 4500,
-      "title": "否决项"
+      "target_chars": 5714,
+      "title": "资格与响应"
     },
     {
       "id": "SEC-0023",
@@ -168,8 +168,8 @@
       "parent_id": "SEC-0022",
       "reqs": 6,
       "status": "PENDING",
-      "target_chars": 500,
-      "title": "否决项（第1块）"
+      "target_chars": 571,
+      "title": "资格与响应（第1块）"
     },
     {
       "id": "SEC-0024",
@@ -178,8 +178,8 @@
       "parent_id": "SEC-0022",
       "reqs": 6,
       "status": "PENDING",
-      "target_chars": 500,
-      "title": "否决项（第2块）"
+      "target_chars": 571,
+      "title": "资格与响应（第2块）"
     },
     {
       "id": "SEC-0025",
@@ -188,8 +188,8 @@
       "parent_id": "SEC-0022",
       "reqs": 6,
       "status": "PENDING",
-      "target_chars": 500,
-      "title": "否决项（第3块）"
+      "target_chars": 571,
+      "title": "资格与响应（第3块）"
     },
     {
       "id": "SEC-0026",
@@ -198,8 +198,8 @@
       "parent_id": "SEC-0022",
       "reqs": 6,
       "status": "PENDING",
-      "target_chars": 500,
-      "title": "否决项（第4块）"
+      "target_chars": 571,
+      "title": "资格与响应（第4块）"
     },
     {
       "id": "SEC-0027",
@@ -208,8 +208,8 @@
       "parent_id": "SEC-0022",
       "reqs": 6,
       "status": "PENDING",
-      "target_chars": 500,
-      "title": "否决项（第5块）"
+      "target_chars": 571,
+      "title": "资格与响应（第5块）"
     },
     {
       "id": "SEC-0028",
@@ -218,8 +218,8 @@
       "parent_id": "SEC-0022",
       "reqs": 6,
       "status": "PENDING",
-      "target_chars": 500,
-      "title": "否决项（第6块）"
+      "target_chars": 571,
+      "title": "资格与响应（第6块）"
     },
     {
       "id": "SEC-0029",
@@ -228,8 +228,8 @@
       "parent_id": "SEC-0022",
       "reqs": 6,
       "status": "PENDING",
-      "target_chars": 500,
-      "title": "否决项（第7块）"
+      "target_chars": 572,
+      "title": "资格与响应（第7块）"
     },
     {
       "id": "SEC-0030",
@@ -238,124 +238,84 @@
       "parent_id": "SEC-0022",
       "reqs": 6,
       "status": "PENDING",
-      "target_chars": 500,
-      "title": "否决项（第8块）"
+      "target_chars": 572,
+      "title": "资格与响应（第8块）"
     },
     {
       "id": "SEC-0031",
       "level": 2,
       "order": 25,
       "parent_id": "SEC-0022",
-      "reqs": 4,
+      "reqs": 6,
       "status": "PENDING",
-      "target_chars": 500,
-      "title": "否决项（第9块）"
+      "target_chars": 572,
+      "title": "资格与响应（第9块）"
     },
     {
       "id": "SEC-0032",
-      "level": 1,
+      "level": 2,
       "order": 26,
-      "parent_id": null,
-      "reqs": 8,
+      "parent_id": "SEC-0022",
+      "reqs": 6,
       "status": "PENDING",
-      "target_chars": 1000,
-      "title": "资格条件"
+      "target_chars": 572,
+      "title": "资格与响应（第10块）"
     },
     {
       "id": "SEC-0033",
-      "level": 2,
+      "level": 1,
       "order": 27,
-      "parent_id": "SEC-0032",
-      "reqs": 6,
+      "parent_id": null,
+      "reqs": 4,
       "status": "PENDING",
       "target_chars": 500,
-      "title": "资格条件（第1块）"
+      "title": "格式要求"
     },
     {
       "id": "SEC-0034",
       "level": 2,
       "order": 28,
-      "parent_id": "SEC-0032",
-      "reqs": 2,
+      "parent_id": "SEC-0033",
+      "reqs": 4,
       "status": "PENDING",
       "target_chars": 500,
-      "title": "资格条件（第2块）"
+      "title": "格式要求"
     },
     {
       "id": "SEC-0035",
       "level": 1,
       "order": 29,
       "parent_id": null,
-      "reqs": 4,
+      "reqs": 15,
       "status": "PENDING",
-      "target_chars": 500,
-      "title": "格式要求"
+      "target_chars": 1644,
+      "title": "技术参数"
     },
     {
       "id": "SEC-0036",
       "level": 2,
       "order": 30,
       "parent_id": "SEC-0035",
-      "reqs": 4,
+      "reqs": 6,
       "status": "PENDING",
-      "target_chars": 500,
-      "title": "格式要求"
+      "target_chars": 572,
+      "title": "技术参数（第1块）"
     },
     {
       "id": "SEC-0037",
-      "level": 1,
+      "level": 2,
       "order": 31,
-      "parent_id": null,
-      "reqs": 5,
+      "parent_id": "SEC-0035",
+      "reqs": 6,
       "status": "PENDING",
-      "target_chars": 500,
-      "title": "评分项"
+      "target_chars": 572,
+      "title": "技术参数（第2块）"
     },
     {
       "id": "SEC-0038",
       "level": 2,
       "order": 32,
-      "parent_id": "SEC-0037",
-      "reqs": 5,
-      "status": "PENDING",
-      "target_chars": 500,
-      "title": "评分项"
-    },
-    {
-      "id": "SEC-0039",
-      "level": 1,
-      "order": 33,
-      "parent_id": null,
-      "reqs": 15,
-      "status": "PENDING",
-      "target_chars": 1500,
-      "title": "技术参数"
-    },
-    {
-      "id": "SEC-0040",
-      "level": 2,
-      "order": 34,
-      "parent_id": "SEC-0039",
-      "reqs": 6,
-      "status": "PENDING",
-      "target_chars": 500,
-      "title": "技术参数（第1块）"
-    },
-    {
-      "id": "SEC-0041",
-      "level": 2,
-      "order": 35,
-      "parent_id": "SEC-0039",
-      "reqs": 6,
-      "status": "PENDING",
-      "target_chars": 500,
-      "title": "技术参数（第2块）"
-    },
-    {
-      "id": "SEC-0042",
-      "level": 2,
-      "order": 36,
-      "parent_id": "SEC-0039",
+      "parent_id": "SEC-0035",
       "reqs": 3,
       "status": "PENDING",
       "target_chars": 500,

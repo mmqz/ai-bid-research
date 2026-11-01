@@ -385,6 +385,11 @@ fn service_iterative_draft_commits_best_content() {
     svc.store_mut().upsert_file(
         "A-招标文件.docx", "招标文件", "sha-a", 10, 1, 60, 0, ParseStatus::Ok, "",
     ).unwrap();
+    // #127 代理 C：L3（#118）后无补遗是全局阻塞——本测验迭代循环面，
+    // 补遗在场隔离（#118 合入时未跑本套件，遗漏适配）。
+    svc.store_mut().upsert_file(
+        "C-补遗文件01.docx", "补遗", "sha-b4-add", 5, 0, 20, 0, ParseStatus::Ok, "",
+    ).unwrap();
     // 评分项 REQ-0101/0102 映射 SEC-0001（树面）+ SEC-0001 绑 REQ-0101（响应面）
     svc.set_requirements(reqs_for_sec1()).unwrap();
     svc.store_mut().set_outline(vec![OutlineNode {

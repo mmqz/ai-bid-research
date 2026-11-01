@@ -14,7 +14,11 @@
 //!   新控制价/新截止时间没进抽取面时校验仍然 blocker=0——「不知道补遗存在」
 //!   与「补遗没问题」是两种完全不同的状态。兜底也失败时**两条原因都报出来**；
 //! - guard.rs：pdf 字节门 / 子进程治理（T-04）/ 流式哈希；
-//! - extract.rs：条款抽取业务规则（消费 locator 字符串，与解析器解耦）。
+//! - extract.rs：条款抽取业务规则（消费 locator 字符串，与解析器解耦）；
+//! - clause.rs：条款边界与跨行合并（B6·G1 纯函数面——docx 续行吸收的
+//!   边界判定单一真源）；
+//! - numbering.rs：多级编号形态识别（B6·G5 七形态全枚举 + 混排语境修正——
+//!   clause_boundary 的编号判定底层）。
 //!
 //! 引擎适配器约定（组件版本矩阵的钉住点，test-plan §5.2）：
 //! - 解析失败/无文本层绝不静默：无文本层 → `has_text_layer=false` + OCR 通道；
@@ -30,6 +34,7 @@ pub mod clause;
 pub mod env_preflight;
 pub mod extract;
 pub mod guard;
+pub mod numbering;
 pub mod pdf;
 pub mod pdf_text;
 pub mod veto_lexicon;
@@ -106,7 +111,11 @@ pub fn sha256_file(path: &Path) -> std::io::Result<String> {
 /// 直入本函数会得到「不支持的文件类型」显式拒绝——不留静默降级。
 pub fn parse_file(path: &Path, name: &str) -> Result<ParsedFile, String> {
     let sha256 = sha256_file(path).map_err(|e| format!("读取失败 {name}: {e}"))?;
-    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
     match ext.as_str() {
         "pdf" => {
             // 第三条降级路（pdf_text 纯 Rust 兜底）。

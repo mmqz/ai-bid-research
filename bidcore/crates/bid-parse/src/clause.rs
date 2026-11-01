@@ -17,15 +17,23 @@
 //! 不做分类——分类（否决/资格/评分/章节映射）留在 extract.rs 的既有
 //! 优先级链里，用合并后的**完整条款文本**参与判定（内容不全 → 判定不全
 //! 是 G1 的根因）。PDF 侧的 P0-A 段落重组（extract_main_pdf）已覆盖
-//! 行级续行；本模块的纯函数面同时服务 docx 侧接线与后续编号层级（G5）。
+//! 行级续行；本模块的纯函数面同时服务 docx 侧接线与编号层级。
+//!
+//! G5（#123 任务 2）起：编号形态与层级的**单一真源**移至
+//! [`crate::numbering`]（七形态全枚举 + 混排语境修正）；本模块的
+//! [`clause_boundary`] 是它的薄封装（补上 `is_numbered` 布尔面，
+//! G1 既有调用方零迁移）。
 
 /// 条款边界判定（跨行合并的核心）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClauseBoundary {
     /// 是否为编号开头（4.2 / （一） / ① / a) / 一、 …）
     pub is_numbered: bool,
-    /// 编号层级（见 [`clause_level`]）。
+    /// 编号层级（见 [`crate::numbering::detect_numbering`]）。
     pub level: u8,
+    /// 编号形态（G5 加性扩展——七形态全枚举，供下游区分
+    /// 「`1.`（歧义形态）」与「`1.1`（自描述形态）」这类层级语义不同的头）。
+    pub style: crate::numbering::NumberingStyle,
 }
 
 /// 合并后的条款（行组的确定性视图）。
@@ -39,58 +47,19 @@ pub struct Clause {
     pub text: String,
 }
 
-/// 编号形态识别（G1 最小面；G5 将扩成 `NumberingStyle` 全枚举）。
-/// 返回 Some(level)：多级点分 `1.1.1` = 段点数+1；括号数字 `（一）` = 2；
-/// 圈数字 `①` = 3；中文顿号 `一、` = 1；`1.` / `1、` = 1；`a)` = 2。
-/// 非编号行返回 None。
+/// 编号形态识别（G5 起委托 [`crate::numbering::detect_numbering`]——
+/// 七形态全枚举的单一真源）。返回 Some(level)：多级点分 `1.1.1` = 段点数；
+/// 括号数字 `（一）` = 2；圈数字 `①` = 3；中文顿号 `一、` = 1；`1.` / `1、` = 1；
+/// `a)` = 2；项目符号 `●` = 4（G5 新增识别——语料实证零 bullet 行，
+/// 判定面纯增益）。非编号行返回 None。
 pub fn clause_boundary(line: &str) -> Option<ClauseBoundary> {
-    let t = line.trim_start();
-    // 多级点分编号：1 / 1.1 / 1.1.1 ……（≥1 段点，至少两段才算「多级」；
-    // 裸 `4.2` 形态按段点数计层级）
-    if let Some(level) = dotted_number_level(t) {
-        return Some(ClauseBoundary { is_numbered: true, level });
-    }
-    // 括号编号：（一）（1）(2)——全角/半角括号
-    if regex!(r"^[（(][0-9一二三四五六七八九十]{1,3}[）)]").is_match(t) {
-        return Some(ClauseBoundary { is_numbered: true, level: 2 });
-    }
-    // 圈数字：① ⑴ ⒈
-    if regex!(r"^[①②③④⑤⑥⑦⑧⑨⑩⑾⑿⑴⑵⑶⑷⑸⑹⑺⑻⑼⑽⒈⒉⒊⒋⒌⒍⒎⒏⒐]").is_match(t) {
-        return Some(ClauseBoundary { is_numbered: true, level: 3 });
-    }
-    // 中文数字 + 顿号：一、二、
-    if regex!(r"^[一二三四五六七八九十]+、").is_match(t) {
-        return Some(ClauseBoundary { is_numbered: true, level: 1 });
-    }
-    // 阿拉伯数字 + 点/顿：1. 2、3．
-    if regex!(r"^[0-9]{1,3}[.．、]").is_match(t) {
-        return Some(ClauseBoundary { is_numbered: true, level: 1 });
-    }
-    // 字母 + 括号：a) b)
-    if regex!(r"^[a-zA-Z][）)]").is_match(t) {
-        return Some(ClauseBoundary { is_numbered: true, level: 2 });
-    }
-    None
+    let (style, level) = crate::numbering::detect_numbering(line)?;
+    Some(ClauseBoundary {
+        is_numbered: true,
+        level,
+        style,
+    })
 }
-
-/// 多级点分编号层级：`1.1.1` → 3；`4.2` → 2；`1.` → 1（末尾点算一段）。
-/// 前提：行首即数字（由调用方保证 trim 过）。
-fn dotted_number_level(t: &str) -> Option<u8> {
-    let re = regex!(r"^([0-9]{1,3}(?:\.[0-9]{1,3})+)(?:[.．、\s]|\(（|$)");
-    let m = re.captures(t)?;
-    let segs = m[1].split('.').count() as u8;
-    // 「1.」形单段编号由前一段点分支处理；这里 ≥2 段
-    (segs >= 2).then_some(segs)
-}
-
-/// 局部 once-lock 正则（模块内小工具——构造一次，测试与产线同形）。
-macro_rules! regex {
-    ($re:expr) => {{
-        static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-        RE.get_or_init(|| regex::Regex::new($re).unwrap())
-    }};
-}
-use regex;
 
 /// 合并跨行条款：编号行开头 + 后续非编号行 = 一条（任务书四规则）。
 ///
@@ -112,11 +81,19 @@ pub fn merge_multiline_clauses(lines: &[&str]) -> Vec<Clause> {
         }
         if is_table_row {
             open = false; // 表格流与条款流隔离
-            out.push(Clause { lines: vec![i], level: 0, text: t.to_string() });
+            out.push(Clause {
+                lines: vec![i],
+                level: 0,
+                text: t.to_string(),
+            });
             continue;
         }
         if let Some(b) = clause_boundary(t) {
-            out.push(Clause { lines: vec![i], level: b.level, text: t.to_string() });
+            out.push(Clause {
+                lines: vec![i],
+                level: b.level,
+                text: t.to_string(),
+            });
             open = true; // 规则 1
         } else if open {
             // 规则 2：续行归入上一条款
@@ -126,7 +103,11 @@ pub fn merge_multiline_clauses(lines: &[&str]) -> Vec<Clause> {
             }
         } else {
             // 无上位条款的孤儿散文行：自成一条（level 0——调用方按兜底面处理）
-            out.push(Clause { lines: vec![i], level: 0, text: t.to_string() });
+            out.push(Clause {
+                lines: vec![i],
+                level: 0,
+                text: t.to_string(),
+            });
         }
     }
     out
@@ -137,7 +118,10 @@ mod tests {
     use super::*;
 
     fn texts(lines: &[&str]) -> Vec<String> {
-        merge_multiline_clauses(lines).iter().map(|c| c.text.clone()).collect()
+        merge_multiline_clauses(lines)
+            .iter()
+            .map(|c| c.text.clone())
+            .collect()
     }
 
     /// 任务书原型：编号头 + 子项（子项是编号行——各自成条）+ 尾注续行归头。
@@ -153,7 +137,10 @@ mod tests {
         // 三个条款：4.2（含续行）、（1）、（2）
         assert_eq!(clauses.len(), 3, "实际 {clauses:?}");
         assert_eq!(clauses[0].level, 2);
-        assert!(clauses[0].text.contains("且满足本章其他要求"), "续行并入头行");
+        assert!(
+            clauses[0].text.contains("且满足本章其他要求"),
+            "续行并入头行"
+        );
         assert_eq!(clauses[1].lines, vec![2]);
         assert_eq!(clauses[2].lines, vec![3]);
     }
@@ -161,7 +148,11 @@ mod tests {
     /// 规则 2 纯形：编号行 + 无编号续行 = 一条。
     #[test]
     fn prose_continuation_joins_head() {
-        let lines = ["3.7.2(8) 投标人应当", "在投标截止时间前递交保证金", "并附证明材料。"];
+        let lines = [
+            "3.7.2(8) 投标人应当",
+            "在投标截止时间前递交保证金",
+            "并附证明材料。",
+        ];
         let clauses = merge_multiline_clauses(&lines);
         assert_eq!(clauses.len(), 1);
         assert!(clauses[0].text.contains("递交保证金"));
@@ -181,14 +172,19 @@ mod tests {
     /// 规则 4：表格行不参与合并。
     #[test]
     fn table_rows_stay_out() {
-        let lines = ["4.1 设备参数：", "| 型号 | 数量 |", "| GW-8000 | 2 |", "其余要求如下"];
+        let lines = [
+            "4.1 设备参数：",
+            "| 型号 | 数量 |",
+            "| GW-8000 | 2 |",
+            "其余要求如下",
+        ];
         let clauses = merge_multiline_clauses(&lines);
         // 表格行单列；「其余要求如下」不粘表格行，也不粘回 4.1（表格已断流）
         assert_eq!(clauses.len(), 4, "实际 {clauses:?}");
         assert!(clauses.iter().all(|c| c.lines.len() == 1));
     }
 
-    /// 七种编号头各自开条 + 层级。
+    /// 七种编号头各自开条 + 层级（G1 既有面——层级数值 G5 后逐值不变）。
     #[test]
     fn numbering_styles_open_new_clause() {
         let lines = [
@@ -203,6 +199,45 @@ mod tests {
         assert_eq!(clauses.len(), 6);
         let levels: Vec<u8> = clauses.iter().map(|c| c.level).collect();
         assert_eq!(levels, vec![1, 2, 1, 2, 3, 2], "实际 {levels:?}");
+    }
+
+    /// G5：项目符号（●）开新条款 + style 字段映射（clause_boundary 薄封装验证）。
+    #[test]
+    fn bullet_opens_clause_and_style_field_maps() {
+        // ● 是编号行（G5 新增）——开新条，不当续行吸收
+        let lines = ["1.1 交付清单：", "●产品合格证", "●检测报告", "2.次条"];
+        let clauses = merge_multiline_clauses(&lines);
+        assert_eq!(clauses.len(), 4, "实际 {clauses:?}");
+        assert_eq!(clauses[1].level, 4, "● 层级 4");
+        // style 逐形态断言（薄封装正确性）
+        let cases = [
+            (
+                "一、总则",
+                crate::numbering::NumberingStyle::ChineseNumeral,
+                1u8,
+            ),
+            (
+                "（一）资格",
+                crate::numbering::NumberingStyle::ChineseParen,
+                2,
+            ),
+            ("1. 报价", crate::numbering::NumberingStyle::ArabicDot, 1),
+            (
+                "1.1.1 评审",
+                crate::numbering::NumberingStyle::ArabicMultiLevel,
+                3,
+            ),
+            ("①核查", crate::numbering::NumberingStyle::Circled, 3),
+            ("a)副本", crate::numbering::NumberingStyle::AlphaParen, 2),
+            ("●清单", crate::numbering::NumberingStyle::Bullet, 4),
+        ];
+        for (line, want_style, want_level) in cases {
+            let b = clause_boundary(line).unwrap_or_else(|| panic!("{line} 应识别为编号"));
+            assert!(b.is_numbered);
+            assert_eq!(b.style, want_style, "{line}");
+            assert_eq!(b.level, want_level, "{line}");
+        }
+        assert!(clause_boundary("普通条款正文").is_none());
     }
 
     /// 1.1.1 三级 + 深层点分。

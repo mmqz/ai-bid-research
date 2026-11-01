@@ -33,7 +33,22 @@
 //! | MissingPerformance | 标题含业绩/类似项目 且 可用业绩 < [`MIN_PERFORMANCE_COUNT`] | 阻塞 |
 //! | MissingTechEvidence | 本章技术参数类 REQ 无可用证据佐证 | 阻塞 |
 //! | UncoveredVetoItem | 本章负责的否决项在矩阵未响应 / blocking | 阻塞 |
-//! | IncompleteTender | 导入件里没有补遗/澄清 | **警告**（信息面） |
+//! | IncompleteTender | 招标包结构问题（无招标文件/多份正本/多份招标文件） | **警告**（信息面） |
+//! | **MissingAddendum** | 招标文件已导入，但补遗/澄清**缺失或解析失败** | **阻塞**（L3） |
+//!
+//! ## L3：补遗缺失必须阻塞（本模块最容易被低估的一条）
+//!
+//! 事故形态（Lead 点名）：
+//!
+//! ```text
+//! C-补遗文件01.pdf 因 CMap 缺失/加密/滤镜不支持 → parse_status = Failed
+//!   → E_PARTIAL 只说「1 件导入失败」
+//!   → 链路继续跑 → 校验 blocker = 0
+//!   → 用户看到「一切正常」→ 按旧条款做标 → 废标
+//! ```
+//!
+//! 补遗对条款是**实质性修改**（控制价、截止时间、参数、评分办法都在里面），
+//! 丢一份补遗等于拿过期条款投标。所以这不是「信息面警告」，是**阻塞**。
 //!
 //! 「可用证据」= 状态 Active / Expiring（与 evidence.rs `can_bind`、
 //! draft.rs `check_evidence_bindable` 同口径）——过期件不能算有。
@@ -126,8 +141,45 @@ pub enum Blocker {
     MissingTechEvidence { req_ids: Vec<String> },
     /// 本章负责的否决项在合规矩阵里仍未被响应（否决项漏响应 = 直接废标）。
     UncoveredVetoItem { req_ids: Vec<String> },
-    /// 招标包不完整（无补遗/澄清、或多份招标文件无法确定正本）。
+    /// 招标包不完整（无招标文件本体 / 多份无法确定正本）。**警告面**。
     IncompleteTender { missing: Vec<String> },
+    /// 招标文件已导入，但补遗/澄清件**缺失或解析失败**（L3——**阻塞**）。
+    ///
+    /// 与 [`Blocker::IncompleteTender`] 的分界：那条是「招标包结构可疑，
+    /// 请人工确认」；这条是「已确认导入过招标文件，但补遗这一环断了」——
+    /// 补遗含对条款的实质性修改，缺了就不能按现有条款做标。
+    MissingAddendum {
+        /// 涉及的文件名（`ParseFailed` 是被解析失败的那几件；`NotProvided`
+        /// 为空——没有文件可列）。
+        files: Vec<String>,
+        /// 缺失形态。
+        reason: AddendumIssue,
+    },
+}
+
+/// 补遗缺失的两种形态（L3 规格原文）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AddendumIssue {
+    /// 导入的文件里根本没有补遗/澄清件。
+    ///
+    /// 注意：真实项目**可能真的没有补遗**（没发过澄清）。所以这一条是
+    /// 「必须人工确认」，不是「一定错误」——但确认之前不能当它不存在。
+    NotProvided,
+    /// 有补遗件但解析失败（CMap 缺失/加密/滤镜不支持/扫描件 OCR 断链）。
+    ///
+    /// 这一条没有歧义：补遗确实存在，只是我们读不了它——
+    /// 读不了就等于没有，绝不能按「没补遗」继续。
+    ParseFailed,
+}
+
+impl AddendumIssue {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AddendumIssue::NotProvided => "NOT_PROVIDED",
+            AddendumIssue::ParseFailed => "PARSE_FAILED",
+        }
+    }
 }
 
 impl Blocker {
@@ -167,6 +219,13 @@ impl Blocker {
                 "招标包信息不完整：{}",
                 missing.join("；")
             ),
+            Blocker::MissingAddendum { files, reason } => match reason {
+                AddendumIssue::NotProvided => "未发现补遗/澄清文件——若本项目曾发过澄清答疑，现行条款可能已被修改。请补充导入补遗件，或明确确认本项目无补遗后再继续".to_string(),
+                AddendumIssue::ParseFailed => format!(
+                    "补遗/澄清文件解析失败：{}——补遗里有对条款的实质性修改（控制价/截止时间/参数/评分办法），读不了就等于没收到，按现有条款做标会直接废标",
+                    files.join("、")
+                ),
+            },
         }
     }
 
@@ -179,6 +238,7 @@ impl Blocker {
             Blocker::MissingTechEvidence { .. } => "MISSING_TECH_EVIDENCE",
             Blocker::UncoveredVetoItem { .. } => "UNCOVERED_VETO_ITEM",
             Blocker::IncompleteTender { .. } => "INCOMPLETE_TENDER",
+            Blocker::MissingAddendum { .. } => "MISSING_ADDENDUM",
         }
     }
 
@@ -217,6 +277,19 @@ impl Blocker {
                 PlaceholderKind::Confirm,
                 "招标文件补遗/澄清情况待确认",
             ),
+            Blocker::MissingAddendum { files, reason } => match reason {
+                AddendumIssue::NotProvided => make_placeholder(
+                    PlaceholderKind::Missing,
+                    "请提供补遗/澄清文件",
+                ),
+                AddendumIssue::ParseFailed => make_placeholder(
+                    PlaceholderKind::Missing,
+                    &format!(
+                        "补遗文件 {} 解析失败，请提供可解析版本",
+                        files.join("、")
+                    ),
+                ),
+            },
         }
     }
 }
@@ -258,6 +331,16 @@ pub fn usable_evidence_titles(store: &DomainStore, kind: EvidenceKind) -> Vec<St
 /// [`DraftReadiness::to_message`] 里）。
 pub fn check_draft_readiness(store: &DomainStore, section_id: &str) -> DraftReadiness {
     let mut warnings: Vec<String> = Vec::new();
+    let mut blockers = Vec::new();
+
+    // ---- L3：补遗缺失 / 解析失败 —— **阻塞**（全局面，先于章节判定）
+    //
+    // 这是全局阻塞（不属于某一章）：补遗是对条款的实质性修改，缺了它之后
+    // 每一章都是在过期条款上做标。放在章节判定之前——章节不存在时也要报，
+    // 否则「查一个不存在的章节」会显得风平浪静。
+    if let Some(blocker) = missing_addendum(store) {
+        blockers.push(blocker);
+    }
 
     // ---- 招标包完整性（警告面——与章节无关，先说，免得读者以为「没有阻塞」就万事大吉）
     for missing in tender_gaps(store) {
@@ -267,13 +350,9 @@ pub fn check_draft_readiness(store: &DomainStore, section_id: &str) -> DraftRead
     }
 
     let Some(node) = store.sections().iter().find(|n| n.id == section_id) else {
-        return DraftReadiness::from_parts(
-            vec![Blocker::NoRequirements { section_id: section_id.to_string() }],
-            warnings,
-        );
+        blockers.push(Blocker::NoRequirements { section_id: section_id.to_string() });
+        return DraftReadiness::from_parts(blockers, warnings);
     };
-
-    let mut blockers = Vec::new();
 
     // ---- 1. 空响应面
     if node.requirement_ids.is_empty() {
@@ -457,21 +536,114 @@ pub fn tender_gaps(store: &DomainStore) -> Vec<String> {
             tenders.join("、")
         ));
     }
-    if !tender_has_addendum(store) {
-        out.push(format!(
-            "未导入补遗/澄清文件——若本项目有澄清答疑，条款可能有实质性修改（导入 `bid-tools/src/readiness.rs` 前置确认）"
-        ));
-    }
+    // 补遗缺失已升格为**阻塞项**（L3 / [`Blocker::MissingAddendum`]），
+    // 不再在这里重复一条警告——同一件事报两遍会让报告面噪音翻倍，
+    // 而且「警告」与「阻塞」并列出现会削弱阻塞的分量。
     out
 }
 
-/// 是否导入过补遗/澄清类文件。
-fn tender_has_addendum(store: &DomainStore) -> bool {
+// ---------------------------------------------------------------- L3：补遗缺失检测
+
+/// 补遗/澄清类文件的**类别关键字**（导入时 kind 字面量）。
+///
+/// 与 service.rs 的业务类别词表同源（招标文件|附件|图纸|补遗|答疑|评分办法|
+/// 格式模板）；「澄清」不在枚举里但真实件常这么命名，一并认。
+pub const ADDENDUM_KIND_WORDS: &[&str] = &[
+    "补遗",
+    "澄清",
+    "答疑",
+    "更正",
+    "变更公告",
+];
+
+/// 补遗/澄清类文件的**文件名标记**（导出链/真实样本的实际命名）。
+///
+/// 真实语料实测（fixtures/corpus-A）：文件叫 `C-补遗文件01.docx`——
+/// 既非 kind 也非标准词，靠名字里的「补遗」认出来。招标代理的命名习惯
+/// 五花八门（`C-补遗01` / `澄清答疑函` / `更正公告`），故名字与 kind 双面。
+pub const ADDENDUM_NAME_WORDS: &[&str] = &[
+    "补遗",
+    "澄清",
+    "答疑",
+    "更正",
+    "变更",
+];
+
+/// 招标文件本体（正本）的类别字面量——L3 判定的「前提条件」。
+///
+/// 只有**确实导入过招标文件**时，「没有补遗」才有意义（否则整包没导，
+/// 该报的是 [`tender_gaps`] 的空包告警，不是补遗缺失）。
+const FILE_KIND_TENDER_L3: &str = "招标文件";
+
+/// 是否补遗/澄清类文件（kind 或文件名命中）。
+pub fn is_addendum_file(kind: &str, name: &str) -> bool {
+    ADDENDUM_KIND_WORDS.iter().any(|w| kind.contains(w))
+        || ADDENDUM_NAME_WORDS.iter().any(|w| name.contains(w))
+}
+
+/// L3 主判定：补遗缺失或解析失败 → 一条阻塞；一切正常 → None。
+///
+/// ## 判定（只认导入台账里的事实，不猜文件内容）
+///
+/// 1. **没有招标文件本体** → None（整包没导，那是 [`tender_gaps`] 的面，
+///    不该在这里重复报「缺补遗」——空包比缺补遗更上游）；
+/// 2. 有招标文件，**没有任何补遗件** → `MissingAddendum { NotProvided }`；
+/// 3. 有补遗件，**全部解析失败** → `MissingAddendum { ParseFailed }`；
+/// 4. 有补遗件，**部分成功** → None（读到了就是读到了；失败件在
+///    [`addendum_parse_failures`] 单独暴露给报告面，不阻塞——
+///    多份补遗里坏一份通常还有别的覆盖，过度阻塞会让工具不可用）；
+/// 5. 补遗件 `OcrRequired` 不算失败（无文本层扫描件是已知可处理态，
+///    与 ParseStatus 的三分语义一致）。
+fn missing_addendum(store: &DomainStore) -> Option<Blocker> {
+    // ① 没有招标文件本体 → 交回 tender_gaps（空包告警），不在本函数报
+    let has_tender = store.files().iter().any(|f| f.kind == FILE_KIND_TENDER_L3);
+    if !has_tender {
+        return None;
+    }
+
+    let addenda: Vec<&bid_domain::TenderFile> = store
+        .files()
+        .iter()
+        .filter(|f| is_addendum_file(&f.kind, &f.name))
+        .collect();
+
+    // ② 一件补遗都没有
+    if addenda.is_empty() {
+        return Some(Blocker::MissingAddendum {
+            files: Vec::new(),
+            reason: AddendumIssue::NotProvided,
+        });
+    }
+
+    // ③ 有补遗但**全部**失败（Failed 是唯一失败态；OcrRequired 不算）
+    let failed: Vec<String> = addenda
+        .iter()
+        .filter(|f| f.parse_status == bid_domain::ParseStatus::Failed)
+        .map(|f| f.name.clone())
+        .collect();
+    if failed.len() == addenda.len() {
+        return Some(Blocker::MissingAddendum {
+            files: failed,
+            reason: AddendumIssue::ParseFailed,
+        });
+    }
+
+    None
+}
+
+/// 补遗解析失败件清单（**不阻塞**，但报告面要露出来——
+/// 「3 份补遗坏 1 份」不该拦住工作，但不该让用户不知道）。
+pub fn addendum_parse_failures(store: &DomainStore) -> Vec<String> {
     store
         .files()
         .iter()
-        .any(|f| f.kind.contains("补遗") || f.kind.contains("澄清") || f.kind.contains("答疑") || f.name.contains("补遗") || f.name.contains("澄清"))
+        .filter(|f| is_addendum_file(&f.kind, &f.name))
+        .filter(|f| f.parse_status == bid_domain::ParseStatus::Failed)
+        .map(|f| f.name.clone())
+        .collect()
 }
+
+// （旧 `tender_has_addendum` 已被 [`is_addendum_file`] 取代——L3 把判定面扩到 kind+名字双匹配，语义单一真源。）
 
 /// 占位文本随需求生成（接线方可直接用）：本章第一条阻塞的建议占位。
 pub fn first_placeholder(r: &DraftReadiness) -> Option<String> {

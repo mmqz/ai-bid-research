@@ -64,6 +64,7 @@ fn register_evidence(store: &mut DomainStore, source_file: &str) -> String {
         client: None,
         amount_wan: None,
         completed_on: None,
+        fields: Default::default(),
     }).unwrap();
     eid
 }

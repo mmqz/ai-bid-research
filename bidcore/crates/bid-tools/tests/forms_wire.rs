@@ -580,5 +580,6 @@ fn forms_do_not_disturb_table_pipeline() {
         client: None,
         amount_wan: None,
         completed_on: None,
+        fields: Default::default(),
     };
 }

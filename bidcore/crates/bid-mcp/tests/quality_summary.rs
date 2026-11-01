@@ -98,6 +98,7 @@ fn svc_with_outline(tag: &str) -> (BidService, String, Vec<String>) {
         client: None,
         amount_wan: None,
         completed_on: None,
+        fields: Default::default(),
     }).unwrap();
     let req_ids: Vec<String> =
         svc.store().requirements().iter().map(|r| r.id.clone()).collect();

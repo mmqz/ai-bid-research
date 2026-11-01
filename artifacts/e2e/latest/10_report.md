@@ -1,20 +1,20 @@
 # e2e 全链产物报告（#80 第二批 · 任务 B）
 
-- run-id：**e2e-20261101-113057**｜载体：synth-tender（仓库自带夹具）
-- 全链总耗时：**5897ms**（11 步）
+- run-id：**e2e-20261101-114413**｜载体：synth-tender（仓库自带夹具）
+- 全链总耗时：**6028ms**（11 步）
   - 01_建项目: 0ms
-  - 02_导入: 1026ms
-  - 03_抽取: 199ms
+  - 02_导入: 1126ms
+  - 03_抽取: 198ms
   - 04_建纲建矩阵: 109ms
   - 05.5_表格数据面: 0ms
   - 05_证据绑定三门: 0ms
-  - 06_起草(mock): 2995ms
+  - 06_起草(mock): 2962ms
   - 07_format-spec: 0ms
-  - 08_校验: 184ms
-  - 09_导出(docx+pdf): 1364ms
+  - 08_校验: 183ms
+  - 09_导出(docx+pdf): 1430ms
   - 11_自评(score_document+score_price): 20ms
 - REQ：115 条（36 章 / 24 叶）｜mock 总字数：23017
-- 校验：ok=true blocker=0｜导出：docx 156005 字节 + pdf 556218 字节｜PDF 链 缺失 ["chi_sim.traineddata"]
+- 校验：ok=true blocker=0｜导出：docx 174272 字节 + pdf 648582 字节｜PDF 链 缺失 ["chi_sim.traineddata"]
 - 起草告警：47 条
 
   - SEC-0008: 缺失回报（不阻塞）：招标包信息不完整：导入了 2 份「招标文件」类文件（A-招标文件.docx、B-技术规范书.docx）——无法确定正本，请人工确认哪份是有效版本

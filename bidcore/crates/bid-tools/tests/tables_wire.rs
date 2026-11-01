@@ -267,6 +267,11 @@ fn full_profile() -> BidderProfile {
 fn full_decision() -> ExportDecision {
     ExportDecision {
         bid_amount: Some(15_800_000.0),
+        duration_days: Some(180),
+        validity_days: Some(90),
+        deposit_amount: Some(300_000.0),
+        legal_rep_gender: Some("男".into()),
+        project_name: Some("智慧病房物联网平台建设项目".into()),
         price_breakdown: vec![
             PriceItem {
                 item: "设备采购".into(),

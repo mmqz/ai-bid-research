@@ -572,6 +572,11 @@ fn e2e_artifacts_synth_tender() {
             "profile": {
                 "bid_amount": bid_amount,
                 "price_breakdown": price_breakdown,
+                "project_name": "某市第一人民医院智慧病房物联网平台建设项目",
+                "duration_days": 180,
+                "validity_days": 90,
+                "deposit_amount": 300_000.0,
+                "legal_rep_gender": "男",
             },
         }),
     ));
@@ -621,6 +626,17 @@ fn e2e_artifacts_synth_tender() {
             "export_bid_document",
             json!({
                 "project_id": &pid, "format": "pdf", "output_path": "out/e2e-artifacts-投标文件-技术标.pdf",
+                // #117：与 docx 导出同一份报价决策（PDF 是 docx 的渲染面——
+                // 决策不同 = 两次不同导出，幂等键各归各）
+                "profile": {
+                    "bid_amount": bid_amount,
+                    "price_breakdown": price_breakdown,
+                    "project_name": "某市第一人民医院智慧病房物联网平台建设项目",
+                    "duration_days": 180,
+                    "validity_days": 90,
+                    "deposit_amount": 300_000.0,
+                    "legal_rep_gender": "男",
+                },
             }),
         ));
         let u = e["artifact"]["url"].as_str().unwrap().to_string();

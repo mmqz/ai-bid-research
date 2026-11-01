@@ -122,6 +122,22 @@ pub struct ExportDecision {
     /// 分项报价（报价明细表数据面；空 = 无报价决策 → 该表不生成 + 告警）。
     #[serde(default)]
     pub price_breakdown: Vec<PriceItem>,
+    // ---- #117 任务 2：格式件决策面（投标承诺——同样不入库、缺省【待填】+ 告警）
+    /// 项目官方名称（招标文件口径；缺省回落 store 项目名 + 告警——内部名≠官方名）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_name: Option<String>,
+    /// 投标工期（日历天；None = 未定 → 投标函工期栏【待填】）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration_days: Option<u32>,
+    /// 投标有效期（日历天；None = 未定 → 投标函有效期栏【待填】）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub validity_days: Option<u32>,
+    /// 投标保证金金额（元；None = 未定 → 退还申请金额栏【待填】）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deposit_amount: Option<f64>,
+    /// 法定代表人性别（「男」/「女」——身份证明书要求写出；空 → 待填位）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub legal_rep_gender: Option<String>,
 }
 
 /// 分项报价的一行（调用方口径：item/unit/quantity/unit_price 必填，note 可空）。
@@ -364,13 +380,195 @@ pub fn build_export_extras(
         lt.anchor = anchor_keywords(&lt.table);
     }
 
-    (
-        ExportExtras {
-            tables,
-            forms: Vec::new(),
-        },
-        warnings,
-    )
+    // ---- #117 任务 2：七件格式件（字段从 BidderProfile 铺管，缺 → 【待填】）
+    let forms = build_export_forms(store, profile, decision, &mut warnings);
+
+    (ExportExtras { tables, forms }, warnings)
+}
+
+/// 七件格式件构造（#117 任务 2——字段从 BidderProfile 铺管，缺 → 【待填】）。
+///
+/// 口径：
+/// - 项目名：决策显式 > store 项目名（回落必告警——内部项目名与招标官方名
+///   常不一致，投标函抬头错了就是形式审查瑕疵）；
+/// - 报价/工期/有效期/保证金：决策面，缺 → 各自【待填】+ 告警；
+/// - 报价大写：数字的确定性换写（不是新事实），None → 待填；
+/// - 资格声明两项承诺按「是」出具（递交投标文件即该等承诺的作出动作）
+///   + 响亮告警提醒调用方显式确认；
+/// - 无违法声明的查询区间取决于开标日——**不替调用方定**，落【待填】+ 告警。
+fn build_export_forms(
+    store: &DomainStore,
+    profile: &BidderProfile,
+    decision: &ExportDecision,
+    warnings: &mut Vec<String>,
+) -> Vec<StandardForm> {
+    let project_name = match &decision.project_name {
+        Some(n) => n.clone(),
+        None => {
+            let n = store.project().map(|p| p.name.clone()).unwrap_or_default();
+            warnings.push(format!(
+                "项目名称未显式给出（profile.project_name）——格式件使用内部项目名「{n}」（应核对招标文件官方项目名）"
+            ));
+            n
+        }
+    };
+    let project_no = req_param_by_excerpt(store, "项目编号", "model").unwrap_or_default();
+    if decision.duration_days.is_none() {
+        warnings
+            .push("投标工期未随导出给出（profile.duration_days）——投标函工期栏将落【待填】".into());
+    }
+    if decision.validity_days.is_none() {
+        warnings.push(
+            "投标有效期未随导出给出（profile.validity_days）——投标函有效期栏将落【待填】".into(),
+        );
+    }
+    if decision.deposit_amount.is_none() {
+        warnings.push(
+            "投标保证金金额未随导出给出（profile.deposit_amount）——退还申请金额栏将落【待填】"
+                .into(),
+        );
+    }
+    warnings.push(
+        "资格声明的偿付能力/纳税社保两项按「是」出具（递交投标文件即承诺的作出动作——调用方应显式确认）".into(),
+    );
+    warnings.push(
+        "无重大违法记录声明的查询区间未给出——按【待填】出具（区间取决于开标日，不由导出层替定）"
+            .into(),
+    );
+    let gender = decision.legal_rep_gender.clone().unwrap_or_default();
+    let mut forms = vec![
+        StandardForm::bid_letter(
+            profile,
+            &project_name,
+            &project_no,
+            decision.bid_amount.unwrap_or(0.0),
+            decision.duration_days.unwrap_or(0),
+            decision.validity_days.unwrap_or(0),
+        ),
+        StandardForm::legal_rep_certificate(profile, &gender),
+        StandardForm::power_of_attorney(profile, &project_name, "参加本项目投标并签署投标文件"),
+        StandardForm::deposit_refund(
+            profile,
+            &project_name,
+            decision.deposit_amount.unwrap_or(0.0),
+        ),
+        StandardForm::qualification_statement(profile, &project_name, true, true),
+        // 查询区间空串 → 渲染层【待填】（开标日口径归调用方）
+        StandardForm::no_violation_statement(profile, &project_name, "", "", false),
+        StandardForm::integrity_commitment(profile, &project_name, vec![]),
+    ];
+    // 投标函大写金额回填（数字的确定性换写——壹仟伍佰捌拾万元整一类口径）
+    if let Some(StandardForm::BidLetter {
+        bid_amount_upper, ..
+    }) = forms.first_mut()
+    {
+        *bid_amount_upper = amount_to_cn_upper(decision.bid_amount);
+    }
+    forms
+}
+
+/// 金额 → 人民币中文大写（#117 任务 2：投标函「大写」栏——纯换写，非新事实）。
+///
+/// 规则：万进制四位分段（万/亿/万亿）；段内零折叠（"壹仟零伍"）；跨段缺位
+/// 补一个零（1 亿 0 万 5 → 壹亿零伍）；角分全零 → 「整」；金额缺失/非正 →
+/// 空串（渲染层落【待填】——大写不能凭空造）。
+pub fn amount_to_cn_upper(amount: Option<f64>) -> String {
+    const D: [&str; 10] = ["零", "壹", "贰", "叁", "肆", "伍", "陆", "柒", "捌", "玖"];
+    const SCALES: [&str; 4] = ["", "万", "亿", "万亿"];
+    let a = match amount {
+        Some(v) if v.is_finite() && v > 0.0 => v,
+        _ => return String::new(),
+    };
+    let cents = (a * 100.0).round() as u128;
+    let yuan = cents / 100;
+    let jiao = ((cents % 100) / 10) as u8;
+    let fen = (cents % 10) as u8;
+
+    /// 四位段 → 中文（1005 → 壹仟零伍；1580 → 壹仟伍佰捌拾）。
+    fn section(n: u32) -> String {
+        const D: [&str; 10] = ["零", "壹", "贰", "叁", "肆", "伍", "陆", "柒", "捌", "玖"];
+        const U: [&str; 4] = ["", "拾", "佰", "仟"];
+        let digits = [
+            (n / 1000) as usize,
+            (n / 100 % 10) as usize,
+            (n / 10 % 10) as usize,
+            (n % 10) as usize,
+        ];
+        let mut out = String::new();
+        let mut started = false;
+        let mut zero_pending = false;
+        for (i, d) in digits.iter().enumerate() {
+            if *d == 0 {
+                if started {
+                    zero_pending = true;
+                }
+            } else {
+                if zero_pending {
+                    out.push('零');
+                    zero_pending = false;
+                }
+                out.push_str(D[*d]);
+                out.push_str(U[3 - i]);
+                started = true;
+            }
+        }
+        out
+    }
+
+    let mut parts = String::new();
+    if yuan > 0 {
+        let mut groups: Vec<(u32, usize)> = Vec::new();
+        let mut rest = yuan;
+        let mut si = 0usize;
+        while rest > 0 {
+            let g = (rest % 10000) as u32;
+            if g > 0 {
+                groups.push((g, si));
+            }
+            rest /= 10000;
+            si += 1;
+        }
+        groups.reverse(); // 高段 → 低段
+        for (idx, (g, si)) in groups.iter().enumerate() {
+            if idx > 0 {
+                let prev_si = groups[idx - 1].1;
+                if prev_si - si > 1 || *g < 1000 {
+                    parts.push('零'); // 跨段缺位（壹亿零伍）/低段高位为零（壹万零伍）
+                }
+            }
+            parts.push_str(&section(*g));
+            parts.push_str(SCALES[*si]);
+        }
+        parts.push('元');
+    }
+    // 角分（yuan>0 且 jiao==0 且 fen==0 → 整；jiao==0 但 fen>0 → 零X分）
+    match (jiao, fen) {
+        (0, 0) => {
+            if yuan > 0 {
+                parts.push_str("整");
+            } else {
+                return String::new();
+            }
+        }
+        (j, 0) => {
+            parts.push_str(D[j as usize]);
+            parts.push_str("角");
+        }
+        (0, f) => {
+            if yuan > 0 {
+                parts.push('零');
+            }
+            parts.push_str(D[f as usize]);
+            parts.push_str("分");
+        }
+        (j, f) => {
+            parts.push_str(D[j as usize]);
+            parts.push_str("角");
+            parts.push_str(D[f as usize]);
+            parts.push_str("分");
+        }
+    }
+    parts
 }
 
 /// 证据可用判定（与 readiness.rs / evidence.rs `can_bind` 同口径——
@@ -784,6 +982,31 @@ impl<'a> DocumentExporter<'a> {
         Ok(docx)
     }
 
+    /// 一件格式件追加进 docx（#117 任务 2）。
+    ///
+    /// 渲染口径：格式件 markdown 的首行 `# 附件N、名` 提升为 **Heading2**
+    /// （进 TOC \o 1-3——评委在目录里看得到七件在哪）；其余正文走通用
+    /// [`Self::append_blocks`]（暗标脱敏/粗体/表格规则只有一份）。
+    fn append_form(
+        &self,
+        docx: Docx,
+        form: &StandardForm,
+        opts: &ExportOptions<'_>,
+        dir: &Path,
+    ) -> Result<Docx, ExportError> {
+        let md = form.to_markdown();
+        let (first, rest) = match md.split_once('\n') {
+            Some((a, b)) => (a, b),
+            None => (md.as_str(), ""),
+        };
+        let title = first.strip_prefix("# ").unwrap_or(first).trim();
+        let heading = Paragraph::new()
+            .add_run(Run::new().add_text(opts.scrub(title)))
+            .style("Heading2");
+        let docx = docx.add_paragraph(heading);
+        self.append_blocks(docx, parse_blocks(rest), opts, dir)
+    }
+
     /// 导出标书 docx（唯一入口）。
     ///
     /// 步骤（顺序即注释里的序号——fail-closed 门全部在写盘**之前**）：
@@ -920,8 +1143,19 @@ impl<'a> DocumentExporter<'a> {
         // 无命中 → 文末附表——不丢弃，见 TableAnchor 注释）。
         let (injections, appendix_tables) =
             resolve_table_injections(&ordered, &children, opts.extras);
+        // #117 任务 2：格式件锚定（「投标文件格式」章尾——招标文件第七章的
+        // 语义位；无该章 → 文末独立部分，见 ⑥c）
+        let forms_anchor: Option<&str> = match opts.extras {
+            Some(e) if !e.forms.is_empty() => {
+                last_leaf_by_keyword(&ordered, &children, FORMS_ANCHOR_KEYWORDS)
+                    .map(|n| n.id.as_str())
+            }
+            _ => None,
+        };
         let mut tables_written = 0usize;
         let mut table_kinds: Vec<String> = Vec::new();
+        let mut forms_written = 0usize;
+        let mut form_titles: Vec<String> = Vec::new();
         for node in &ordered {
             // 标题段：Heading{level}（level 由 set_outline 保证 1..=4；防御性
             // clamp——手工构造的树不因此产出悬空 pStyle）。暗标：标题同步
@@ -958,6 +1192,17 @@ impl<'a> DocumentExporter<'a> {
                         table_kinds.push(lt.table.kind().to_string());
                     }
                 }
+                // #117 任务 2：七件格式件锚定在本章（「投标文件格式」子树
+                // 最后一个叶章后）——按附件编号从一到七，Heading2 进 TOC。
+                if forms_anchor == Some(node.id.as_str()) {
+                    if let Some(extras) = opts.extras {
+                        for form in &extras.forms {
+                            docx = self.append_form(docx, form, opts, dir)?;
+                            forms_written += 1;
+                            form_titles.push(form.title());
+                        }
+                    }
+                }
             }
         }
 
@@ -978,6 +1223,23 @@ impl<'a> DocumentExporter<'a> {
                 )?;
                 tables_written += 1;
                 table_kinds.push(lt.table.kind().to_string());
+            }
+        }
+
+        // ⑥c #117 任务 2：文末「投标文件格式件」部分（大纲无「投标文件格式」
+        //      章时的诚实落点——七件按附件编号一至七，Heading2 进 TOC）。
+        if forms_anchor.is_none() {
+            if let Some(extras) = opts.extras.filter(|e| !e.forms.is_empty()) {
+                let heading = Paragraph::new()
+                    .add_run(Run::new().add_text(opts.scrub("投标文件格式件")))
+                    .style("Heading1")
+                    .page_break_before(true);
+                docx = docx.add_paragraph(heading);
+                for form in &extras.forms {
+                    docx = self.append_form(docx, form, opts, dir)?;
+                    forms_written += 1;
+                    form_titles.push(form.title());
+                }
             }
         }
 
@@ -1016,8 +1278,8 @@ impl<'a> DocumentExporter<'a> {
             toc_field_present: true, // 构造面：toc_field() 恒插（见字段注释）
             tables_written,
             table_kinds,
-            forms_written: 0, // 任务 2 面（feat/wire-forms）——本线恒 0
-            form_titles: Vec::new(),
+            forms_written,
+            form_titles,
         };
         let manifest = ExportManifest {
             schema_version: MANIFEST_SCHEMA_VERSION,
@@ -1032,6 +1294,37 @@ impl<'a> DocumentExporter<'a> {
 }
 
 // ---------------------------------------------------------------- 私有辅助
+
+/// #117 任务 2：格式件组的锚定关键词（招标文件「投标文件格式」章——
+/// forms.rs 模块头锚定的同一语义位；不含裸「格式」——避免误中
+/// 「格式要求」类条款章）。
+const FORMS_ANCHOR_KEYWORDS: &[&str] = &["投标文件格式"];
+
+/// 文档序最后一个「标题链（自身 + 祖先）含任一关键词」的叶章。
+fn last_leaf_by_keyword<'a>(
+    ordered: &[&'a OutlineNode],
+    children: &BTreeMap<&'a str, Vec<&'a OutlineNode>>,
+    keywords: &[&str],
+) -> Option<&'a OutlineNode> {
+    let by_id: HashMap<&str, &OutlineNode> = ordered.iter().map(|n| (n.id.as_str(), *n)).collect();
+    ordered
+        .iter()
+        .rev()
+        .filter(|n| is_leaf(n, children))
+        .find(|n| {
+            let mut cur: &OutlineNode = n;
+            loop {
+                if keywords.iter().any(|k| cur.title.contains(k)) {
+                    return true;
+                }
+                match cur.parent_id.as_deref().and_then(|p| by_id.get(p)) {
+                    Some(p) => cur = p,
+                    None => return false,
+                }
+            }
+        })
+        .copied()
+}
 
 /// #117：解析表格落点 → (叶章 id → 注入表列表, 附表列表)。
 ///

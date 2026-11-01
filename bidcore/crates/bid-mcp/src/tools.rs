@@ -1884,6 +1884,40 @@ fn parse_export_decision(profile: &Value) -> Result<bid_tools::export::ExportDec
             })
         }
     }
+    // #117 任务 2：格式件决策面（全部可选；类型不对响亮拒）
+    d.project_name = opt_str(profile, "project_name", TOOL)?;
+    match profile.get("duration_days") {
+        None | Some(Value::Null) => {}
+        Some(v) if v.is_u64() => {
+            d.duration_days = Some(v.as_u64().unwrap().min(u32::MAX as u64) as u32)
+        }
+        Some(_) => {
+            return Err(ToolError::EUnprocessable {
+                what: format!("{TOOL}: profile.duration_days 须为正整数（日历天）"),
+            })
+        }
+    }
+    match profile.get("validity_days") {
+        None | Some(Value::Null) => {}
+        Some(v) if v.is_u64() => {
+            d.validity_days = Some(v.as_u64().unwrap().min(u32::MAX as u64) as u32)
+        }
+        Some(_) => {
+            return Err(ToolError::EUnprocessable {
+                what: format!("{TOOL}: profile.validity_days 须为正整数（日历天）"),
+            })
+        }
+    }
+    match profile.get("deposit_amount") {
+        None | Some(Value::Null) => {}
+        Some(v) if v.is_number() => d.deposit_amount = v.as_f64(),
+        Some(_) => {
+            return Err(ToolError::EUnprocessable {
+                what: format!("{TOOL}: profile.deposit_amount 须为数值（元）"),
+            })
+        }
+    }
+    d.legal_rep_gender = opt_str(profile, "legal_rep_gender", TOOL)?;
     match profile.get("price_breakdown") {
         None | Some(Value::Null) => {}
         Some(v) if v.is_array() => {
@@ -1918,11 +1952,13 @@ fn parse_export_decision(profile: &Value) -> Result<bid_tools::export::ExportDec
                 });
             }
         }
-        Some(_) => return Err(ToolError::EUnprocessable {
-            what: format!(
+        Some(_) => {
+            return Err(ToolError::EUnprocessable {
+                what: format!(
                 "{TOOL}: profile.price_breakdown 须为数组（逐项 item/unit/quantity/unit_price）"
             ),
-        }),
+            })
+        }
     }
     Ok(d)
 }
@@ -1937,9 +1973,12 @@ fn parse_export_decision(profile: &Value) -> Result<bid_tools::export::ExportDec
 /// 半吊子）。暗标：`profile.dark_bid` + `profile.bidder_name`（公司名 →
 /// 「投标人」；bidder 缺失响亮 warning 不静默）。
 ///
-/// #117 任务 1：`profile.bid_amount`（投标总报价，元）+ `profile.price_breakdown`
-/// （分项报价数组）——投标决策随导出显式给出，进幂等键；缺省 → 表格/格式件
-/// 相应栏落【待填】+ 告警。表格接线详见 `bid_tools::export::build_export_extras`。
+/// #117 任务 1/2：`profile` 携带投标决策——`bid_amount`（总报价，元）+
+/// `price_breakdown`（分项报价数组）+ `project_name`（招标官方项目名）+
+/// `duration_days`/`validity_days`（工期/有效期）+ `deposit_amount`
+/// （保证金）+ `legal_rep_gender`（法定代表人性别）。全部可选；缺省 →
+/// 表格/格式件相应栏落【待填】+ 告警，进幂等键（换决策重导不吃旧缓存）。
+/// 接线详见 `bid_tools::export::build_export_extras`。
 fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
     const TOOL: &str = "export_bid_document";
     // ---- 参数校验（契约 §8 in）

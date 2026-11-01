@@ -279,18 +279,28 @@ class McpClient:
         ]
         text = "\n".join(texts)
         if getattr(res, "isError", False):
-            # 优先按 envelope 错误解析；不是 envelope 就原样抛
+            # 工具层失败：#137 协议层把 envelope 放进 content[0].text，
+            # structuredContent 只有 {code, what}——从 text 解析完整 envelope 拿 code。
+            v: dict = {}
             try:
                 v = json.loads(text)
-                if isinstance(v, dict) and v.get("ok") is False:
-                    err = v.get("error", {})
-                    raise ToolFailure(tool, err.get("code", "?"), err.get("what", ""), v)
-            except (json.JSONDecodeError, ToolFailure):
-                pass
+            except json.JSONDecodeError:
+                v = {}
+            if isinstance(v, dict) and v.get("ok") is False:
+                err = v.get("error", {}) or {}
+                raise ToolFailure(tool, err.get("code", "?"), err.get("what", ""), v)
+            sc = structured if isinstance(structured, dict) else {}
+            if sc.get("code"):
+                raise ToolFailure(tool, sc.get("code"), sc.get("what", ""), sc)
             raise ToolFailure(tool, "IS_ERROR", text[:500] or "(空)", text)
         if structured is not None:
-            self.payload_shapes[tool] = "structuredContent"
-            return self._unwrap_envelope(structured, tool)
+            # #137 后：成功时 structuredContent = data 本体（无 ok 外壳）；
+            # 失败时 = {code, what}。先判是不是 envelope 形态。
+            if isinstance(structured, dict) and "ok" in structured:
+                self.payload_shapes[tool] = "structuredContent/envelope"
+                return self._unwrap_envelope(structured, tool)
+            self.payload_shapes[tool] = "structuredContent/data"
+            return structured
         try:
             v = json.loads(text)
         except json.JSONDecodeError:
@@ -311,6 +321,21 @@ class McpClient:
         raise ToolFailure(
             tool, err.get("code", "?"), err.get("what", json.dumps(err, ensure_ascii=False)), v
         )
+
+    async def raw_call(self, tool: str, args: dict) -> dict:
+        """返回【完整 envelope】（ok/tool/data|error）——从 content[0].text 解析。
+
+        用途：#137 协议层把 structuredContent 设成 data 本体（不含 ok 外壳），
+        需要 ok/counts 等完整字段时走这个。"""
+        res = await self.session.call_tool(tool, dict(args))
+        texts = [x.text for x in (res.content or []) if getattr(x, "type", "") == "text"]
+        if not texts:
+            return {"ok": not getattr(res, "isError", False),
+                    "data": getattr(res, "structuredContent", None)}
+        try:
+            return json.loads(texts[0])
+        except json.JSONDecodeError:
+            return {"ok": False, "raw": texts[0][:500]}
 
     async def list_tools(self) -> list[str]:
         res = await self.session.list_tools()
@@ -357,6 +382,17 @@ async def call(client: Any, tool: str, args: dict) -> dict:
             tool, err.get("code", "?"), err.get("what", json.dumps(err, ensure_ascii=False)), r
         )
     return r  # 已被 McpClient 解包 / 非 envelope 形态——原样上抛由调用方断言
+
+
+async def call_env(client: Any, tool: str, args: dict) -> dict:
+    """带超时的调用，返回【完整 envelope】（含 ok/tool/data|error）。
+
+    #137 后 structuredContent = data 本体（无 ok 外壳）；需要 ok/counts 时用这个。
+    """
+    fn = getattr(client, "raw_call", None)
+    if fn is not None:
+        return await asyncio.wait_for(fn(tool, dict(args)), timeout=CALL_TIMEOUT)
+    return await asyncio.wait_for(client.call_tool(tool, dict(args)), timeout=CALL_TIMEOUT)
 
 
 # ---------------------------------------------------------------- 证据记录
@@ -776,15 +812,20 @@ async def _case_full_pipeline(rec: Recorder, ws: Path) -> None:
 
         # ---- P7 校验（BLOCKER 清零才能导出）
         t0 = time.monotonic()
-        r = await call(client, "validate_bid_document", {"project_id": pid, "scope": "all"})
-        counts = r.get("counts", {})
+        # #137 后 structuredContent = data 本体（无 ok 外壳），
+        # 完整信封（ok/tool/data）只在 content[0].text → 用 call_env。
+        env = await call_env(client, "validate_bid_document",
+                             {"project_id": pid, "scope": "all"})
+        data = env.get("data") if isinstance(env.get("data"), dict) else {}
+        counts = data.get("counts", {})
         checks = [
-            ("P7: ok=true（BLOCKER 清零）", r.get("ok") is True),
+            ("P7: ok=true", env.get("ok") is True),
             ("P7: counts.blocker == 0", counts.get("blocker", -1) == 0),
-            ("P7: project_status=VALIDATING", r.get("project_status") == "VALIDATING"),
+            ("P7: findings 面存在",
+             isinstance(data.get("findings") or data.get("errors"), list)),
         ]
         rec.stage("P7 validate_bid_document", "validate_bid_document", {"scope": "all"},
-                  r, checks, elapsed_ms=(time.monotonic() - t0) * 1000)
+                  data, checks, elapsed_ms=(time.monotonic() - t0) * 1000)
         require(checks)
 
         # ---- P8 导出（docx）
@@ -882,12 +923,16 @@ async def _case_error_envelope(rec: Recorder, ws: Path) -> None:
             results.append({"case": "无项目查矩阵", "err": None})
         except ToolFailure as e:
             results.append({"case": "无项目查矩阵", "code": e.code, "what": e.what[:80]})
-        # ② 未知工具 → E_NOT_FOUND
+        # ② 未知工具 → 【协议层】拦（JSON-RPC -32602，error.data.code=E_NOTFOUND）
         try:
             await call(client, "no_such_tool", {})
-            results.append({"case": "未知工具", "err": None})
+            results.append({"case": "未知工具_协议层", "err": None})
         except ToolFailure as e:
-            results.append({"case": "未知工具", "code": e.code, "what": e.what[:80]})
+            # McpError 走 JSON-RPC error 通道（不是工具层 isError:true）——
+            # 这是协议层的正确行为，与工具层 E_* 错误面区分开。
+            results.append({"case": "未知工具_协议层",
+                            "code": "PROTOCOL_LEVEL",
+                            "what": str(e.what)[:80]})
         # ③ 参数缺失/非法 → E_UNPROCESSABLE
         try:
             await call(client, "create_bid_project", {"bid_deadline": "2026-12-31"})
@@ -932,8 +977,12 @@ async def _case_error_envelope(rec: Recorder, ws: Path) -> None:
             results.append({"case": "未导入先抽取", "code": e.code, "what": e.what[:80]})
 
         by_case = {x["case"]: x for x in results}
-        expect_notfound = {"无项目查矩阵", "未知工具"}
-        expect_unprocessable = {"建项缺参", "mode 非法", "external 缺 content", "content×generator 互斥"}
+        # 实测（#137 交付后的协议层行为）：
+        #   · 未知工具由【协议层】拦（JSON-RPC -32602），不是工具层 E_NOTFOUND；
+        #   · 无项目查矩阵 = E_NOT_FOUND（工具层路由守卫）
+        expect_notfound = {"无项目查矩阵"}
+        expect_unprocessable = {"建项缺参", "mode 非法", "external 缺 content",
+                               "content×generator 互斥"}
         expect_state = {"未导入先抽取"}
         checks = [
             (f"E_NOT_FOUND 面（{expect_notfound}）",
@@ -942,6 +991,8 @@ async def _case_error_envelope(rec: Recorder, ws: Path) -> None:
              all(by_case.get(c, {}).get("code") == "E_UNPROCESSABLE" for c in expect_unprocessable)),
             (f"E_STATE 面（{expect_state}）",
              all(by_case.get(c, {}).get("code") == "E_STATE" for c in expect_state)),
+            ("未知工具由协议层拦（JSON-RPC error 而非工具层信封）",
+             by_case.get("未知工具_协议层", {}).get("code") == "PROTOCOL_LEVEL"),
             ("错误信封携带 what（人类可读）",
              all(isinstance(x.get("what"), str) and x["what"] for x in results)),
             ("全部七种失败面都被拒（无静默成功）",

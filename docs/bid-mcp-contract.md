@@ -111,7 +111,12 @@ in : { project_id, section_id? | spec:{title, order, parent_id?, toc_ref}, instr
        generator?:"auto"|"mock"|"real"|"external",     ← #68 阶段 1 三态 + #100 任务 2 external
        content?:"外部手稿全文" }                        ← #100 任务 2（external 的正文来源）
 out: { section_id, content_ref:"DOC-*", version, stats:{words, citations, unanchored_claims:0,
-       generator:"real"|"mock"|"external", uncovered_requirements:[REQ-*]}, warnings[] }
+       generator:"real"|"mock"|"external", uncovered_requirements:[REQ-*]}, warnings[],
+       draft_note }                                        ← #128（#127 P0-2）：指令与缺失
+       回报的【留档账面】——随 attempt 落盘 ChapterRecord::draft_note，
+       人类可读；与正文严格分离（渲染永不碰）：正文零「起草指令：」「缺失
+       回报：」标记（原缺陷：缺失回报整段嵌在开篇括号里把句子劈断）。
+       生成器 prompt 面的注入（with_missing_report）与账面同源不同层。
      ← stats.generator 标记实际生成器；uncovered_requirements = 覆盖度自动检查
        （#68 阶段 2 §2.1——响应面内未被正文回应的 REQ，逐条另发 warning）
 幂等: (section_id, instructions_hash, inputs_version) 相同 → no-op 返回原稿；
@@ -127,6 +132,13 @@ out: { section_id, content_ref:"DOC-*", version, stats:{words, citations, unanch
      真实通路：60s 超时重试 1 次；max_tokens 按 target_chars 推导（防失控，completion 超
      硬上限 2 倍 → 整章废弃报错）；用量累计落 .mang/llm-usage.json（api_key 绝不落日志/台账）。
 执行: 后端经**文档内核稳定接口**创建/更新 DOC 块（本系统不触碰内核内部结构）；引用覆盖率校验——承诺句无证据引用计为 unanchored_claims>0 时 warning（阻断留给 validate）
+阻塞: draft 前置 readiness 闸（#110 任务 1 + L3）：无关联 REQ/缺资质/业绩不足/技术
+      参数无佐证/否决项未响应/无补遗（MissingAddendum）六种 Blocker →
+      E_UNPROCESSABLE（人话理由，不泄漏枚举名）。无补遗的人工出口 =
+      addendum_waiver 门（§12）。
+大纲: 否决项/资格条件不写规则原文但合并进【资格与响应】响应章节组（#121
+      P0-1/#126：评标规则不进正文）；评分项完全不进正文（只进自评表）；
+      「其他」类二次分组（章节→主题→兜底条款号区间，不裸「（第N块）」）。
 状态: SEC → DRAFTED；项目 → DRAFTING
 ```
 
@@ -170,9 +182,25 @@ in : { project_id, format:"docx"|"pdf", output_path(必填——产物路径，�
          ——标书缺资质证书图是废标级事故）
        · 版面适配：宽超内容区 6 英寸等比缩放（A4 安全面）
      - 标题行：# / ## … → 剥号加粗段（不再字面输出井号）
-out: { artifact:{url, sha256, size}, content_version_snapshot, precheck:{blockers:0, waived:[VF-*]} }
-前置: 所有 BLOCKER findings = Resolved/Waived（否则 E_STATE + 阻断清单）
-幂等: (project_id, content_version, format, profile) 相同 → 返回缓存 artifact
+out: { artifact:{url, sha256, size}, content_version_snapshot, precheck:{blockers:0, waived:[VF-*]},
+       tables_written, table_kinds:[...], forms_written, form_titles:[...], warnings[] }
+     ← #117/#122 导出面对账：六表/七件全部进 docx，逐张点名（tables_written
+       == 6 且 table_kinds 逐类在座；forms_written == 7）。e2e 不信任工具
+       返回值——解包 docx 数节验：`<w:tbl>`==6、七件关键词、表行数下限、
+       红run 数、合计一致、零 markdown 星号（#129 深断言，12_export-check.json）。
+六表: （#117 三真源 + #122 接线）①项目概况表（恒生成——REQ 参数+项目面，
+      缺栏落【待填】）；②技术参数偏离表（有「技术参数」类 REQ 才生成——
+      参数响应账 set_param_responses；负偏离★整行标红 5 格；无技术参数
+      REQ → 缺席+响亮告警（不静默）；③报价明细表（profile.bid_amount +
+      price_breakdown——分项合计=总价一致性断言；投标函大写金额换写）；
+      ④业绩一览表（可用业绩证据——Performance 类带发包人/金额/完成日期）；
+      ⑤人员配置表/⑥设备清单表（bidder-profile.json 的 personnel/equipment
+      ——投标方输入面，主体信息档落盘）。
+七件: 附件一投标函/二法定代表人身份证明书/三授权委托书/四投标保证金退还
+      申请/五资格声明/六无重大违法记录声明/七廉洁承诺书（BidderProfile
+      真源；缺字段标【待填】；标题 Heading2 样式段——防关键词假阳性）。
+幂等: (project_id, content_version, format, profile, output_path, decision_fp) 相同
+     → 返回缓存 artifact（#117：报价决策指纹入键——换报价重导是新导出）
 状态: → READY_TO_EXPORT → EXPORTED
 ```
 
@@ -193,6 +221,11 @@ out: { project_id, summary:{total, drafted, failed, pending, uncovered_req_total
      - 带宽：target_chars ±20%（target=0 或未起草不评——within_band:null）；
      - needs_human 判定：FAILED / 有未覆盖 REQ / 幻觉引用 / 带外字数；
      - FAILED 章错误明细从 S-2 的 failed.json 边车并入（assembler 在场时）；
+     - B3 三维度评分（#131 接线——此前 ctx=None 评分器从未在生产路径评过）：
+       逐章 specificity/substance/score（已起草才评，未起草 None 不伪装 0）
+       + 报告级 duplication（跨章重复，Jaccard/包含率双口径）+ 严重重复对
+       needs_human；评分器由真实评分项 REQ 驱动（SectionScorer+
+       derive_scoring_tree；无评分项空树 → rationale 诚实说明，不伪装分）；
      - 落盘：{workspace}/artifacts/quality-report.json（workspace 在场；纯内存态
        artifact:null + 告警）。
      - requirement_ids（#86 摩擦 #4 清偿）：章节绑定的 REQ 全集——章节→REQ
@@ -328,10 +361,10 @@ bid_open_date 语义（#80 第三批外部 Agent 实测摩擦 #5）：证据有�
 状态: MATRIX_READY+
 ```
 
-## 12. record_review_gate（#80 第三批 · G3）
+## 12. record_review_gate（#80 第三批 · G3；#131 增第四门）
 
 ```
-in : { project_id, gate(matrix_approval|outline_approval|pre_export_confirm),
+in : { project_id, gate(matrix_approval|outline_approval|pre_export_confirm|addendum_waiver),
        decision(APPROVED|REJECTED), reviewer(须 "human:" 前缀),
        findings?:[{ severity(BLOCKER|WARNING|INFO), code, message, section_id? }],
        project_version }
@@ -341,15 +374,29 @@ out: { receipt:{ review_id, gate, decision, reviewer, finding_ids, spawned_rt_id
       （窗口外拒收——矩阵/大纲门 VALIDATING+ 不再受理）、门序（矩阵先于大纲；
       pre_export 要求前两门 Approved）全在域层 record_review 裁决——壳层零重实现。
       gates_approved 与域层 gate_approved 同一真源。
-状态: MATRIX_READY+（域层按门细分窗口）
+三门: 导出门序链（matrix → outline → pre_export——export_allowed 逐门校验）。
+第四门 addendum_waiver（#131）：L3「无补遗阻塞」的人工出口——单件招标
+      文件（无补遗件）起草会被 MissingAddendum 拒；Approved = 人工确认本项目
+      无补遗 → missing_addendum 放行。与三门正交：无状态门、无门序前置
+      （导入后任意时刻可记），不入 export_allowed 门序；补遗件在场时走正常
+      判定（不因 waiver 洗白 ParseFailed——补遗解析失败仍阻塞）。
+状态: MATRIX_READY+（域层按门细分窗口；addendum_waiver 无窗口限制）
 错误: E_UNPROCESSABLE（gate/decision/findings 形态非法；reviewer 缺 human: 前缀）；
       E_STATE（门序/窗口外）
 ```
 
 > **外部 Agent 纯 MCP 驱动闭环**（G1/G2/G3 补齐后）：create → import → extract →
-> build_outline → register/bind → 三门 → check_bid_quality（**章节发现面**——
-> sections 只列叶，get_bid_project_state 不回章节清单）→ draft → validate → export。
+> build_outline → register/bind →（无补遗件时 addendum_waiver）→ 三门 →
+> check_bid_quality（**章节发现面**——sections 只列叶，get_bid_project_state 不回
+> 章节清单）→ draft → validate → export。
 > 验收：`tests/mcp_scaffold_tools.rs`（零服务面直调全链 + 错误路径）。
+
+> **真实语料 e2e 红线**（#131）：`tests/real_corpus_e2e.rs`——3 件真实水科 PDF
+> （real-corpus/water/files，sha256 对应 GT A-01/A-04/A-05）每件独立项目跑全链，
+> 测试内嵌 veto-measure 三通道口径断言：**L1 召回 ≥ 309/318 = 0.9717、否决类
+> 精确率 ≥ 291/302 = 0.9636（#123 基线，逐位不退化）**。产物落盘
+> artifacts/real-corpus-e2e/latest/。合成面（synth-tender 115 REQ + e2e 十项
+> 深断言）与真实面双轨把关：「合成通过 ≠ 真实通过」。
 
 ## 13. score_price（#100 任务 3 · B1 价格分接线——纯计算器）
 

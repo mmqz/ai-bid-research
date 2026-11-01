@@ -13,7 +13,7 @@
 | `bid-domain` | 领域对象 + 权威状态机（E_STATE 越级防护 / 幂等 / content_version）| docs/bid-domain-model.md |
 | `bid-parse` | 确定性解析：DOCX(zip+quick-xml) / XLSX(calamine) / PDF(poppler 适配) / OCR(tesseract 适配) + 条款抽取 | mcp-contract §3「确定性先行」层 |
 | `bid-kb` | AdapterA：结构化切块（内容寻址 chunk_id）+ 精确通道检索（四级确定性 tie-breaker）| mcp-contract 附录 A |
-| `bid-tools` | 工具薄壳 + 场景运行器 + **db.json/trace.jsonl serde 契约**（`schema.rs`）| mcp-contract §1~§5 |
+| `bid-tools` | 工具薄壳 + 场景运行器 + **db.json/trace.jsonl serde 契约**（`schema.rs`）+ **导出链**（六表/七格式件/负偏离红标/大写金额/行内粗体——#117/#122）+ 起草 readiness 闸（#110/L3）+ 质量报告（B3 三维度，#131 接线） | mcp-contract §1~§9 |
 | `bid-grade` | 判分器：七判分项 + 里程碑范围分级 + 破坏注入自测 | verification-plan §2.2 |
 
 ## 每轮测试
@@ -28,6 +28,10 @@ cargo run -p bid-grade -- --all-runs ../runs # 判分 runs/ 下全部场景产�
 M1 端到端场景：**TC-01**（导入+抽取，G1 召回 100%）/ **TC-02**（25 精确查询×5 重放一致）/
 **TC-07**（sha256 幂等 no-op）/ **TC-11**（状态机越级 E_STATE）——全部在真实 corpus-A 夹具上运行，
 产物写 `runs/<scenario>/{db.json, trace.jsonl, report.json}`（确定性，可重放比对）。
+
+双轨 e2e（#131 起）：合成面 `bid-mcp/tests/e2e_artifacts.rs`（synth-tender 115 REQ +
+十项深断言）+ 真实面 `bid-mcp/tests/real_corpus_e2e.rs`（3 件水科 PDF 全链 + GT 三通道
+红线 L1 0.9717 / P 0.9636，产物 artifacts/real-corpus-e2e/）——两轨都绿才算绿。
 
 ## 判分纪律（从 grade.py 完整移植并强化）
 

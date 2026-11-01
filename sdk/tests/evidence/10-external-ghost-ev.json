@@ -1,12 +1,12 @@
 {
  "case": "10-external-ghost-ev",
- "transport": "linejson",
- "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
- "server_sha256": "4a50e533834e0f13b3bbf0df89748b858b1697ad0a91edabb3683bbc7fb4faaf",
+ "transport": "mcp",
+ "server_bin": "/tmp/shared-target/debug/bid-mcp-server",
+ "server_sha256": "119b0970e641afbc66d2b600a86daabed4608743b51f8e3fde0b7057db8cdf0e",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-01T13:16:23+00:00",
+ "started_at": "2026-11-01T15:18:30+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 3.771920000872342
+   "elapsed_ms": 6.052652999983366
   },
   {
    "stage": "P1 import_tender_files",
@@ -149,7 +149,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 242.98655600068741
+   "elapsed_ms": 242.59994699991694
   },
   {
    "stage": "P2 extract_requirements",
@@ -188,7 +188,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 67.94150700079626
+   "elapsed_ms": 65.32516200002192
   },
   {
    "stage": "P3 build_outline",
@@ -221,7 +221,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.9243759992095875
+   "elapsed_ms": 7.2023839999246775
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -329,7 +329,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.08482499976526,
+   "elapsed_ms": 20.730340999989494,
    "extra": {
     "sections": {
      "SEC-0007": [
@@ -525,7 +525,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.340436999380472
+   "elapsed_ms": 6.875005999972927
   },
   {
    "stage": "P4 bind_evidence",
@@ -557,7 +557,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.986303000303451
+   "elapsed_ms": 7.2486650000200825
   },
   {
    "stage": "G3 record_review_gate ×3",
@@ -593,7 +593,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 19.60262400098145
+   "elapsed_ms": 20.09067500000583
   },
   {
    "stage": "① draft(external) 幽灵 EV [SEC-0007]",
@@ -696,5 +696,5 @@
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/external-ghost-ev/ws",
- "finished_at": "2026-11-01T13:16:23+00:00"
+ "finished_at": "2026-11-01T15:18:31+00:00"
 }

@@ -1,12 +1,12 @@
 {
  "case": "12-external-unanchored",
- "transport": "linejson",
- "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
- "server_sha256": "4a50e533834e0f13b3bbf0df89748b858b1697ad0a91edabb3683bbc7fb4faaf",
+ "transport": "mcp",
+ "server_bin": "/tmp/shared-target/debug/bid-mcp-server",
+ "server_sha256": "119b0970e641afbc66d2b600a86daabed4608743b51f8e3fde0b7057db8cdf0e",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-01T13:16:24+00:00",
+ "started_at": "2026-11-01T15:18:32+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 3.5215490006521577
+   "elapsed_ms": 5.368912999983877
   },
   {
    "stage": "P1 import_tender_files",
@@ -149,7 +149,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 243.3693109996966
+   "elapsed_ms": 239.46764100003293
   },
   {
    "stage": "P2 extract_requirements",
@@ -188,7 +188,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 66.903283001011
+   "elapsed_ms": 63.948657999958414
   },
   {
    "stage": "P3 build_outline",
@@ -221,7 +221,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 8.27998699969612
+   "elapsed_ms": 7.229854000001978
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -329,7 +329,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.08062599915138,
+   "elapsed_ms": 19.844014999989668,
    "extra": {
     "sections": {
      "SEC-0007": [
@@ -525,7 +525,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.21574300021166
+   "elapsed_ms": 6.796033999989959
   },
   {
    "stage": "P4 bind_evidence",
@@ -557,7 +557,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.001314999797614
+   "elapsed_ms": 7.217824000008477
   },
   {
    "stage": "G3 record_review_gate ×3",
@@ -593,7 +593,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 20.008846000564517
+   "elapsed_ms": 19.733965000000353
   },
   {
    "stage": "③ draft(external) 无锚承诺 [SEC-0007]",
@@ -660,5 +660,5 @@
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/external-unanchored/ws",
- "finished_at": "2026-11-01T13:16:24+00:00"
+ "finished_at": "2026-11-01T15:18:32+00:00"
 }

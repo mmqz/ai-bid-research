@@ -1,12 +1,12 @@
 {
  "case": "02-full-pipeline",
- "transport": "linejson",
- "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
- "server_sha256": "4a50e533834e0f13b3bbf0df89748b858b1697ad0a91edabb3683bbc7fb4faaf",
+ "transport": "mcp",
+ "server_bin": "/tmp/shared-target/debug/bid-mcp-server",
+ "server_sha256": "119b0970e641afbc66d2b600a86daabed4608743b51f8e3fde0b7057db8cdf0e",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-01T13:16:21+00:00",
+ "started_at": "2026-11-01T15:18:29+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 3.6028960003022803
+   "elapsed_ms": 5.383920999975089
   },
   {
    "stage": "P1 import_tender_files",
@@ -149,7 +149,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 240.7532609995542
+   "elapsed_ms": 273.76103700009935
   },
   {
    "stage": "P2 extract_requirements",
@@ -188,7 +188,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 63.597604999813484
+   "elapsed_ms": 67.98529399998188
   },
   {
    "stage": "P3 build_outline",
@@ -221,7 +221,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.804810000176076
+   "elapsed_ms": 7.405296999991151
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -329,7 +329,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.293376000234275,
+   "elapsed_ms": 19.799853999984407,
    "extra": {
     "sections": {
      "SEC-0007": [
@@ -525,7 +525,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.167326999275247
+   "elapsed_ms": 6.934581000109574
   },
   {
    "stage": "P4 bind_evidence",
@@ -557,7 +557,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.702795000819606
+   "elapsed_ms": 7.566874000076496
   },
   {
    "stage": "G3 record_review_gate ×3",
@@ -593,7 +593,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 19.393390999539406
+   "elapsed_ms": 20.70571999990989
   },
   {
    "stage": "P5 draft(external) SEC-0007",
@@ -2430,27 +2430,15 @@
         "count": 21,
         "head": [
          [
+          "SEC-0014",
+          0.5
+         ],
+         [
           "SEC-0021",
           0.5
          ],
          [
-          "SEC-0024",
-          0.5
-         ],
-         [
-          "SEC-0018",
-          0.5
-         ],
-         [
-          "SEC-0025",
-          0.5
-         ],
-         [
-          "SEC-0008",
-          0.5
-         ],
-         [
-          "SEC-0020",
+          "SEC-0011",
           0.5
          ],
          [
@@ -2458,23 +2446,35 @@
           0.5
          ],
          [
-          "SEC-0031",
+          "SEC-0019",
           0.5
          ],
          [
-          "SEC-0009",
+          "SEC-0033",
           0.5
          ],
          [
-          "SEC-0029",
+          "SEC-0008",
           0.5
          ],
          [
-          "SEC-0028",
+          "SEC-0016",
           0.5
          ],
          [
-          "SEC-0007",
+          "SEC-0025",
+          0.5
+         ],
+         [
+          "SEC-0026",
+          0.5
+         ],
+         [
+          "SEC-0017",
+          0.5
+         ],
+         [
+          "SEC-0027",
           0.5
          ]
         ]
@@ -2978,7 +2978,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 177.26129599941487
+   "elapsed_ms": 184.4104450000259
   },
   {
    "stage": "P7 validate_bid_document",
@@ -3121,7 +3121,7 @@
    },
    "checks": [
     {
-     "desc": "P7: ok=true（BLOCKER 清零）",
+     "desc": "P7: ok=true",
      "pass": true
     },
     {
@@ -3129,11 +3129,11 @@
      "pass": true
     },
     {
-     "desc": "P7: project_status=VALIDATING",
+     "desc": "P7: findings 面存在",
      "pass": true
     }
    ],
-   "elapsed_ms": 74.30877899969346
+   "elapsed_ms": 79.80640200003108
   },
   {
    "stage": "P8 export_bid_document",
@@ -3213,7 +3213,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 39.98743400006788
+   "elapsed_ms": 42.254476999914914
   },
   {
    "stage": "产物深检 docx",
@@ -3331,5 +3331,5 @@
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/full-pipeline/ws",
- "finished_at": "2026-11-01T13:16:22+00:00"
+ "finished_at": "2026-11-01T15:18:30+00:00"
 }

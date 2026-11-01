@@ -82,7 +82,7 @@ fn mk_req_at(
 }
 
 /// 「建纲 + mock 起草全部叶」服务态（synth 形态：1 价格评分项 + 1 技术评分项
-/// + 1 否决项 + 1 技术参数——评分项 params **带 section**（指向 SEC-0001），
+/// + 1 否决项 + 1 技术参数——评分项 params **带 section**（指向 SEC-0002，第一个叶），
 /// 因为 #126 后评分项不进正文，不显式映射就拿不到 item_scores）。
 fn svc_drafted(tag: &str, draft_all: bool) -> (BidService, String) {
     let mut svc = BidService::new();
@@ -96,10 +96,10 @@ fn svc_drafted(tag: &str, draft_all: bool) -> (BidService, String) {
     svc.set_requirements(vec![
         mk_req_at("REQ-0001", "评分项",
             "4.1 价格分（30 分）：以通过初步评审的有效投标报价的算术平均值下浮 5% 为基准价，价格分＝（基准价／投标报价）×30",
-            Some(30.0), Some("SEC-0001")),
+            Some(30.0), Some("SEC-0002")),
         mk_req_at("REQ-0002", "评分项",
             "4.2 技术分：技术方案完整性与针对性 20 分，方案须覆盖系统架构与设备选型",
-            Some(20.0), Some("SEC-0001")),
+            Some(20.0), Some("SEC-0002")),
         mk_req("REQ-0003", "否决项",
             "3.9 投标文件未按规定格式签署盖章的，作否决投标处理", None),
         mk_req("REQ-0004", "技术参数",
@@ -109,7 +109,7 @@ fn svc_drafted(tag: &str, draft_all: bool) -> (BidService, String) {
         .prepare_outline_and_matrix(OutlineSpec { target_total_chars: 6_000, max_reqs_per_leaf: 8 })
         .unwrap();
     assert!(n_sec >= 1);
-    // 【夹具前提】评分项的 params.section = "SEC-0001"（见上方 mk_req_at）——
+    // 【夹具前提】评分项的 params.section = "SEC-0002"（见上方 mk_req_at）——
     // 这里锁定它确实是【叶】（评分项的自评挂在节上，节才有 item_scores）。
     //
     // 为什么必须在 set_requirements 时就给（不能在建纲后补）：
@@ -127,11 +127,11 @@ fn svc_drafted(tag: &str, draft_all: bool) -> (BidService, String) {
             .store()
             .sections()
             .iter()
-            .find(|n| n.id == "SEC-0001")
-            .expect("建纲后必有 SEC-0001");
+            .find(|n| n.id == "SEC-0002")
+            .expect("建纲后必有 SEC-0002（第一个叶）");
         assert!(
             !parents.contains(&sec1.id),
-            "夹具前提失效：SEC-0001 是结构节点而非叶（评分项 section 指向它则自评落空）"
+            "夹具前提失效：SEC-0002 是结构节点而非叶（评分项 section 指向它则自评落空）"
         );
     }
     // 【#126 后的必要补线】评分项不进正文 → 不在任何叶的 requirement_ids 里

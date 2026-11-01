@@ -6,7 +6,7 @@
 - 分类偏差（vs ideal）：6 条｜条数偏差（vs 预判）：1 条
 - 推演准确度（engine_expect 命中）：**96/98**
 - PDF 环境：缺失 ["chi_sim.traineddata"]｜format-spec 提取告警：从招标文件格式条款提取 1 项格式参数（未识别项保持基线）
-- 全链：校验 ok=true blocker=0｜导出 109064 字节｜mock 总字数 21936
+- 全链：校验 ok=true blocker=0｜导出 139207 字节｜mock 总字数 20028
 
 ## 未命中条款（ideal 视角——差距清单）
 

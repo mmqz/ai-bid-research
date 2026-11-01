@@ -53,6 +53,11 @@ fn mk_req(id: &str, category: &str, excerpt: &str) -> Requirement {
 /// 三道门过审（T-7 审核闭环——reviewer 必须 human: 前缀，AI 不得自审自过）。
 fn pass_three_gates(svc: &mut BidService) {
     use bid_domain::review::{Decision, Gate};
+    // #131：无补遗确认门一并过（基座只导入招标文件，L3 阻塞的人工出口；
+    // #118 合入时漏适配本套件的起草面）
+    svc.store_mut()
+        .record_review(Gate::AddendumWaiver, "human:lead", Decision::Approved, vec![])
+        .unwrap_or_else(|e| panic!("无补遗确认门失败（{e:?}）"));
     for gate in [Gate::MatrixApproval, Gate::OutlineApproval, Gate::PreExportConfirm] {
         svc.store_mut().record_review(gate, "human:lead", Decision::Approved, vec![])
             .unwrap_or_else(|e| panic!("三门过审失败（{e:?}）——门序/状态窗检查夹具"));
@@ -258,7 +263,17 @@ fn export_blocked_by_unresponded_mandatory_rows() {
         mk_req("REQ-0001", "资格条件", "具备贰级资质"),
         mk_req("REQ-0002", "否决项", "未签字作否决"),
     ]).unwrap();
-    let _ = svc.prepare_outline_and_matrix(OutlineSpec { target_total_chars: 1_000, max_reqs_per_leaf: 8 }).unwrap();
+    // max_reqs_per_leaf=1：资格 REQ-0001 与否决 REQ-0002 分属两叶——
+    // 「资格叶（台账有资质）可起草推进 Drafting + 否决叶（未响应）拒生成
+    // 保持 Pending」是本用例的设计意图；两 REQ 同叶时全拒，项目停在
+    // MatrixReady，导出闸测不到（#131 修复：#118 后本用例在 main 上已断）。
+    let _ = svc.prepare_outline_and_matrix(OutlineSpec { target_total_chars: 1_000, max_reqs_per_leaf: 1 }).unwrap();
+    // #131：无补遗确认门（L3 人工出口——本用例面在导出闸语义，不在补遗面；
+    // 不过此门则全部叶被 MissingAddendum 拒，状态停在导出前，闸语义测不到）
+    use bid_domain::review::{Decision, Gate};
+    svc.store_mut()
+        .record_review(Gate::AddendumWaiver, "human:lead", Decision::Approved, vec![])
+        .unwrap();
     // 先起草（进 DRAFTING——export 的 guard 面），保持零绑定零覆写。
     // 缺失回报闸（#110 任务 1）：登记台账资质（不绑）让资格叶可起草；含未响应
     // 否决项（REQ-0002）的叶拒生成保持 Pending——未响应面仍由导出门逐行列出

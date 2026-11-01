@@ -278,3 +278,76 @@ fn real_corpus_addendum_parse_failure_blocks() {
         other => panic!("期望 MissingAddendum，实际 {other:?}"),
     }
 }
+
+// ---------------------------------------------------------------- ⑤ AddendumWaiver（#131）
+// 真实语料验证发现的缺口：L3 阻塞提示语承诺「明确确认本项目无补遗后再继续」，
+// 但确认通路此前不存在——单件真实招标文件（无补遗件）被死锁在起草闸外。
+// Gate::AddendumWaiver Approved = 人工确认无补遗 → NotProvided 阻塞放行。
+
+#[test]
+fn addendum_waiver_releases_not_provided_blocker() {
+    let mut store = base_store();
+    // 确认前：阻塞在场（fail-closed 面——waiver 不是默认态）
+    let r = check_draft_readiness(&store, "SEC-0001");
+    assert!(has_blocker(&r).is_some(), "确认前必须阻塞（fail-closed）");
+
+    // 人工确认（human: 前缀——AI 不得自审自过）
+    use bid_domain::review::{Decision, Gate};
+    store
+        .record_review(
+            Gate::AddendumWaiver,
+            "human:real-corpus-lead",
+            Decision::Approved,
+            vec![],
+        )
+        .unwrap();
+    let r = check_draft_readiness(&store, "SEC-0001");
+    assert!(
+        has_blocker(&r).is_none(),
+        "AddendumWaiver Approved 后 NotProvided 阻塞必须放行：{:?}",
+        r.blockers
+    );
+}
+
+#[test]
+fn addendum_waiver_does_not_mask_parse_failed() {
+    // waiver 只救「没补遗」分支：补遗在场但解析失败（ParseFailed）时，
+    // 人工确认不能把「读不了的补遗」洗成「没有补遗」——那是两种废标风险
+    let mut store = base_store();
+    use bid_domain::review::{Decision, Gate};
+    store
+        .record_review(
+            Gate::AddendumWaiver,
+            "human:real-corpus-lead",
+            Decision::Approved,
+            vec![],
+        )
+        .unwrap();
+    import_addendum(&mut store, "C-补遗文件01.pdf", ParseStatus::Failed, "sha-add1");
+    let r = check_draft_readiness(&store, "SEC-0001");
+    let b = has_blocker(&r).expect("补遗解析失败不因 waiver 放行");
+    match b {
+        Blocker::MissingAddendum { reason, .. } => {
+            assert_eq!(*reason, AddendumIssue::ParseFailed);
+        }
+        other => panic!("期望 MissingAddendum，实际 {other:?}"),
+    }
+}
+
+#[test]
+fn addendum_waiver_survives_reimport_of_addendum() {
+    // 确认后又导入成功补遗：正常路径（不阻塞），waiver 记录无害残留
+    let mut store = base_store();
+    use bid_domain::review::{Decision, Gate};
+    store
+        .record_review(
+            Gate::AddendumWaiver,
+            "human:real-corpus-lead",
+            Decision::Approved,
+            vec![],
+        )
+        .unwrap();
+    import_addendum(&mut store, "C-补遗文件02.docx", ParseStatus::Ok, "sha-add2");
+    let r = check_draft_readiness(&store, "SEC-0001");
+    assert!(has_blocker(&r).is_none(), "补遗在场时 waiver 不影响正常判定");
+}

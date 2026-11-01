@@ -235,6 +235,24 @@ fn mcp_only_full_pipeline_drives_to_export() {
     assert!(secs.len() >= 5, "叶清单: {q:?}");
 
     // ---- ⑩ 全叶 mock 起草 → ⑪ 校验 → ⑫ 导出（零服务面）
+    // #131：无补遗确认门（L3 人工出口——MCP 面）：导入面只有 A/B 招标文件
+    // （无补遗件），起草前须人工确认无补遗；#118 合入时漏适配本套件。
+    // 走 MCP 工具面记录（顺带断言第四门的 parse_gate 接线与门序进度）。
+    let gw = ok(call(
+        &mut svc,
+        "record_review_gate",
+        json!({ "project_id": &pid, "gate": "addendum_waiver", "decision": "APPROVED",
+                "reviewer": "human:mcp-scaffold-lead" }),
+    ));
+    assert_eq!(gw["receipt"]["gate"], json!("addendum_waiver"));
+    assert!(
+        gw["gates_approved"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|g| g == "addendum_waiver"),
+        "第四门进门序进度: {gw:?}"
+    );
     for sid in &secs {
         let d = ok(call(
             &mut svc,

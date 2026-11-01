@@ -1,11 +1,11 @@
 {
   "batch1_abc_e": {
-    "error": "E_PARTIAL",
+    "error": null,
     "totals": {
-      "chunks": 328,
+      "chunks": 329,
       "files": 4,
-      "parse_failed": 1,
-      "partial": 1
+      "parse_failed": 0,
+      "partial": 0
     }
   },
   "batch2_d": {
@@ -50,13 +50,11 @@
       "parse_status": "failed"
     },
     "E-原招标公告盖章页-扫描件.pdf": {
-      "chunks": 0,
-      "errors": [
-        "pdf 解析失败 E-原招标公告盖章页-扫描件.pdf: pdf 扫描层 OCR 失败（1 页报错、零行块产出）——疑似 OCR 环境缺失：检查 tesseract 与 chi_sim 语言数据（TESSDATA_PREFIX 或 ~/.tessdata）；本文件按失败处理，不留空内容伪装成功"
-      ],
-      "ocr_tier": "n/a",
-      "pages": 0,
-      "parse_status": "failed"
+      "chunks": 1,
+      "errors": null,
+      "ocr_tier": "none",
+      "pages": 1,
+      "parse_status": "ok"
     }
   }
 }

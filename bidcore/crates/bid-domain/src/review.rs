@@ -52,6 +52,8 @@ fn now_epoch_secs() -> u64 {
 // ---------------------------------------------------------------- 类型面
 /// 审核门（T-7 规格；issue #11 批次 v3 / V3-4）。三道门对应人类团队评审：
 /// 矩阵定稿门（条款响应矩阵）/ 章节树定稿门（大纲）/ 导出前确认门。
+/// 另有第四道独立闸门 [`Gate::AddendumWaiver`]（无补遗确认——#131 真实
+/// 语料验证落地的 L3 人工出口，不入三道主门的门序链）。
 ///
 /// `as_str` 取规格原文蛇形（`matrix_approval` 等——门名/错误消息的引用口径）；
 /// serde 形随库惯例 SCREAMING_SNAKE_CASE（持久化面），两形并存各司其职。
@@ -61,6 +63,14 @@ pub enum Gate {
     MatrixApproval,
     OutlineApproval,
     PreExportConfirm,
+    /// 无补遗确认门（#131 真实语料验证发现的缺口补齐）：L3 的
+    /// `MissingAddendum` 阻塞提示语承诺「或明确确认本项目无补遗后再
+    /// 继续」，但该确认通路此前不存在——真实单件招标文件（无补遗件）
+    /// 被死锁在起草闸外，而 synth e2e 因夹具自带 C-补遗件永远踩不到。
+    /// Approved = 人工确认本项目无补遗（`missing_addendum` 放行）；
+    /// 与三道主门正交：无状态门、无门序前置（导入后任意时刻可记）。
+    /// 导入补遗件后走正常判定，waiver 不再被消费（自然失效）。
+    AddendumWaiver,
 }
 
 impl Gate {
@@ -69,6 +79,7 @@ impl Gate {
             Gate::MatrixApproval => "matrix_approval",
             Gate::OutlineApproval => "outline_approval",
             Gate::PreExportConfirm => "pre_export_confirm",
+            Gate::AddendumWaiver => "addendum_waiver",
         }
     }
 }
@@ -294,6 +305,10 @@ impl DomainStore {
                     });
                 }
             }
+            // 无补遗确认门（#131）：无状态门、无门序前置——它是 L3 阻塞的
+            // 人工出口，与三道主门正交（导入后任意状态可确认；记审语义与
+            // 主门一致：Approved 是里程碑事实，Rejected 是过程记录）
+            Gate::AddendumWaiver => {}
         }
 
         // ---- 4. findings 形状（诚实状态：空分类/空消息的发现是无效记录）
@@ -541,6 +556,9 @@ fn missing_gate_attempted(gate: Gate) -> &'static str {
         Gate::MatrixApproval => "export_allowed——缺 matrix_approval 门 Approved 记录",
         Gate::OutlineApproval => "export_allowed——缺 outline_approval 门 Approved 记录",
         Gate::PreExportConfirm => "export_allowed——缺 pre_export_confirm 门 Approved 记录",
+        // AddendumWaiver 不入 export_allowed 的三门遍历（#131：它是 L3 阻塞的
+        // 人工确认出口，不是导出门序的一环）——显式点名而非通配，保穷尽性
+        Gate::AddendumWaiver => "export_allowed——addendum_waiver 不属导出门序（不可达）",
     }
 }
 

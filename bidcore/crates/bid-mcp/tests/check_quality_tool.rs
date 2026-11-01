@@ -93,6 +93,14 @@ fn svc_drafted(tag: &str, ws: Option<&std::path::Path>) -> (BidService, String, 
         svc.store_mut().bind_evidence(&eid, rid, "2026-12-31").unwrap();
     }
     let _ = svc.store_mut().build_matrix().unwrap();
+    // L3 无补遗阻塞的人工出口（#131）：本基座只导入招标文件（无补遗件），
+    // 起草会被 MissingAddendum 拒——#118 合入时漏适配本套件（与
+    // draft_iterative/readiness_wire 同类债）。走 AddendumWaiver 门
+    // 确认无补遗（本套件面在质量工具契约，不在 L3 阻塞语义）。
+    use bid_domain::review::{Decision, Gate};
+    svc.store_mut()
+        .record_review(Gate::AddendumWaiver, "human:quality-tool-test", Decision::Approved, vec![])
+        .unwrap();
     let parents: std::collections::HashSet<&str> = svc.store().sections().iter()
         .filter_map(|n| n.parent_id.as_deref()).collect();
     let leaf = svc.store().sections().iter()

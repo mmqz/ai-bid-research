@@ -18,7 +18,9 @@
 //! - clause.rs：条款边界与跨行合并（B6·G1 纯函数面——docx 续行吸收的
 //!   边界判定单一真源）；
 //! - numbering.rs：多级编号形态识别（B6·G5 七形态全枚举 + 混排语境修正——
-//!   clause_boundary 的编号判定底层）。
+//!   clause_boundary 的编号判定底层）；
+//! - nesting.rs：引号/括号嵌套配对与保护切分（B6·G6 纯函数面——
+//!   find_matching + split_respecting_nesting，未配对优雅降级）。
 //!
 //! 引擎适配器约定（组件版本矩阵的钉住点，test-plan §5.2）：
 //! - 解析失败/无文本层绝不静默：无文本层 → `has_text_layer=false` + OCR 通道；
@@ -35,6 +37,7 @@ pub mod env_preflight;
 pub mod extract;
 pub mod guard;
 pub mod numbering;
+pub mod nesting;
 pub mod pdf;
 pub mod pdf_text;
 pub mod veto_lexicon;

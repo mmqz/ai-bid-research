@@ -634,3 +634,302 @@ fn searchable_in_draft_state() {
     assert_eq!(hit_ids(&r).len(), 0, "空库应 0 hits 而非报错");
     assert_eq!(r["warnings"].as_array().map(Vec::len), Some(0));
 }
+
+// ---------------------------------------------------------------- #147 结构化字段（EvidenceFields）
+
+/// #147 夹具：项目 + 三条带结构化字段的证据（合同/证书/人员各一），
+/// 以及一条**无结构化字段**的老式业绩（验证回落）。
+fn fields_store() -> (BidService, String) {
+    let mut svc = BidService::new();
+    let pid = {
+        let st = svc.store_mut();
+        let (pid, _) = st
+            .create_project("#147 结构化字段检索", "ZFCG-2026-SE3", "明标", "fields-key")
+            .unwrap();
+        // (a) 合同类：结构化金额/日期/证书号齐备
+        let mut a = ev(
+            EvidenceKind::Contract,
+            "智慧园区一期智能化工程合同",
+            "智能化工程",
+            None,
+            &[],
+        );
+        a.fields.project_name = Some("智慧园区一期智能化工程".into());
+        a.fields.client = Some("智慧园区管委会".into());
+        a.fields.amount_wan = Some(1280.5);
+        a.fields.signed_at = Some("2022-03-15".into());
+        a.fields.finished_at = Some("2023-01-20".into());
+        st.register_evidence(a).unwrap();
+        // (b) 证书类：结构化证书号 / 名称 / 发证机关
+        let mut b = ev(
+            EvidenceKind::Certificate,
+            "建筑企业资质证书（结构化）",
+            "电子与智能化",
+            None,
+            &[],
+        );
+        b.fields.cert_name = Some("电子与智能化工程专业承包二级资质证书".into());
+        b.fields.cert_no = Some("D234000123".into());
+        b.fields.issuer = Some("省住房和城乡建设厅".into());
+        st.register_evidence(b).unwrap();
+        // (c) 人员类：结构化姓名/职称/年限（日期面留空——不参与 date 查询）
+        let mut c = ev(
+            EvidenceKind::Personnel,
+            "项目负责人注册建造师",
+            "机电工程",
+            None,
+            &[],
+        );
+        c.fields.person_name = Some("张三".into());
+        c.fields.person_title = Some("高级工程师".into());
+        c.fields.years = Some(12);
+        st.register_evidence(c).unwrap();
+        // (d) 老式业绩：无结构化字段（amount_wan/completed_on 走顶层——回落面）
+        st.register_evidence(ev(
+            EvidenceKind::Performance,
+            "智慧园区弱电工程合同（老式）",
+            "弱电工程",
+            None,
+            &[
+                ("amount_wan", json!(920.0)),
+                ("completed_on", json!("2024.06")),
+            ],
+        ))
+        .unwrap();
+        pid
+    };
+    (svc, pid)
+}
+
+/// 验收④：register_evidence 接受 fields（工具面全链）——落账后 search 可精确查到。
+#[test]
+fn register_evidence_accepts_fields() {
+    let (mut svc, pid) = fields_store();
+    // 结构化证书号可按 cert 精确命中
+    let r = search(&mut svc, &pid, json!({
+        "query": "资质证书", "mode": "exact",
+        "exact": { "field": "cert", "value": "D234000123" },
+    }));
+    let ids = hit_ids(&r);
+    assert_eq!(ids.len(), 1, "cert=D234000123 应命中结构化证书：{ids:?}");
+    // 落账内容可从台账读回（工具面 → 领域面 → 序列化）
+    let ev_rec = svc
+        .store()
+        .evidences()
+        .iter()
+        .find(|e| e.id == ids[0])
+        .unwrap();
+    assert_eq!(ev_rec.fields.cert_no.as_deref(), Some("D234000123"));
+    assert_eq!(
+        ev_rec.fields.cert_name.as_deref(),
+        Some("电子与智能化工程专业承包二级资质证书")
+    );
+    assert_eq!(ev_rec.fields.issuer.as_deref(), Some("省住房和城乡建设厅"));
+}
+
+/// 验收④补：fields 参数校验失败 → E_UNPROCESSABLE，且零入库。
+///
+/// 走**纯 MCP 工具面全链**（create → import → extract → build_outline →
+/// register_evidence）——G2 的 MATRIX_READY 前置未过时先撞 E_STATE，
+/// 校验面就测不到（如实：这是踩过的坑，不靠直调 store 绕状态机）。
+fn matrix_ready_store() -> (BidService, String) {
+    let ws = std::env::temp_dir().join(format!("search-fields-{}", std::process::id()));
+    std::fs::create_dir_all(&ws).unwrap();
+    let mut svc = BidService::open(&ws).unwrap();
+    let pid = ok_result(call(
+        &mut svc,
+        "create_bid_project",
+        json!({ "name": "#147 fields 校验", "bid_deadline": "2026-11-30",
+                "mode": "明标", "external_key": "search-fields-err" }),
+    ))["project_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let files_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../fixtures/synth-tender/招标文件");
+    ok_result(call(
+        &mut svc,
+        "import_tender_files",
+        json!({ "project_id": &pid, "files": [
+            { "upload_ref": files_dir.join("A-招标文件.docx").display().to_string(),
+              "filename": "A-招标文件.docx", "kind": "招标文件" } ] }),
+    ));
+    ok_result(call(&mut svc, "extract_requirements", json!({ "project_id": &pid })));
+    ok_result(call(&mut svc, "build_outline", json!({ "project_id": &pid })));
+    (svc, pid)
+}
+
+#[test]
+fn register_evidence_rejects_malformed_fields() {
+    let (mut svc, pid) = matrix_ready_store();
+    let n_before = svc.store().evidences().len();
+    let base = json!({
+        "project_id": &pid, "kind": "certificate",
+        "title": "结构化字段非法样例", "source_file": "bad.pdf",
+        "source_sha256": "sha-bad-fields", "subject_name": "投标人甲",
+    });
+    let cases: Vec<(&str, Value)> = vec![
+        ("fields 非对象", json!("not-an-object")),
+        ("signed_at 非法日期", json!({ "signed_at": "2024-13-01" })),
+        ("finished_at 非法日期", json!({ "finished_at": "2024/06/15" })),
+        ("amount_wan 为负", json!({ "amount_wan": -1.0 })),
+        ("years 超界", json!({ "years": 101 })),
+        ("years 非整数", json!({ "years": 1.5 })),
+        ("amount_wan 非数值", json!({ "amount_wan": "一千" })),
+    ];
+    for (name, fields) in cases {
+        let mut args = base.clone();
+        args["fields"] = fields.clone();
+        let reply = call(&mut svc, "register_evidence", args);
+        assert_eq!(
+            err_code(&reply),
+            "E_UNPROCESSABLE",
+            "「{name}」应 E_UNPROCESSABLE（fields={fields}）"
+        );
+    }
+    assert_eq!(svc.store().evidences().len(), n_before, "拒绝路径零入库");
+
+    // 合法 fields：null / 缺省 均可（向后兼容）
+    let mut args = base.clone();
+    args["fields"] = Value::Null;
+    let a = ok_result(call(&mut svc, "register_evidence", args));
+    let ev_id = a["ev_id"].as_str().unwrap().to_string();
+    assert!(
+        svc.store().evidence(&ev_id).unwrap().fields.is_empty(),
+        "fields=null → 空结构"
+    );
+
+    // 合法 fields：全填 → 落账可读（工具面 → 领域面往返）
+    let mut args = base.clone();
+    args["title"] = json!("结构化字段合法样例");
+    args["source_sha256"] = json!("sha-ok-fields");
+    args["fields"] = json!({
+        "project_name": "某项目", "client": "某甲方", "amount_wan": 0.0,
+        "signed_at": "2024-02-29", "finished_at": "2025-01-01",
+        "cert_name": "安全生产许可证", "cert_no": "AQ-2024-001",
+        "issuer": "省应急管理厅", "person_name": "李四",
+        "person_title": "工程师", "years": 100,
+    });
+    let b = ok_result(call(&mut svc, "register_evidence", args));
+    let ev2 = svc
+        .store()
+        .evidence(b["ev_id"].as_str().unwrap())
+        .unwrap()
+        .clone();
+    assert_eq!(ev2.fields.cert_no.as_deref(), Some("AQ-2024-001"));
+    assert_eq!(ev2.fields.amount_wan, Some(0.0), "0 金额是合法边界");
+    assert_eq!(ev2.fields.years, Some(100), "100 年是合法边界");
+    assert_eq!(ev2.fields.signed_at.as_deref(), Some("2024-02-29"));
+}
+
+/// 验收⑤：exact 通道查结构化字段——cert 走 cert_name/cert_no（有界短语），
+/// 且结构化记录不回落文本（不因标题含「资质」就误中）。
+#[test]
+fn exact_cert_uses_structured_fields() {
+    let (mut svc, pid) = fields_store();
+    // cert_name 命中（有界短语——「电子与智能化工程专业承包二级资质证书」完整段）
+    let r = search(&mut svc, &pid, json!({
+        "query": "资质", "mode": "exact",
+        "exact": { "field": "cert", "value": "电子与智能化工程专业承包二级资质证书" },
+    }));
+    assert_eq!(hit_ids(&r).len(), 1, "cert_name 全等短语应命中");
+    // 有界短语口径：前缀不成段 → 不命中（结构化面同样遵守）
+    let r = search(&mut svc, &pid, json!({
+        "query": "资质", "mode": "exact",
+        "exact": { "field": "cert", "value": "电子与智能化" },
+    }));
+    assert_eq!(
+        hit_ids(&r).len(),
+        0,
+        "结构化 cert_name 有界短语：不完整段不命中（且不回落 title 文本——标题含「资质证书」）"
+    );
+    // 结构化记录不回落：证书标题含「资质证书」，但 cert 查「资质证书」不成有界段
+    // （「建筑企业资质证书（结构化）」里的是完整段——改用别的值验证不落文本）
+    let r = search(&mut svc, &pid, json!({
+        "query": "资质", "mode": "exact",
+        "exact": { "field": "cert", "value": "建筑企业资质证书" },
+    }));
+    assert_eq!(
+        hit_ids(&r).len(),
+        0,
+        "有结构化字段时 cert 不回落 title 文本（「建筑企业资质证书」只在标题里）"
+    );
+    // 无结构化字段的记录仍走文本（向后兼容：ISO9001 老夹具）
+    let (mut svc2, pid2) = search_store();
+    let r = search(&mut svc2, &pid2, json!({
+        "query": "ISO9001", "mode": "exact",
+        "exact": { "field": "cert", "value": "ISO9001" },
+    }));
+    assert_eq!(
+        hit_ids(&r).len(),
+        1,
+        "无结构化字段的证据仍按 title 文本命中（既有行为不变）"
+    );
+}
+
+/// 验收⑤补：amount 走 fields.amount_wan（首选），date 走 signed_at/finished_at。
+#[test]
+fn exact_amount_and_date_use_structured_fields() {
+    let (mut svc, pid) = fields_store();
+    // amount：结构化 1280.5
+    let r = search(&mut svc, &pid, json!({
+        "query": "合同额", "mode": "exact",
+        "exact": { "field": "amount", "value": 1280.5 },
+    }));
+    assert_eq!(hit_ids(&r).len(), 1, "amount=1280.5 应命中结构化合同");
+    // amount：920 只在老式业绩的顶层 amount_wan（无结构化字段 → 回落命中）
+    let r = search(&mut svc, &pid, json!({
+        "query": "合同额", "mode": "exact",
+        "exact": { "field": "amount", "value": 920.0 },
+    }));
+    assert_eq!(hit_ids(&r).len(), 1, "无结构化字段 → 回落顶层 amount_wan");
+    // 有结构化字段但不等于该值 → 不命中（不回落）
+    let r = search(&mut svc, &pid, json!({
+        "query": "合同额", "mode": "exact",
+        "exact": { "field": "amount", "value": 1280.0 },
+    }));
+    assert_eq!(hit_ids(&r).len(), 0, "结构化金额不等 → 不命中（不回落）");
+    // date：signed_at 年份前缀 2022
+    let r = search(&mut svc, &pid, json!({
+        "query": "签订日期", "mode": "exact",
+        "exact": { "field": "date", "value": "2022" },
+    }));
+    let ids = hit_ids(&r);
+    assert_eq!(ids.len(), 1, "date=2022 应命中 signed_at=2022-03-15：{ids:?}");
+    // date：finished_at 全等
+    let r = search(&mut svc, &pid, json!({
+        "query": "完成日期", "mode": "exact",
+        "exact": { "field": "date", "value": "2023-01-20" },
+    }));
+    assert_eq!(hit_ids(&r).len(), 1, "date=2023-01-20 应命中 finished_at");
+    // date：2024 只命中老式业绩 completed_on=2024.06（回落面仍工作）
+    let r = search(&mut svc, &pid, json!({
+        "query": "完成日期", "mode": "exact",
+        "exact": { "field": "date", "value": "2024" },
+    }));
+    let ids = hit_ids(&r);
+    assert_eq!(ids.len(), 1, "date=2024 应命中 completed_on=2024.06：{ids:?}");
+    assert!(ids[0].len() > 0);
+}
+
+/// 验收⑤补二：结构化人字段不进 exact 通道（字段枚举未扩——如实登记），
+/// 但落账可读；hybrid 语义通道仍可按名称搜到。
+#[test]
+fn personnel_fields_persisted_but_not_in_exact_enum() {
+    let (mut svc, pid) = fields_store();
+    let r = call(
+        &mut svc,
+        "search_evidence",
+        json!({
+            "project_id": &pid, "query": "张三",
+            "exact": { "field": "person_name", "value": "张三" },
+        }),
+    );
+    assert_eq!(
+        err_code(&r),
+        "E_UNPROCESSABLE",
+        "exact.field 枚举未扩（person_name 不在五字段里——显式拒，不静默）"
+    );
+    let r = search(&mut svc, &pid, json!({ "query": "张三", "mode": "semantic" }));
+    assert_eq!(hit_ids(&r).len(), 0, "语义通道只吃 title/scope/subject/client（人物字段不入文案）");
+}

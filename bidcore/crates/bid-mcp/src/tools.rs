@@ -1161,7 +1161,13 @@ fn exact_hit(ev: &bid_domain::evidence::Evidence, spec: &ExactSpec) -> bool {
             let ym = norm_date(d);
             let hit = |raw: &str| {
                 let n = norm_date(raw);
-                n == ym || (ym.len() == 7 && n.starts_with(ym.as_str()))
+                // 全等，或值为「前缀段」（YYYY / YYYY-MM）时按前缀命中
+                // （「2024」↔「2024-06-15」；「2024-06」↔「2024-06-15」）
+                n == ym
+                    || (matches!(ym.len(), 4 | 7)
+                        && n.len() > ym.len()
+                        && n.starts_with(ym.as_str())
+                        && n.as_bytes().get(ym.len()) == Some(&b'-'))
             };
             if [f.signed_at.as_deref(), f.finished_at.as_deref()]
                 .into_iter()
@@ -3049,8 +3055,8 @@ fn parse_evidence_fields(
     args: &Value,
     at: &str,
 ) -> Result<bid_domain::evidence::EvidenceFields, ToolError> {
-    let fields = match args.get("fields").filter(|v| !v.is_null()) {
-        None => bid_domain::evidence::EvidenceFields::default(),
+    let fields = match args.get("fields") {
+        None | Some(Value::Null) => bid_domain::evidence::EvidenceFields::default(),
         Some(obj @ Value::Object(_)) => {
             serde_json::from_value(obj.clone()).map_err(|e| ToolError::EUnprocessable {
                 what: format!(

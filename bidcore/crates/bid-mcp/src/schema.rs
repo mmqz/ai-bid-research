@@ -456,7 +456,7 @@ fn describe(name: &str) -> &'static str {
         "get_compliance_matrix" => "只读：响应矩阵与资格三态（S-4 游标分页）",
         "list_evidence" => "只读：证据台账列表（kind/status 过滤 + 游标分页）",
         "list_tasks" => "只读：任务分工列表（owner/status 过滤 + 游标分页）",
-        "search_evidence" => "双通道证据检索（M2-b 落地时必须走 cursor.rs 游标模块）——未接线：调用返回 UNIMPLEMENTED_INTERNAL",
+        "search_evidence" => "双通道证据检索（#145 朴素实现：exact 五字段整token/数值/日期 + semantic 子串分词；valid_at 过期降权×0.5；M2-b 落地时换真向量库 + cursor 游标信封）",
         "draft_response_section" => "单章起草（引用回查后写内核）",
         "validate_bid_document" => "双层校验（确定性规则 + 模型复核）",
         "export_bid_document" => "导出（含暗标模式；#117 表格接线——profile.bid_amount/price_breakdown 报价决策，六表自动注入/附表）",
@@ -478,12 +478,16 @@ fn is_implemented(name: &str) -> bool {
     matches!(
         name,
         "get_bid_project_state"
+            // save_version 早已实装（#42 阶段 10 分发臂）——此前 is_implemented
+            // 漏登致 tools/list 误报 false（#145 测试面抓出的真 bug，如实登记）
+            | "save_version"
             | "create_bid_project"
             | "import_tender_files"
             | "extract_requirements"
             | "get_compliance_matrix"
             | "list_evidence"
             | "list_tasks"
+            | "search_evidence"
             | "draft_response_section"
             | "export_bid_document"
             | "validate_bid_document"

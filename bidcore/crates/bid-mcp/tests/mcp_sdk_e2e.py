@@ -75,8 +75,12 @@ async def main() -> None:
                 check(isinstance(t.inputSchema, dict) and t.inputSchema.get("type") == "object",
                       f"list_tools: {t.name}.inputSchema 是合法 JSON Schema（type=object）")
                 if t.name == "search_evidence":
-                    check("未接线" in (t.description or "") or "UNIMPLEMENTED" in (t.description or ""),
-                          "list_tools: search_evidence 描述诚实标注未接线")
+                    # #145 任务 1 已接线：断言语义随接线状态翻转——
+                    # 「描述诚实」的本意不变：描述不得与实装状态相悖。
+                    desc = t.description or ""
+                    check("未接线" not in desc and "UNIMPLEMENTED" not in desc
+                          and "朴素实现" in desc,
+                          "list_tools: search_evidence 描述与接线状态一致（#145 朴素实现）")
 
             # ---- ③ call_tool 成功路径 ----
             created = await session.call_tool("create_bid_project", {

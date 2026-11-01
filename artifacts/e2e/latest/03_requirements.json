@@ -1,12 +1,12 @@
 {
   "by_category": {
-    "其他": 31,
+    "其他": 21,
     "否决项": 52,
-    "商务要求": 0,
+    "商务要求": 4,
     "技术参数": 15,
-    "格式要求": 4,
+    "格式要求": 9,
     "评分项": 5,
-    "资格条件": 8
+    "资格条件": 9
   },
   "requirements": [
     {
@@ -159,7 +159,7 @@
           "locator": "第一章 招标公告 > 二、投标人资格要求"
         }
       ],
-      "category": "其他",
+      "category": "资格条件",
       "clause_no": "1.4.7",
       "id": "REQ-0010",
       "params": {},
@@ -1486,7 +1486,7 @@
           "locator": "第六章 合同条款及格式（摘要）"
         }
       ],
-      "category": "其他",
+      "category": "商务要求",
       "clause_no": "6.1",
       "id": "REQ-0096",
       "params": {},
@@ -1501,7 +1501,7 @@
           "locator": "第六章 合同条款及格式（摘要）"
         }
       ],
-      "category": "其他",
+      "category": "商务要求",
       "clause_no": "6.2",
       "id": "REQ-0097",
       "params": {},
@@ -1516,7 +1516,7 @@
           "locator": "第六章 合同条款及格式（摘要）"
         }
       ],
-      "category": "其他",
+      "category": "商务要求",
       "clause_no": "6.3",
       "id": "REQ-0098",
       "params": {},
@@ -1531,7 +1531,7 @@
           "locator": "第六章 合同条款及格式（摘要）"
         }
       ],
-      "category": "其他",
+      "category": "商务要求",
       "clause_no": "6.4",
       "id": "REQ-0099",
       "params": {},
@@ -1546,7 +1546,7 @@
           "locator": "第七章 投标文件格式"
         }
       ],
-      "category": "其他",
+      "category": "格式要求",
       "clause_no": "7.1",
       "id": "REQ-0100",
       "params": {},
@@ -1561,7 +1561,7 @@
           "locator": "第七章 投标文件格式"
         }
       ],
-      "category": "其他",
+      "category": "格式要求",
       "clause_no": "7.2",
       "id": "REQ-0101",
       "params": {},
@@ -1576,7 +1576,7 @@
           "locator": "第七章 投标文件格式"
         }
       ],
-      "category": "其他",
+      "category": "格式要求",
       "clause_no": "7.3",
       "id": "REQ-0102",
       "params": {},
@@ -1606,7 +1606,7 @@
           "locator": "第七章 投标文件格式"
         }
       ],
-      "category": "其他",
+      "category": "格式要求",
       "clause_no": "7.5",
       "id": "REQ-0104",
       "params": {},
@@ -1621,7 +1621,7 @@
           "locator": "第七章 投标文件格式"
         }
       ],
-      "category": "其他",
+      "category": "格式要求",
       "clause_no": "7.6",
       "id": "REQ-0105",
       "params": {},

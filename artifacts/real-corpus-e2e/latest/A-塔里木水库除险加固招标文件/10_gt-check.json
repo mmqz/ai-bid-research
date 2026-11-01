@@ -1,10 +1,10 @@
 {
-  "covered_L1": 90,
+  "covered_L1": 96,
   "gt_file": "A-01_塔里木河希尼尔水库坝基防渗施工标_招标文件.pdf",
-  "gt_true": 97,
-  "l1_recall": 0.9278350515463918,
-  "veto_cls_L2": 89,
-  "veto_precision": 0.9891304347826086,
-  "veto_req": 92,
-  "veto_tp": 91
+  "gt_true": 101,
+  "l1_recall": 0.9504950495049505,
+  "veto_cls_L2": 95,
+  "veto_precision": 0.98989898989899,
+  "veto_req": 99,
+  "veto_tp": 98
 }

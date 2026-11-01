@@ -360,6 +360,7 @@ mod tests {
             client: None,
             amount_wan: None,
             completed_on: None,
+            fields: Default::default(), // #147 结构化字段（本测试不消费）
             version: 1,
             status: EvidenceStatus::Active,
         });

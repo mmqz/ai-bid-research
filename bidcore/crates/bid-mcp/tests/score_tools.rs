@@ -82,6 +82,32 @@ fn svc_drafted(tag: &str, draft_all: bool) -> (BidService, String) {
         .prepare_outline_and_matrix(OutlineSpec { target_total_chars: 6_000, max_reqs_per_leaf: 8 })
         .unwrap();
     assert!(n_sec >= 1);
+    // 【#126 后的必要补线】评分项不进正文 → 不在任何叶的 requirement_ids 里
+    // → build_scorer 的 leaf_of 反查落空 → item_scores 为空。
+    // 评分项要参与章节自评，必须在 params.section 里**显式**声明归属章节
+    // （tools.rs::build_scorer 只在 params.section 缺省时才尝试反查）。
+    //
+    // 位置必须在【建纲之后 / 建矩阵之前】——set_requirements 在 MATRIX_READY
+    // 态被状态机拒绝（实测 EState { current: MatrixReady, ... }）。
+    {
+        let parents: std::collections::HashSet<String> = svc.store().sections().iter()
+            .filter_map(|n| n.parent_id.clone())
+            .collect();
+        let first_leaf = svc
+            .store()
+            .sections()
+            .iter()
+            .find(|n| !parents.contains(&n.id))
+            .map(|n| n.id.clone())
+            .expect("建纲后必有叶");
+        let mut reqs = svc.store().requirements().to_vec();
+        for r in reqs.iter_mut() {
+            if r.category == "评分项" {
+                r.params.insert("section".into(), serde_json::json!(first_leaf));
+            }
+        }
+        svc.set_requirements(reqs).unwrap();
+    }
     // 素材面（#110 任务 1 缺失回报闸）：否决项 REQ-0003 须矩阵响应、技术参数
     // REQ-0004 须证据佐证——登记 + 绑定 + 重建矩阵，否则 draft 拒生成
     use bid_domain::evidence::{EvidenceKind, EvidenceSpec};

@@ -152,6 +152,7 @@ fn scale_500k_chars_full_pipeline_under_redlines() {
         client: None,
         amount_wan: None,
         completed_on: None,
+        fields: Default::default(), // #147
     }).unwrap();
     let must: Vec<String> = svc.store().requirements().iter()
         // #110 任务 1 缺失回报闸：技术参数类也须证据佐证（否则 draft 拒生成）

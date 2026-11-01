@@ -1030,6 +1030,7 @@ fn list_tasks(svc: &mut BidService, args: Value) -> ToolResult {
 // ================================================================ search_evidence（契约 §5——双通道检索，#145 任务 1）
 
 /// exact 通道五字段（契约 §5 enum 单一真源——B 侧 #146 inputSchema 同一口径）。
+/// #147 起 cert/amount/date 三字段优先查 `Evidence.fields` 结构化面。
 const SEARCH_EXACT_FIELDS: [&str; 5] = ["model", "amount", "date", "clause_no", "cert"];
 /// top_k 上界（与 cursor::LIMIT_MAX 同护栏口径——检索 hits 面同属大结果列表，
 /// 朴素实现以 top_k 收口；M2-b 落地时升级 cursor.rs 游标信封，见契约 §5 注）。
@@ -1039,12 +1040,17 @@ const SEARCH_TOPK_DEFAULT: u64 = 20;
 
 /// 解析后的 exact 子句（参数校验已完成——匹配阶段零分支错误）。
 enum ExactSpec {
-    /// model / clause_no / cert：有界短语包含匹配 title + scope（值可含
+    /// model / clause_no：有界短语包含匹配 title + scope（值可含
     /// `.`/`-` 等分隔符——`6.3.2`、`DS-KD6900` 都是合法查询值）。
     Text(String),
-    /// amount：amount_wan（万元）数值全等。
+    /// cert（#147）：结构化优先——`fields.cert_name` / `fields.cert_no` 有界短语
+    /// 包含；无结构化字段时回落 title + scope 文本匹配（既有行为不变）。
+    Cert(String),
+    /// amount：`fields.amount_wan`（结构化，优先）或顶层 `amount_wan`（#117 业绩面）
+    /// 数值全等。
     Amount(f64),
-    /// date：completed_on / valid_from / valid_until 归一后全等或 YYYY-MM 前缀。
+    /// date：#147 起——`fields.signed_at` / `fields.finished_at` 优先；
+    /// 再落既有面：completed_on / valid_from / valid_until 归一后全等或 YYYY-MM 前缀。
     Date(String),
 }
 
@@ -1106,25 +1112,79 @@ fn norm_date(s: &str) -> String {
 }
 
 /// exact 通道单证据匹配（纯函数）。
+///
+/// #147 结构化字段优先策略（不破坏既有行为）：
+/// - cert / amount：结构化命中优先；**无结构化字段**（`fields.is_empty()`）时回落
+///   既有口径（cert → title+scope 文本；amount → 顶层 `Evidence.amount_wan`）。
+///   有结构化字段却不命中 → 不回落（结构化记录以结构化面为准，避免「证书号查不到
+///   却按标题误中」的假阳性）。
+/// - date：`fields.signed_at` / `fields.finished_at` 命中即中；未中再查既有
+///   completed_on / valid_from / valid_until（同一条记录可能只有后者，回落无害且
+///   不改变旧快照结论）。
 fn exact_hit(ev: &bid_domain::evidence::Evidence, spec: &ExactSpec) -> bool {
+    let f = &ev.fields;
     match spec {
         ExactSpec::Text(v) => {
             let vl = v.trim().to_lowercase();
             !vl.is_empty() && (phrase_hit(&ev.title, &vl) || phrase_hit(&ev.scope, &vl))
         }
-        ExactSpec::Amount(v) => ev.amount_wan.is_some_and(|a| a == *v),
-        ExactSpec::Date(d) => [
-            ev.completed_on.as_deref(),
-            ev.valid_from.as_deref(),
-            ev.valid_until.as_deref(),
-        ]
-        .into_iter()
-        .flatten()
-        .any(|s| {
-            let n = norm_date(s);
-            // 全等，或值为 YYYY-MM 时按月前缀命中（「2024-06」↔「2024-06-15」）
-            &n == d || (d.len() == 7 && n.starts_with(d.as_str()))
-        }),
+        ExactSpec::Cert(v) => {
+            let vl = v.trim().to_lowercase();
+            if vl.is_empty() {
+                return false;
+            }
+            let structured_hit = f
+                .cert_name
+                .as_deref()
+                .is_some_and(|s| phrase_hit(s, &vl))
+                || f.cert_no.as_deref().is_some_and(|s| phrase_hit(s, &vl));
+            if structured_hit {
+                return true;
+            }
+            if !f.is_empty() {
+                return false; // 结构化记录：以结构化面为准，不回落文本
+            }
+            phrase_hit(&ev.title, &vl) || phrase_hit(&ev.scope, &vl)
+        }
+        ExactSpec::Amount(v) => {
+            if f.amount_wan.is_some_and(|a| a == *v) {
+                return true;
+            }
+            if !f.is_empty() {
+                return false;
+            }
+            ev.amount_wan.is_some_and(|a| a == *v)
+        }
+        ExactSpec::Date(d) => {
+            // 归一（'.'→'-'）后：全等，或值为 YYYY-MM 时按月前缀命中
+            // （「2024」前缀亦命中——调用方口径见 parse_exact_clause 文案）
+            let ym = norm_date(d);
+            let hit = |raw: &str| {
+                let n = norm_date(raw);
+                // 全等，或值为「前缀段」（YYYY / YYYY-MM）时按前缀命中
+                // （「2024」↔「2024-06-15」；「2024-06」↔「2024-06-15」）
+                n == ym
+                    || (matches!(ym.len(), 4 | 7)
+                        && n.len() > ym.len()
+                        && n.starts_with(ym.as_str())
+                        && n.as_bytes().get(ym.len()) == Some(&b'-'))
+            };
+            if [f.signed_at.as_deref(), f.finished_at.as_deref()]
+                .into_iter()
+                .flatten()
+                .any(hit)
+            {
+                return true;
+            }
+            [
+                ev.completed_on.as_deref(),
+                ev.valid_from.as_deref(),
+                ev.valid_until.as_deref(),
+            ]
+            .into_iter()
+            .flatten()
+            .any(hit)
+        }
     }
 }
 
@@ -1172,7 +1232,7 @@ fn parse_exact_clause(
     if !SEARCH_EXACT_FIELDS.contains(&field) {
         return Err(ToolError::EUnprocessable {
             what: format!(
-                "{TOOL}: exact.field={field} 非法（合法：{SEARCH_EXACT_FIELDS:?}——契约 §5）"
+                "{TOOL}: exact.field={field} 非法（合法：{SEARCH_EXACT_FIELDS:?}——契约 §5；amount/date/cert 优先查结构化字段 fields）"
             ),
         });
     }
@@ -1205,11 +1265,22 @@ fn parse_exact_clause(
             }
         },
         "date" => match value {
-            // 归一（'.'→'-'）：台账 completed_on 允许「2024.06」形态；YYYY-MM 月前缀
+            // 归一（'.'→'-'）：fields.signed_at/finished_at 优先；既有面 completed_on
+            // 允许「2024.06」形态；YYYY-MM（及 YYYY 年前缀）月前缀
             Value::String(s) if !s.trim().is_empty() => ExactSpec::Date(norm_date(s)),
             _ => {
                 return Err(ToolError::EUnprocessable {
-                    what: format!("{TOOL}: date 的 value 须为非空字符串（YYYY-MM-DD 或 YYYY-MM——比对 completed_on/valid_from/valid_until）"),
+                    what: format!("{TOOL}: date 的 value 须为非空字符串（YYYY-MM-DD / YYYY-MM / YYYY——先比对 fields.signed_at、fields.finished_at，再比对 completed_on/valid_from/valid_until）"),
+                })
+            }
+        },
+        // #147：cert 走结构化面（fields.cert_name / fields.cert_no），无结构化字段时
+        // 回落 title+scope 文本（见 exact_hit）
+        "cert" => match value {
+            Value::String(s) if !s.trim().is_empty() => ExactSpec::Cert(s.trim().to_string()),
+            _ => {
+                return Err(ToolError::EUnprocessable {
+                    what: format!("{TOOL}: cert 的 value 须为非空字符串（比对 fields.cert_name / fields.cert_no；无结构化字段时回落 title/scope 文本匹配）"),
                 })
             }
         },
@@ -1287,10 +1358,14 @@ fn parse_search_filters(
 ///
 /// 双通道检索：
 /// - **exact 通道**：五字段（model/amount/date/clause_no/cert）结构化精确匹配
-///   ——model/clause_no/cert 为 title+scope 的**有界短语包含**（`ISO` 不命中
-///   `ISO9001`；`6.3.2`/`DS-KD6900` 可命中同名段）；amount 为 amount_wan（万元）
-///   数值全等；date 归一（`.`→`-`）后与 completed_on/valid_from/valid_until
-///   全等或 YYYY-MM 月前缀。命中分 1.0。
+///   ——model/clause_no 为 title+scope 的**有界短语包含**（`ISO` 不命中
+///   `ISO9001`；`6.3.2`/`DS-KD6900` 可命中同名段）。
+///   **#147 结构化字段优先**：cert → `fields.cert_name` / `fields.cert_no` 有界
+///   短语包含；amount → `fields.amount_wan`（万元）数值全等；date 归一
+///   （`.`→`-`）后与 `fields.signed_at` / `fields.finished_at` 全等或月/年前缀。
+///   无结构化字段（`fields` 为空）时回落既有口径：cert → title+scope 文本；
+///   amount → 顶层 `Evidence.amount_wan`（#117 业绩面）；date 另查
+///   completed_on/valid_from/valid_until。命中分 1.0。
 /// - **semantic 通道**（朴素：子串/分词——真向量库 M2-b）：查询按字母/数字/CJK
 ///   连续段切 token（单字噪声丢弃），token 在证据文案（title/scope/subject/client）
 ///   中子串命中计分 score = 命中 token 数 / 查询 token 数。
@@ -3041,6 +3116,40 @@ fn parse_locator_arg(
     }
 }
 
+/// `register_evidence` 的 `fields` 参数解析（#147 结构化字段）。
+///
+/// - 缺省 / null → 空结构（向后兼容：旧调用方不传 `fields` 零影响）；
+/// - 非对象 → E_UNPROCESSABLE（响亮拒，不静默丢结构化字段）；
+/// - 反序列化（含 `amount_wan` 负数/NaN、`years` 非整数等类型面）失败 →
+///   E_UNPROCESSABLE；
+/// - 业务口径校验（日期形态 / 金额非负有限 / 年限上界）走域层
+///   `EvidenceFields::validate`（单一真源——工具面不重复实现阈值），
+///   失败 → E_UNPROCESSABLE。
+fn parse_evidence_fields(
+    args: &Value,
+    at: &str,
+) -> Result<bid_domain::evidence::EvidenceFields, ToolError> {
+    let fields = match args.get("fields") {
+        None | Some(Value::Null) => bid_domain::evidence::EvidenceFields::default(),
+        Some(obj @ Value::Object(_)) => {
+            serde_json::from_value(obj.clone()).map_err(|e| ToolError::EUnprocessable {
+                what: format!(
+                    "{at}: fields 解析失败: {e}（合法键：project_name|client|amount_wan|signed_at|finished_at|cert_name|cert_no|issuer|person_name|person_title|years）"
+                ),
+            })?
+        }
+        Some(other) => {
+            return Err(ToolError::EUnprocessable {
+                what: format!("{at}: fields 须为对象（收到 {other}）"),
+            })
+        }
+    };
+    fields.validate().map_err(|reason| ToolError::EUnprocessable {
+        what: format!("{at}: {reason}"),
+    })?;
+    Ok(fields)
+}
+
 /// `register_evidence` —— 契约 §11-A（G2：证据登记，MATRIX_READY+）。
 ///
 /// 语义位查重/换版在域层（同 kind+title+subject+scope 的最新非 Superseded
@@ -3091,6 +3200,10 @@ fn register_evidence(svc: &mut BidService, args: Value) -> ToolResult {
     };
     let completed_on = opt_str(&args, "completed_on", TOOL)?;
 
+    // #147：结构化字段（可选对象——合同/证书/人员三面的金额、证书号、日期等）。
+    // 非对象 / 字段类型不匹配 / 业务口径非法 → 一律 E_UNPROCESSABLE（不静默吞）。
+    let fields = parse_evidence_fields(&args, TOOL)?;
+
     let spec = bid_domain::evidence::EvidenceSpec {
         kind,
         title,
@@ -3105,6 +3218,7 @@ fn register_evidence(svc: &mut BidService, args: Value) -> ToolResult {
         client,
         amount_wan,
         completed_on,
+        fields,
     };
     let (ev_id, deduplicated) = svc.register_evidence(spec).map_err(ToolError::from)?;
     let status = svc

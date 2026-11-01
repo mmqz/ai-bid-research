@@ -251,6 +251,7 @@ fn e2e_artifacts_synth_tender() {
             client: None,
             amount_wan: None,
             completed_on: None,
+            fields: Default::default(), // #147
         })
         .unwrap();
     let qual_ids: Vec<String> = svc
@@ -316,6 +317,7 @@ fn e2e_artifacts_synth_tender() {
                 client: Some(client.to_string()),
                 amount_wan: Some(*amount),
                 completed_on: Some(completed.to_string()),
+                fields: Default::default(), // #147
             })
             .unwrap();
     }

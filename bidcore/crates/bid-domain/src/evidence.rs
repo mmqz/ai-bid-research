@@ -110,6 +110,94 @@ impl EvidenceStatus {
     }
 }
 
+/// 结构化证据字段（#147 search_evidence exact 通道的结构化真源）。
+///
+/// 全部 `Option` + `#[serde(default)]`：缺省 = 未录入（绝不落 0/空串——与
+/// `client`/`amount_wan`/`completed_on` 同款诚实状态纪律）；旧快照/旧调用方
+/// 不传 `fields` 时零影响（向后兼容）。
+///
+/// 字段按证据三族分组：
+/// - **合同/业绩类**：project_name / client / amount_wan / signed_at / finished_at
+/// - **证书/资质类**：cert_name / cert_no / issuer
+/// - **人员类**：person_name / person_title / years
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct EvidenceFields {
+    // ---- 合同/业绩类
+    /// 项目名称（业绩合同标的项目）。
+    pub project_name: Option<String>,
+    /// 发包人/建设单位（与 Evidence.client 业务面同义，此处为结构化查询面）。
+    pub client: Option<String>,
+    /// 合同金额（万元）。
+    pub amount_wan: Option<f64>,
+    /// 签订日期（YYYY-MM-DD）。
+    pub signed_at: Option<String>,
+    /// 完成/竣工日期（YYYY-MM-DD）。
+    pub finished_at: Option<String>,
+    // ---- 证书/资质类
+    /// 证书名称。
+    pub cert_name: Option<String>,
+    /// 证书编号。
+    pub cert_no: Option<String>,
+    /// 发证机关。
+    pub issuer: Option<String>,
+    // ---- 人员类
+    /// 人员姓名。
+    pub person_name: Option<String>,
+    /// 职称（如「高级工程师」）。
+    pub person_title: Option<String>,
+    /// 从业年限。
+    pub years: Option<u32>,
+}
+
+/// 从业年限上界（超过即非法——防止把「2015」当年的笔误塞进年限面）。
+pub const MAX_YEARS: u32 = 100;
+
+impl EvidenceFields {
+    /// 结构化字段校验（纯函数——错误文案即 E_UNPROCESSABLE reason 的素材）。
+    ///
+    /// - `signed_at` / `finished_at` 必须为严格 `YYYY-MM-DD`（{@link dates::is_valid_ymd}）；
+    /// - `amount_wan` 必须有限且 `>= 0`（NaN/∞/负数拒）；
+    /// - `years` 必须 `<= MAX_YEARS`（"#" 100 年上界）。
+    ///
+    /// 任一项非法 → `Err(说明)`；全 `None`（空结构）恒合法。
+    pub fn validate(&self) -> Result<(), String> {
+        for (label, d) in [
+            ("signed_at", &self.signed_at),
+            ("finished_at", &self.finished_at),
+        ] {
+            if let Some(v) = d {
+                if !dates::is_valid_ymd(v) {
+                    return Err(format!(
+                        "fields.{label} 非法 ISO 日期: {v:?}（须 YYYY-MM-DD）"
+                    ));
+                }
+            }
+        }
+        if let Some(a) = self.amount_wan {
+            if !a.is_finite() {
+                return Err(format!("fields.amount_wan 非法数值: {a}（须有限数）"));
+            }
+            if a < 0.0 {
+                return Err(format!("fields.amount_wan 为负: {a}（须 >= 0，万元口径）"));
+            }
+        }
+        if let Some(y) = self.years {
+            if y > MAX_YEARS {
+                return Err(format!(
+                    "fields.years={y} 越界（须 <= {MAX_YEARS} 年）"
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// 是否为空结构（全 None——「无结构化字段」判定，search_evidence 回落文本匹配用）。
+    pub fn is_empty(&self) -> bool {
+        *self == EvidenceFields::default()
+    }
+}
+
 /// 证据台账记录（T-1 规格 struct 的 Rust 落地——字段对齐 issue #11 批次 v3）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Evidence {
@@ -139,6 +227,12 @@ pub struct Evidence {
     /// 完成/竣工日期（ISO YYYY-MM-DD 或「2024.06」口径；None = 未录入）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completed_on: Option<String>,
+
+    // ---- #147：结构化字段（search_evidence exact 通道的精确查询面）。
+    //      serde default + skip_serializing_if —— 空结构不落快照，旧快照零影响。
+    /// 结构化字段（合同/证书/人员三族的金额、证书号、日期等）。
+    #[serde(default, skip_serializing_if = "EvidenceFields::is_empty")]
+    pub fields: EvidenceFields,
 }
 
 /// 证据 ↔ 条款绑定（最小面——T-2 MatrixRow 落地后由矩阵行消费）。
@@ -165,6 +259,8 @@ pub struct EvidenceSpec {
     pub client: Option<String>,
     pub amount_wan: Option<f64>,
     pub completed_on: Option<String>,
+    // ---- #147：结构化字段（search_evidence exact 通道的精确查询面）
+    pub fields: EvidenceFields,
 }
 
 // ---------------------------------------------------------------- 纯逻辑面
@@ -233,6 +329,8 @@ fn validate_spec(spec: &EvidenceSpec) -> Result<(), ToolError> {
             return Err(un(format!("valid_from({f}) 晚于 valid_until({u})")));
         }
     }
+    // #147：结构化字段校验（非法日期/负金额/超大年限一律拒，零入库）
+    spec.fields.validate().map_err(un)?;
     Ok(())
 }
 
@@ -343,6 +441,7 @@ impl DomainStore {
                 client: spec.client,
                 amount_wan: spec.amount_wan,
                 completed_on: spec.completed_on,
+                fields: spec.fields,
                 version: old_version + 1,
                 status: EvidenceStatus::Active,
             });
@@ -368,6 +467,7 @@ impl DomainStore {
             client: spec.client,
             amount_wan: spec.amount_wan,
             completed_on: spec.completed_on,
+            fields: spec.fields,
             version: 1,
             status: EvidenceStatus::Active,
         });
@@ -550,6 +650,7 @@ mod tests {
             client: None,
             amount_wan: None,
             completed_on: None,
+            fields: EvidenceFields::default(),
         }
     }
 
@@ -572,6 +673,7 @@ mod tests {
             client: None,
             amount_wan: None,
             completed_on: None,
+            fields: EvidenceFields::default(),
         }
     }
 
@@ -737,6 +839,7 @@ mod tests {
             client: None,
             amount_wan: None,
             completed_on: None,
+            fields: EvidenceFields::default(),
         };
         let (id, _) = s.register_evidence(spec).unwrap();
         assert!(
@@ -818,5 +921,146 @@ mod tests {
         let ids = s.bindable_evidence_ids("2026-11-15");
         assert!(ids.contains(&id02), "GT-02 @11-15 可绑（Expiring）");
         assert!(!ids.contains(&id13), "GT-13 @11-15 不可绑（Expired）");
+    }
+
+    // ============================ #147 结构化字段（EvidenceFields） ============================
+
+    /// 满配样例（三族字段全填——serde 往返的对照基准）。
+    fn full_fields() -> EvidenceFields {
+        EvidenceFields {
+            project_name: Some("智慧园区一期智能化工程".into()),
+            client: Some("智慧园区管委会".into()),
+            amount_wan: Some(1280.5),
+            signed_at: Some("2022-03-15".into()),
+            finished_at: Some("2023-01-20".into()),
+            cert_name: Some("电子与智能化工程专业承包二级资质证书".into()),
+            cert_no: Some("D234000123".into()),
+            issuer: Some("省住房和城乡建设厅".into()),
+            person_name: Some("张三".into()),
+            person_title: Some("高级工程师".into()),
+            years: Some(12),
+        }
+    }
+
+    /// serde 往返：满配字段 serialize → deserialize 逐字段相等（不丢字段、不串位）。
+    #[test]
+    fn evidence_fields_serde_roundtrip_full() {
+        let f = full_fields();
+        let js = serde_json::to_string(&f).unwrap();
+        let back: EvidenceFields = serde_json::from_str(&js).unwrap();
+        assert_eq!(back, f, "满配字段 serde 往返恒等");
+        assert!(!back.is_empty());
+        assert_eq!(back.amount_wan, Some(1280.5));
+        assert_eq!(back.years, Some(12));
+    }
+
+    /// 向后兼容：空 JSON 对象 → 全 None（serde default）；未知键不炸（forward-compat）。
+    #[test]
+    fn evidence_fields_serde_defaults_and_unknown_keys() {
+        let empty: EvidenceFields = serde_json::from_str("{}").unwrap();
+        assert_eq!(empty, EvidenceFields::default(), "空对象 → 全 None");
+        assert!(empty.is_empty(), "空结构 is_empty");
+        assert!(empty.validate().is_ok(), "全 None 恒合法");
+        let partial: EvidenceFields =
+            serde_json::from_str(r#"{"cert_no":"X-1","future_field":"ignored"}"#).unwrap();
+        assert_eq!(partial.cert_no.as_deref(), Some("X-1"));
+        assert_eq!(partial.cert_name, None, "未给字段保持 None");
+        assert!(!partial.is_empty());
+    }
+
+    /// 老快照兼容：Evidence 的 JSON 无 fields 键 → 反序列化为空结构；
+    /// 空结构序列化时**不落** fields 键（skip_serializing_if——快照零膨胀）。
+    #[test]
+    fn evidence_fields_absent_in_legacy_snapshot() {
+        let mut s = store_with_reqs();
+        let (id, _) = s.register_evidence(gt02_spec()).unwrap();
+        let ev = s.evidence(&id).unwrap().clone();
+        let js = serde_json::to_value(&ev).unwrap();
+        assert!(
+            js.get("fields").is_none(),
+            "空结构化字段不落快照（旧格式兼容）"
+        );
+        // 去掉 fields 键后仍可反序列化（旧快照 → 空结构）
+        let back: Evidence = serde_json::from_value(js).unwrap();
+        assert!(back.fields.is_empty(), "旧快照反序列化 → fields 为默认空");
+        assert_eq!(back, ev, "除 fields 外全等");
+    }
+
+    /// validate 拒绝面：非法日期 / 负金额 / NaN / ∞ / 超大年限 → Err（文案指明字段）。
+    #[test]
+    fn evidence_fields_validate_rejects_malformed() {
+        // 日期形态
+        for bad in ["2024-13-01", "2024.06.15", "2024-06", "", "20240615"] {
+            let mut f = full_fields();
+            f.signed_at = Some(bad.into());
+            let e = f.validate().unwrap_err();
+            assert!(e.contains("signed_at"), "signed_at 非法日期拒: {bad:?}（{e}）");
+            let mut f2 = full_fields();
+            f2.finished_at = Some(bad.into());
+            assert!(
+                f2.validate().unwrap_err().contains("finished_at"),
+                "finished_at 非法日期拒: {bad:?}"
+            );
+        }
+        // 金额
+        let mut neg = full_fields();
+        neg.amount_wan = Some(-0.01);
+        assert!(neg.validate().unwrap_err().contains("amount_wan"), "负金额拒");
+        let mut nan = full_fields();
+        nan.amount_wan = Some(f64::NAN);
+        assert!(nan.validate().unwrap_err().contains("amount_wan"), "NaN 拒");
+        let mut inf = full_fields();
+        inf.amount_wan = Some(f64::INFINITY);
+        assert!(inf.validate().unwrap_err().contains("amount_wan"), "∞ 拒");
+        // 年限
+        let mut y = full_fields();
+        y.years = Some(MAX_YEARS + 1);
+        assert!(y.validate().unwrap_err().contains("years"), "年限 > 100 拒");
+        // 边界放行
+        let mut ok = full_fields();
+        ok.amount_wan = Some(0.0);
+        ok.years = Some(MAX_YEARS);
+        assert!(ok.validate().is_ok(), "0 金额 / 100 年 = 合法边界");
+    }
+
+    /// 登记面：结构化字段随记录落账（换版亦保留新字段）；非法字段 → E_UNPROCESSABLE 零入库。
+    #[test]
+    fn register_evidence_persists_and_validates_fields() {
+        let mut s = store_with_reqs();
+        let mut spec = gt02_spec();
+        spec.fields = full_fields();
+        let (id, _) = s.register_evidence(spec).unwrap();
+        assert_eq!(
+            s.evidence(&id).unwrap().fields,
+            full_fields(),
+            "结构化字段随记录落账"
+        );
+        // 换版：新字段随新版落账（旧版 Superseded 保留旧字段作审计）
+        let mut renewed = gt02_spec();
+        let mut f2 = full_fields();
+        f2.cert_no = Some("D234000124".into());
+        renewed.fields = f2.clone();
+        renewed.fingerprint = "fnv64:02v2".into();
+        let (id2, _) = s.register_evidence(renewed).unwrap();
+        assert_eq!(s.evidence(&id2).unwrap().fields.cert_no, f2.cert_no);
+        assert_eq!(
+            s.evidence(&id).unwrap().fields.cert_no.as_deref(),
+            Some("D234000123"),
+            "旧版字段不被覆盖（审计保留）"
+        );
+        // 非法字段 → E_UNPROCESSABLE 零入库
+        let n_before = s.evidences().len();
+        let mut bad = gt13_spec();
+        bad.fields.signed_at = Some("2024-02-31T00:00:00".into());
+        let err = s.register_evidence(bad).unwrap_err();
+        assert_eq!(err.code(), "E_UNPROCESSABLE", "非法日期字段拒登记");
+        assert_eq!(s.evidences().len(), n_before, "拒绝路径零入库");
+        let mut bad2 = gt13_spec();
+        bad2.fields.amount_wan = Some(-5.0);
+        assert_eq!(
+            s.register_evidence(bad2).unwrap_err().code(),
+            "E_UNPROCESSABLE",
+            "负金额字段拒登记"
+        );
     }
 }

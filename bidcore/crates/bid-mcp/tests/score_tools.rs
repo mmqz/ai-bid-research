@@ -100,6 +100,7 @@ fn svc_drafted(tag: &str, draft_all: bool) -> (BidService, String) {
         client: None,
         amount_wan: None,
         completed_on: None,
+        fields: Default::default(), // #147
     }).unwrap();
     for rid in ["REQ-0003", "REQ-0004"] {
         svc.store_mut().bind_evidence(&eid, rid, "2026-12-31").unwrap();

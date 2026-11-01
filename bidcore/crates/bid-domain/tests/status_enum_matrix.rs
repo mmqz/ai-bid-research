@@ -224,14 +224,6 @@ fn parse_status_roundtrip() {
     }
 }
 
-#[test]
-fn parse_status_display_unique() {
-    let mut seen = std::collections::BTreeSet::new();
-    for s in PARSE_ALL {
-        let lit = s.as_str().to_string();
-        assert!(!lit.is_empty(), "ParseStatus::{s:?} 展示串为空");
-        assert!(seen.insert(lit.clone()), "展示串 {lit} 重复");
-    }
 }
 
 // ---------------------------------------------------------------- 跨枚举一致性

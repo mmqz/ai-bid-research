@@ -266,7 +266,41 @@ fn clause_range_title(chunk: &[&Requirement]) -> Option<String> {
 }
 
 /// 从 REQ 清单推导章节树（纯函数——确定性：按组首现序 + id 序，无隐藏随机性）。
+/// 该 REQ 类目是否属于【标书正文】（#121 P0-1）。
 ///
+/// 三类【评标规则】不进大纲——它们是评标委员会评判投标人的标准，不是
+/// 投标人要写的内容；进正文 = 把「投标人不满足 XX 的予以否决」抄进投标
+/// 文件（评审视为响应性瑕疵）。数据仍完整保留在 store 与合规矩阵里：
+///
+/// | 类目 | 归属 | 去处 |
+/// |---|---|---|
+/// | 否决项 | 评标规则 | 合规矩阵 blocking 判定 |
+/// | 评分项 | 评标规则 | 自评打分依据 |
+/// | 资格条件 | 评标规则 | 合规矩阵 blocking 判定 |
+///
+/// 其余（技术参数 / 商务要求 / 格式要求 / 其他）都是投标人要正面响应的
+pub fn is_body_category(category: &str) -> bool {
+    !matches!(category, "否决项" | "评分项" | "资格条件")
+}
+
+/// 该 REQ 类目是否需要在**正文里有响应章节**（#121 P0-1）。
+///
+/// 与 [`is_body_category`] 的区别是关键：
+///
+/// ```text
+/// 否决项/资格条件  → 不写【规则原文】进正文（那是评标委员会的判断标准）
+///                  → 但必须写【响应内容】（「我方满足 1.4.1 的要求，附营业执照…」）
+///
+/// 评分项          → 不写正文（自评表里体现）
+/// ```
+///
+/// 所以大纲里要有一章「资格与响应」，把否决项/资格条件作为**响应提纲**列出
+/// （标题用条款号+摘要，正文由 draft 写响应话术），而不是把招标文件原文抄进
+/// 正文。
+pub fn needs_response_section(category: &str) -> bool {
+    matches!(category, "否决项" | "资格条件")
+}
+
 /// 结构：每个非空类目 → 1 个 level-1 节点；**「其他」类二次分组**（issue #100
 /// 任务 1：锚点章节 [`chapter_of`] → 关键词主题 [`infer_theme`] → 兜底
 /// 「其他条款」——catch-all 不再平铺成「其他（第N块）」×31）；组内 REQ 按
@@ -285,17 +319,54 @@ pub fn derive_outline(
     spec: OutlineSpec,
     next_id: &mut dyn FnMut(&str) -> String,
 ) -> Vec<OutlineNode> {
-    // 类目分桶（首现序——输入已按 id 序时全确定）
-    let mut buckets: Vec<(String, Vec<&Requirement>)> = Vec::new();
-    for r in reqs {
-        match buckets.iter_mut().find(|(c, _)| *c == r.category) {
-            Some((_, v)) => v.push(r),
-            None => buckets.push((r.category.clone(), vec![r])),
-        }
-    }
+    // 【正文类目的两条边界】（#121 P0-1，实测 e2e 暴露的真问题）：
+    //
+    //   ① 评分项 —— 完全不进正文。评分方法是评标委员会的算分规则，
+    //      投标人只需要在「自评表」里逐项打分，正文里写「价格分 30 分」
+    //      是把自己的报价策略和评标办法混为一谈。
+    //
+    //   ② 否决项 / 资格条件 —— 【不写规则原文，但必须有响应章节】。
+    //      这是最容易做错的一条（第一版按「规则类全过滤」做，result:
+    //      合规矩阵立刻报 30+ 条 BLOCKER「否决项未响应」——因为规则要求
+    //      每个否决项都得有响应章节）。
+    //
+    //      正确做法：合并成【一个】「资格与响应」章节组，叶标题用
+    //      「条款号 + 原文摘要」（让投标人知道要响应哪一条），正文由
+    //      draft 写【响应话术】（「我方满足 1.4.1 的要求，附件为营业执照
+    //      复印件」），而不是抄招标文件原文。
+    //
+    //      这样：矩阵有章节 → 不报 BLOCKER；正文是响应而非规则 → 不出现
+    //      「投标人不满足 XX 的予以否决」这种评标口径。
+    const RESPONSE_GROUP: &str = "资格与响应";
+    let body_reqs: Vec<(&Requirement, String)> = reqs
+        .iter()
+        .filter_map(|r| {
+            if is_body_category(&r.category) {
+                Some((r, r.category.clone()))
+            } else if needs_response_section(&r.category) {
+                // 否决项 + 资格条件 合并进同一个响应章节组
+                Some((r, RESPONSE_GROUP.to_string()))
+            } else {
+                // 评分项：不进正文
+                None
+            }
+        })
+        .collect();
     let total_reqs: usize = reqs.len();
     if total_reqs == 0 {
         return vec![];
+    }
+    if body_reqs.is_empty() {
+        // 全是纯规则类目（只有评分项）：大纲为空（调用方据 store 空否提示）。
+        return vec![];
+    }
+    // 类目分桶（首现序——输入已按 id 序时全确定）
+    let mut buckets: Vec<(String, Vec<&Requirement>)> = Vec::new();
+    for (r, group) in &body_reqs {
+        match buckets.iter_mut().find(|(c, _)| c == group) {
+            Some((_, v)) => v.push(r),
+            None => buckets.push((group.clone(), vec![r])),
+        }
     }
     // 「其他」类二次分组（issue #100 任务 1）：catch-all 类平铺成
     // 「其他（第N块）」×31 是目录不可读的根因（用户实测）。归组键优先级：
@@ -732,26 +803,29 @@ mod tests {
             target_total_chars: 640_000,
             max_reqs_per_leaf: 1, // 每叶 1 REQ → 320 叶 + 类目父
         }).unwrap();
-        assert!((300..=500).contains(&count), "节点数 {count} 必须在 300..=500（T-5 验收带）");
+        // #121 P0-1 后：资格条件/评分项被过滤（不进正文），320 条里剩「技术参数/商务要求/
+        // 格式要求/其他」4 类 ≈ 213 条 → 213 叶 + 4 类目父 ≈ 217 节点。
+        // 验收带相应下移（原 300..=500 是六类全进正文时的口径）。
+        assert!((200..=350).contains(&count), "节点数 {count} 必须在 200..=350（#121 P0-1 后的验收带）");
         // 每节点 ≥1 REQ（validate_outline 已把关——这里复核总量守恒）
         let bound: std::collections::HashSet<&str> = s.sections().iter()
             .flat_map(|n| n.requirement_ids.iter())
             .map(|r| &r[..])
             .collect();
-        // 320 REQ 全覆盖（level-2 叶共 320 个块，每块恰 1 条）
+        // #121 P0-1：评分项(53) 不进正文 → 剩 267 条（资格条件54 并入「资格与响应」）。
         let leaves: Vec<&OutlineNode> = s.sections().iter().filter(|n| n.level == 2).collect();
-        assert_eq!(leaves.len(), 320, "每叶恰 1 REQ");
-        assert_eq!(leaves.iter().map(|l| l.requirement_ids.len()).sum::<usize>(), 320);
-        assert_eq!(bound.len(), 320, "REQ 全覆盖无遗漏");
+        assert_eq!(leaves.len(), 267, "每叶恰 1 REQ（267 = 320 - 53 评分项）");
+        assert_eq!(leaves.iter().map(|l| l.requirement_ids.len()).sum::<usize>(), 267);
+        assert_eq!(bound.len(), 267, "正文类目 REQ 全覆盖无遗漏");
         // 配额和 ≈ 目标 ±10%
         let dev = (total as f64 - 640_000.0).abs() / 640_000.0;
         assert!(dev <= 0.10, "配额和 {total} 偏离目标 ±10%（实际偏离 {:.1}%）", dev * 100.0);
         assert_eq!(s.outline_total_chars(), total, "账面一致");
-        // 默认参数（24/叶）：320 REQ ÷ 6 类目 → 每类 53-54 REQ → 每类 ceil(54/24)=3 叶
-        // → 6 父 + 18 叶 = 24 节点
+        // 默认参数（24/叶）：267 REQ ÷ 5 组 → 资格与响应54/技术参数54/商务53/格式53/其他53
+        // → 每组 ceil(n/24)=3 叶 → 5 父 + 15 叶 = 20 节点
         let mut s2 = store_with_reqs(320);
         let (c2, _) = s2.derive_and_set_outline(OutlineSpec::default()).unwrap();
-        assert_eq!(c2, 6 + 6 * 3, "默认粒度分片数（6 类目 × 3 叶 + 6 父）");
+        assert_eq!(c2, 5 + 15, "默认粒度分片数（5 组 × 3 叶 + 5 父）");
     }
 
     /// 确定性：同输入双推导全等（分片调度的可重放前提——S-2 断点续跑的地基）。
@@ -829,8 +903,8 @@ mod tests {
         let l1: Vec<&str> = nodes.iter().filter(|n| n.level == 1).map(|n| n.title.as_str()).collect();
         assert_eq!(
             l1,
-            vec!["资格条件", "第一章 招标公告", "第三章 投标人须知", "第六章 合同条款及格式（摘要）"],
-            "其他类按招标文件章节归并，非其他类目原样通过"
+            vec!["资格与响应", "第一章 招标公告", "第三章 投标人须知", "第六章 合同条款及格式（摘要）"],
+            "其他类按招标文件章节归并；资格条件并入「资格与响应」组（#121 P0-1）"
         );
         // 核心验收：不再有裸「其他（第N块）」
         assert!(
@@ -850,7 +924,8 @@ mod tests {
         // 守恒面：REQ 全覆盖 + 配额和恰等于目标 + 树不变量
         let bound: std::collections::HashSet<&str> = nodes.iter()
             .flat_map(|n| n.requirement_ids.iter()).map(|s| &s[..]).collect();
-        assert_eq!(bound.len(), 5, "REQ 全覆盖无遗漏");
+        // #121 P0-1：资格条件并入「资格与响应」组，仍覆盖全部 5 条。
+        assert_eq!(bound.len(), 5, "REQ 全覆盖无遗漏（资格条件在「资格与响应」组）");
         let total: u64 = nodes.iter().filter(|n| n.parent_id.is_none())
             .map(|n| u64::from(n.target_chars)).sum();
         assert_eq!(total, 10_000, "配额算法不动（最大余数法总和恰等于目标）");

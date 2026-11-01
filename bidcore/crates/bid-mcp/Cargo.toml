@@ -29,3 +29,6 @@ sha2 = { workspace = true }
 mang-snap = { path = "../mang-snap" }
 # #59 阶段 2 测试面：解包导出 docx 校验（zip 部件面）——bid-tools 同款钉版本
 zip = "4"
+# #145 任务 2：审查表验证骨架——合成 docx 造件（bid-tools 同款钉版本，
+# Cargo.lock 既有条目，零新增网络取数）
+docx-rs = "0.4"

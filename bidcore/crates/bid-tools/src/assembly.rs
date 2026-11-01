@@ -74,6 +74,14 @@ pub struct ChapterRecord {
     pub citations: Vec<String>,
     /// UNIX_EPOCH 秒——时间戳（no-chrono 纪律）
     pub updated_at: u64,
+    /// 本次起草的伴随账面（#127 P0-2）：起草指令 + 缺失回报。
+    ///
+    /// 语义：这是「给起草人的备注」，不是正文——正文渲染面永远不碰它
+    /// （正文里出现「起草指令：」字样 = P0-2 要修的缺陷：句子被劈断、
+    /// 招标口径泄漏进标书）。`None` = 无指令且无缺失回报（零噪声）；
+    /// 旧记录缺字段 → serde default 容错（零迁移）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub draft_note: Option<String>,
 }
 
 /// 组装工作区错误（typed——调用方按变体分支，不解析 message；写法与中文
@@ -290,10 +298,35 @@ impl ChapterAssembler {
         content: &str,
         citations: Vec<String>,
     ) -> Result<ChapterRecord, AssemblerError> {
-        // 幂等面：全等重放 → 既有记录直返（零副作用——不碰文件）
+        self.commit_section_with_note(section_id, content, citations, None)
+    }
+
+    /// [`Self::commit_section`] 的带备注版（#127 P0-2）——draft_note 是
+    /// 本次起草的指令/缺失回报账面，随 attempt 版本化落盘。
+    ///
+    /// 幂等面口径：content + citations 全等 → attempt 不推进；但 draft_note
+    /// 是**账面不是内容**——同内容重提交而指令变了，note 照更（新指令是
+    /// 新账面，不值得为它另开一个内容版本）。
+    pub fn commit_section_with_note(
+        &mut self,
+        section_id: &str,
+        content: &str,
+        citations: Vec<String>,
+        draft_note: Option<String>,
+    ) -> Result<ChapterRecord, AssemblerError> {
+        // 幂等面：全等重放 → 既有记录直返（零副作用——不碰文件）。
+        // draft_note 差异不升版——仅当有新 note 时补写（note 面更新，
+        // content/attempt/citations 面原样）。
         if let Some(existing) = self.records.get(section_id) {
             if existing.content == content && existing.citations == citations {
-                return Ok(existing.clone());
+                if existing.draft_note == draft_note {
+                    return Ok(existing.clone());
+                }
+                let mut updated = existing.clone();
+                updated.draft_note = draft_note;
+                self.write_atomic(&updated)?;
+                self.records.insert(section_id.to_string(), updated.clone());
+                return Ok(updated);
             }
         }
         let attempt = match self.records.get(section_id) {
@@ -308,6 +341,7 @@ impl ChapterAssembler {
             attempt,
             citations,
             updated_at: now_secs(),
+            draft_note,
         };
         self.write_atomic(&rec)?;
         self.records.insert(rec.section_id.clone(), rec.clone());

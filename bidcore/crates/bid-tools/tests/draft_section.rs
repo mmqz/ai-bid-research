@@ -331,14 +331,34 @@ fn draft_section_idempotent_same_content() {
 
 #[test]
 fn draft_section_attempt_increments_on_new_instructions() {
+    // #127 P0-2 语义更新：正文不再嵌「起草指令」（句子劈断缺陷）——同
+    // REQ/EV 下换指令产**同正文**，CAS 判定内容未变 → attempt 不推进
+    // （版本账记内容不记指令）；指令变化体现在 draft_note 账面。
     let mut svc = svc_matrix_ready("attempt-inc");
     let sid = first_leaf(&svc);
     let mut gen = MockGenerator;
     let a = svc.draft_section(&sid, None, None, Some("第一稿"), &mut gen).unwrap();
     let b = svc.draft_section(&sid, None, None, Some("第二稿：补充业绩佐证"), &mut gen).unwrap();
-    assert_eq!(b.attempt, a.attempt + 1, "不同 instructions → 新版本（CAS attempt+1）");
+    assert_eq!(b.attempt, a.attempt, "指令不进正文 → 同内容 no-op（attempt 不推进）");
     let node = svc.store().sections().iter().find(|n| n.id == sid).unwrap();
-    assert_eq!(node.content_attempt, 2);
+    assert_eq!(node.content_attempt, 1, "内容版本账只记内容变化");
+    // 指令落到 draft_note 账面（信息不丢——#127 验收线）
+    assert!(
+        b.draft_note.as_deref().unwrap_or("").contains("第二稿：补充业绩佐证"),
+        "新指令更新 draft_note 账面: {:?}",
+        b.draft_note
+    );
+    assert!(
+        b.draft_note.as_deref().unwrap_or("").contains("起草指令"),
+        "账面带「起草指令：」标头: {:?}",
+        b.draft_note
+    );
+    // 正文零「起草指令」字样（P0-2 验收线）
+    assert!(
+        !b.content.contains("起草指令"),
+        "正文不得含指令标记（句子劈断缺陷）: {}",
+        &b.content.chars().take(120).collect::<String>()
+    );
 }
 
 #[test]
@@ -523,11 +543,11 @@ fn unanchored_claims_positive_emits_warning() {
         out.warnings
     );
     // 带锚路径不告警（mock 模板句句带锚——既有断言 unanchored_claims==0 的
-    // 镜像：warnings 不含无锚面）
-    let sid2 = svc.store().sections().iter()
-        .find(|n| n.parent_id.is_some() && n.id != sid)
-        .map(|n| n.id.clone()).unwrap();
-    let out2 = svc.draft_section(&sid2, None, None, None, &mut MockGenerator).unwrap();
+    // 镜像：warnings 不含无锚面）。
+    // P0-1（#121）后本 fixture 大纲仅一叶：资格+否决合入「资格与响应」组
+    // （2 REQ / 每叶 2 条 = 单叶）、评分项不进正文——「第二个叶」不再存在。
+    // 改用同章换 MockGenerator 重起草验证（语义等价：带锚正文 → 零无锚零告警）。
+    let out2 = svc.draft_section(&sid, None, None, None, &mut MockGenerator).unwrap();
     assert_eq!(out2.unanchored_claims, 0);
     assert!(
         !out2.warnings.iter().any(|w| w.contains("无锚承诺")),

@@ -91,11 +91,21 @@ fn register_ev(s: &mut DomainStore, kind: EvidenceKind, title: &str, valid_until
     eid
 }
 
-/// 基座：一份招标文件 + 条款 + 章节（矩阵未建）。
+/// 基座：一份招标文件 + 一份补遗 + 条款 + 章节（矩阵未建）。
+///
+/// **L3 补遗**：本文件的所有用例都是「章节级」判定（资格/业绩/技术证据/否决项），
+/// 需要补遗件在场才能隔离出它们各自的 Blocker——`MissingAddendum` 是**全局**
+/// 阻塞（见 readiness.rs 模块头），没有补遗时它会出现在每一个用例里，
+/// 把「本章还缺什么」的断言全部污染。基座补一份成功导入的补遗，
+/// 补遗缺失本身的行为由 `readiness_l3_addendum.rs` 专门覆盖。
+/// （#127 代理 C 注：此行曾被 5777ba8 误删、#122 拆分版继承——9 用例
+/// 被 MISSING_ADDENDUM 污染全挂；现按 e363ba0 原样恢复。）
 fn base_store(sections: Vec<OutlineNode>, reqs: Vec<Requirement>) -> DomainStore {
     let mut s = DomainStore::new();
     s.create_project("缺失回报测试", "ZFCG-2026-R-001", "明标", "r-key").unwrap();
     import_tender(&mut s, "招标文件.docx", "招标文件", "sha-tender");
+    // L3：补遗件在场（全局阻塞不干扰章节级断言）
+    import_tender(&mut s, "C-补遗文件01.docx", "补遗", "sha-addendum");
     s.set_requirements(reqs).unwrap();
     s.set_outline(sections).unwrap();
     s.build_matrix().unwrap();
@@ -316,7 +326,9 @@ fn blocker_incomplete_tender_is_warning_not_blocker() {
     assert!(r.blockers.is_empty(), "{:?}", r.blockers);
     let joined = r.warnings.join("\n");
     assert!(joined.contains("没有导入任何「招标文件」类文件"), "{joined}");
-    assert!(joined.contains("未导入补遗/澄清文件"), "{joined}");
+    // 「未导入补遗」警告已按 L3（#118）删除——同一件事报两遍是噪音；
+    // 空包时 MissingAddendum 判 ①（无招标文件本体）不报，补遗缺口归
+    // blocker 面（tender_without_addendum_is_blocker_not_warning 专测）。
     assert!(!joined.contains("IncompleteTender"), "不得泄漏 enum 名：{joined}");
 }
 

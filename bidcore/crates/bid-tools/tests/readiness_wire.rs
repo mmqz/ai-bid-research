@@ -249,7 +249,9 @@ fn no_performance_evidence_refuses_instead_of_fabricating() {
 fn performance_evidence_cleared_unblocks_drafting() {
     let mut svc = svc_base(
         "perf-clear",
-        false,
+        // #127 代理 C：L3 后无补遗是全局阻塞（#118 遗漏适配——本测只验业绩面，
+        // 补遗在场才能隔离）
+        true,
         vec![leaf("SEC-0001", "类似项目业绩", &["REQ-0001"])],
         vec![req("REQ-0001", "评分项")],
     );
@@ -315,7 +317,8 @@ fn missing_qualification_refuses() {
 fn uncovered_veto_refuses() {
     let mut svc = svc_base(
         "veto-block",
-        false,
+        // #127 代理 C：L3 后无补遗是全局阻塞（#118 遗漏适配——本测只验否决面）
+        true,
         vec![leaf("SEC-0001", "响应承诺", &["REQ-0001"])],
         vec![req("REQ-0001", "否决项")],
     );
@@ -382,16 +385,34 @@ fn missing_tech_evidence_refuses() {
 
 // ---------------------------------------------------------------- ③ IncompleteTender 只警告
 
-/// issue 验收第 3 条：招标包不完整（无补遗/澄清）→ **不阻塞**，起草照常，
-/// warning 如实上报（Agent 感知面）。
+/// 招标包结构可疑（多份正本无法确定）→ **不阻塞**，起草照常，warning 如实
+/// 上报（Agent 感知面）。
+///
+/// #127 代理 C 注：原版验「无补遗 → 警告」——L3（#118）后无补遗升级为
+/// **阻塞**，原语义已死；本测改为 L3 之后的警告面分界：**多份招标文件
+/// 正本不明**仍是警告不阻塞（补遗在场，隔离 MISSING_ADDENDUM）。
 #[test]
 fn incomplete_tender_warns_but_does_not_block() {
     let mut svc = svc_base(
         "tender-warn",
-        false, // 无补遗 → IncompleteTender 警告在场
+        true, // 补遗在场（隔离全局阻塞面）
         vec![leaf("SEC-0001", "商务响应", &["REQ-0001"])],
         vec![req("REQ-0001", "商务要求")],
     );
+    // 多份「招标文件」类文件 → IncompleteTender 警告（无法确定正本）
+    svc.store_mut()
+        .upsert_file(
+            "B-招标文件副本.docx",
+            "招标文件",
+            "sha-rw-dup",
+            120,
+            8,
+            900,
+            0,
+            ParseStatus::Ok,
+            "",
+        )
+        .unwrap();
     let out = svc
         .draft_section(
             "SEC-0001",
@@ -412,8 +433,8 @@ fn incomplete_tender_warns_but_does_not_block() {
     assert!(
         out.warnings
             .iter()
-            .any(|w| w.contains("缺失回报（不阻塞）") && w.contains("补遗")),
-        "警告须如实上报（含补遗缺口说明）: {:?}",
+            .any(|w| w.contains("缺失回报（不阻塞）") && w.contains("正本")),
+        "警告须如实上报（含多正本说明）: {:?}",
         out.warnings
     );
     assert!(
@@ -431,13 +452,27 @@ fn incomplete_tender_warns_but_does_not_block() {
 /// 原话（echo 语义）；警告清零 → 指令原样（不添噪声）。
 #[test]
 fn missing_report_note_reaches_generator_and_echo_stays_users() {
-    // 有警告（无补遗）：note 注入 + 用户指令保留
+    // 有警告（多份正本不明）：note 注入 + 用户指令保留
+    // （#127 代理 C：原用「无补遗」作警告源——L3 后它是阻塞，改多正本面）
     let mut svc = svc_base(
         "note-hit",
-        false,
+        true,
         vec![leaf("SEC-0001", "商务响应", &["REQ-0001"])],
         vec![req("REQ-0001", "商务要求")],
     );
+    svc.store_mut()
+        .upsert_file(
+            "B-招标文件副本.docx",
+            "招标文件",
+            "sha-rw-dup",
+            120,
+            8,
+            900,
+            0,
+            ParseStatus::Ok,
+            "",
+        )
+        .unwrap();
     let mut gen = Recorder::new();
     let out = svc
         .draft_section("SEC-0001", None, None, Some("按招标文件逐项响应"), &mut gen)
@@ -452,7 +487,7 @@ fn missing_report_note_reaches_generator_and_echo_stays_users() {
     );
     assert!(got.contains("缺失回报"), "{got}");
     assert!(got.contains("不得编造"), "要给出占位纪律: {got}");
-    assert!(got.contains("补遗"), "警告明细要在场: {got}");
+    assert!(got.contains("正本"), "警告明细要在场: {got}");
     // 契约面 echo = 用户原话（不是合并稿）
     assert_eq!(out.instructions.as_deref(), Some("按招标文件逐项响应"));
 
@@ -520,10 +555,24 @@ fn iterative_gate_burns_zero_llm_rounds() {
 fn iterative_round_one_carries_missing_report_note() {
     let mut svc = svc_base(
         "iter-note",
-        false,
+        // #127 代理 C：原用「无补遗」作警告源——L3 后它是阻塞，改多正本面
+        true,
         vec![leaf("SEC-0001", "商务响应", &["REQ-0001"])],
         vec![req("REQ-0001", "商务要求")],
     );
+    svc.store_mut()
+        .upsert_file(
+            "B-招标文件副本.docx",
+            "招标文件",
+            "sha-rw-dup",
+            120,
+            8,
+            900,
+            0,
+            ParseStatus::Ok,
+            "",
+        )
+        .unwrap();
     let mut gen = Recorder::new();
     let out = svc
         .draft_section_iterative("SEC-0001", None, None, None, &mut gen, 1, 0.85)
@@ -533,12 +582,16 @@ fn iterative_round_one_carries_missing_report_note() {
         .as_deref()
         .expect("警告在场 → 首轮指令在场");
     assert!(
-        round1.contains("缺失回报") && round1.contains("补遗"),
+        round1.contains("缺失回报") && round1.contains("正本"),
         "{round1}"
     );
+    // 措辞纪律只约束**说明文字**（首行——会被改写提示的失分项提取面
+    // 扫描）；警告明细是用户数据（多正本警告自带「招标文件」引号），
+    // 不适用该纪律。
+    let note_header = round1.split('\n').next().unwrap_or("");
     assert!(
-        !round1.contains('「'),
-        "不得混入全角引号（失分项提取面）: {round1}"
+        !note_header.contains('「'),
+        "说明文字不得混入全角引号（失分项提取面）: {note_header}"
     );
     // 提交面照常（回放走 draft_section 既有路径）
     let node = svc

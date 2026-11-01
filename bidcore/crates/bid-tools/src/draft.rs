@@ -276,20 +276,18 @@ const REQ_RESPONSE_TEMPLATE: &str = "针对 [REQ_ID]（CATEGORY 类条款）「E
 const EV_SUPPORT_TEMPLATE: &str = "依据 [EV_ID]（KIND：TITLE，适用范围：SCOPE），本章节相关承诺具备可核验的证据支撑，评标委员会可按证据台账索引回查原件。";
 
 /// mock 生成（纯函数——同输入字节级同输出）。
+///
+/// #127 P0-2：正文不再嵌「起草指令：…」——指令是给起草人的备注，落
+/// ChapterRecord::draft_note（见 service::draft_section），嵌正文会把
+/// 句子劈断、把招标口径抄进标书。开篇只留陈述句。
 pub fn generate_mock(input: &SectionDraftInput) -> String {
     let mut paras: Vec<String> = Vec::new();
 
-    // ① 开篇
-    let inst = input.instructions.as_deref().unwrap_or("");
-    let inst_note = if inst.trim().is_empty() {
-        String::new()
-    } else {
-        format!("（起草指令：{}）", truncate_chars(inst, 60))
-    };
+    // ① 开篇（陈述句完整不断裂——指令面已分离到 draft_note）
     paras.push(format!(
-        "# {}\n\n本章节依据招标文件的实质性要求和条件编制{}，共响应 {} 项条款、\
+        "# {}\n\n本章节依据招标文件的实质性要求和条件编制，共响应 {} 项条款、\
 援引 {} 项证据，目标篇幅 {} 字（实际篇幅以内容完整为准，允许 ±20% 浮动）。",
-        input.title, inst_note, input.requirements.len(), input.evidences.len(), input.target_chars,
+        input.title, input.requirements.len(), input.evidences.len(), input.target_chars,
     ));
 
     // ② 逐 REQ 响应段
@@ -459,6 +457,43 @@ fn with_missing_report(instructions: Option<&str>, readiness: &DraftReadiness) -
     Some(out)
 }
 
+/// 本次起草的伴随账面（#127 P0-2）：起草指令 + 缺失回报——**给起草人的
+/// 备注，不是正文**。
+///
+/// 背景：早先 mock 生成器把 instructions 嵌进正文开篇括号里，缺失回报
+/// 拼接后把句子劈断（「（起草指令：……\n\n缺失回报：……）」嵌在句中）。
+/// 修法（#127 方案）：正文只留陈述句，指令与缺失回报落到本账面——
+/// 经 [`crate::assembly::ChapterRecord::draft_note`] 版本化落盘，正文
+/// 渲染面（docx 导出）永远不碰它。
+///
+/// 零噪声：无指令且无缺失回报 → None（不产空账面）。
+fn compose_draft_note(
+    instructions: Option<&str>,
+    readiness: &DraftReadiness,
+) -> Option<String> {
+    let mut sections: Vec<String> = Vec::new();
+    if let Some(inst) = instructions.map(str::trim).filter(|s| !s.is_empty()) {
+        sections.push(format!("起草指令：{inst}"));
+    }
+    if !readiness.warnings.is_empty() {
+        let list: Vec<String> = readiness
+            .warnings
+            .iter()
+            .enumerate()
+            .map(|(i, w)| format!("{}. {w}", i + 1))
+            .collect();
+        sections.push(format!(
+            "缺失回报：以下素材或信息当前不完整——正文对应位置已按占位符纪律处理（待补充/待确认）：\n{}",
+            list.join("\n")
+        ));
+    }
+    if sections.is_empty() {
+        None
+    } else {
+        Some(sections.join("\n\n"))
+    }
+}
+
 impl super::service::BidService {
     /// `draft_response_section` 业务半边（MCP 壳完成参数校验/路由/状态机
     /// 裁决后调用；生成器注入——mock 或未来 AI 面）。
@@ -510,6 +545,11 @@ impl super::service::BidService {
             warnings.push(format!("缺失回报（不阻塞）：{w}"));
         }
         input.instructions = with_missing_report(input.instructions.as_deref(), &readiness);
+        // #127 P0-2：指令与缺失回报的**留档账面**（人类可读、随 attempt
+        // 落盘到 ChapterRecord::draft_note）。与上一行的分工：instructions
+        // 注入的是**生成器 prompt 面**（真实 LLM 需要知道缺什么才能留占位
+        // 符）；draft_note 是**账面**（正文渲染永远不碰）。两者同源。
+        let draft_note = compose_draft_note(instructions, &readiness);
 
         // ---- 2. 生成
         let draft = generator.generate(&input).map_err(|why| ToolError::EUnprocessable {
@@ -562,8 +602,8 @@ impl super::service::BidService {
                 .map_err(|e| ToolError::EUnprocessable {
                     reason: format!("章节工作区打开失败: {e}"),
                 })?;
-            asm.commit_section(section_id, &content, input.requirements.iter()
-                .map(|r| r.id.clone()).collect())
+            asm.commit_section_with_note(section_id, &content, input.requirements.iter()
+                .map(|r| r.id.clone()).collect(), draft_note.clone())
                 .map_err(|e| ToolError::EUnprocessable {
                     reason: format!("章节工作区提交失败: {e}"),
                 })?;
@@ -590,6 +630,7 @@ impl super::service::BidService {
             uncovered_requirements,
             warnings,
             instructions: instructions.map(str::to_string),
+            draft_note,
             content,
         })
     }
@@ -608,6 +649,9 @@ pub struct DraftOutcome {
     pub uncovered_requirements: Vec<String>,
     pub warnings: Vec<String>,
     pub instructions: Option<String>,
+    /// 起草指令 + 缺失回报的留档账面（#127 P0-2——与正文分离；随
+    /// ChapterRecord 落盘，正文渲染面不碰）。`None` = 无指令无缺失回报。
+    pub draft_note: Option<String>,
     pub content: String,
 }
 

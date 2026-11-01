@@ -445,6 +445,9 @@ mod tests {
                 locator: crate::locator::EngineLocator::PdfPageText { page: 1, text_fingerprint: "fnv64:1".into() },
                 fingerprint: "fnv64:1".into(), valid_from: None, valid_until: Some("2020-01-01".into()),
                 subject_name: "S".into(), scope: "".into(), version: 1, status,
+                // #117 任务 1 给 Evidence 加的业绩三面（Option——非业绩类
+                // 证据不消费；本测试只验时序过滤，None 即可）
+                client: None, amount_wan: None, completed_on: None,
             });
         }
         s.evidence_bindings.push(EvidenceBinding { evidence_id: "EV-A".into(), requirement_id: "REQ-0003".into() });

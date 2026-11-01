@@ -133,6 +133,155 @@ fn missing_tools_impl(tools: &[&str], override_path: Option<&str>) -> Vec<String
         .collect()
 }
 
+// ---------------------------------------------------------------- L1：PDF 引擎三态探测
+
+/// PDF 解析**引擎**能力状态（L1）。
+///
+/// 为什么单独于 [`PDF_CHAIN_TOOLS`]：那套是 poppler + tesseract 的**外部进程**
+/// 链，而本仓 pdf 文本层的**首选路是 pdfium**（`mdc_pdf::engine_pdfium`，
+/// bid-engine reader.rs 直连）。只探 poppler 会让「pdfium 在位、poppler 不在」
+/// 的机器被报成「PDF 链缺失 [pdftotext...]」——实际上文本层 PDF 解析得好好的，
+/// 用户照着报错去装 poppler 是白费功夫（真实误导，Lead 点名）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PdfEnvStatus {
+    /// pdfium + poppler 都可用：文本层与扫描 OCR 全链可跑。
+    Full,
+    /// 只有 pdfium：文本层 PDF 仍可解析（扫描件 OCR 不可用）。
+    PdfiumOnly,
+    /// 两者都不可用：PDF 类文件将全部失败（只剩纯 Rust 兜底 `pdf_text`，
+    /// 仅覆盖短文本件）。
+    None,
+}
+
+impl PdfEnvStatus {
+    /// 稳定机器码（日志/统计面）。
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            PdfEnvStatus::Full => "FULL",
+            PdfEnvStatus::PdfiumOnly => "PDFIUM_ONLY",
+            PdfEnvStatus::None => "NONE",
+        }
+    }
+
+    /// 文本层 PDF 是否可解析（pdfium 或 poppler 任一在位即可）。
+    pub fn can_parse_text_pdf(&self) -> bool {
+        !matches!(self, PdfEnvStatus::None)
+    }
+
+    /// 扫描件 OCR 是否可用（需要 poppler 渲染 + tesseract）。
+    pub fn can_ocr(&self) -> bool {
+        matches!(self, PdfEnvStatus::Full)
+    }
+
+    /// 人类可读说明（**准确**——说清哪条链断了、哪些文件会受影响）。
+    pub fn to_message(&self) -> String {
+        match self {
+            PdfEnvStatus::Full => {
+                "PDF 全链可用（pdfium 文本层 + poppler/OCR 扫描件）".to_string()
+            }
+            PdfEnvStatus::PdfiumOnly => {
+                "PDF 文本层可用（pdfium），但扫描件 OCR 不可用——缺 poppler/tesseract：扫描件将需要预转文本或人工摘录"
+                    .to_string()
+            }
+            PdfEnvStatus::None => {
+                "PDF 解析链全部缺失（pdfium 与 poppler 都不可用）——PDF 类文件（招标文件/补遗/取证材料）将无法解析，只有短文本件能走纯 Rust 兜底"
+                    .to_string()
+            }
+        }
+    }
+}
+
+/// pdfium 定位环境变量（与 `mdc_pdf::engine_pdfium::PDFIUM_LIB_ENV` 同字面）。
+///
+/// 本 crate 不依赖 mdc-pdf（依赖方向：bid-engine → mdc-pdf），所以字面量
+/// 在此复制一份——两处必须一致（单测锚定字面）。
+pub const PDFIUM_LIB_ENV: &'static str = "MDC_PDFIUM_LIB";
+
+/// pdfium 平台库文件名（与 pdfium-render `pdfium_platform_library_name` 同口径）。
+pub fn pdfium_library_filename() -> &'static str {
+    if cfg!(windows) {
+        "pdfium.dll"
+    } else if cfg!(target_os = "macos") {
+        "libpdfium.dylib"
+    } else {
+        "libpdfium.so"
+    }
+}
+
+/// pdfium 候选目录（本仓侧取件位约定——判「装没装」够用）。
+pub fn pdfium_library_candidates() -> Vec<std::path::PathBuf> {
+    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    vec![
+        // 本仓 bin/lib（fetch-pdfium.sh 取件位约定）
+        manifest.join("../../bin/lib"),
+        // crate 本地 bin/lib
+        manifest.join("bin/lib"),
+    ]
+}
+
+/// [`pdfium_available`] 的纯函数形态（可测性——同 [`missing_tools_impl`]：
+/// 环境变量作参数注入，测试里不 `set_var`）。
+pub fn pdfium_available_impl(lib_env: Option<&str>, path_env: Option<&str>) -> bool {
+    // ① 显式环境变量（最高优先——与 engine_pdfium 定位序一致）
+    if let Some(p) = lib_env {
+        if !p.trim().is_empty() && std::path::Path::new(p).is_file() {
+            return true;
+        }
+    }
+    // ② 编译期候选目录
+    let fname = pdfium_library_filename();
+    if pdfium_library_candidates().iter().any(|d| d.join(fname).is_file()) {
+        return true;
+    }
+    // ③ 系统库（PATH 里的同名文件）
+    if let Some(paths) = path_env {
+        let dirs: Vec<std::path::PathBuf> = std::env::split_paths(paths).collect();
+        if dirs.iter().any(|d| d.join(fname).is_file()) {
+            return true;
+        }
+    }
+    false
+}
+
+/// pdfium 库是否可用（L1 探测面，**不实际绑定**——绑定是进程级单例，
+/// 探测不该有副作用）。
+pub fn pdfium_available() -> bool {
+    pdfium_available_impl(
+        std::env::var(PDFIUM_LIB_ENV).ok().as_deref(),
+        std::env::var("PATH").ok().as_deref(),
+    )
+}
+
+/// PDF 引擎三态判定（L1 主入口）。
+///
+/// `poppler_ok` = poppler 三件套是否齐全（调用方传 [`missing_tools`] 判空，
+/// 便于测试注入）。
+pub fn pdf_env_status(poppler_ok: bool) -> PdfEnvStatus {
+    match (pdfium_available(), poppler_ok) {
+        (true, true) => PdfEnvStatus::Full,
+        (true, false) => PdfEnvStatus::PdfiumOnly,
+        (false, _) => PdfEnvStatus::None,
+    }
+}
+
+/// poppler 文本层三件套（**不含** tesseract——那是 OCR 面）。
+pub const POPPLER_TEXT_TOOLS: &[&str] = &["pdftotext", "pdftoppm", "pdfinfo"];
+
+/// 按真实环境判三态。
+pub fn detect_pdf_env_status() -> PdfEnvStatus {
+    pdf_env_status(missing_tools(POPPLER_TEXT_TOOLS).is_empty())
+}
+
+/// 三态的人类可读回报 + 缺件清单（报告面一站式）。
+pub fn pdf_env_report() -> (PdfEnvStatus, String) {
+    let status = detect_pdf_env_status();
+    let mut msg = status.to_message();
+    let miss = missing_tools(POPPLER_TEXT_TOOLS);
+    if !miss.is_empty() {
+        msg.push_str(&format!("（缺 poppler: {}）", miss.join(", ")));
+    }
+    (status, msg)
+}
 /// 测试入口预检：缺件则打印 SKIP 横幅并返回 `true`（调用方应立即 `return`）。
 ///
 /// 用法（issue #9 要求的形态）：

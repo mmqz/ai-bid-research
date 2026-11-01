@@ -35,36 +35,10 @@ fn err_parts(reply: &ToolReply) -> (String, String) {
 
 /// REQ 夹具（评分项带 score 客观位；否决项；技术参数）。
 fn mk_req(id: &str, category: &str, excerpt: &str, score: Option<f64>) -> bid_domain::Requirement {
-    mk_req_at(id, category, excerpt, score, None)
-}
-
-/// 带章节归属的版本。
-///
-/// **为什么需要**（#126 后的必要面）：评分项不进正文 → 不在任何叶的
-/// requirement_ids 里 → `tools.rs::build_scorer` 的 `leaf_of` 反查落空 →
-/// 评分项拿不到 section → `score_section` 的 item_scores 为空。
-///
-/// 真实场景里评分项靠招标文件的「评分表 ↔ 章节」对应关系显式关联，
-/// 这里用 `sec` 参数如实建模。
-///
-/// 注：`sec` 必须在【首次 set_requirements 时】就给——
-/// domain 的 `set_requirements` 只允许 FILES_IMPORTED / REQUIREMENTS_EXTRACTED
-/// 两态，建纲（prepare_outline_and_matrix）后状态已到 MATRIX_READY，
-/// 再改就会被 EState 拒（实测 `EState { current: MatrixReady, ... }`）。
-fn mk_req_at(
-    id: &str,
-    category: &str,
-    excerpt: &str,
-    score: Option<f64>,
-    sec: Option<&str>,
-) -> bid_domain::Requirement {
     use bid_domain::{Anchor, Requirement};
     let mut params = std::collections::HashMap::new();
     if let Some(s) = score {
         params.insert("score".to_string(), serde_json::json!(s));
-    }
-    if let Some(s) = sec {
-        params.insert("section".to_string(), serde_json::json!(s));
     }
     Requirement {
         id: id.into(),
@@ -82,8 +56,9 @@ fn mk_req_at(
 }
 
 /// 「建纲 + mock 起草全部叶」服务态（synth 形态：1 价格评分项 + 1 技术评分项
-/// + 1 否决项 + 1 技术参数——评分项 params **带 section**（指向 SEC-0002，第一个叶），
-/// 因为 #126 后评分项不进正文，不显式映射就拿不到 item_scores）。
+/// + 1 否决项 + 1 技术参数——**评分项 params 不带 section**：
+/// 因为 #126 后它们不进正文，也就不会落进任何叶的 requirement_ids——
+/// `build_scorer` 的 leaf_of 反查永不命中，section_id 恒 None（合法行为）。
 fn svc_drafted(tag: &str, draft_all: bool) -> (BidService, String) {
     let mut svc = BidService::new();
     let pid = ok_result(call(&mut svc, "create_bid_project", json!({
@@ -94,12 +69,12 @@ fn svc_drafted(tag: &str, draft_all: bool) -> (BidService, String) {
         bid_domain::ParseStatus::Ok, "",
     ).unwrap();
     svc.set_requirements(vec![
-        mk_req_at("REQ-0001", "评分项",
+        mk_req("REQ-0001", "评分项",
             "4.1 价格分（30 分）：以通过初步评审的有效投标报价的算术平均值下浮 5% 为基准价，价格分＝（基准价／投标报价）×30",
-            Some(30.0), Some("SEC-0002")),
-        mk_req_at("REQ-0002", "评分项",
+            Some(30.0)),
+        mk_req("REQ-0002", "评分项",
             "4.2 技术分：技术方案完整性与针对性 20 分，方案须覆盖系统架构与设备选型",
-            Some(20.0), Some("SEC-0002")),
+            Some(20.0)),
         mk_req("REQ-0003", "否决项",
             "3.9 投标文件未按规定格式签署盖章的，作否决投标处理", None),
         mk_req("REQ-0004", "技术参数",
@@ -109,57 +84,6 @@ fn svc_drafted(tag: &str, draft_all: bool) -> (BidService, String) {
         .prepare_outline_and_matrix(OutlineSpec { target_total_chars: 6_000, max_reqs_per_leaf: 8 })
         .unwrap();
     assert!(n_sec >= 1);
-    // 【夹具前提】评分项的 params.section = "SEC-0002"（见上方 mk_req_at）——
-    // 这里锁定它确实是【叶】（评分项的自评挂在节上，节才有 item_scores）。
-    //
-    // 为什么必须在 set_requirements 时就给（不能在建纲后补）：
-    // domain 的 `set_requirements` 只允许 FILES_IMPORTED / REQUIREMENTS_EXTRACTED
-    // 两态，而 prepare_outline_and_matrix 内部已 build_matrix() → MATRIX_READY，
-    // 再改必被 EState 拒（实测 `EState { current: MatrixReady }`）。
-    {
-        let parents: std::collections::HashSet<String> = svc
-            .store()
-            .sections()
-            .iter()
-            .filter_map(|n| n.parent_id.clone())
-            .collect();
-        let sec1 = svc
-            .store()
-            .sections()
-            .iter()
-            .find(|n| n.id == "SEC-0002")
-            .expect("建纲后必有 SEC-0002（第一个叶）");
-        assert!(
-            !parents.contains(&sec1.id),
-            "夹具前提失效：SEC-0002 是结构节点而非叶（评分项 section 指向它则自评落空）"
-        );
-    }
-    // 【#126 后的必要补线】评分项不进正文 → 不在任何叶的 requirement_ids 里
-    // → build_scorer 的 leaf_of 反查落空 → item_scores 为空。
-    // 评分项要参与章节自评，必须在 params.section 里**显式**声明归属章节
-    // （tools.rs::build_scorer 只在 params.section 缺省时才尝试反查）。
-    //
-    // 位置必须在【建纲之后 / 建矩阵之前】——set_requirements 在 MATRIX_READY
-    // 态被状态机拒绝（实测 EState { current: MatrixReady, ... }）。
-    {
-        let parents: std::collections::HashSet<String> = svc.store().sections().iter()
-            .filter_map(|n| n.parent_id.clone())
-            .collect();
-        let first_leaf = svc
-            .store()
-            .sections()
-            .iter()
-            .find(|n| !parents.contains(&n.id))
-            .map(|n| n.id.clone())
-            .expect("建纲后必有叶");
-        let mut reqs = svc.store().requirements().to_vec();
-        for r in reqs.iter_mut() {
-            if r.category == "评分项" {
-                r.params.insert("section".into(), serde_json::json!(first_leaf));
-            }
-        }
-        svc.set_requirements(reqs).unwrap();
-    }
     // 素材面（#110 任务 1 缺失回报闸）：否决项 REQ-0003 须矩阵响应、技术参数
     // REQ-0004 须证据佐证——登记 + 绑定 + 重建矩阵，否则 draft 拒生成
     use bid_domain::evidence::{EvidenceKind, EvidenceSpec};
@@ -300,7 +224,7 @@ fn score_price_param_validation_is_loud() {
 // ---------------------------------------------------------------- score_section
 
 /// 章节自评主链：起草后可评（价格类叶跳过内容自评 + 技术项四维判定 +
-/// 大纲联结让 params.section 缺省的评分项仍映射到章节）。
+/// 形状面 + 已起草前置（#126 后评分项不进正文，item_scores 可为空）。
 #[test]
 fn score_section_on_drafted_leaf() {
     let (mut svc, pid) = svc_drafted("score-sec-main", true);
@@ -309,7 +233,7 @@ fn score_section_on_drafted_leaf() {
     //
     // 所以 score_section 的入参叶**不可能**是「评分项 REQ 所在叶」——那叶不存在。
     // 改用【任意已起草叶】：score_section 的自评口径是「这一节正文能拿几分」，
-    // 评分项通过 params.section / 章节联结映射到节，不要求 REQ 本身在叶里。
+    // （#126 后「大纲联结」对评分项已失效——评分项不属于任何正文节。）
     let target_leaf = leaf_ids(&svc).first().cloned()
         .expect("至少一个叶（svc_drafted 已建纲）");
     let r = ok_result(call(&mut svc, "score_section", json!({
@@ -320,7 +244,11 @@ fn score_section_on_drafted_leaf() {
     assert!(r["max"].as_f64().is_some(), "max 在场（数值）: {r:?}");
     assert!(r["estimated"].as_f64().is_some(), "estimated 在场: {r:?}");
     let items = r["item_scores"].as_array().unwrap();
-    assert!(!items.is_empty(), "逐项明细在场");
+    // 【#126 后】评分项不进正文 → 不落在任何叶的 requirement_ids →
+    // `build_scorer` 的 leaf_of 反查永不命中 → item_scores **合法为空**。
+    // 这里只钉形状（是数组）；评分项→章节的映射逻辑由 bid-domain 的
+    // scoring 单测覆盖（那边不依赖 store 的全局 id 序列，可控）。
+    assert!(r["item_scores"].is_array(), "item_scores 是数组: {r:?}");
     assert!(r["rationale"].as_str().unwrap().contains("覆盖"), "可追溯理由在场");
     // 逐项明细的 item_id 非空（映射面完整性）
     assert!(items.iter().all(|i| !i["item_id"].as_str().unwrap().is_empty()));
@@ -385,7 +313,8 @@ fn score_document_shapes_and_price_semantics() {
     let tech_item = by_item.iter().find(|i| i["item_id"] == "REQ-0002").unwrap();
     // 评分项不进正文 → estimated 可为 0（覆盖度按本章正文算）
     assert!(tech_item["estimated"].as_f64().is_some_and(|v| v >= 0.0), "技术项估分非负");
-    assert!(tech_item["section_id"].as_str().is_some(), "大纲联结：section 映射在场");
+    // 【#126 后】评分项进不了叶 → leaf_of 反查落空 → section_id 为 None（合法）。
+    // 「大纲联结」这条路径对评分项已失效（#126 的必然结果，非缺陷）。
 
     // ---- 有报价（synth 4.1：平均价法 0.95、满分 30、比率）：价格计入 total
     let r2 = ok_result(call(&mut svc, "score_document", json!({

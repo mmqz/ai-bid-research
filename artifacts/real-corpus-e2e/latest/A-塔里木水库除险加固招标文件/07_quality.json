@@ -1,6 +1,6 @@
 {
   "artifact": {
-    "path": "/tmp/real-corpus-e2e-A-塔里木水库除-14812/artifacts/quality-report.json",
+    "path": "/tmp/real-corpus-e2e-A-塔里木水库除-17842/artifacts/quality-report.json",
     "size": 326303
   },
   "needs_human": [
@@ -11003,11 +11003,11 @@
       ],
       "dup_with": [
         [
-          "SEC-0149",
+          "SEC-0230",
           0.5714
         ],
         [
-          "SEC-0230",
+          "SEC-0149",
           0.5714
         ]
       ],

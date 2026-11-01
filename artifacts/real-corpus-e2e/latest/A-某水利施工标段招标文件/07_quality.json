@@ -1,6 +1,6 @@
 {
   "artifact": {
-    "path": "/tmp/real-corpus-e2e-A-某水利施工标-14812/artifacts/quality-report.json",
+    "path": "/tmp/real-corpus-e2e-A-某水利施工标-17842/artifacts/quality-report.json",
     "size": 212243
   },
   "needs_human": [
@@ -5414,11 +5414,11 @@
           0.625
         ],
         [
-          "SEC-0135",
+          "SEC-0162",
           0.5
         ],
         [
-          "SEC-0162",
+          "SEC-0135",
           0.5
         ]
       ],
@@ -7802,15 +7802,15 @@
       ],
       "dup_with": [
         [
+          "SEC-0095",
+          0.5
+        ],
+        [
           "SEC-0135",
           0.5
         ],
         [
           "SEC-0107",
-          0.5
-        ],
-        [
-          "SEC-0095",
           0.5
         ]
       ],

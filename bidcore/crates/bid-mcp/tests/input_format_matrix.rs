@@ -186,7 +186,7 @@ fn truncated_docx_is_item_failure() {
     let bad = ws.join("truncated.docx");
     // PK + 垃圾——让 unzip 解析失败
     let mut bytes = vec![0x50, 0x4b, 0x03, 0x04];
-    bytes.extend((0u8..200).map(|i| i.wrapping_mul(7)));
+    bytes.extend((0u16..200).map(|i| (i as u8).wrapping_mul(7)));
     std::fs::write(&bad, &bytes).unwrap();
 
     let reply = import(&mut svc, &pid, &bad, "截断.docx", "招标文件");
@@ -213,7 +213,7 @@ fn lying_extension_fails_loudly() {
     // xlsx 的 ZIP 内部结构（xl/workbook.xml）冒充 docx
     let mut bytes = vec![0x50, 0x4b, 0x03, 0x04];
     bytes.extend(b"xl/workbook.xml".iter().copied());
-    bytes.extend((0u8..300).map(|i| i.wrapping_add(13)));
+    bytes.extend((0u16..300).map(|i| (i as u8).wrapping_add(13)));
     std::fs::write(&liar, &bytes).unwrap();
 
     let reply = import(&mut svc, &pid, &liar, "其实是xlsx.docx", "招标文件");

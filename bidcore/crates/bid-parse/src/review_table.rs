@@ -399,7 +399,9 @@ pub fn extract_pdf_linearized(f: &ParsedFile) -> (Vec<ReviewItem>, Vec<usize>) {
                 continue;
             } else {
                 items.extend(new_items);
-                consumed.push(idx); // 表名行
+                // 表名行**不进消费集**——留给 extract.rs 旧链开审查语境
+                // （re_review_open「形式评审」——与基线行为一致）；消费集只含
+                // 数据行（含孤立序号行）。
                 consumed.extend(used.iter().copied());
                 i = next;
                 continue;
@@ -876,10 +878,13 @@ mod tests {
         );
         assert_eq!(items[4].row, 5);
         assert_eq!(items[0].table_name, "形式评审表");
-        // 消费位：表名 + 数据行锚块（结论/签名/注行不在内）
-        assert!(consumed.contains(&2), "表名行被消费");
+        // 消费位：数据行锚块（表名/表头/结论/签名/注行不消费——表名行留给
+        // 旧链开审查语境）
+        assert!(!consumed.contains(&2), "表名行不消费（旧链开审查语境）");
+        assert!(!consumed.contains(&5), "线性化表头行不消费");
+        assert!(consumed.contains(&6), "数据行 1 被消费");
+        assert!(consumed.contains(&9), "孤立序号行被消费（不进锚）");
         assert!(!consumed.contains(&16), "结论行不消费");
-        assert!(!consumed.contains(&17), "签名行不消费");
         assert!(!consumed.contains(&18), "注行不消费（走既有否决分支）");
     }
 

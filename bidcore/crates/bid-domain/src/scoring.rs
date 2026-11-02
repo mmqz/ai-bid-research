@@ -57,6 +57,10 @@ pub struct ScoreTier {
 ///   「章节 ↔ 评分项」对接面）；缺失 → None（未映射显式化）。
 /// - `our_estimate`：**派生恒 None**（自评是运行时评估产物，不是抽取物）——
 ///   由任务 3 [`SectionScorer`] 填充，此处只占位不伪装。
+/// - `score_rules` ← `params.score_rules`（#186 预留面：完整评分细则原文——
+///   `criteria` 只是首个锚点摘录，可能残缺半句）。**当前判档不消费本字段**
+///   （assess 仍是关键词启发式 rule_heuristic——数据先透出，不伪装已接入），
+///   细则判档接入见 #186 第二步（依赖 #170 评分映射）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ScoringItem {
     pub requirement_id: String,
@@ -66,6 +70,10 @@ pub struct ScoringItem {
     pub max_score: Option<f64>,
     /// 评分标准原文（锚点摘录——审校比对用）
     pub criteria: String,
+    /// 完整评分细则原文（#186 预留面——判档不消费，透出供诊断/起草对照；
+    /// None = 解析层未登记细则）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub score_rules: Option<String>,
     /// 否决项/废标项 → true（漏响应即废标的独立闸门）
     pub is_hard_gate: bool,
     /// 父评分项 REQ id（多级结构：技术分 → 子项）；顶层/平铺 → None
@@ -319,6 +327,11 @@ pub fn derive_scoring_items(reqs: &[Requirement]) -> Vec<ScoringItem> {
                         .first()
                         .map(|a| a.excerpt.clone())
                         .unwrap_or_default(),
+                    score_rules: r
+                        .params
+                        .get("score_rules")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
                     is_hard_gate: false,
                     parent_id: r
                         .params
@@ -352,6 +365,11 @@ pub fn derive_scoring_items(reqs: &[Requirement]) -> Vec<ScoringItem> {
                     .first()
                     .map(|a| a.excerpt.clone())
                     .unwrap_or_default(),
+                score_rules: r
+                    .params
+                    .get("score_rules")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
                 is_hard_gate: true,
                 parent_id: r
                     .params
@@ -695,6 +713,10 @@ pub struct ItemScore {
     pub is_objective: bool,
     /// 判定理由（四维明细——可追溯，非黑盒数字）
     pub rationale: String,
+    /// 评分细则原文（#186 预留面——ScoringItem.score_rules 透传；**判档
+    /// 不消费**，供起草/审校对照细则。None = 无细则）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub score_rules: Option<String>,
 }
 
 /// 章节自评结果（issue #94 §二 struct + `item_scores` 明细扩展）。
@@ -975,6 +997,7 @@ impl SectionScorer {
                 coverage: (d.coverage * 10000.0).round() / 10000.0,
                 is_objective: item.is_objective,
                 rationale: rationale_lines.last().unwrap().clone(),
+                score_rules: item.score_rules.clone(),
             });
         }
         let estimated: f64 = item_scores.iter().map(|s| s.estimated).sum();
@@ -1041,6 +1064,18 @@ impl SectionScorer {
                 )),
                 Some(_) => {}
             }
+        }
+        // #186 预留面显式化：细则已入树但判档不消费（rule_heuristic）——
+        // 不伪装「按细则评分」（细则判档接入见 #186 第二步，依赖 #170）。
+        let rules_n = self
+            .reachable_leaves()
+            .iter()
+            .filter(|i| i.score_rules.is_some())
+            .count();
+        if rules_n > 0 {
+            notes.push(format!(
+                "SCORE_RULES_RESERVED: {rules_n} 项已登记评分细则——当前判档为关键词启发式（rule_heuristic），细则未参与判档（预留面，接入见 #186 第二步）"
+            ));
         }
         // 价格分（B1 只调用不改）
         let price_score = match price {

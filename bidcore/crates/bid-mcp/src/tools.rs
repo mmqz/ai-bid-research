@@ -2219,7 +2219,8 @@ fn score_price(_svc: &mut BidService, args: Value) -> ToolResult {
 ///
 /// #186 语义降级：**规则诊断，非评标模拟**——tier 是关键词覆盖/长度/证据词
 /// 存在性的启发式档位（`diagnostic_only=true, result_kind=rule_heuristic`），
-/// 不代表评委会会给的档；评分细则接入（score_rules → assess）另见 #186 第二步。
+/// 不代表评委会会给的档。item_scores 已透传 `score_rules` 细则原文
+/// （判档不消费——起草/审校对照面）；细则判档接入另见 #186 第二步。
 ///
 /// 壳层职责：参数校验 → route_guard（只读诊断，MatrixReady+ 窗口）→ 前置
 /// （章节在场 + 已起草——无正文的自评是空转）→ B2 [`SectionScorer`] 只调用
@@ -2287,8 +2288,9 @@ fn score_section(svc: &mut BidService, args: Value) -> ToolResult {
 ///
 /// #186 语义降级：**规则诊断，非评标模拟**——分数与 tier 来自关键词覆盖/
 /// 长度阈值/证据词存在性启发式（`diagnostic_only=true,
-/// result_kind=rule_heuristic`），不代表评委会评分；评分细则接入
-/// （score_rules → assess）另见 #186 第二步。
+/// result_kind=rule_heuristic`），不代表评委会评分。by_item 透传 `score_rules`
+/// 细则原文（判档不消费——SCORE_RULES_RESERVED note 显式登记）；评分细则
+/// 接入（score_rules → assess）另见 #186 第二步。
 fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
     const TOOL: &str = "score_document";
     let project_id = req_str(&args, "project_id", TOOL)?;
@@ -2370,6 +2372,7 @@ fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
                 "tier": "价格分（f(报价)——score_price/B1 计算）",
                 "coverage": Value::Null,
                 "section_id": it.section_id,
+                "score_rules": it.score_rules,
             }));
             continue;
         }
@@ -2386,6 +2389,8 @@ fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
             "tier": est.map(|e| e.tier.label()).unwrap_or("未覆盖"),
             "coverage": est.map(|e| e.coverage).unwrap_or(0.0),
             "section_id": it.section_id,
+            // #186 预留面：细则原文透出（判档不消费——rule_heuristic）
+            "score_rules": it.score_rules,
         }));
     }
     let gap = ((target - doc.total) * 100.0).round() / 100.0;

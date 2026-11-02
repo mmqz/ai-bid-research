@@ -59,6 +59,9 @@ sections 只列可起草叶）、`score_price` / `score_section` / `score_docume
 > ⚠️ **#186 语义纪律**：两个自评工具都是**规则诊断，不是评标模拟**（输出恒带
 > `diagnostic_only=true, result_kind="rule_heuristic"`）——tier/分数是关键词
 > 覆盖/长度/证据词启发式结果，**不得**向用户承诺为「评委会会给的档位/分数」。
+> 输出中的 `score_rules`（by_item/item_scores）是评分细则**原文透出**（预留面：
+> 判档不消费——notes 的 SCORE_RULES_RESERVED 会显式登记）——可用于起草/审校
+> 对照细则，但不得声称「已按细则评分」。
 
 人工门（`record_review_gate`，reviewer 必须以 `human:` 前缀——AI 操作者不得
 自审自过）：矩阵门 `matrix_approval` → 大纲门 `outline_approval` → 导出确认门

@@ -197,3 +197,50 @@ fn document_self_eval_honest_notes_and_manual_agreement() {
     assert!(t1.item_scores[0].rationale.contains("10.00×0.950=9.50"),
         "估分算式可复核：{}", t1.item_scores[0].rationale);
 }
+
+/// #186 预留面：score_rules 透传三面（树 / score_section / score_document）
+/// + **判档不消费**（同文同分——细则关键词不进覆盖度）+ 预留面 note 显式登记。
+#[test]
+fn score_rules_reserved_surface_wired_but_not_consumed() {
+    let rules = "技术方案应具有针对性、组织体系合理、进度计划可执行，并提供应急保障措施；每缺一项扣 2 分";
+    // T1 注入细则（params.score_rules —— extract.rs 评审表路径的登记形态）
+    let mut reqs = scoring_table_reqs();
+    reqs.iter_mut().find(|r| r.id == "T1").unwrap()
+        .params.insert("score_rules".to_string(), serde_json::json!(rules));
+    let mut s = DomainStore::new();
+    s.create_project("智慧病房物联网平台", "ZHYY-2026-GK-018", "明标", "it-key-b").unwrap();
+    s.upsert_file("tender.docx", "招标文件", "sha-b2", 12, 3, 240, 0, ParseStatus::Ok, "")
+        .unwrap();
+    s.set_requirements(reqs).unwrap();
+
+    // 面 1：树派生透传（T1 带细则；T2 无 → None——不虚构）
+    let tree = s.scoring_tree();
+    assert_eq!(tree.index["T1"].score_rules.as_deref(), Some(rules));
+    assert_eq!(tree.index["T2"].score_rules, None);
+
+    // 面 2：score_section 的 item_scores 透传细则原文（起草/审校对照面）
+    // + 判档不消费的强验证：同一份「只写部分关键词」的正文，带细则前后
+    //   同文同分（细则里的「组织体系/进度计划/应急保障」若进覆盖度必然变化）
+    let partial = ideal_section(&["技术方案完整性", "针对性"], 600);
+    let scorer = SectionScorer::new(tree, vec![]);
+    let with_rules = scorer.score_section("SEC-01", &partial);
+    let base_scorer = SectionScorer::new(store_with_scoring_table().scoring_tree(), vec![]);
+    let base = base_scorer.score_section("SEC-01", &partial);
+    assert_eq!(with_rules.estimated, base.estimated,
+        "判档不消费细则——同文同分：{} vs {}", with_rules.estimated, base.estimated);
+    assert_eq!(with_rules.covered_items, base.covered_items);
+    let t1 = with_rules.item_scores.iter().find(|i| i.item_id == "T1").unwrap();
+    assert_eq!(t1.score_rules.as_deref(), Some(rules));
+    assert_eq!(
+        base.item_scores.iter().find(|i| i.item_id == "T1").unwrap().score_rules,
+        None
+    );
+
+    // 面 3：score_document notes 预留面登记（不伪装「按细则评分」）
+    let ds = scorer.score_document(&[("SEC-01".to_string(), partial.clone())], None);
+    assert!(ds.notes.iter().any(|n| n.contains("SCORE_RULES_RESERVED") && n.contains("1 项")),
+        "{:?}", ds.notes);
+    let ds_base = base_scorer.score_document(&[("SEC-01".to_string(), partial)], None);
+    assert!(!ds_base.notes.iter().any(|n| n.contains("SCORE_RULES_RESERVED")),
+        "无细则不登记：{:?}", ds_base.notes);
+}

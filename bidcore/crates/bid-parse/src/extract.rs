@@ -32,7 +32,31 @@ fn nfkc(s: &str) -> String {
     s.nfkc().collect()
 }
 
+/// 兼容入口：按【文件名前缀】推断业务类别（既有夹具与外部直接调用沿用）。
+///
+/// 生产路径应改调 [`extract_requirements_with_kind`] —— 用导入时登记的真实
+/// 业务 kind，不依赖文件名。此入口保留是为了不破坏既有测试夹具。
 pub fn extract_requirements(files: &[ParsedFile]) -> Vec<Requirement> {
+    extract_dispatch(files, &|_name| None)
+}
+
+/// 生产入口：接受「文件名 → 业务 kind」查询函数（来自 `TenderFile.kind`）。
+///
+/// #196：分发必须按业务 kind，不能按文件名前缀——真实用户文件不带 `A-` 前缀，
+/// 旧实现会把它们静默丢弃（抽取 0 条而工具仍返回 ok:true）。
+///
+/// `kind_of` 返回 `None` 时退回前缀推断（兼容夹具）。
+pub fn extract_requirements_with_kind<F>(files: &[ParsedFile], kind_of: F) -> Vec<Requirement>
+where
+    F: Fn(&str) -> Option<String>,
+{
+    extract_dispatch(files, &kind_of)
+}
+
+fn extract_dispatch(
+    files: &[ParsedFile],
+    kind_of: &dyn Fn(&str) -> Option<String>,
+) -> Vec<Requirement> {
     // 【真实文件驱动修复】PDF 文本层的康熙部首污染（2026-11 实测）：
     //
     // 真实招标 PDF（黑龙江政采平台导出）文本层用了 Unicode 康熙部首区：
@@ -55,17 +79,33 @@ pub fn extract_requirements(files: &[ParsedFile]) -> Vec<Requirement> {
             .blocks
             .iter()
             .any(|b| matches!(b.kind, BlockKind::PdfLine | BlockKind::OcrLine));
-        match () {
-            _ if f.name.starts_with("A-") && is_pdf_blocks =>
-                extract_main_pdf(f, &mut reqs, &mut seq),
-            _ if f.name.starts_with("C-") && is_pdf_blocks =>
-                extract_main_pdf(f, &mut reqs, &mut seq),
-            _ if f.name.starts_with("A-") => extract_main_docx(f, &mut reqs, &mut seq),
-            _ if f.name.starts_with("C-") => extract_main_docx(f, &mut reqs, &mut seq), // 补遗同构（增量面属 V2）
-            _ if f.name.starts_with("B1") => extract_b1_lines(f, &mut reqs, &mut seq),
-            _ if f.name.starts_with("B2") => extract_b2_ocr(f, &mut reqs, &mut seq),
-            _ => {} // B3 图纸目录/证据件：无条款抽取面（证据入库走 chunk 索引）
+        // 【#196 修复】分发依据：**业务 kind 优先，文件名前缀只作兜底**。
+        //
+        // 原实现只认文件名前缀（A-/C-/B1/B2），导致任何真实用户文件
+        // （如「光纤租赁费招标文件.docx」）落入 `_ => {}` **静默零抽取**，
+        // 而工具仍返回 ok:true、状态推进到 REQUIREMENTS_EXTRACTED——
+        // 违反 issue #9「缺失不得伪装成功」纪律。
+        //
+        // 前缀是测试夹具的命名约定，不应泄漏为生产判据。
+        // 现在：导入时登记的业务 kind（招标文件/补遗/附件/图纸/证据）优先；
+        //       kind 缺省时退回前缀推断（兼容既有夹具与外部直接调用）。
+        let kind = kind_of(&f.name);
+        let is_main = matches!(kind.as_deref(), Some("招标文件") | Some("补遗") | Some("澄清"));
+        let is_attachment = matches!(kind.as_deref(), Some("附件") | Some("图纸") | Some("证据"));
+        let is_b1 = matches!(kind.as_deref(), Some("报价文件")) || f.name.starts_with("B1");
+        let is_b2 = matches!(kind.as_deref(), Some("扫描件")) || f.name.starts_with("B2");
+        if is_main || (!is_attachment && !is_b1 && !is_b2 && kind.is_none()) {
+            if is_pdf_blocks {
+                extract_main_pdf(f, &mut reqs, &mut seq);
+            } else {
+                extract_main_docx(f, &mut reqs, &mut seq);
+            }
+        } else if is_b1 {
+            extract_b1_lines(f, &mut reqs, &mut seq);
+        } else if is_b2 {
+            extract_b2_ocr(f, &mut reqs, &mut seq);
         }
+        // 附件/图纸/证据：无条款抽取面（证据入库走 chunk 索引）。
     }
     // #52 排除面统一复检（引擎排除面——精确率攻坚）：
     // 否决类 REQ 命中形态锁排除面 → 改判「评分项/其他」。

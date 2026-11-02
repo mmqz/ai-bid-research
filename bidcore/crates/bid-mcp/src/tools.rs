@@ -690,7 +690,18 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
 
     // ---- 转发业务：确定性先行抽取（extract.rs 规则——输入为引擎/旧路径
     //      产出的同型 ParsedFile，B5 起主文件 docx 已走 bid-engine）
-    let reqs = bid_parse::extract::extract_requirements(svc.parsed());
+    // #196：按【业务 kind】分发，不按文件名前缀。
+    // kind 来自 store 里的 TenderFile（导入时登记：招标文件/补遗/附件/图纸/证据），
+    // 这样「光纤租赁费招标文件.docx」这类真实文件名也能正常抽取。
+    let kind_map: std::collections::HashMap<String, String> = svc
+        .store()
+        .files()
+        .iter()
+        .map(|f| (f.name.clone(), f.kind.clone()))
+        .collect();
+    let reqs = bid_parse::extract::extract_requirements_with_kind(svc.parsed(), |name| {
+        kind_map.get(name).cloned()
+    });
 
     // ---- #219 第二步：抽取通路合并（Agent 标记优先 + 正则兜底补漏）
     //
@@ -835,6 +846,17 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
         ));
     }
 
+    // 【#196 纪律补齐】抽取为 0 条必须响亮告警，不能静默「成功」。
+    // 旧行为：counts.total=0 + ok:true + 状态推进 → 下游全部 E_STATE，
+    // 而调用方以为自己「抽取完成」——违反 issue #9「缺失不得伪装成功」。
+    if total == 0 {
+        let names: Vec<&str> = svc.parsed().iter().map(|p| p.name.as_str()).collect();
+        warnings.push(format!(
+            "ZERO_REQUIREMENTS: 抽取结果为 0 条（输入 {} 个文件：{:?}）——下游建纲/矩阵/起草/导出将全部被拒。常见原因：① 文件 kind 未登记为「招标文件」；② 文本层损坏或为扫描件（需 OCR）；③ 文档不含可识别的条款结构。这不是「抽取完成」，请先排查输入面。",
+            names.len(),
+            names
+        ));
+    }
     Ok(json!({
         "counts": {
             "total": total,

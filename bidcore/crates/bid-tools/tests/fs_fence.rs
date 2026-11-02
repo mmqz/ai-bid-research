@@ -29,32 +29,53 @@ fn canon_roots(d: &std::path::Path) -> Vec<std::path::PathBuf> {
 
 /// 期望路径的规范化形态——与 `Resolved::absolute()` 对齐。
 ///
-/// Windows 上 `temp_dir()` 返回 8.3 短名（`RUNNER~1`），而 canonicalize
-/// 展开为长名（`runneradmin`）；分隔符也会从 `/` 归一为 `\`。
-/// 断言必须比较【同一种形态】，否则在 Windows CI 上假红。
-/// 期望路径的规范化形态——与 `Resolved::absolute()` 对齐。
-///
-/// Windows 平台的两个坑（CI 实测，本地 Linux 看不出来）：
+/// Windows CI 的三个坑（本地 Linux 全看不出来，逐轮踩过）：
 /// 1. `temp_dir()` 返回 8.3 短名（`RUNNER~1`），`canonicalize` 展开长名（`runneradmin`）
 /// 2. `canonicalize` 返回 `\\?\C:\...` 扩展长度前缀，而 `display_path()` 会剥掉它
+/// 3. 路径末尾可能还不存在（如 `no-such-dir/ghost.docx`），不能整体 canonicalize
 ///
-/// 断言必须比较【同一种形态】，否则在 Windows CI 上假红。
+/// 做法：从最深一层向上找【已存在】的祖先做 canonicalize，再把剩余段拼回去。
 fn exp(p: &std::path::Path) -> std::path::PathBuf {
-    // 与 fs_fence::display_path 同规则：剥 \\?\ 前缀 + `/` 归一为 `\`
-    let norm = |b: &std::path::Path| -> std::path::PathBuf {
-        let s = b.to_string_lossy().replace('/', "\\");
-        let s = s.strip_prefix("\\\\?\\").unwrap_or(&s).to_string();
-        std::path::PathBuf::from(s)
-    };
-    // 父目录 canonicalize（不存在的叶子无法 canonicalize——按同样规则拼回去）
-    match (p.parent(), p.file_name()) {
-        (Some(dir), Some(name)) => match std::fs::canonicalize(dir) {
-            Ok(c) => norm(&c.join(name)),
-            Err(_) => norm(p),
-        },
-        _ => norm(p),
+    /// 剥 \\?\ 前缀 + `/` 归一为 `\`（与 fs_fence::display_path 同规则）
+    fn display(path: &std::path::Path) -> std::path::PathBuf {
+        let s = path.to_string_lossy().replace('/', "\\");
+        let out = match s.strip_prefix("\\\\?\\") {
+            Some(rest) => rest.to_string(),
+            None => s,
+        };
+        std::path::PathBuf::from(out)
+    }
+
+    // 向上找第一个存在的祖先；不存在的段先收集起来
+    let mut tail: Vec<std::ffi::OsString> = Vec::new();
+    let mut cur: Option<&std::path::Path> = Some(p);
+    let mut ancestor: Option<std::path::PathBuf> = None;
+    while let Some(c) = cur {
+        if c.exists() {
+            ancestor = Some(match std::fs::canonicalize(c) {
+                Ok(canon) => display(&canon),
+                Err(_) => display(c),
+            });
+            break;
+        }
+        if let Some(n) = c.file_name() {
+            tail.push(n.to_os_string());
+        }
+        cur = c.parent();
+    }
+
+    match ancestor {
+        Some(mut a) => {
+            for seg in tail.iter().rev() {
+                a.push(seg);
+            }
+            a
+        }
+        None => display(p),
     }
 }
+
+
 
 // ---------------------------------------------------------------- read 面
 

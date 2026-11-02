@@ -19,11 +19,13 @@ use serde_json::{json, Value};
 use std::path::PathBuf;
 
 fn fixtures() -> PathBuf {
-    std::env::var("BID_FIXTURES")
+    let p = std::env::var("BID_FIXTURES")
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../fixtures")
-        })
+        });
+    // #183 围栏：词法 `..` 会被围栏预拒——受信夹具根统一 canonical 绝对路径
+    std::fs::canonicalize(&p).unwrap_or(p)
 }
 
 fn call(svc: &mut BidService, tool: &str, args: Value) -> ToolReply {
@@ -45,16 +47,14 @@ fn err_code(reply: &ToolReply) -> String {
 }
 
 /// 截断 docx（真实 word-complex.docx 前 1200 字节——EOCD 缺失 → zip 防护
-/// 拒绝，确定性失败面；import_tender_files_tool.rs 同款手法）。
-fn truncated_addendum(tag: &str) -> PathBuf {
+/// 拒绝，确定性失败面；import_tender_files_tool.rs 同款手法）。生成于
+/// 受信根内（#183——「用户上传区」语义，坏件走 R-01 逐件失败）。
+fn truncated_addendum_at(root: &std::path::Path, tag: &str) -> PathBuf {
     let src = fixtures().join("engine-borrowed/TR2/word-complex.docx");
     if !src.exists() {
         return src; // 调用方用 skip_if_fixture_missing 前置守卫
     }
-    let p = std::env::temp_dir().join(format!(
-        "add_waiver_trunc_{tag}_{}.docx",
-        std::process::id()
-    ));
+    let p = root.join(format!("add_waiver_trunc_{tag}.docx"));
     let bytes = std::fs::read(&src).expect("word-complex.docx 夹具缺失");
     std::fs::write(&p, &bytes[..1200]).unwrap();
     p
@@ -63,7 +63,7 @@ fn truncated_addendum(tag: &str) -> PathBuf {
 /// 造一个「MATRIX_READY + 建纲 + 素材齐」但补遗**部分损坏**的服务态
 /// （draft_tool.rs svc_ready 的 #184 变体：两份补遗一份 Ok 一份 Failed）。
 fn svc_with_partial_bad_addendum(tag: &str) -> (BidService, String, String, String) {
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     let pid = ok_result(call(&mut svc, "create_bid_project", json!({
         "name": "#184 补遗分级测试", "bid_deadline": "2026-12-31", "mode": "明标", "external_key": tag,
     })))["project_id"]
@@ -135,7 +135,7 @@ fn svc_with_partial_bad_addendum(tag: &str) -> (BidService, String, String, Stri
 #[test]
 fn waiver_tool_param_and_gate_validation() {
     // 缺参 / 空白 → E_UNPROCESSABLE（先于路由——参数校验面）
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     ok_result(call(&mut svc, "create_bid_project", json!({
         "name": "参数面", "bid_deadline": "2026-12-31", "mode": "明标", "external_key": "aw-param",
     })));
@@ -164,7 +164,7 @@ fn waiver_tool_param_and_gate_validation() {
 
     // DRAFT 态（无文件）→ E_STATE（FilesImported+ 才放行——与 AddendumWaiver
     // 门「导入后任意时刻」同窗口）
-    let mut draft_svc = BidService::new();
+    let mut draft_svc = BidService::new().with_fs_root(fixtures());
     ok_result(call(&mut draft_svc, "create_bid_project", json!({
         "name": "草稿态", "bid_deadline": "2026-12-31", "mode": "明标", "external_key": "aw-draft",
     })));
@@ -242,22 +242,29 @@ fn import_response_carries_addendum_readiness_block() {
     ) {
         return;
     }
-    let mut svc = BidService::new();
+    // #183：受信上传区——好件拷入（同 sha），坏件生成在内（R-01 逐件失败）
+    let root = std::env::temp_dir().join(format!("aw_uploads_import_{}", std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    let wc_up = root.join("word-complex.docx");
+    std::fs::copy(&word_complex, &wc_up).expect("好件拷入受信根");
+    let ga_up = root.join("R6a-纯插入澄清.docx");
+    std::fs::copy(&good_add, &ga_up).expect("好补遗拷入受信根");
+    let mut svc = BidService::new().with_fs_root(&root);
     let pid = ok_result(call(&mut svc, "create_bid_project", json!({
         "name": "导入就绪度接线", "bid_deadline": "2026-12-31", "mode": "明标", "external_key": "aw-import",
     })))["project_id"]
     .as_str()
     .unwrap()
     .to_string();
-    let bad = truncated_addendum("import");
+    let bad = truncated_addendum_at(&root, "import");
     // 一件好补遗（真件 Ok）+ 一件坏补遗（截断 docx → Failed）。好补遗必须
     // 与主文件**不同 sha**（同内容不同名会被 sha256 幂等去重——补遗件
     // 就不在库了，清单会漏计）。
     let reply = call(&mut svc, "import_tender_files", json!({
         "project_id": &pid,
         "files": [
-            { "upload_ref": word_complex.display().to_string(), "filename": "A-招标文件.docx", "kind": "招标文件" },
-            { "upload_ref": good_add.display().to_string(), "filename": "C-补遗01.docx", "kind": "补遗" },
+            { "upload_ref": wc_up.display().to_string(), "filename": "A-招标文件.docx", "kind": "招标文件" },
+            { "upload_ref": ga_up.display().to_string(), "filename": "C-补遗01.docx", "kind": "补遗" },
             { "upload_ref": bad.display().to_string(), "filename": "C-补遗02-坏.docx", "kind": "补遗" },
         ],
     }));
@@ -308,7 +315,7 @@ fn import_response_all_ready_has_empty_not_ready() {
     ) {
         return;
     }
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     let pid = ok_result(call(&mut svc, "create_bid_project", json!({
         "name": "全就绪导入", "bid_deadline": "2026-12-31", "mode": "明标", "external_key": "aw-import-ok",
     })))["project_id"]

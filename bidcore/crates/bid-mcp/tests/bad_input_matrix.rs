@@ -30,7 +30,9 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 fn repo_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..")
+    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    // #183 围栏：词法 `..` 会被围栏预拒——受信夹具根统一 canonical 绝对路径
+    std::fs::canonicalize(&p).unwrap_or(p)
 }
 
 fn fixtures() -> PathBuf {
@@ -345,7 +347,7 @@ fn mixed_batch_keeps_good_and_reports_bad() {
     }
 
     let ws = temp_ws("mixed");
-    let mut svc = BidService::open(&ws).unwrap();
+    let mut svc = BidService::open(&ws).unwrap().with_fs_root(fixtures());
     let pid = new_project(&mut svc, "mixed");
     let bad = write_bad(&ws, "坏件.docx", b"not a zip at all");
 

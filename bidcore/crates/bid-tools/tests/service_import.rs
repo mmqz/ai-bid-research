@@ -10,12 +10,14 @@ use bid_tools::service::{import_files, BidService, ImportSpec};
 use std::path::PathBuf;
 
 fn fixtures() -> PathBuf {
-    std::env::var("BID_FIXTURES")
+    let p = std::env::var("BID_FIXTURES")
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
             // crates/bid-tools → 仓库根
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../fixtures")
-        })
+        });
+    // #183 围栏：词法 `..` 会被围栏预拒——受信夹具根统一 canonical 绝对路径
+    std::fs::canonicalize(&p).unwrap_or(p)
 }
 
 fn spec(path: PathBuf, filename: &str, kind: &str) -> ImportSpec {
@@ -104,7 +106,7 @@ fn service_passes_kind_through_without_contract_enum() {
 /// 的注入体），import 方法与自由函数同源。
 #[test]
 fn bid_service_holds_store_and_parsed_together() {
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     assert!(svc.store().project().is_err());
     svc.store_mut().create_project("p", "c", "暗标", "ext-svc-bid").unwrap();
     let d1a = fixtures().join("corpus-R/D1-tables/D1a-合并表头跨页表.docx");

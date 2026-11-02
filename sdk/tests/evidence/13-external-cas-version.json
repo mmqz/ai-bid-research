@@ -2,11 +2,11 @@
  "case": "13-external-cas-version",
  "transport": "linejson",
  "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
- "server_sha256": "bde7f0dae2ef21a487e9e8a2ceb8baa1e4203411eaa4b148d80ba7778c588ca1",
+ "server_sha256": "16be0b8a1493d480aa5c7b341812703e051b4c122b6325a7df0b83704ca51726",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-02T06:51:21+00:00",
+ "started_at": "2026-11-02T09:27:11+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 3.446098999120295
+   "elapsed_ms": 3.339058000165096
   },
   {
    "stage": "P1 import_tender_files",
@@ -154,7 +154,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 243.61064700133284
+   "elapsed_ms": 281.2611230001494
   },
   {
    "stage": "P2 extract_requirements",
@@ -193,7 +193,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 79.19354000114254
+   "elapsed_ms": 65.12308800029132
   },
   {
    "stage": "P3 build_outline",
@@ -226,7 +226,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.197778999397997
+   "elapsed_ms": 7.000514999617735
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -334,7 +334,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.792666998284403,
+   "elapsed_ms": 6.863406999855215,
    "extra": {
     "sections": {
      "SEC-0007": [
@@ -531,7 +531,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.858593002107227
+   "elapsed_ms": 6.342677999782609
   },
   {
    "stage": "P4 bind_evidence",
@@ -563,7 +563,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.307836000109091
+   "elapsed_ms": 7.041982999908214
   },
   {
    "stage": "G3 record_review_gate ×2",
@@ -598,7 +598,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 13.854865999746835
+   "elapsed_ms": 13.46914999976434
   },
   {
    "stage": "④ draft #1（内容 A）",
@@ -808,5 +808,5 @@
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/external-cas-version/ws",
- "finished_at": "2026-11-02T06:51:21+00:00"
+ "finished_at": "2026-11-02T09:27:11+00:00"
 }

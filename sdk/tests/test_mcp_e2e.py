@@ -75,6 +75,9 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]  # sdk/tests/x.py → 仓库根
 FIXTURES = REPO_ROOT / "fixtures" / "corpus-A" / "files"
+# #183 围栏：子进程全局态的受信导入根（BID_WS 工作区只装服务自有存储，
+# 夹具在 ws 外——不声明此根，import_tender_files 会被围栏整批预拒）
+FIXTURES_ROOT = REPO_ROOT / "fixtures"
 EVIDENCE_DIR = REPO_ROOT / "sdk" / "tests" / "evidence"
 
 CALL_TIMEOUT = float(os.environ.get("BID_MCP_CALL_SECS", "300"))
@@ -222,6 +225,7 @@ class LineJsonClient:
             if k in os.environ
         }
         env["BID_WS"] = str(ws)
+        env["BID_FS_ROOT"] = str(FIXTURES_ROOT)  # #183：受信导入根（canonical）
         self.proc = subprocess.Popen(
             [str(bin_path), *extra_args],
             stdin=subprocess.PIPE,
@@ -367,7 +371,8 @@ async def open_client(ws: Path):
     bin_path, transport, extra_args = resolve_server()
     if transport == "mcp":
         assert HAS_MCP_SDK, "mcp 传输需要官方 SDK：pip install mcp"
-        env = {**get_default_environment(), "BID_WS": str(ws)}
+        env = {**get_default_environment(), "BID_WS": str(ws),
+               "BID_FS_ROOT": str(FIXTURES_ROOT)}  # #183：受信导入根（canonical）
         params = StdioServerParameters(
             command=str(bin_path), args=extra_args, env=env
         )

@@ -19,7 +19,9 @@ use serde_json::{json, Value};
 use std::path::PathBuf;
 
 fn files_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../fixtures/synth-tender/招标文件")
+    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../fixtures/synth-tender/招标文件");
+    // #183 围栏：词法 `..` 会被围栏预拒——受信夹具根统一 canonical 绝对路径
+    std::fs::canonicalize(&p).unwrap_or(p)
 }
 
 fn call(svc: &mut BidService, tool: &str, args: Value) -> ToolReply {
@@ -72,7 +74,7 @@ fn matrix_reqs(svc: &mut BidService, pid: &str, category: &str) -> Vec<String> {
 /// A+B 导入 + 抽取（两个测试共用的前段——返回 (svc, pid)）。
 fn prepared(ws: &PathBuf, external_key: &str) -> (BidService, String) {
     std::fs::create_dir_all(ws).unwrap();
-    let mut svc = BidService::open(ws).unwrap();
+    let mut svc = BidService::open(ws).unwrap().with_fs_root(files_dir());
     let pid = ok(call(
         &mut svc,
         "create_bid_project",
@@ -304,7 +306,7 @@ fn mcp_only_full_pipeline_drives_to_export() {
 fn scaffold_guards_and_error_paths() {
     let ws = std::env::temp_dir().join(format!("mcp-scaffold-err-{}", std::process::id()));
     std::fs::create_dir_all(&ws).unwrap();
-    let mut svc = BidService::open(&ws).unwrap();
+    let mut svc = BidService::open(&ws).unwrap().with_fs_root(files_dir());
 
     // ---- G1 状态门：DRAFT / FILES_IMPORTED 态建纲 → E_STATE（白名单从
     //      REQUIREMENTS_EXTRACTED 才放行 build_outline）

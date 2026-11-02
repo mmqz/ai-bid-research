@@ -37,7 +37,9 @@ use std::io::Read;
 use std::path::PathBuf;
 
 fn fixtures() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../fixtures/corpus-A/files")
+    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../fixtures/corpus-A/files");
+    // #183 围栏：词法 `..` 会被围栏预拒——受信夹具根统一 canonical 绝对路径
+    std::fs::canonicalize(&p).unwrap_or(p)
 }
 
 /// 真件在位预检（issue #9 SKIP 机制——缺件响亮横幅，调用方立即 return）。
@@ -81,7 +83,7 @@ fn e2e_tender_in_docx_out() {
         return; // SKIP 横幅已由 skip_if_fixture_missing 打出
     }
     let ws = e2e_dir();
-    let mut svc = BidService::open(&ws).unwrap();
+    let mut svc = BidService::open(&ws).unwrap().with_fs_root(fixtures());
 
     // ① 建项目（MCP §1——external_key 幂等）
     let pid = ok_result(call(&mut svc, "create_bid_project", json!({
@@ -259,7 +261,7 @@ fn e2e_idempotent_rerun_zero_waste() {
         return;
     }
     let ws = e2e_dir();
-    let mut svc = BidService::open(&ws).unwrap();
+    let mut svc = BidService::open(&ws).unwrap().with_fs_root(fixtures());
     let pid = ok_result(call(&mut svc, "create_bid_project", json!({
         "name": "e2e 幂等", "bid_deadline": "2026-12-31", "mode": "明标", "external_key": "e2e-idem",
     })))["project_id"].as_str().unwrap().to_string();

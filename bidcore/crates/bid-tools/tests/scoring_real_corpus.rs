@@ -17,11 +17,13 @@ use bid_tools::service::{BidService, ImportSpec};
 use std::path::PathBuf;
 
 fn fixtures() -> PathBuf {
-    std::env::var("BID_FIXTURES")
+    let p = std::env::var("BID_FIXTURES")
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../fixtures")
-        })
+        });
+    // #183 围栏：词法 `..` 会被围栏预拒——受信夹具根统一 canonical 绝对路径
+    std::fs::canonicalize(&p).unwrap_or(p)
 }
 
 fn spec(path: PathBuf, filename: &str, kind: &str) -> ImportSpec {
@@ -35,7 +37,7 @@ fn corpus_a_scoring_items_carry_real_weights() {
     if skip_if_fixture_missing("corpus_a_scoring_items_carry_real_weights", &[&a, &c]) {
         return;
     }
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     svc.create_project("评分真件验收", "ZFCG-2026-GK-0311", "明标", "scr-real-key").unwrap();
     let report = svc.import(&[
         spec(a, "A-招标文件.docx", "招标文件"),

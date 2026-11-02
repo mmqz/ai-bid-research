@@ -2,11 +2,11 @@
  "case": "12-external-unanchored",
  "transport": "linejson",
  "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
- "server_sha256": "bde7f0dae2ef21a487e9e8a2ceb8baa1e4203411eaa4b148d80ba7778c588ca1",
+ "server_sha256": "16be0b8a1493d480aa5c7b341812703e051b4c122b6325a7df0b83704ca51726",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-02T06:51:20+00:00",
+ "started_at": "2026-11-02T09:27:10+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 3.505670996673871
+   "elapsed_ms": 3.4333710000282736
   },
   {
    "stage": "P1 import_tender_files",
@@ -154,7 +154,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 287.997056999302
+   "elapsed_ms": 239.24167699988175
   },
   {
    "stage": "P2 extract_requirements",
@@ -193,7 +193,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 67.77511600012076
+   "elapsed_ms": 65.37188699985563
   },
   {
    "stage": "P3 build_outline",
@@ -226,7 +226,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.296217001567129
+   "elapsed_ms": 6.8689680001625675
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -334,7 +334,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.002321999607375,
+   "elapsed_ms": 6.8397660002119665,
    "extra": {
     "sections": {
      "SEC-0007": [
@@ -531,7 +531,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.650649000221165
+   "elapsed_ms": 6.420175000130257
   },
   {
    "stage": "P4 bind_evidence",
@@ -563,7 +563,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 10.921789998974418
+   "elapsed_ms": 6.94701200018244
   },
   {
    "stage": "G3 record_review_gate ×2",
@@ -598,7 +598,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 13.584372998593608
+   "elapsed_ms": 13.049155999851791
   },
   {
    "stage": "③ draft(external) 无锚承诺 [SEC-0007]",
@@ -673,5 +673,5 @@
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/external-unanchored/ws",
- "finished_at": "2026-11-02T06:51:20+00:00"
+ "finished_at": "2026-11-02T09:27:10+00:00"
 }

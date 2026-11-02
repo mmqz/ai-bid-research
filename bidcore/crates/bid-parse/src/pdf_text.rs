@@ -11,10 +11,15 @@
 //!
 //! 甜区（不夸大，如实登记）：覆盖 ASCII85/ASCIIHex/RunLength/FlateDecode 四种滤链；
 //! **ToUnicode CMap**（bfchar/bfrange，Identity-H 类字体——国内招标文件最普遍形态）；
+//! **UniXX-UCS2 预定义 CMap 恒等解码**（#200：字体声明 /UniGB-UCS2-H 等
+//! 预定义 CMap 时 2 字节码即 UCS-2 值，无 ToUnicode 也能精确解码——按 Tf
+//! 字体上下文生效，逐字 Tj 的单字串不再落 Latin-1 分支）；
 //! Tm/CTM 定位行合成（逐字 Tj 能拼回成行）；文本层字面串
 //! 与十六进制串；Tj / TJ / ''' / " 四种显示运算符；字符串编码
 //! UTF-16BE（带 BOM 或高字节 0x00 特征）与 WinAnsi/PDFDocEncoding（字节直取）。
 //! 不覆盖：加密 PDF、LZW/ASCIIHex/RunLength 等其他滤链、编码表自定义的 CID 字体、
+//! **GBK-EUC-H/B5pc 等非 UCS2 预定义 CMap 与无 ToUnicode 的真 Adobe-GB1 CID
+//! 序号（码值不是 Unicode，需内置映射大表——能力边界，fail-loud 不硬解）**、
 //! 跨页复杂排版重组。这些情形一律明说失败（返回 Err），绝不输出半截乱码——
 //! 因为静默的错误文本比明说读不出来危险得多。
 //!
@@ -108,6 +113,8 @@ pub fn extract(bytes: &[u8]) -> Result<PdfText, PdfTextError> {
     // 通常不冲突（都从 0 开始编），合并后命中率更高。真正冲突的个例
     // 宁可少映射几个字（下游看得出缺字），也不把读不到的字编成错字。
     let cmap = collect_cmaps(bytes);
+    // #200：UniXX-UCS2 字体上下文——按字体决定恒等解码资格（见 FontEncodings）。
+    let fonts = collect_font_encodings(bytes);
 
     let mut pages: Vec<Vec<String>> = Vec::new();
     let mut streams_decoded = 0usize;
@@ -125,7 +132,7 @@ pub fn extract(bytes: &[u8]) -> Result<PdfText, PdfTextError> {
                 continue;
             }
         };
-        let lines = extract_text_lines(&decoded, &cmap);
+        let lines = extract_text_lines(&decoded, &cmap, &fonts);
         if lines.is_empty() {
             // 解压成功但无字串（比如字体/图形流——正常）：不计跳过。
             streams_decoded += 1;
@@ -193,6 +200,119 @@ fn collect_cmaps_inner(bytes: &[u8]) -> Vec<CMap> {
         }
     }
     out
+}
+
+// ---------------------------------------------------------------- UniXX-UCS2 字体上下文（issue #200）
+
+/// UniXX-UCS2 预定义 CMap 名前缀（H/V 变体语义相同：2 字节码 = UCS-2 值）。
+///
+/// 依据 PDF 规范：`UniGB-UCS2-H` 等「Unicode UCS-2」系列预定义 CMap 把
+/// 2 字节码**恒等**映射为同值 Unicode——这正是 ReportLab 等生成器
+/// 「非嵌入 CID 字体（STSong-Light）」的编码声明方式，因此**没有
+/// ToUnicode 也能精确解码**，不靠启发式猜。
+const UCS2_CMAP_MARKERS: &[&[u8]] = &[
+    b"UniGB-UCS2", b"UniCNS-UCS2", b"UniJIS-UCS2", b"UniKS-UCS2",
+];
+
+/// 字体资源名（内容流 `Tf` 运算符的操作数，如 `F2`）→ 是否声明了
+/// UniXX-UCS2 预定义 CMap。
+///
+/// 安全前提（为什么必须按字体而非按文档判定）：恒等解码只能作用于
+/// 声明了该编码的字体。拉丁字体（Helvetica 等）的 2 字节 ASCII 串
+/// （如 `kV` = 0x6B56 恰落 CJK 区）若被误按 UCS-2 恒等解码会变成
+/// 错字「敖」——字体上下文把这扇门只对声明了 UniXX-UCS2 的字体打开。
+#[derive(Debug, Default)]
+struct FontEncodings {
+    uc2_fonts: std::collections::HashSet<String>,
+}
+
+impl FontEncodings {
+    fn is_uc2(&self, name: &str) -> bool {
+        self.uc2_fonts.contains(name)
+    }
+}
+
+/// 收集「资源名 → UniXX-UCS2 字体」映射。
+///
+/// 三步扫描（与 collect_cmaps 同款「字典层字节扫描」风格——字体字典
+/// 不进压缩流，名字可直接搜；不做完整 xref 解析）：
+///   1. 全部 `N 0 obj` 对象头（位置有序）；
+///   2. 每个 UniXX-UCS2 标记处向前找最近对象头 → 该字体对象号集合；
+///   3. 扫全部 `资源名 N 0 R` 间接引用，N 在集合中 → 记下资源名。
+///
+/// 能力边界（如实登记）：PDF 1.5+ 对象流（ObjStm 压缩存放的字体字典）
+/// 扫不到 → 映射为空 → 退回既有启发式行为（fail-safe，不劣化）。
+fn collect_font_encodings(bytes: &[u8]) -> FontEncodings {
+    // 步骤 1：对象头（匹配 " 0 obj" 的位置, 其前数字串即对象号）。
+    let mut heads: Vec<(usize, u64)> = Vec::new();
+    let mut k = 0usize;
+    while let Some(p) = find_from(bytes, k, b" 0 obj") {
+        let mut j = p;
+        while j > 0 && bytes[j - 1].is_ascii_digit() {
+            j -= 1;
+        }
+        if j < p {
+            let num = std::str::from_utf8(&bytes[j..p]).unwrap_or("");
+            if let Ok(n) = num.parse::<u64>() {
+                heads.push((p, n));
+            }
+        }
+        k = p + 6;
+    }
+
+    // 步骤 2：UniXX-UCS2 标记 → 就近向前找对象头 → uc2 字体对象号集合。
+    let mut uc2_objs: std::collections::HashSet<u64> = std::collections::HashSet::new();
+    for marker in UCS2_CMAP_MARKERS {
+        let mut k = 0usize;
+        while let Some(p) = find_from(bytes, k, marker) {
+            if let Some(&(_, n)) = heads.iter().rev().find(|(pos, _)| *pos < p) {
+                uc2_objs.insert(n);
+            }
+            k = p + marker.len();
+        }
+    }
+
+    // 步骤 3：`/资源名 N 0 R` 引用 → N 在 uc2 集合 → 记资源名。
+    let mut fonts = FontEncodings::default();
+    if !uc2_objs.is_empty() {
+        let mut k = 0usize;
+        while let Some(p) = find_from(bytes, k, b" 0 R") {
+            // p 指向 " 0 R" 的空格；p-1 起往前是对象号 N 的数字串。
+            let mut j = p;
+            while j > 0 && bytes[j - 1].is_ascii_digit() {
+                j -= 1;
+            }
+            if j < p {
+                let num = std::str::from_utf8(&bytes[j..p]).unwrap_or("");
+                if let Ok(n) = num.parse::<u64>() {
+                    if uc2_objs.contains(&n) {
+                        // 再往前跳空白，应见到 `/资源名`。
+                        let mut m = j;
+                        while m > 0 && bytes[m - 1].is_ascii_whitespace() {
+                            m -= 1;
+                        }
+                        let mut s = m;
+                        while s > 0
+                            && (bytes[s - 1].is_ascii_alphanumeric()
+                                || bytes[s - 1] == b'-'
+                                || bytes[s - 1] == b'+'
+                                || bytes[s - 1] == b'_')
+                        {
+                            s -= 1;
+                        }
+                        if s < m && s > 0 && bytes[s - 1] == b'/' {
+                            let name = std::str::from_utf8(&bytes[s..m]).unwrap_or("");
+                            if !name.is_empty() {
+                                fonts.uc2_fonts.insert(name.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+            k = p + 4;
+        }
+    }
+    fonts
 }
 
 /// 取 `N 0 obj` 对象流的字节（若有 Filter 则先解压）。
@@ -689,7 +809,7 @@ fn codepoint_to_string(cp: u32) -> String {
 ///
 /// 两种模式共存：合成时如果当前行已经很长且新字符序列又出现大块\u7a7a白，
 /// 说明是连续 Tj 模式的新行，也要断开。
-fn extract_text_lines(content: &[u8], cmap: &CMap) -> Vec<String> {
+fn extract_text_lines(content: &[u8], cmap: &CMap, fonts: &FontEncodings) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     let mut parts: Vec<(f64, f64, String)> = Vec::new();
     let mut cur_y: Option<f64> = None;
@@ -700,6 +820,9 @@ fn extract_text_lines(content: &[u8], cmap: &CMap) -> Vec<String> {
     // CTM（当前变换矩阵的平移量）+ q/Q 栈。
     let mut ctm: (f64, f64) = (0.0, 0.0);
     let mut ctm_stack: Vec<(f64, f64)> = Vec::new();
+    // #200：字体上下文——`/F2 12 Tf` 的资源名 + 当前字体（决定恒等解码资格）。
+    let mut last_name: Option<String> = None;
+    let mut cur_font: Option<String> = None;
     let mut i = 0usize;
     let n = content.len();
 
@@ -717,6 +840,22 @@ fn extract_text_lines(content: &[u8], cmap: &CMap) -> Vec<String> {
             }
             b'<' if i + 1 < n && content[i + 1] == b'<' => i += 2,
             b'>' if i + 1 < n && content[i + 1] == b'>' => i += 2,
+            // 资源名 `/F2` 等：记最近的名字——Tf 的字体操作数（#200）。
+            b'/' => {
+                let mut j = i + 1;
+                while j < n
+                    && (content[j].is_ascii_alphanumeric()
+                        || content[j] == b'-'
+                        || content[j] == b'+'
+                        || content[j] == b'_')
+                {
+                    j += 1;
+                }
+                if j > i + 1 {
+                    last_name = Some(String::from_utf8_lossy(&content[i + 1..j]).to_string());
+                }
+                i = j;
+            }
             // q：保存 CTM
             b'q' => {
                 ctm_stack.push(ctm);
@@ -743,13 +882,23 @@ fn extract_text_lines(content: &[u8], cmap: &CMap) -> Vec<String> {
                     "Tj" | "TJ" | "'" | "\"" => {
                         if !pending.is_empty() {
                             let joined: Vec<u8> = pending.concat();
-                            let txt = decode_text_string(&joined, cmap);
+                            let txt = decode_text_string(
+                                &joined,
+                                cmap,
+                                cur_font.as_deref().is_some_and(|f| fonts.is_uc2(f)),
+                            );
                             if !txt.trim().is_empty() {
                                 seq += 1.0;
                                 append_at(&mut parts, &txt, cur_x, seq);
                             }
                             pending.clear();
                         }
+                        i = next;
+                    }
+                    "Tf" => {
+                        // #200：字体切换——后续文本串的解码上下文换成该字体。
+                        cur_font = last_name.clone();
+                        nums.clear();
                         i = next;
                     }
                     "Tm" => {
@@ -806,7 +955,11 @@ fn extract_text_lines(content: &[u8], cmap: &CMap) -> Vec<String> {
     }
     if !pending.is_empty() {
         let joined: Vec<u8> = pending.concat();
-        let txt = decode_text_string(&joined, cmap);
+        let txt = decode_text_string(
+            &joined,
+            cmap,
+            cur_font.as_deref().is_some_and(|f| fonts.is_uc2(f)),
+        );
         if !txt.trim().is_empty() {
             seq += 1.0;
             append_at(&mut parts, &txt, cur_x, seq);
@@ -1020,7 +1173,7 @@ fn decode_via_cmap(bytes: &[u8], cmap: &CMap) -> Option<String> {
     }
 }
 
-fn decode_text_string(bytes: &[u8], cmap: &CMap) -> String {
+fn decode_text_string(bytes: &[u8], cmap: &CMap, uc2_identity: bool) -> String {
     // Identity-H 类字体：字节是 2 字节的 CID，必须走 CMap 查 Unicode。
     if !cmap.is_empty() && bytes.len() % 2 == 0 {
         if let Some(mapped) = decode_via_cmap(bytes, cmap) {
@@ -1029,6 +1182,13 @@ fn decode_text_string(bytes: &[u8], cmap: &CMap) -> String {
     }
     if bytes.len() >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF {
         return utf16be_to_string(&bytes[2..]);
+    }
+    // #200：UniXX-UCS2 预定义 CMap 恒等映射——当前字体声明了该编码时，
+    // 2 字节码就是 UCS-2 值（无 ToUnicode 也能精确解码）。放 BOM 之后、
+    // 启发式之前；字体上下文（uc2_identity 只对声明字体为 true）保证
+    // 拉丁字体的 2 字节 ASCII 串（如 "kV" = 0x6B56 落 CJK 区）绝不误入此路。
+    if uc2_identity && !bytes.is_empty() && bytes.len() % 2 == 0 {
+        return utf16be_to_string(bytes);
     }
     if looks_utf16be(bytes) {
         return utf16be_to_string(bytes);
@@ -1356,14 +1516,14 @@ mod tests {
     fn utf16be_strings_are_decoded() {
         // 带 BOM
         let with_bom = [0xFE, 0xFF, 0x4E, 0x2D, 0x65, 0x87];
-        assert_eq!(decode_text_string(&with_bom, &EMPTY), "中文");
+        assert_eq!(decode_text_string(&with_bom, &EMPTY, false), "中文");
 
         // 无 BOM 但高字节全 0（UTF-16BE 的 ASCII 区域）
         let no_bom = [0x00, 0x41, 0x00, 0x42];
-        assert_eq!(decode_text_string(&no_bom, &EMPTY), "AB");
+        assert_eq!(decode_text_string(&no_bom, &EMPTY, false), "AB");
 
         // 单字节编码：直取
-        assert_eq!(decode_text_string(b"Hello", &EMPTY), "Hello");
+        assert_eq!(decode_text_string(b"Hello", &EMPTY, false), "Hello");
     }
 
     #[test]
@@ -1394,7 +1554,7 @@ mod tests {
         let content = b"BT /F1 12 Tf 72 700 Td (line1) Tj ET \
                        BT /F1 12 Tf 72 680 Td [(seg-) 20 (two)] TJ ET \
                        BT /F1 12 Tf 72 660 Td (third) Tj T* ET";
-        let lines = extract_text_lines(content, &EMPTY);
+        let lines = extract_text_lines(content, &EMPTY, &FontEncodings::default());
         // 连续 Tj 且中间没有 Tm 定位 → 它们就是同一行的延续（这是正确行为）。
         // 要断行必须靠 Tm 的 y 变化，见 per_char_tm_positioning_joins_into_one_line。
         assert_eq!(lines, vec!["line1seg-twothird"], "TJ 数组与同行的连续 Tj 应拼接");
@@ -1500,8 +1660,141 @@ mod tests {
                        BT /F1 12 Tf 1 0 0 -1 90 50 Tm (A) Tj ET \
                        BT /F1 12 Tf 1 0 0 -1 110 50 Tm (C) Tj ET \
                        BT /F1 12 Tf 1 0 0 -1 80 70 Tm (N) Tj ET";
-        let lines = extract_text_lines(content, &EMPTY);
+        let lines = extract_text_lines(content, &EMPTY, &FontEncodings::default());
         assert_eq!(lines, vec!["ABC", "N"], "同 y 应按 x 拼行；不同 y 应断行；实际 {lines:?}");
+    }
+    // ---------------------------------------------------------------- #200：UniXX-UCS2 恒等解码
+
+    /// Type0 CID 字体字典（UniGB-UCS2-H 预定义 CMap，无 ToUnicode——#200 形态）。
+    const UC2_FONT_DICT: &str = "<< /Type /Font /Subtype /Type0 /BaseFont /STSong-Light \
+         /Encoding /UniGB-UCS2-H /DescendantFonts [6 0 R] >>";
+    /// Type1 拉丁字体字典（无 UniXX 声明——恒等解码资格必须为 false）。
+    const LATIN_FONT_DICT: &str = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+
+    /// 完整单页 PDF：/Font << /<res> 4 0 R >>，内容流未压缩，附占位 CID 后代字体。
+    fn font_pdf(res: &str, font_dict: &str, content: &[u8]) -> Vec<u8> {
+        let mut v = Vec::new();
+        v.extend_from_slice(b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+        v.extend_from_slice(b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
+        v.extend_from_slice(
+            format!(
+                "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] \
+                 /Resources << /Font << /{res} 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+            )
+            .as_bytes(),
+        );
+        v.extend_from_slice(format!("4 0 obj\n{font_dict}\nendobj\n").as_bytes());
+        v.extend_from_slice(
+            b"6 0 obj\n<< /Type /Font /Subtype /CIDFontType0 /BaseFont /STSong-Light \
+              /CIDSystemInfo << /Registry (Adobe) /Ordering (GB1) /Supplement 4 >> >>\nendobj\n",
+        );
+        v.extend_from_slice(
+            format!("5 0 obj\n<< /Length {} >>\nstream\n", content.len()).as_bytes(),
+        );
+        v.extend_from_slice(content);
+        v.extend_from_slice(b"\nendstream\nendobj\n%%EOF\n");
+        v
+    }
+
+    /// 双字体页（F1 拉丁 + F2 UniGB-UCS2）——混排安全测试用。
+    fn mixed_font_pdf(f1_dict: &str, f2_dict: &str, content: &[u8]) -> Vec<u8> {
+        let mut v = Vec::new();
+        v.extend_from_slice(b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+        v.extend_from_slice(b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
+        v.extend_from_slice(
+            format!(
+                "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] \
+                 /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 7 0 R >>\nendobj\n"
+            )
+            .as_bytes(),
+        );
+        v.extend_from_slice(format!("4 0 obj\n{f1_dict}\nendobj\n").as_bytes());
+        v.extend_from_slice(format!("5 0 obj\n{f2_dict}\nendobj\n").as_bytes());
+        v.extend_from_slice(
+            b"6 0 obj\n<< /Type /Font /Subtype /CIDFontType0 /BaseFont /STSong-Light \
+              /CIDSystemInfo << /Registry (Adobe) /Ordering (GB1) /Supplement 4 >> >>\nendobj\n",
+        );
+        v.extend_from_slice(
+            format!("7 0 obj\n<< /Length {} >>\nstream\n", content.len()).as_bytes(),
+        );
+        v.extend_from_slice(content);
+        v.extend_from_slice(b"\nendstream\nendobj\n%%EOF\n");
+        v
+    }
+
+    fn all_text(pdf: &[u8]) -> String {
+        let t = extract(pdf).expect("提取应成功");
+        t.pages.iter().flatten().cloned().collect::<Vec<_>>().join("\n")
+    }
+
+    /// #200 核心：UniGB-UCS2-H 字体的**逐字 Tj 单字串**（2 字节）此前全落
+    /// Latin-1 分支（len<4 过不了 looks_utf16be 门槛）——字体上下文恒等
+    /// 解码后精确还原。
+    #[test]
+    fn uc2_single_char_tj_decodes_via_identity() {
+        // 本=U+672C 项=U+9879 目=U+76EE：每字一个 Tj、Tm 逐字定位（同 y 拼行）
+        let content = b"BT /F2 12 Tf 1 0 0 1 50 800 Tm (\x67\x2c) Tj \
+                        1 0 0 1 62 800 Tm (\x98\x79) Tj \
+                        1 0 0 1 74 800 Tm (\x76\xee) Tj ET";
+        let pdf = font_pdf("F2", UC2_FONT_DICT, content);
+        let text = all_text(&pdf);
+        assert!(text.contains("本项目"), "恒等解码应还原「本项目」，实际：{text:?}");
+        // probe Clean 的整链路断言在 tests/pdf_cid_identity.rs（文本量过 32 字门槛）
+    }
+
+    /// 安全前提：恒等解码资格只给声明了 UniXX-UCS2 的字体——拉丁字体的
+    /// 2 字节 ASCII 串 "kV"（0x6B56 恰落 CJK 区，若误入恒等路会变「敖」）
+    /// 必须原样保留。
+    #[test]
+    fn latin_font_short_pairs_stay_latin() {
+        let content = b"BT /F1 12 Tf 72 720 Td (kV 12mm) Tj ET";
+        let pdf = font_pdf("F1", LATIN_FONT_DICT, content);
+        let text = all_text(&pdf);
+        assert!(text.contains("kV"), "拉丁串应原样保留，实际：{text:?}");
+        assert!(!text.contains('\u{6556}'), "拉丁串绝不能被恒等解码成 CJK 错字");
+    }
+
+    /// 混排：同一页 F1 拉丁 + F2 UniGB——两套字体各按各的编码解码，互不串扰。
+    #[test]
+    fn mixed_fonts_uc2_and_latin_independent() {
+        let content = b"BT /F1 12 Tf 72 720 Td (kV) Tj ET \
+                        BT /F2 12 Tf 1 0 0 1 50 700 Tm (\x67\x2c) Tj \
+                        1 0 0 1 62 700 Tm (\x98\x79) Tj ET";
+        let pdf = mixed_font_pdf(LATIN_FONT_DICT, UC2_FONT_DICT, content);
+        let text = all_text(&pdf);
+        assert!(text.contains("kV"), "拉丁串原样：{text:?}");
+        assert!(text.contains("本项"), "CID 串恒等解码：{text:?}");
+        assert!(!text.contains('\u{6556}'), "不得串扰：{text:?}");
+    }
+
+    /// 十六进制串形态的逐字显示（Word/WPS 常见）走同一条恒等路。
+    #[test]
+    fn uc2_hex_string_single_char_decodes() {
+        let content = b"BT /F2 12 Tf 1 0 0 1 50 800 Tm <672C> Tj \
+                        1 0 0 1 62 800 Tm <9879> Tj ET";
+        let pdf = font_pdf("F2", UC2_FONT_DICT, content);
+        let text = all_text(&pdf);
+        assert!(text.contains("本项"), "hex 单字应恒等解码，实际：{text:?}");
+    }
+
+    /// 收集器单元面：资源名 → uc2 判定准确（F2 是、F1 不是）。
+    #[test]
+    fn collect_font_encodings_resolves_resource_names() {
+        let content = b"BT /F2 12 Tf 72 720 Td (x) Tj ET";
+        let pdf = mixed_font_pdf(LATIN_FONT_DICT, UC2_FONT_DICT, content);
+        let fonts = collect_font_encodings(&pdf);
+        assert!(fonts.is_uc2("F2"), "F2（UniGB-UCS2-H）应被识别");
+        assert!(!fonts.is_uc2("F1"), "F1（Helvetica）不是 uc2 字体");
+    }
+
+    /// decode_text_string 三态：同一 2 字节串，字体上下文决定解码路。
+    #[test]
+    fn decode_text_string_identity_gated_by_font_context() {
+        // 本 = U+672C：uc2 字体串 → 恒等还原；非 uc2 字体串 → 旧行为（Latin-1）
+        assert_eq!(decode_text_string(b"\x67\x2c", &EMPTY, true), "本");
+        assert_eq!(decode_text_string(b"\x67\x2c", &EMPTY, false), "g,");
+        // 奇数长度不进恒等路（fail-safe）
+        assert_eq!(decode_text_string(b"\x67\x2c\x01", &EMPTY, true), "g,\u{1}");
     }
 
 }

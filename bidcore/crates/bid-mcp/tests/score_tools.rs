@@ -59,7 +59,7 @@ fn mk_req(id: &str, category: &str, excerpt: &str, score: Option<f64>) -> bid_do
 /// + 1 否决项 + 1 技术参数——**评分项 params 不带 section**：
 /// 因为 #126 后它们不进正文，也就不会落进任何叶的 requirement_ids——
 /// `build_scorer` 的 leaf_of 反查永不命中，section_id 恒 None（合法行为）。
-fn svc_drafted(tag: &str, draft_all: bool) -> (BidService, String) {
+fn svc_drafted(tag: &str, draft_all: bool, chapter_ref: Option<&str>) -> (BidService, String) {
     let mut svc = BidService::new();
     let pid = ok_result(call(&mut svc, "create_bid_project", json!({
         "name": "评分接线测试项目", "bid_deadline": "2026-12-31", "mode": "明标", "external_key": tag,
@@ -68,13 +68,19 @@ fn svc_drafted(tag: &str, draft_all: bool) -> (BidService, String) {
         "A-招标文件.docx", "招标文件", "sha-score", 10, 1, 50, 0,
         bid_domain::ParseStatus::Ok, "",
     ).unwrap();
+    let mut req2 = mk_req("REQ-0002", "评分项",
+        "4.2 技术分：技术方案完整性与针对性 20 分，方案须覆盖系统架构与设备选型",
+        Some(20.0));
+    if let Some(title) = chapter_ref {
+        // #170 方案 A：评分项 params.section_title（bid-parse 从评审表行文本
+        // 登记「第X章」引用——此处直接模拟登记产物测联结）
+        req2.params.insert("section_title".to_string(), serde_json::json!(title));
+    }
     svc.set_requirements(vec![
         mk_req("REQ-0001", "评分项",
             "4.1 价格分（30 分）：以通过初步评审的有效投标报价的算术平均值下浮 5% 为基准价，价格分＝（基准价／投标报价）×30",
             Some(30.0)),
-        mk_req("REQ-0002", "评分项",
-            "4.2 技术分：技术方案完整性与针对性 20 分，方案须覆盖系统架构与设备选型",
-            Some(20.0)),
+        req2,
         mk_req("REQ-0003", "否决项",
             "3.9 投标文件未按规定格式签署盖章的，作否决投标处理", None),
         mk_req("REQ-0004", "技术参数",
@@ -227,7 +233,7 @@ fn score_price_param_validation_is_loud() {
 /// 形状面 + 已起草前置（#126 后评分项不进正文，item_scores 可为空）。
 #[test]
 fn score_section_on_drafted_leaf() {
-    let (mut svc, pid) = svc_drafted("score-sec-main", true);
+    let (mut svc, pid) = svc_drafted("score-sec-main", true, None);
     // 【#126 语义变更后的口径】评分项**不进正文**（outline.rs:324——评分方法是
     // 评标委员会的算分规则，正文写「价格分 30 分」等于把报价策略和评标办法混谈）。
     //
@@ -244,10 +250,10 @@ fn score_section_on_drafted_leaf() {
     assert!(r["max"].as_f64().is_some(), "max 在场（数值）: {r:?}");
     assert!(r["estimated"].as_f64().is_some(), "estimated 在场: {r:?}");
     let items = r["item_scores"].as_array().unwrap();
-    // 【#126 后】评分项不进正文 → 不落在任何叶的 requirement_ids →
-    // `build_scorer` 的 leaf_of 反查永不命中 → item_scores **合法为空**。
-    // 这里只钉形状（是数组）；评分项→章节的映射逻辑由 bid-domain 的
-    // scoring 单测覆盖（那边不依赖 store 的全局 id 序列，可控）。
+    // 【#126 后】评分项不进正文 → leaf_of 反查不命中；本夹具的评分项
+    // 无 params.section_title（评审表行无「第X章」引用）→ 章引用联结也
+    // 不触发 → item_scores **合法为空**。只钉形状（是数组）；章引用映射
+    // 的语义验收见 score_section_maps_scoring_item_via_chapter_ref。
     assert!(r["item_scores"].is_array(), "item_scores 是数组: {r:?}");
     // 可追溯理由必须非空。两条合法文案：
     //   · 有映射项 → "[REQ-xxxx] 覆盖 h/H=xx% ..."
@@ -263,11 +269,58 @@ fn score_section_on_drafted_leaf() {
     assert!(items.iter().all(|i| !i["item_id"].as_str().unwrap().is_empty()));
 }
 
+/// #170 方案 A 验收：评分项的 params.section_title（评审表行「第X章」引用）
+/// → 章号归一匹配大纲「第四章 评标办法」组 → 子树首叶挂载 →
+/// score_section(首叶) 恢复「这一节能得几分」（max=20，item_scores 含 REQ-0002）。
+#[test]
+fn score_section_maps_scoring_item_via_chapter_ref() {
+    let (mut svc, pid) = svc_drafted("score-sec-chref", true, Some("第四章 评标办法"));
+    // 章引用联结的语义目标：锚在「第四章 评标办法」的正文 REQ（REQ-0004
+    // 技术参数）所住的叶——「详见第四章」= 第四章的内容 = 该叶正文。
+    // （大纲是类目重组——「技术参数」组横跨物理章，故目标不是「第四章」
+    // 命名的组，而是该章正文条款落的叶。）
+    let target_leaf = {
+        let secs = svc.store().sections();
+        let parents: std::collections::HashSet<&str> = secs
+            .iter()
+            .filter_map(|n| n.parent_id.as_deref())
+            .collect();
+        let req4 = svc
+            .store()
+            .requirements()
+            .iter()
+            .find(|r| r.id == "REQ-0004")
+            .expect("REQ-0004 在库");
+        assert!(
+            req4.anchors.iter().any(|a| a.locator.contains("第四章")),
+            "REQ-0004 锚应在第四章（夹具 locator）"
+        );
+        secs.iter()
+            .find(|n| {
+                !parents.contains(n.id.as_str()) && n.requirement_ids.contains(&req4.id)
+            })
+            .map(|n| n.id.clone())
+            .expect("REQ-0004 应住某片叶（正文类目）")
+    };
+    let r = ok_result(call(&mut svc, "score_section", json!({
+        "project_id": &pid, "section_id": &target_leaf,
+    })));
+    // 语义断言（区别于形状面）：REQ-0002（20 分技术评分项）挂上了本叶
+    assert_eq!(r["max"].as_f64(), Some(20.0), "本叶 max = 挂载评分项满分 20：{r:?}");
+    let items = r["item_scores"].as_array().expect("item_scores 数组");
+    assert!(
+        items.iter().any(|i| i["item_id"].as_str() == Some("REQ-0002")),
+        "item_scores 应含章引用挂载的 REQ-0002：{items:?}"
+    );
+    let rationale = r["rationale"].as_str().unwrap_or("");
+    assert!(rationale.contains("覆盖"), "有映射项 → 覆盖度明细：{rationale}");
+}
+
 /// score_section 拒绝面：未起草（E_UNPROCESSABLE）/ 不存在（E_NOTFOUND）/
 /// 建纲前状态门（E_STATE）。
 #[test]
 fn score_section_rejects_are_loud() {
-    let (mut svc, pid) = svc_drafted("score-sec-rej", false);
+    let (mut svc, pid) = svc_drafted("score-sec-rej", false, None);
     // 未起草：建纲但没起草任何叶
     let leaf = leaf_ids(&svc)[0].clone();
     let (code, msg) = err_parts(&call(&mut svc, "score_section", json!({
@@ -297,7 +350,7 @@ fn score_section_rejects_are_loud() {
 /// 报价在场 → B1 实算计入 total（「能得几分 + 该报多少价」一屏可答）。
 #[test]
 fn score_document_shapes_and_price_semantics() {
-    let (mut svc, pid) = svc_drafted("score-doc-main", true);
+    let (mut svc, pid) = svc_drafted("score-doc-main", true, None);
     // ---- 无报价：price null（不伪装 0）
     let r = ok_result(call(&mut svc, "score_document", json!({
         "project_id": &pid,
@@ -345,7 +398,7 @@ fn score_document_shapes_and_price_semantics() {
 /// （notes 登记 SECTION_MISSING/未覆盖，不伪装）。
 #[test]
 fn score_document_state_gate_and_undrafted_honesty() {
-    let (mut svc, pid) = svc_drafted("score-doc-undrafted", false);
+    let (mut svc, pid) = svc_drafted("score-doc-undrafted", false, None);
     let r = ok_result(call(&mut svc, "score_document", json!({
         "project_id": &pid,
     })));

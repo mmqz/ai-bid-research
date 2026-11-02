@@ -434,25 +434,21 @@ out: { project_id, section_id, section_title, chars, estimated, max,
        （REQ 所在叶——确定性兜底，无 LLM）；价格类叶跳过内容自评（价格分 =
        f(报价)，由 score_price 计算）；结构节点（有子）与未起草叶 → E_UNPROCESSABLE。
 
-       ⚠️【#126 后的重要变更——2026-11-02 校正】
-       评分项**不进正文**（outline.rs:324：评分方法是评标委员会的算分规则，
-       正文写「价格分 30 分」等于把报价策略与评标办法混谈）。因此：
-         · 评分项 REQ 不在任何叶的 requirement_ids 里
-         · `build_scorer` 的 leaf_of 反查（叶 requirement_ids → 叶 id）**永不命中**
-         · 评分项 section_id 恒为 None → `score_section` 该节恒返回空结果
-           （max=0 / estimated=0 / item_scores=[]，rationale 说明「无映射到本章节的评分项」）
-       这不是缺陷，是 #126 语义的必然结果。前述「缺省按大纲绑定关系联结」
-       **对评分项已失效**（对正文类目 REQ 仍然有效）。
-
-       实际影响：
-         · score_document（整本自评）✅ 正常——按 requirements 全量派生，不依赖 section
-         · score_section（单节自评）❌ 对评分项恒空——只能评估**正文类目节**
-                                    （否决项/技术参数等有正文的节）
-
-       若未来需要「评分项按章节自评」，需先补映射来源：招标文件详细评审表的
-       「评审项目 → 被评章节」对应（#158 已具备审查表抽取能力，但尚未接线）。
-       三条候选修法见 issue **#170**（A 按章节标题匹配 / B 建纲时反填 / C 承认取舍）。
-       当前采用 **C**：本工具对评分项不做章节级自评，语义在此写明。
+       ⚠️【#170 方案 A 已落地——评审表章引用联结（2026-11-02）】
+       评分项**不进正文**（outline.rs:324），leaf_of 反查对评分项不命中
+       （该路径保留，对正文类目 REQ 仍有效）。评分项的 section 映射新增
+       **章引用联结**（bid-parse ↔ bid-mcp 两段接线）：
+         · 抽取侧：评审表行文本的「第X章」引用（详见/按/响应 第X章…——
+           bid-parse chapter_ref_of）登记为 params.section_title；
+         · 联结侧（build_scorer）：章号归一（中文/阿拉伯统一）定位
+           「被引用章的正文叶」——① 锚在该章的**正文类目** REQ 所住的叶
+           （语义最准：被评内容就是那一章的条款；否决/资格的响应叶不算）；
+           ② 大纲节点 title 自带章号（「其他」类目按章分组的形态）→ 子树
+           首叶。两路首现序（确定性可重放）。
+       由此 `score_section` 恢复「这一节能得几分」——含挂载到该叶的评分项。
+       边界（如实）：评审表行**无**「第X章」引用时 params.section_title 缺省
+       → 该评分项维持 section=None → score_section 对该条恒空（数据缺引用
+       时不虚构映射——与 #126 后的诚实行为一致）。
 状态: MATRIX_READY+（只读诊断——与 check_bid_quality 同窗口）
 错误: E_NOTFOUND（section 不存在）；E_UNPROCESSABLE（未起草/结构节点）；E_STATE（无章节树）
 ```

@@ -658,12 +658,75 @@ fn flush_pending(
     });
 }
 
+/// 行文本中的「第X章」章节引用（#170 方案 A 的抽取侧输入）。
+///
+/// 真实评审表行的常见形态（实测：塔里木件「按第 8 章投标文件」、
+/// 「详见本技术条款第 24 章」；伊犁件「按第五章"投标文件格式"」）：
+/// 「第X章」中间可夹空白，章序数中文/阿拉伯皆可。取**首个**命中
+/// （多章引用时首章为主章），连同章号后紧邻的章名余文（截至首个
+/// 空白/句读，至多 12 字——「第 8 章投标文件」整体保留，便于人工
+/// 核对与未来精确匹配）。无引用 → `None`（不虚构）。
+pub fn chapter_ref_of(text: &str) -> Option<String> {
+    let re = regex::Regex::new(
+        r"第\s*([0-9０-９一二三四五六七八九十百零〇两]{1,8})\s*章",
+    )
+    .unwrap();
+    let m = re.find(text)?;
+    // 余文（章名）：截至首个空白或句读（，。；、：）——「第 8 章投标文件的
+    // 要求」保留「第 8 章投标文件的要求」（章号是匹配核心，余文供人工核对）。
+    let rest: String = text[m.end()..]
+        .chars()
+        .take_while(|c| {
+            !c.is_whitespace() && !matches!(c, '，' | '。' | '；' | '、' | '：' | '（' | '）' | '（' | '）' | '"' | '"')
+        })
+        .take(12)
+        .collect();
+    Some(format!("{}{}", m.as_str(), rest))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn cells(v: &[&str]) -> Vec<String> {
         v.iter().map(|s| s.to_string()).collect()
+    }
+
+    // ---------------- #170 方案 A：chapter_ref_of
+
+    #[test]
+    fn chapter_ref_of_real_forms() {
+        // 塔里木件实测形态：章号带空格 + 紧邻章名
+        assert_eq!(
+            chapter_ref_of("按第 8 章投标文件的要求"),
+            Some("第 8 章投标文件的要求".to_string())
+        );
+        // 中文数字
+        assert_eq!(
+            chapter_ref_of("详见本技术条款第 24 章。"),
+            Some("第 24 章".to_string())
+        );
+        // 伊犁件形态：章名后引号
+        assert_eq!(
+            chapter_ref_of("按第五章\"投标文件格式\"进行编写"),
+            Some("第五章".to_string())
+        );
+        // 无引用
+        assert_eq!(chapter_ref_of("施工组织设计 30 分"), None);
+        // 非章序数（第1页）不误触
+        assert_eq!(chapter_ref_of("详见第1页的说明"), None);
+    }
+
+    #[test]
+    fn chapter_ref_of_chinese_numerals() {
+        assert_eq!(
+            chapter_ref_of("响应第三章的所有要求"),
+            Some("第三章的所有要求".to_string())
+        );
+        assert_eq!(
+            chapter_ref_of("见第十二章，并附证明材料"),
+            Some("第十二章".to_string())
+        );
     }
 
     #[test]

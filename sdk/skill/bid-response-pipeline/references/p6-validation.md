@@ -21,10 +21,32 @@
 findings: [ { vf_id, kind: DETERMINISTIC|MODEL, rule_code, severity,
               section_id?, requirement_id?, message, evidence } ]
 counts:   { blocker, major, minor, deterministic, model }
+categories: {                      # #187 分类返回（四桶各自独立状态）
+  structural: { status: "passed" | "failed", findings? },
+  semantic:   { status: "passed" | "failed", findings? }
+            | { status: "not_performed", reason: "no model configured" },
+  evidence:   { status: "passed" | "failed", findings? },
+  compliance: { status: "passed" | "failed", findings? } }
 ```
 
+**四桶语义（#187）**：`ok: true` 只意味着「**已执行的检查**中 BLOCKER == 0」，
+**不等于整本标书已通过审核**。四桶各自独立：
+
+| 桶 | 覆盖规则 | 实现状态 |
+|---|---|---|
+| `structural` | E_SECTION_EMPTY / E_CITATION_GHOST / W_PLACEHOLDER / W_CHARS_OFF_TARGET / E_SCOPE_UNKNOWN | 已实现 |
+| `semantic` | M_ 前缀模型发现（表述质量等） | **未实现**——现网恒 `not_performed` |
+| `evidence` | E_EVIDENCE_EXPIRED | 部分实现 |
+| `compliance` | E_VETO_UNRESPONDED / E_QUAL_UNMET / W_FORMAT_BASELINE | 部分实现 |
+
+- `status: "not_performed"` = 该类检查**没做**（如未配置模型）——**没做 ≠ 做对了**
+  （issue #9 口径），不得当成通过；
+- `status: "failed"` = 该类**有发现**（含 MINOR 告警——废标级与否看 ok/counts）；
+- `not_performed` 不把 `ok` 翻 false（能力缺席不是缺陷）。
+
 **必须向用户复述**：`BLOCKER b / MAJOR j / MINOR k`，逐条 BLOCKER 给出修复
-方案。
+方案；**同时如实转述四桶状态**——semantic 为 not_performed 时必须明说
+「语义质量复核未执行（未配置模型）」，不得宣称「全部检查已通过」。
 
 ## 确定性规则清单（代码断言——引擎实测面）
 

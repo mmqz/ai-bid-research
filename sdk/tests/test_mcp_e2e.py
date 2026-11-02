@@ -834,11 +834,17 @@ async def _case_full_pipeline(rec: Recorder, ws: Path) -> None:
                              {"project_id": pid, "scope": "all"})
         data = env.get("data") if isinstance(env.get("data"), dict) else {}
         counts = data.get("counts", {})
+        # #187 分类返回：ok=true 只意味着「已执行的检查中 BLOCKER == 0」。
+        # 现网未配置模型 → semantic 桶必须显式 not_performed（#9 口径：
+        # 没做 ≠ 做对了）——不得因「没发现错误」伪装成 passed。
+        categories = data.get("categories", {})
         checks = [
             ("P7: ok=true", env.get("ok") is True),
             ("P7: counts.blocker == 0", counts.get("blocker", -1) == 0),
             ("P7: findings 面存在",
              isinstance(data.get("findings") or data.get("errors"), list)),
+            ("P7: categories.semantic.status == not_performed（#187 诚实断言）",
+             (categories.get("semantic") or {}).get("status") == "not_performed"),
         ]
         rec.stage("P7 validate_bid_document", "validate_bid_document", {"scope": "all"},
                   data, checks, elapsed_ms=(time.monotonic() - t0) * 1000)

@@ -146,11 +146,31 @@ out: { section_id, content_ref:"DOC-*", version, stats:{words, citations, unanch
 ```
 in : { project_id, scope:"all"|section_ids[], rules_profile:"standard|dark_bid", project_version }
 out: { findings:[{vf_id, kind:DETERMINISTIC|MODEL, rule_code, severity, section_id?, requirement_id?, message, evidence}],
-       counts:{blocker, major, minor, deterministic, model} }
+       counts:{blocker, major, minor, deterministic, model},
+       categories:{ #187 分类返回（纯加法新增；ok/findings/counts 原样保留）
+         structural: {status:"passed"} | {status:"failed", findings:[…]},
+         semantic:   {status:"passed"} | {status:"failed", findings:[…]}
+                   | {status:"not_performed", reason:"no model configured"},
+         evidence:   {status:"passed"} | {status:"failed", findings:[…]},
+         compliance: {status:"passed"} | {status:"failed", findings:[…]} } }
 规则分层（R-07 规则分界；原引审计问题 Q7）:
   确定性（代码断言，先行、必跑）: 报价 vs 控制价/预算、工期 vs 招标要求、资质有效期 vs 开标日、
       页数/字数上限（Word 渲染口径）、必填格式项、签章位存在性、暗标禁字清单扫描、条款引用完整性
   模型（仅产 finding 不改稿）: 表述质量、逻辑连贯、偏离合理化、疑似过度承诺
+categories 四桶（#187——「没做 ≠ 做对了」，issue #9 口径）:
+  structural（已实现）: E_SECTION_EMPTY / E_CITATION_GHOST / W_PLACEHOLDER /
+      W_CHARS_OFF_TARGET / E_SCOPE_UNKNOWN
+  semantic（未实现）: M_ 前缀模型发现——现网未配置模型，恒
+      not_performed{reason:"no model configured"}，不得因「没发现错误」伪装
+      passed；接入真实 LLM 后经服务层注入缝（validate_document_with_reviewer）
+      变为 passed/failed
+  evidence（部分实现）: E_EVIDENCE_EXPIRED（效期面；深度复核后续 PR）
+  compliance（部分实现）: E_VETO_UNRESPONDED / E_QUAL_UNMET /
+      W_FORMAT_BASELINE（暗标禁字等后续阶段）
+  ok 语义（#187 厘清）: ok=true 只意味着「已执行桶中 BLOCKER == 0」，不是
+      「整本标书已通过审核」；not_performed 不把 ok 翻 false（能力缺席不是
+      缺陷）。桶内 findings 与平面 findings 串接一致（桶序：structural →
+      semantic → evidence → compliance，桶内规则触发序）。
 状态: → VALIDATING → REVIEWING；BLOCKER 清零（或登记 WAIVED+理由）才可 EXPORT
       （#86 摩擦 #10 清偿：REVIEWING 是导出时自动补齐的瞬态——单次 export 内部
       经 Drafting→Validating→Reviewing→ReadyToExport→Exported 逐态补链，

@@ -677,12 +677,29 @@ impl BidService {
     /// 纯只读诊断（不改稿不落库——BLOCKER 解除走既有面：矩阵覆写/证据补绑/
     /// 章节 draft）；成功跑完推进项目到至少 VALIDATING（Drafting → Validating
     /// 一步——复审语义；已在 Validating+ 者 no-op）+ checkpoint。
+    ///
+    /// #187：现网语义复核层未配置模型——走 [`crate::validate::NoModel`]
+    /// （semantic 桶显式 NotPerformed，不伪装 Passed）。
     pub fn validate_document(
         &mut self,
         scope_sections: Option<&[String]>,
     ) -> Result<crate::validate::ValidationReport, ToolError> {
         let mut model = crate::validate::NoModel;
-        let report = crate::validate::validate_document(self.store(), scope_sections, &mut model)?;
+        self.validate_document_with_reviewer(scope_sections, &mut model)
+    }
+
+    /// #187 注入缝：validate 的模型复核层从外部注入。
+    ///
+    /// 现网 [`Self::validate_document`] 委之以 [`crate::validate::NoModel`]；
+    /// 测试 / 未来真实 LLM 面经此注入 [`crate::validate::ModelReviewer`] 实现
+    /// （返回 `Some(findings)` = 已复核；`None` = 未配置 → semantic 桶
+    /// NotPerformed）。状态推进 / checkpoint 与现网面同轨。
+    pub fn validate_document_with_reviewer(
+        &mut self,
+        scope_sections: Option<&[String]>,
+        model: &mut dyn crate::validate::ModelReviewer,
+    ) -> Result<crate::validate::ValidationReport, ToolError> {
+        let report = crate::validate::validate_document(self.store(), scope_sections, model)?;
         // 状态推进（合法链一步；幂等面由 advance_project_status 承担）
         let cur = self.store().project()?.status;
         let steps: &[bid_domain::ProjectStatus] = match cur {

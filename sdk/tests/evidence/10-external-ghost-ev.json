@@ -2,11 +2,11 @@
  "case": "10-external-ghost-ev",
  "transport": "mcp",
  "server_bin": "/tmp/shared-target/debug/bid-mcp-server",
- "server_sha256": "742c95a83c0ebbe07640b19d3577c8c791da0ff598ab6b664b3b3c35a415bd67",
+ "server_sha256": "b5d8092aae1699ec05a3889b1542be6a7a1b49ac0c2eae7d4c85691eb32d9b4b",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-01T15:27:08+00:00",
+ "started_at": "2026-11-02T04:39:10+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 5.648208999900817
+   "elapsed_ms": 5.06494000001112
   },
   {
    "stage": "P1 import_tender_files",
@@ -149,7 +149,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 245.71843200010335
+   "elapsed_ms": 242.43227500119247
   },
   {
    "stage": "P2 extract_requirements",
@@ -188,7 +188,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 67.18644600005064
+   "elapsed_ms": 65.94249000045238
   },
   {
    "stage": "P3 build_outline",
@@ -221,7 +221,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.546787999899607
+   "elapsed_ms": 7.329891999688698
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -329,7 +329,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 19.944680999969933,
+   "elapsed_ms": 20.122988000366604,
    "extra": {
     "sections": {
      "SEC-0007": [
@@ -526,7 +526,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.02289900004871
+   "elapsed_ms": 6.87002599988773
   },
   {
    "stage": "P4 bind_evidence",
@@ -558,7 +558,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.397114000013971
+   "elapsed_ms": 7.504676999815274
   },
   {
    "stage": "G3 record_review_gate ×3",
@@ -594,7 +594,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 21.5486750000764
+   "elapsed_ms": 22.759115001463215
   },
   {
    "stage": "① draft(external) 幽灵 EV [SEC-0007]",
@@ -608,6 +608,14 @@
     "draft_note": "起草指令：外部手稿——含一个不存在的证据编号",
     "project_status": "DRAFTING",
     "project_version": 120,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 73,
+     "remaining": 133,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 367
+    },
     "request_id": "req-000012",
     "section_id": "SEC-0007",
     "section_status": "DRAFTED",
@@ -697,5 +705,5 @@
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/external-ghost-ev/ws",
- "finished_at": "2026-11-01T15:27:08+00:00"
+ "finished_at": "2026-11-02T04:39:11+00:00"
 }

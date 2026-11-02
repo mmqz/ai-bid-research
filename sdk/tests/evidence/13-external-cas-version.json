@@ -2,11 +2,11 @@
  "case": "13-external-cas-version",
  "transport": "mcp",
  "server_bin": "/tmp/shared-target/debug/bid-mcp-server",
- "server_sha256": "742c95a83c0ebbe07640b19d3577c8c791da0ff598ab6b664b3b3c35a415bd67",
+ "server_sha256": "b5d8092aae1699ec05a3889b1542be6a7a1b49ac0c2eae7d4c85691eb32d9b4b",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-01T15:27:09+00:00",
+ "started_at": "2026-11-02T04:39:12+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 4.9325040001804155
+   "elapsed_ms": 5.226212999332347
   },
   {
    "stage": "P1 import_tender_files",
@@ -149,7 +149,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 241.40446800015525
+   "elapsed_ms": 248.10153399994306
   },
   {
    "stage": "P2 extract_requirements",
@@ -188,7 +188,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 63.09836500008714
+   "elapsed_ms": 65.40133299859008
   },
   {
    "stage": "P3 build_outline",
@@ -221,7 +221,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.20689200011293
+   "elapsed_ms": 7.021949999398203
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -329,7 +329,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 19.67493500001183,
+   "elapsed_ms": 19.397387999561033,
    "extra": {
     "sections": {
      "SEC-0007": [
@@ -526,7 +526,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.702336999978797
+   "elapsed_ms": 6.652562000454054
   },
   {
    "stage": "P4 bind_evidence",
@@ -558,7 +558,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.473705999927915
+   "elapsed_ms": 7.365359999312204
   },
   {
    "stage": "G3 record_review_gate ×3",
@@ -594,7 +594,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 19.961525000098845
+   "elapsed_ms": 20.85092900051677
   },
   {
    "stage": "④ draft #1（内容 A）",
@@ -608,6 +608,14 @@
     "draft_note": "起草指令：外部手稿——CAS 版本递增验证",
     "project_status": "DRAFTING",
     "project_version": 120,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 68,
+     "remaining": 156,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 344
+    },
     "request_id": "req-000012",
     "section_id": "SEC-0007",
     "section_status": "DRAFTED",
@@ -664,6 +672,14 @@
     "draft_note": "起草指令：外部手稿——CAS 版本递增验证",
     "project_status": "DRAFTING",
     "project_version": 121,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 76,
+     "remaining": 120,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 380
+    },
     "request_id": "req-000013",
     "section_id": "SEC-0007",
     "section_status": "DRAFTED",
@@ -717,6 +733,14 @@
     "draft_note": "起草指令：外部手稿——CAS 版本递增验证",
     "project_status": "DRAFTING",
     "project_version": 121,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 76,
+     "remaining": 120,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 380
+    },
     "request_id": "req-000013",
     "section_id": "SEC-0007",
     "section_status": "DRAFTED",
@@ -780,5 +804,5 @@
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/external-cas-version/ws",
- "finished_at": "2026-11-01T15:27:10+00:00"
+ "finished_at": "2026-11-02T04:39:12+00:00"
 }

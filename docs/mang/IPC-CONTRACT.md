@@ -211,6 +211,27 @@ const full = await (await fetch(url)).json();  // 与内联时那个帧完全一
 
 > 目录节点：`children`=个数（number）、`nodes`=子数组；文件节点没有这两个键。
 
+### workspace.current / workspace.open  `{ path }`  （#194）
+
+运行期切换工作区（= 切换标书项目：`.mang/llm.json`、`.mang/history/`、`db.json`
+都在工作区根下，换根即换项目）。此前 `Ctx.workspace` 不可变，只能退出重开。
+
+```jsonc
+← { "cmd": "workspace.current" }
+→ { "root": "D:\\项目B", "canonical": "\\\\?\\D:\\项目B" }
+
+← { "cmd": "workspace.open", "path": "D:\\项目B" }
+→ { "root": "D:\\项目B", "previous": "D:\\项目A", "changed": true }
+```
+
+- 校验复用启动同一套（`Workspace::new`：canonicalize + is_dir）——目录不存在
+  `not_found`、给的是文件 `bad_args`，**失败不换根**（现工作区不受影响）。
+- 成功即换根 + 落盘 `%APPDATA%\mang\last-workspace.json`（重启无参启动时
+  停在上次的工作区；CLI 显式参数仍最高优先）。记忆失败不阻断切换。
+- `changed=false` 表示重复打开当前工作区（幂等，UI 不弹提示）。
+- 切换后 UI 侧应：关全部 Tab（旧文件句柄失效）→ 重拉 `fs.tree` / `recent.load`
+  → 清 git/快照会话态 → 刷新状态栏（`app.info` 的 `workspace` 字段随新根）。
+
 ### fs.read  `{ path }` — 文本
 上限 **8 MB**（超了 `too_large`）。UTF-8 **lossy** 解码（坏字节换成 U+FFFD，不报错）。
 
@@ -413,7 +434,7 @@ mang-app.exe [DIR] [选项]
 bidcore\target\release\mang-app.exe --selftest
 ```
 
-无窗口跑：ping / app.info / fs.tree / fs.read / fs.readBytes / 大响应落盘取回删除 / fs.writeBytes(允许+拒绝) / fs.stat / fs.mkdir / 路径围栏 5 例 / recent 往返 / history.list / unknown_cmd / bad_json / 启动清理 / mcp.status / llm.status→save→status 往返（掩码+拒绝+清 key）/ fspec.status（缺文件/在场）。输出 `PASS <name>：<detail>` / `FAIL …`，最后 `== N passed, M failed ==`。
+无窗口跑：ping / app.info / fs.tree / fs.read / fs.readBytes / 大响应落盘取回删除 / fs.writeBytes(允许+拒绝) / fs.stat / fs.mkdir / 路径围栏 5 例 / recent 往返 / history.list / unknown_cmd / bad_json / 启动清理 / mcp.status / llm.status→save→status 往返（掩码+拒绝+清 key）/ fspec.status（缺文件/在场）/ workspace.open+current（#194：切换/新根命令面/幂等/记忆/失败不换根）。输出 `PASS <name>：<detail>` / `FAIL …`，最后 `== N passed, M failed ==`。
 
 窗口内 IPC 冒烟（真实 WebView2，走 CDP）：
 ```

@@ -18,6 +18,7 @@
 
 use crate::{DomainStore, ProjectStatus, Requirement, ToolError};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 /// 章节最大层级（1..=4——T-5 规格「1-3（可到 4）」）。
 pub const MAX_LEVEL: u8 = 4;
@@ -586,11 +587,58 @@ pub fn validate_outline(nodes: &[OutlineNode]) -> Result<(), String> {
     Ok(())
 }
 
+// ------------------------------------------------------------ #180 章节内容摘要
+/// 章节树内容摘要（#180 审核内容绑定——PreExportConfirm 门绑定的判据面）。
+///
+/// **编码即契约**（字段清单与排序理由——改动即令所有历史摘要作废）：
+/// - **字段清单**：每节点喂 `(id, parent_id, title, level, order, content)`
+///   六字段——这正是**进出导出产物**的章节面（结构定位 + 叶正文）。
+///   显式排除 `requirement_ids` / `target_chars` / `status` / `dirty` /
+///   `content_attempt`（调度/账面字段，不进产物——绑它们会把「无关变更」
+///   误报成「内容变更」；绑全局 `content_version` 更必然误报：导入无关件/
+///   记审自身/导出推进都 bump 它，连「重新过门」都会在 bump 后立刻失效）；
+/// - **排序**：按 `(order, id)` 升序逐节点喂入——`order` 是文档序（全局
+///   唯一），`id` 仅作防御性并列锚（合法树 order 不并列；手搓/损坏数据
+///   不依赖 Vec 存储序——同一棵树的不同插入序必须同摘要）；
+/// - **分隔符**：字段间与每节点尾均 `\0`（NUL 不出现在正常章标题/正文
+///   文本中，是比空格/换行更强的字段界）；`content` 为 `None`（未起草/
+///   结构节点）与 `parent_id` 为 `None`（根）均喂空串；
+/// - **数值面**：`level`/`order` 取十进制无填充（定界靠 `\0` 不靠宽度）。
+///
+/// 返回 sha256 十六进制小写（64 字符）；空树 = 空输入的 sha256（常量，
+/// 「无章节」与「无章节」仍相等——不误伤无大纲项目）。
+pub fn sections_digest(sections: &[OutlineNode]) -> String {
+    let mut sorted: Vec<&OutlineNode> = sections.iter().collect();
+    sorted.sort_by(|a, b| (a.order, &a.id).cmp(&(b.order, &b.id)));
+    let mut hasher = Sha256::new();
+    for n in sorted {
+        hasher.update(n.id.as_bytes());
+        hasher.update(b"\0");
+        hasher.update(n.parent_id.as_deref().unwrap_or("").as_bytes());
+        hasher.update(b"\0");
+        hasher.update(n.title.as_bytes());
+        hasher.update(b"\0");
+        hasher.update(n.level.to_string().as_bytes());
+        hasher.update(b"\0");
+        hasher.update(n.order.to_string().as_bytes());
+        hasher.update(b"\0");
+        hasher.update(n.content.as_deref().unwrap_or("").as_bytes());
+        hasher.update(b"\0");
+    }
+    hex::encode(hasher.finalize())
+}
+
 // ---------------------------------------------------------------- DomainStore 扩面（T-5 章节树操作）
 impl DomainStore {
     /// 章节树只读面。
     pub fn sections(&self) -> &[OutlineNode] {
         &self.sections
+    }
+
+    /// 当前章节树内容摘要（#180——`record_review` 落账与 `export_allowed`
+    /// 判定共用的单一真源；编码契约见自由函数 [`sections_digest`]）。
+    pub fn sections_digest(&self) -> String {
+        sections_digest(&self.sections)
     }
 
     /// 章节树总字数配额（**根节点求和**——父配额 = 子配额和，全树求和会双计）。
@@ -1206,5 +1254,40 @@ mod tests {
             s.advance_section_status("SEC-9999", Outlining),
             Err(ToolError::ENotFound { .. })
         ));
+    }
+
+    /// #180 摘要编码契约：存储序无关（按 (order, id) 排序——同一棵树不同
+    /// Vec 插入序同摘要）；进出导出产物的字段变 → 摘要变；调度/账面字段变
+    /// （status/dirty/content_attempt）→ 摘要不变（这正是「绑正文不绑账面」
+    /// 的判据面）。
+    #[test]
+    fn sections_digest_encoding_contract() {
+        let mk = |leaf_first: bool, content: Option<&str>, status: SectionStatus| {
+            let root = OutlineNode { id: "SEC-0001".into(), parent_id: None, title: "根".into(),
+                level: 1, order: 1, requirement_ids: vec!["REQ-0001".into()],
+                target_chars: 100, status, dirty: true, content: None, content_attempt: 0 };
+            let leaf = OutlineNode { id: "SEC-0002".into(), parent_id: Some("SEC-0001".into()),
+                    title: "叶".into(), level: 2, order: 2,
+                    requirement_ids: vec!["REQ-0001".into()], target_chars: 100,
+                    status, dirty: true, content: content.map(str::to_string), content_attempt: 7 };
+            if leaf_first { vec![leaf, root] } else { vec![root, leaf] }
+        };
+        // Vec 存储序无关：同一棵树（order 值不变）不同插入序 → 同摘要
+        assert_eq!(sections_digest(&mk(false, Some("正文"), SectionStatus::Pending)),
+                   sections_digest(&mk(true, Some("正文"), SectionStatus::Pending)));
+        // 叶正文变 → 摘要变
+        assert_ne!(sections_digest(&mk(false, Some("正文 v1"), SectionStatus::Pending)),
+                   sections_digest(&mk(false, Some("正文 v2"), SectionStatus::Pending)));
+        // 未起草（None）与空串是同一喂入面 → 同摘要（unwrap_or 空串契约）
+        assert_eq!(sections_digest(&mk(false, None, SectionStatus::Pending)),
+                   sections_digest(&mk(false, Some(""), SectionStatus::Pending)));
+        // 调度/账面字段变（status/dirty/attempt）→ 摘要不变
+        assert_eq!(sections_digest(&mk(false, Some("正文"), SectionStatus::Pending)),
+                   sections_digest(&mk(false, Some("正文"), SectionStatus::Accepted)));
+        // 稳定形态：sha256 hex 小写 64 字符；空树 = 空输入 sha256（常量）
+        let d = sections_digest(&mk(false, None, SectionStatus::Pending));
+        assert_eq!(d.len(), 64);
+        assert!(d.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+        assert_eq!(sections_digest(&[]), hex::encode(Sha256::new().chain_update(b"").finalize()));
     }
 }

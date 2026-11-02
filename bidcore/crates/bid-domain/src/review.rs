@@ -22,7 +22,13 @@
 //! 不构成阻断，不进关单面。
 //!
 //! 导出前置裁决（[`DomainStore::export_allowed`]——单一真源）：
-//! `三门均 Approved ∧ 全部 RT DONE` 才放行。与 export_gate.rs 两阶段门的
+//! `三门均 Approved ∧ 全部 RT DONE ∧ 审核内容未变更` 才放行。第三面是
+//! #180 的内容绑定：PreExportConfirm 记录落账时快照章节树摘要
+//! （[`crate::outline::sections_digest`]），导出时比对——过门后改了章节
+//! 正文/结构 = 旧审核失效（「审核针对的内容已变更」）。绑摘要不绑全局
+//! content_version（后者被导入无关件/记审自身/导出推进一律 bump——必误报）。
+//!
+//! 与 export_gate.rs 两阶段门的
 //! 语义串联：本面是「**能不能开始导出**」（pre_export 门禁的前置裁决面），
 //! 那面是「**导出原子性**」（EXPORTING → sha256 落库为界 → EXPORTED——
 //! 中断绝不出现「业务态 EXPORTED 而产物缺失」的虚假成功，该纪律不变）；
@@ -167,7 +173,8 @@ pub struct Finding {
     pub section_id: Option<String>,
 }
 
-/// 审核记录（一次过门/拒审的完整快照——T-7 规格 struct 落地）。
+/// 审核记录（一次过门/拒审的完整快照——T-7 规格 struct 落地；#180 增
+/// 内容绑定双字段）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReviewRecord {
     pub id: String, // REV-xxxx（store 单序列）
@@ -179,6 +186,17 @@ pub struct ReviewRecord {
     pub findings: Vec<String>,
     /// UNIX_EPOCH 秒（no-chrono 纪律）
     pub at: u64,
+    /// 记审时点的全局 content_version（#180 **辅助账面**——判定不消费：
+    /// 全局版本对「导入无关件/记审自身/导出推进」一律 bump，绑它必误报；
+    /// 真判据是下面的 digest）。`#[serde(default)]` 加性迁移（#147 先例）。
+    #[serde(default)]
+    pub reviewed_content_version: u64,
+    /// 记审时点的章节树内容摘要（#180 **判据**：`export_allowed` 与当前
+    /// [`DomainStore::sections_digest`] 比对——变了 = 审核针对的内容已变更）。
+    /// `""` = legacy 快照（#180 之前的记录未绑定——判定面跳过，宽容载入，
+    /// 旧数据的洞保留；重新过门即补上绑定）。
+    #[serde(default)]
+    pub reviewed_content_digest: String,
 }
 
 /// 修订工单（BLOCKER finding 的关单面——每个 BLOCKER 恰一个 RT，结构不变量）。
@@ -206,6 +224,9 @@ pub struct ReviewReceipt {
     pub finding_ids: Vec<String>,
     /// 本次记审派生的 RT 清单（BLOCKER 强制派生——Warning/Info 不在此面）
     pub spawned_rt_ids: Vec<String>,
+    /// 本次记审绑定的章节树内容摘要（#180——receipt 加法面；幂等重放时为
+    /// 既有记录的摘要，新落账时为当前摘要）。
+    pub reviewed_content_digest: String,
 }
 
 // ---------------------------------------------------------------- DomainStore 扩面（T-7 审核闭环）
@@ -329,28 +350,47 @@ impl DomainStore {
             });
         }
 
-        // ---- 6. 同门重复 Approved：幂等放行
+        // ---- #180 内容绑定素材：记审时点的章节树摘要与全局版本（全部门
+        //      记录统一携带；判定面只消费 PreExportConfirm——见 export_allowed）。
+        //      先于幂等分支计算：幂等判定本身要比摘要（内容变了不走幂等）。
+        let reviewed_content_digest = self.sections_digest();
+        let reviewed_content_version = self.content_version();
+
+        // ---- 6. 同门重复 Approved：幂等放行（**先比 #180 摘要**——内容
+        //      已变更则不走幂等、落新 REV，否则改稿后重过门永远返回旧记录
+        //      = 死锁；比对取**最后一条**同门 Approved：多轮过门时旧记录的
+        //      摘要已陈旧，幂等只对最新一轮成立。legacy 空摘要视为不匹配
+        //      → 落新记录顺带补上绑定，只发生一次）
         if decision == Decision::Approved {
-            if let Some(existing) = self.reviews.iter().find(|r| {
-                r.gate == gate && r.decision == Decision::Approved
-            }) {
-                // 返回**既有序列号**（首次过门记录的 REV-id + 其 FND 清单 +
-                // 首次派生的 RT 清单），不新建记录、content_version 不动。
-                // 携带的新 findings 不入账——门已 Approved，重复过门不是登记
-                // 新发现的通道（新发现走 Rejected 记录）。既有 RT 一律不动
-                // （不复位/不重派/不重复派生）：**重新过门 ≠ 已修完**——修没
-                // 修完只看 RT 状态，不看门又开了一次。
-                let spawned_rt_ids = self.revision_tasks.iter()
-                    .filter(|rt| existing.findings.contains(&rt.finding_id))
-                    .map(|rt| rt.id.clone())
-                    .collect();
-                return Ok(ReviewReceipt {
-                    review_id: existing.id.clone(),
-                    gate,
-                    decision,
-                    finding_ids: existing.findings.clone(),
-                    spawned_rt_ids,
-                });
+            let existing = self
+                .reviews
+                .iter()
+                .rposition(|r| r.gate == gate && r.decision == Decision::Approved)
+                .map(|i| &self.reviews[i]);
+            if let Some(existing) = existing {
+                if existing.reviewed_content_digest == reviewed_content_digest {
+                    // 返回**既有序列号**（首次过门记录的 REV-id + 其 FND 清单 +
+                    // 首次派生的 RT 清单），不新建记录、content_version 不动。
+                    // 携带的新 findings 不入账——门已 Approved，重复过门不是登记
+                    // 新发现的通道（新发现走 Rejected 记录）。既有 RT 一律不动
+                    // （不复位/不重派/不重复派生）：**重新过门 ≠ 已修完**——修没
+                    // 修完只看 RT 状态，不看门又开了一次。
+                    let spawned_rt_ids = self.revision_tasks.iter()
+                        .filter(|rt| existing.findings.contains(&rt.finding_id))
+                        .map(|rt| rt.id.clone())
+                        .collect();
+                    return Ok(ReviewReceipt {
+                        review_id: existing.id.clone(),
+                        gate,
+                        decision,
+                        finding_ids: existing.findings.clone(),
+                        spawned_rt_ids,
+                        reviewed_content_digest: existing.reviewed_content_digest.clone(),
+                    });
+                }
+                // 摘要 ≠ 当前（含 legacy ""）→ 不走幂等，落新记录（下方统一
+                // 落账路径）——新记录绑当前摘要，重过门后 export_allowed
+                // 恢复放行。
             }
         }
 
@@ -390,11 +430,21 @@ impl DomainStore {
             decision,
             findings: finding_ids.clone(),
             at: now_epoch_secs(),
+            // #180 内容绑定：落账即快照（判据在 export_allowed 消费）
+            reviewed_content_version,
+            reviewed_content_digest: reviewed_content_digest.clone(),
         });
         if let Some(p) = self.project.as_mut() {
             p.content_version += 1;
         }
-        Ok(ReviewReceipt { review_id, gate, decision, finding_ids, spawned_rt_ids })
+        Ok(ReviewReceipt {
+            review_id,
+            gate,
+            decision,
+            finding_ids,
+            spawned_rt_ids,
+            reviewed_content_digest,
+        })
     }
 
     // ------------------------------------------------------------ 只读面
@@ -516,11 +566,15 @@ impl DomainStore {
     ///
     /// - 三门均须有 Approved 记录（缺任一 → E_STATE 点名缺哪门——「绕过门
     ///   typed reject」的查询面孪生：记审面挡写入，本面挡导出起步）；
+    /// - #180 内容绑定：最后一条 PreExportConfirm Approved 的
+    ///   `reviewed_content_digest` 非空且 ≠ 当前 [`DomainStore::sections_digest`]
+    ///   → E_UNPROCESSABLE（审核针对的内容已变更，请重新审核）——三门
+    ///   之后、RT 之前：门虽过了，但针对的是旧内容，重审比修 RT 更根本；
     /// - 全部 RT DONE（open_blockers 空——否则 E_UNPROCESSABLE，消息含未关单数）。
     ///
     /// 与 export_gate.rs 两阶段门的串联语义：本面是**前置裁决面**
-    /// （pre_export_confirmed ∧ 全 RT DONE 才放行 EXPORTING 起步）；那面承载
-    /// **导出原子性**（EXPORTING → sha256 落库为界 → EXPORTED——渲染中断/
+    /// （pre_export_confirmed ∧ 全 RT DONE ∧ 内容未变更 才放行 EXPORTING 起步）；
+    /// 那面承载**导出原子性**（EXPORTING → sha256 落库为界 → EXPORTED——渲染中断/
     /// 确认前崩溃绝不产生「业务态 EXPORTED 而产物缺失」的虚假成功）。两面
     /// 前后串联、纪律互补不重叠。
     pub fn export_allowed(&self) -> Result<(), ToolError> {
@@ -531,6 +585,25 @@ impl DomainStore {
                 return Err(ToolError::EState {
                     current: p.status,
                     attempted: missing_gate_attempted(gate),
+                });
+            }
+        }
+        // #180 内容绑定（取**最后一条** PreExportConfirm Approved——多轮过门时
+        // 旧记录的摘要陈旧；空摘要 = legacy 快照未绑定 → 跳过判定，宽容载入）
+        if let Some(last) = self.reviews.iter().rev().find(|r| {
+            r.gate == Gate::PreExportConfirm && r.decision == Decision::Approved
+        }) {
+            let current = self.sections_digest();
+            if !last.reviewed_content_digest.is_empty()
+                && last.reviewed_content_digest != current
+            {
+                return Err(ToolError::EUnprocessable {
+                    reason: format!(
+                        "导出前置裁决未过：审核针对的内容已变更，请重新审核（{} 审核摘要 {}…，当前 {}…——章节正文/结构在过门后被修改）",
+                        last.id,
+                        digest_head(&last.reviewed_content_digest),
+                        digest_head(&current),
+                    ),
                 });
             }
         }
@@ -562,12 +635,19 @@ fn missing_gate_attempted(gate: Gate) -> &'static str {
     }
 }
 
+/// 摘要展示头（前 8 位十六进制——正常 sha256 hex 恒 64 字符；异形/损坏
+/// 快照短于 8 位时原样展示，不 panic）。
+fn digest_head(d: &str) -> &str {
+    d.get(..8).unwrap_or(d)
+}
+
 // ---------------------------------------------------------------- 测试
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ParseStatus;
     use crate::Requirement;
+    use crate::outline::{OutlineNode, SectionStatus};
     use std::collections::HashMap;
 
     /// 审核闭环基座：项目 + 文件 + 1 条 REQ（真实状态链走到
@@ -616,6 +696,44 @@ mod tests {
         s.record_review(Gate::MatrixApproval, "human:zhang", Decision::Approved, vec![]).unwrap();
         s.record_review(Gate::OutlineApproval, "human:li", Decision::Approved, vec![]).unwrap();
         s.record_review(Gate::PreExportConfirm, "human:wang", Decision::Approved, pre_export_findings).unwrap()
+    }
+
+    /// #180 摘要绑定基座：基座 + 两级章节树（根 + 2 叶，全绑 REQ-0001）——
+    /// 过门时点有真实结构面可摘要（digest 涵盖 id/parent/title/level/order/
+    /// content；编码契约见 outline::sections_digest）。
+    fn store_with_outline() -> DomainStore {
+        let mut s = store_review_base(); // REQUIREMENTS_EXTRACTED——set_outline 窗口内
+        let leaf = |id: &str, order: u32| OutlineNode {
+            id: id.into(),
+            parent_id: Some("SEC-0001".into()),
+            title: format!("响应章 {id}"),
+            level: 2,
+            order,
+            requirement_ids: vec!["REQ-0001".into()],
+            target_chars: 500,
+            status: SectionStatus::Pending,
+            dirty: false,
+            content: None,
+            content_attempt: 0,
+        };
+        s.set_outline(vec![
+            OutlineNode {
+                id: "SEC-0001".into(),
+                parent_id: None,
+                title: "技术响应".into(),
+                level: 1,
+                order: 1,
+                requirement_ids: vec!["REQ-0001".into()],
+                target_chars: 1000,
+                status: SectionStatus::Pending,
+                dirty: false,
+                content: None,
+                content_attempt: 0,
+            },
+            leaf("SEC-0002", 2),
+            leaf("SEC-0003", 3),
+        ]).unwrap();
+        s
     }
 
     // ============================ 自研测试 ============================
@@ -946,6 +1064,125 @@ mod tests {
         // 属性，锚 PROJECT 是 RT 派生面的落点口径）
         assert_eq!(s.findings()[0].section_id.as_deref(), Some("SEC-0007"));
         assert_eq!(s.findings()[1].section_id, None);
+    }
+
+    // ============================ #180 审核内容绑定（P0-1） ============================
+
+    /// A｜事故重演与封堵：三门全过（落账绑当时摘要）→ set_section_content
+    /// 改叶正文（Drafting 全程放行——合法面）→ export_allowed 拒
+    /// （E_UNPROCESSABLE「审核针对的内容已变更」——旧审核不再有效）。
+    #[test]
+    fn pre_export_digest_binds_section_content() {
+        let mut s = store_with_outline();
+        s.set_section_content("SEC-0002", "第一章正文 v1（审核时点）".into()).unwrap();
+        s.set_section_content("SEC-0003", "第二章正文 v1（审核时点）".into()).unwrap();
+        force_status(&mut s, ProjectStatus::Drafting);
+        let receipt = walk_three_gates(&mut s, vec![]);
+        // 落账即绑定：回执与记录都携带过门时点的章节摘要
+        assert_eq!(receipt.reviewed_content_digest, s.sections_digest());
+        assert_eq!(s.reviews()[2].reviewed_content_digest, s.sections_digest());
+        assert!(s.export_allowed().is_ok());
+        // 事故形态：v10 过门 → v11 Agent 改叶正文 → 直接导出（此前放行 = 洞）
+        s.set_section_content("SEC-0002", "第一章正文 v2（过门后被改）".into()).unwrap();
+        match s.export_allowed() {
+            Err(ToolError::EUnprocessable { reason }) => {
+                assert!(reason.contains("审核针对的内容已变更"), "须点名内容变更：{reason}");
+                assert!(reason.contains("请重新审核"), "须给出行动指引：{reason}");
+                assert!(reason.contains(&receipt.review_id), "须点名失效的 REV：{reason}");
+            }
+            other => panic!("改叶正文后导出须 E_UNPROCESSABLE，得到 {other:?}"),
+        }
+    }
+
+    /// B｜无关变更不误伤：过门 → upsert_file 导入无关件（bump 全局
+    /// content_version 但不触章节摘要）→ export_allowed 仍放行。这是
+    /// 「绑摘要」与「绑全局版本」的分水岭——区分「正文变了」和「别的
+    /// 东西变了」。
+    #[test]
+    fn unrelated_import_does_not_invalidate_review() {
+        let mut s = store_with_outline();
+        s.set_section_content("SEC-0002", "正文 v1".into()).unwrap();
+        force_status(&mut s, ProjectStatus::Drafting);
+        walk_three_gates(&mut s, vec![]);
+        assert!(s.export_allowed().is_ok());
+        let v = s.content_version();
+        s.upsert_file("C-答疑纪要.pdf", "补遗", "sha-180-unrelated", 2, 0, 3, 0,
+                      ParseStatus::Ok, "无关件导入").unwrap();
+        assert_eq!(s.files().len(), 2);
+        assert!(s.content_version() > v, "导入确实 bump 了全局版本");
+        assert!(s.export_allowed().is_ok(), "无关件不触章节摘要——导出仍放行");
+    }
+
+    /// C｜幂等重导：过门 → export_allowed Ok → 连跳 4 态（每次推进 bump
+    /// content_version——模拟导出后的状态链）→ 仍 Ok。摘要不绑全局版本，
+    /// 「不改正文重复导出」恒放行。
+    #[test]
+    fn repeat_export_after_version_bumps_still_allowed() {
+        let mut s = store_with_outline();
+        s.set_section_content("SEC-0002", "正文 v1".into()).unwrap();
+        force_status(&mut s, ProjectStatus::Drafting);
+        walk_three_gates(&mut s, vec![]);
+        assert!(s.export_allowed().is_ok());
+        let v = s.content_version();
+        for st in [ProjectStatus::Validating, ProjectStatus::Reviewing,
+                   ProjectStatus::ReadyToExport, ProjectStatus::Exported] {
+            s.advance_project_status(st).unwrap();
+        }
+        assert_eq!(s.content_version(), v + 4, "4 次状态推进 = 4 次 bump");
+        assert!(s.export_allowed().is_ok(), "版本 bump ≠ 内容变更——仍放行");
+    }
+
+    /// 改稿后重过门：幂等分支先比摘要——不同则落**新** REV（绑新摘要），
+    /// 不被「同门重复 Approved 幂等」吞掉（否则改稿后重过门永远返回旧
+    /// 记录 = 死锁）；内容再不变 → 幂等恢复（对最新一轮成立）。
+    #[test]
+    fn reapproval_after_content_change_creates_new_record() {
+        let mut s = store_with_outline();
+        s.set_section_content("SEC-0002", "正文 v1".into()).unwrap();
+        force_status(&mut s, ProjectStatus::Drafting);
+        let first = walk_three_gates(&mut s, vec![]);
+        assert!(s.export_allowed().is_ok());
+        // 改稿 → 旧门失效
+        s.set_section_content("SEC-0002", "正文 v2（改稿）".into()).unwrap();
+        assert!(s.export_allowed().is_err(), "改稿后旧审核失效");
+        // 重过门：新 REV（非幂等重放），落账绑改后摘要
+        let second = s.record_review(Gate::PreExportConfirm, "human:wang", Decision::Approved, vec![]).unwrap();
+        assert_ne!(second.review_id, first.review_id, "落新 REV——幂等分支没吞");
+        assert_eq!(s.reviews().len(), 4, "三门 3 条 + 重过门 1 条");
+        assert_eq!(second.reviewed_content_digest, s.sections_digest(), "新记录绑改后摘要");
+        let rec = s.reviews().iter().find(|r| r.id == second.review_id).unwrap();
+        assert!(rec.reviewed_content_version > 0, "辅助账面在座（判定不消费）");
+        assert!(s.export_allowed().is_ok(), "重过门后恢复放行");
+        // 内容不再变 → 再过门恢复幂等（比对的是**最后一条**同门 Approved）
+        let third = s.record_review(Gate::PreExportConfirm, "human:li", Decision::Approved, vec![]).unwrap();
+        assert_eq!(third.review_id, second.review_id, "摘要未变 → 幂等返回最新一轮记录");
+        assert_eq!(s.reviews().len(), 4, "幂等重放零新账");
+    }
+
+    /// legacy 快照宽容载入：#180 之前的 reviews 无新字段（serde(default)
+    /// 加性迁移——#147 先例）→ 载入成功、digest==""、export_allowed
+    /// 判定面跳过（旧数据的洞保留——不因新规则把存量项目锁死在导出闸外；
+    /// 重新过门即补上绑定）。
+    #[test]
+    fn legacy_snapshot_without_digest_still_loads() {
+        let mut s = store_with_outline();
+        s.set_section_content("SEC-0002", "正文 v1".into()).unwrap();
+        force_status(&mut s, ProjectStatus::Drafting);
+        walk_three_gates(&mut s, vec![]);
+        // 模拟旧快照：剥掉 reviews 的 #180 两字段再反序列化（serde 加载面）
+        let mut v = serde_json::to_value(s.to_snapshot()).unwrap();
+        for r in v["reviews"].as_array_mut().unwrap() {
+            let obj = r.as_object_mut().unwrap();
+            obj.remove("reviewed_content_version");
+            obj.remove("reviewed_content_digest");
+        }
+        let legacy: crate::StoreSnapshot = serde_json::from_value(v).unwrap();
+        let mut s2 = DomainStore::restore(legacy).unwrap();
+        assert!(s2.reviews().iter().all(|r| r.reviewed_content_digest.is_empty()),
+                "旧记录摘要为空（legacy 未绑定）");
+        // 判定面跳过：即便过门后改正文，空摘要不拒（宽容面——已知保留的洞）
+        s2.set_section_content("SEC-0002", "正文 v2（legacy 之后被改）".into()).unwrap();
+        assert!(s2.export_allowed().is_ok(), "空摘要跳过判定——存量项目不被锁死");
     }
 
     // ============================ 借鉴测试（borrow 注明出处） ============================

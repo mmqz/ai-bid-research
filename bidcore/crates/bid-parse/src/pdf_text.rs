@@ -2004,13 +2004,11 @@ pub enum CjkGarbleProbe {
 /// CJK 字符）——0.02 距两者都有数量级余量。位于中间的合法形态（声明了中文
 /// 字体但正文以英文为主的模板件）被降级也无损失：降级只是换纯 Rust 兜底
 /// 重解同一文件，summary 诚实自报。
-pub fn probe_cjk_garble(pdf_bytes: &[u8], text: &str) -> CjkGarbleProbe {
-    probe_cjk_garble_flat(pdf_bytes, text)
-}
 
-/// 全文拉平判据（#223 前的唯一判定；保留为分页判据的退化面）。
-fn probe_cjk_garble_flat(pdf_bytes: &[u8], text: &str) -> CjkGarbleProbe {
-    // #200 R1 收窄：仅 CID-CJK 字体实际在用时才启用乱码探测。
+pub fn probe_cjk_garble(pdf_bytes: &[u8], text: &str) -> CjkGarbleProbe {
+    // #200 R1 收窄：只对「CID-CJK 编码且内容流实际选用」的字体激活——
+    // Type1/TrueType 简单字体（如声明 SimSun 的英文模板件）不存在 CMap
+    // 映射环节，无从「映射失败」成 Latin-1 残渣，永不激活（防误伤）。
     if !cid_cjk_font_in_use(pdf_bytes) {
         return CjkGarbleProbe::NoSignal;
     }
@@ -2018,13 +2016,56 @@ fn probe_cjk_garble_flat(pdf_bytes: &[u8], text: &str) -> CjkGarbleProbe {
     if non_ws < 32 {
         return CjkGarbleProbe::NoSignal;
     }
+    // 【#200 R1-C 修复】低 CJK 占比不等于乱码——混排件（1 汉字 + 58 英文词）
+    // 的 CJK 占比约 1.7%，低于 2% 阈值却被误判为乱码拒收（CI 实测）。
+    //
+    // 判据追加「文本可读性」：Latin-1 化残渣（`SbheNLRQ`、`g,yvîN`）的特征是
+    // 大量非 ASCII 的非字母字符 + 无可识别单词边界；真实混排文本则是
+    // 「结构良好的 ASCII 单词 + 少量 CJK」。
     if cjk_ratio(text) < 0.02 {
-        CjkGarbleProbe::Garbled
-    } else {
-        CjkGarbleProbe::Clean
+        // 残渣占比高（≥0.3）→ 确实是解码失败
+        if non_ascii_ratio(text) >= 0.3 {
+            return CjkGarbleProbe::Garbled;
+        }
+        // 残渣占比低，但文本是否像自然语言？
+        if looks_like_natural_text(text) {
+            return CjkGarbleProbe::Clean;
+        }
+        return CjkGarbleProbe::Garbled;
     }
+    CjkGarbleProbe::Clean
 }
 
+/// 文本是否像自然语言（#200 R1-C）。
+///
+/// 用于区分「真实低 CJK 占比的混排件」与「Latin-1 化残渣」：
+/// - 混排：`本 Tender document summary covering scope...` ← 有空格分词的字母单词
+/// - 残渣：`SbheNLRQ`、`g~\u{{ee}}Nbyg` ← 无空格、无词边界的杂串
+///
+/// 判据（全部满足才算自然语言）：
+/// 1. ASCII 字母占比 ≥ 0.5（真实英文/混排文本大量字母）
+/// 2. 空格占比 ≥ 0.08（自然语言有词边界；残渣空格极少）
+/// 3. 存在长度 ≥ 3 的纯字母单词（排除 `kV`、`g,` 这类 2 字碎屑）
+fn looks_like_natural_text(text: &str) -> bool {
+    let chars: Vec<char> = text.chars().filter(|c| !c.is_whitespace()).collect();
+    if chars.is_empty() {
+        return false;
+    }
+    let letters = chars.iter().filter(|c| c.is_ascii_alphabetic()).count();
+    let letter_ratio = letters as f64 / chars.len() as f64;
+    if letter_ratio < 0.5 {
+        return false;
+    }
+    let total = text.chars().count();
+    let spaces = text.chars().filter(|c| c.is_whitespace()).count();
+    let space_ratio = spaces as f64 / total.max(1) as f64;
+    if space_ratio < 0.08 {
+        return false;
+    }
+    // 至少一个长度 ≥3 的纯字母 token
+    text.split(|c: char| !c.is_alphabetic())
+        .any(|w| w.len() >= 3 && w.chars().all(|c| c.is_ascii_alphabetic()))
+}
 /// 页级乱码判定结论（#223）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PageGarbleVerdict {
@@ -2066,17 +2107,16 @@ pub fn probe_cjk_garble_pages(pdf_bytes: &[u8], pages: &[String]) -> PageGarbleV
         // 退化面：拼全部页跑拉平判据（小文档不放松——单页文件行为不变）
         let flat: String = pages.concat();
         return PageGarbleVerdict {
-            verdict: probe_cjk_garble_flat(pdf_bytes, &flat),
+            verdict: probe_cjk_garble(pdf_bytes, &flat),
             garbled_pages: Vec::new(),
         };
     }
     let mut garbled_pages = Vec::new();
     let mut clean = 0usize;
     for (i, p) in &valid {
-        if cjk_ratio(p) < 0.02 {
-            garbled_pages.push(i + 1);
-        } else {
-            clean += 1;
+        match probe_cjk_garble(pdf_bytes, p) {
+            CjkGarbleProbe::Garbled => garbled_pages.push(i + 1),
+            CjkGarbleProbe::Clean | CjkGarbleProbe::NoSignal => clean += 1,
         }
     }
     let verdict = if clean == 0 {
@@ -2530,7 +2570,8 @@ mod tests {
             "真件应有多页文本，实际 {}",
             t.pages.len()
         );
-    }
+    }
+
     #[test]
     fn per_char_tm_positioning_joins_into_one_line() {
         let content = b"BT /F1 12 Tf 1 0 0 -1 100 50 Tm (B) Tj ET \

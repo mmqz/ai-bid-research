@@ -35,6 +35,9 @@
 ```
 per_file[]: file_id / sha256 / pages / tables / chunks / ocr_tier / parse_status
 totals:     { files, chunks, parse_failed, partial }
+addendum_readiness: { total, ready, not_ready:[{file_id, name, readiness, waived, reason}] }
+            ← #184 补遗分级就绪报告（仅补遗/澄清类件）；非 READY 件另发
+              ADDENDUM_NOT_READY 告警点名 + 指路 record_addendum_waiver
 ```
 
 **必须向用户复述**：`共导入 N 件 / 解析块 M / 失败 F 件`，并与预期比对。
@@ -47,14 +50,32 @@ totals:     { files, chunks, parse_failed, partial }
 |---|---|---|
 | `none` | 文本层在位，无需 OCR | 正常 |
 | `ocr` | 无文本层但 OCR 已产出 | 提醒用户：扫描件内容来自 OCR，抽查关键页 |
-| `pending` | 无文本层且 OCR 未产出 | 登记缺口；该件当前不可引，等 OCR 通道补齐 |
-| `n/a` | 解析失败件，无内容面 | 走失败件处理（重试/确认放弃） |
+| `pending` | 无文本层且 OCR 未产出 | 登记缺口；该件当前不可引，等 OCR 通道补齐。**补遗/澄清类件同时使 addendum_readiness 报 OCR_PENDING（#184）——阻塞 P5 起草，见下** |
+| `n/a` | 解析失败件，无内容面 | 走失败件处理（重试/确认放弃）。**补遗/澄清类件同时阻塞 P5 起草（#184），见下** |
+
+## 补遗分级门（#184）
+
+任一补遗/澄清件不处 READY（readiness=FAILED 解析失败 / OCR_PENDING 零文本）
+→ `draft_response_section` 被 MissingAddendum 拒，拒稿理由逐件点名文件名与
+原因——**部分失败也算**（3 份坏 1 份也拦：坏的那份可能正是改控制价/截止
+时间的，按旧条款做标是废标）。出口两条：
+
+1. **修复重传**可解析版本（新 sha256 即新档，阻塞自然消失）；
+2. **用户逐件确认后放行**：`record_addendum_waiver`（file_id + reason +
+   `human:` 前缀 principal——逐件留底审计，非全局布尔；已确认件在
+   not_ready 清单里 waived=true，不再阻塞但仍可查）。
 
 ## 失败降级话术（向用户）
 
 > 「`<filename>` 解析失败（原因：<errors>）。已成功导入其余 N 件。你可以：
 > ① 给我修复后的文件重试（sha256 幂等——同文件重传不重复计费）；
 > ② 确认放弃该件——放弃后该件内容我不会引用，涉及条款将标为无源。」
+
+**补遗/澄清类件不适用话术 ②**（#184）：坏补遗不能「确认放弃」了事——
+它可能改了控制价/截止时间。要么修复重传，要么用户逐件确认
+`record_addendum_waiver` 留底放行（话术：「这份补遗我无法读取。若你已
+人工核对原件且确认条款无实质变化，我可以记录你的逐件确认后继续；否则
+请提供可解析版本。」）。
 
 ## 幂等与补遗
 

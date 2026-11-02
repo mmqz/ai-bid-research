@@ -9,7 +9,7 @@ description: >
 # 标书编制管线（bid-response-pipeline）
 
 > 职责分界：**Agent 编排与写正文，引擎裁决与保真**。本 Skill 驱动一个封闭的
-> 确定性后端（bid-mcp，20 个 MCP 工具）——你按阶段表走、守门禁、向用户复述
+> 确定性后端（bid-mcp，21 个 MCP 工具）——你按阶段表走、守门禁、向用户复述
 > 数字；状态机裁决、引用回查、CAS 落盘、校验、导出全部由引擎完成。
 > 工具契约单一真源：`docs/bid-mcp-contract.md`（本文工具名与之逐一对齐，
 > 不新增任何绕过状态机的写路径）。
@@ -19,7 +19,7 @@ description: >
 | 阶段 | 动作 | 允许工具 | 完成判据（停止条件） | 恢复点 |
 |---|---|---|---|---|
 | P0 建项 | 建投标项目 | `create_bid_project` | project_id 返回且 deadline 未过 | 幂等 external_key 重入 |
-| P1 导入 | 逐类导入+核对 | `import_tender_files` | totals.parse_failed=0 且部分失败件已重试或经用户确认降级；**统计数字必须向用户复述** | sha256 幂等；失败件单补 |
+| P1 导入 | 逐类导入+核对 | `import_tender_files` | totals.parse_failed=0 且部分失败件已重试或经用户确认降级；**补遗件必须全部 READY**（addendum_readiness.not_ready 非空 → 修复重传，或经用户逐件确认 record_addendum_waiver 后放行——见下方「补遗分级门」）；**统计数字必须向用户复述** | sha256 幂等；失败件单补 |
 | P2 抽条款 | 抽取+冲突确认 | `extract_requirements` | missing_sequence 为空（缺号必须解释）；conflicts 逐条向用户确认口径 | dedupe_hash 幂等合并 |
 | P3 矩阵 | 建纲+矩阵+资格判断 | `build_outline` → `get_compliance_matrix` | build_outline 返回 MATRIX_READY；资格/否决行 policy 全填；资格三态结论（eligible/conditional/not_eligible）向用户报告；**not_eligible → 停止流程，只产审查报告** | 矩阵只读（get_compliance_matrix），随时重查 |
 | P4 证据 | 登记+绑定证据、补缺清单 | `register_evidence` / `bind_evidence` / `list_evidence` / `search_evidence`* | 每条必选项≥1 条 OK 证据；EXPIRED 禁绑；缺失项形成补料清单交用户；bind 后 matrix.blocking=0 | 缺料→等待用户补充后仅补跑受影响行 |
@@ -36,7 +36,15 @@ description: >
 `check_bid_quality`（章节发现面——**外部 Agent 获取章节清单的正式查询口**，
 sections 只列可起草叶）、`score_price` / `score_section` / `score_document`
 （自评面：该报多少价、这份标书能得几分）、`record_review_gate`（人工复审门，
-见下）。
+见下）、`record_addendum_waiver`（补遗不就绪件的逐件人工确认——见下）。
+
+> **补遗分级门（#184）**：任一补遗/澄清件不处 READY（FAILED=解析失败 /
+> OCR_PENDING=扫描件零文本）→ `draft_response_section` 被 MissingAddendum
+> 拒，拒稿理由逐件点名文件名与原因——**部分失败也算**（坏的那份可能正是改
+> 控制价/截止时间的）。出口两条：修复重传可解析版本（阻塞自然消失）；或
+> 经用户逐件确认后放行（`record_addendum_waiver`，file_id+reason+`human:`
+> 前缀 principal——逐件留底，非全局布尔）。import 响应的
+> `addendum_readiness.not_ready[].file_id` 是确认的锚。
 
 > **自评面口径（#170 方案 A 落地后 · 2026-11-02）**：
 >
@@ -51,8 +59,10 @@ sections 只列可起草叶）、`score_price` / `score_section` / `score_docume
 人工门（`record_review_gate`，reviewer 必须以 `human:` 前缀——AI 操作者不得
 自审自过）：矩阵门 `matrix_approval` → 大纲门 `outline_approval` → 导出确认门
 `pre_export_confirm`（三门有序，export 前逐一记审）；第四门 `addendum_waiver`
-（单件招标文件无补遗时的人工确认——draft 会被 MissingAddendum 阻塞，此门是
-唯一出口，导入后任意时刻可记）。
+（**单件招标文件无补遗时**的人工确认——draft 会被 MissingAddendum 阻塞，
+此门是「无补遗」的唯一出口，导入后任意时刻可记；#184 起它**不掩蔽**补遗
+在场的不就绪件——那走 `record_addendum_waiver` 逐件确认，见上方「补遗
+分级门」）。
 
 ## 恢复协议（断点续跑）
 

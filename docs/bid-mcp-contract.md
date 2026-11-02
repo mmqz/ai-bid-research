@@ -32,10 +32,17 @@ out: { project_id, status: "DRAFT" }
 ```
 in : { project_id, files:[{upload_ref, filename, kind(招标文件|附件|图纸|补遗|答疑|评分办法|格式模板)?, expected_pages?}], project_version }
 out: { file_ids:[TF-*], per_file:[{file_id, sha256, pages, tables, chunks, ocr_tier, parse_status, errors?}],
-       totals:{files, chunks, parse_failed, partial} }
+       totals:{files, chunks, parse_failed, partial},
+       addendum_readiness:{ total, ready, not_ready:[{file_id, name,
+         readiness(READY|FAILED|OCR_PENDING), waived, reason}] } }   ← #184 分级就绪报告
 幂等: sha256 已存在 → no-op 返回原 file_id（deduplicated:true）
 语义: 后端确定性管线——解析（表格单元格级、扫描件 OCR 分档）→ 结构化切块（chunk_id 稳定、登记 文件→位置 映射）→ 证据注册（切块即入 EV 台账——后续 register_evidence 签发的 EV-id 从已有计数后继，不是从 EV-0001 起——#80 第三批外部 Agent 实测摩擦 #7）→ 向量+精确双索引。**Agent 不做解析与切块，只核对返回统计并重试失败件（R-01）。**
-错误: E_PARTIAL（部分文件 parse FAILED；失败件内容全程禁引）；E_STATE（project 已过 IMPORTED 阶段追加新文件 → 允许，但标 dirty 波及）
+警告: 补遗件非 READY 且未逐件确认 → warnings[] 携带
+      「ADDENDUM_NOT_READY: 补遗 <名> 未就绪（<原因>）——补遗可能改控制价/
+      截止时间/评分办法，请修复重传或人工确认后放行（record_addendum_waiver）」
+      （#184——import 是 Agent 看到坏补遗的第一现场；已确认件不重复告警）
+错误: E_PARTIAL（部分文件 parse FAILED；失败件内容全程禁引；data 携带成功面含
+      addendum_readiness 块）；E_STATE（project 已过 IMPORTED 阶段追加新文件 → 允许，但标 dirty 波及）
 状态: DRAFT → FILES_IMPORTED
 ```
 
@@ -132,10 +139,12 @@ out: { section_id, content_ref:"DOC-*", version, stats:{words, citations, unanch
      真实通路：60s 超时重试 1 次；max_tokens 按 target_chars 推导（防失控，completion 超
      硬上限 2 倍 → 整章废弃报错）；用量累计落 .mang/llm-usage.json（api_key 绝不落日志/台账）。
 执行: 后端经**文档内核稳定接口**创建/更新 DOC 块（本系统不触碰内核内部结构）；引用覆盖率校验——承诺句无证据引用计为 unanchored_claims>0 时 warning（阻断留给 validate）
-阻塞: draft 前置 readiness 闸（#110 任务 1 + L3）：无关联 REQ/缺资质/业绩不足/技术
-      参数无佐证/否决项未响应/无补遗（MissingAddendum）六种 Blocker →
-      E_UNPROCESSABLE（人话理由，不泄漏枚举名）。无补遗的人工出口 =
-      addendum_waiver 门（§12）。
+阻塞: draft 前置 readiness 闸（#110 任务 1 + L3；#184 升级为分级）：无关联 REQ/缺
+      资质/业绩不足/技术参数无佐证/否决项未响应/补遗不就绪（MissingAddendum
+      ——任一件非 READY 且无逐件确认即阻塞，**部分失败/零文本扫描件也算**，
+      拒稿理由逐件点名文件名与原因）六种 Blocker → E_UNPROCESSABLE（人话
+      理由，不泄漏枚举名）。人工出口分两支：无补遗件 = addendum_waiver 门
+      （§12）；补遗在场但不就绪 = record_addendum_waiver 逐件确认（§16）。
 大纲: 否决项/资格条件不写规则原文但合并进【资格与响应】响应章节组（#121
       P0-1/#126：评标规则不进正文）；评分项完全不进正文（只进自评表）；
       「其他」类二次分组（章节→主题→兜底条款号区间，不裸「（第N块）」）。
@@ -399,14 +408,16 @@ out: { receipt:{ review_id, gate, decision, reviewer, finding_ids, spawned_rt_id
       文件（无补遗件）起草会被 MissingAddendum 拒；Approved = 人工确认本项目
       无补遗 → missing_addendum 放行。与三门正交：无状态门、无门序前置
       （导入后任意时刻可记），不入 export_allowed 门序；补遗件在场时走正常
-      判定（不因 waiver 洗白 ParseFailed——补遗解析失败仍阻塞）。
+      判定（不因 waiver 洗白 ParseFailed——补遗解析失败仍阻塞；#184 起
+      OCR_PENDING 零文本件同样不被洗白，其逐件人工出口见 §16）。
 状态: MATRIX_READY+（域层按门细分窗口；addendum_waiver 无窗口限制）
 错误: E_UNPROCESSABLE（gate/decision/findings 形态非法；reviewer 缺 human: 前缀）；
       E_STATE（门序/窗口外）
 ```
 
 > **外部 Agent 纯 MCP 驱动闭环**（G1/G2/G3 补齐后）：create → import → extract →
-> build_outline → register/bind →（无补遗件时 addendum_waiver）→ 三门 →
+> build_outline → register/bind →（无补遗件时 addendum_waiver 门；补遗不就绪时
+> record_addendum_waiver 逐件确认——§12/§16）→ 三门 →
 > check_bid_quality（**章节发现面**——sections 只列叶，get_bid_project_state 不回
 > 章节清单）→ draft → validate → export。
 > 验收：`tests/mcp_scaffold_tools.rs`（零服务面直调全链 + 错误路径）。
@@ -490,4 +501,42 @@ out: { project_id, technical, price（null | 数值）, commercial（null | 数�
       11_self-score.json 即本工具产物（scripts/e2e_bid/run_e2e_artifacts.sh）。
 状态: MATRIX_READY+（只读诊断）
 错误: E_UNPROCESSABLE（价格口径非法）；E_STATE（无章节树）
+```
+
+## 16. record_addendum_waiver（#184 补遗分级阻塞的逐件人工确认）
+
+> 背景：#184 前旧判定「3 份补遗坏 1 份不拦工作流」（只有**全部**失败才阻塞），
+> 且 OcrRequired 一律放行——零文本扫描件被当「没有内容」处理。翻案理由：
+> **不知道 ≠ 没有**——坏的那份可能正是改控制价/截止时间的，按旧条款做标是
+> 不可逆的废标；工作流被拦是可修复的摩擦（修复重传 / 逐件确认），且「放行」
+> 本身也要变成留底的可审计行为，而非静默赌概率。
+
+```
+in : { project_id, file_id(TF-*——须真实存在，import 响应/拒稿理由中的
+       addendum_readiness.not_ready[].file_id),
+       reason(非空白——不可审计的确认不成确认),
+       principal(须 "human:" 前缀——AI 不得自审自过，#182 将升级 TrustedPrincipal 验签),
+       project_version }
+out: { recorded:{ file_id, reason, at(unix epoch 秒), principal },
+       addendum_waivers:[{file_id, reason, at, principal}…全部确认记录——
+       追加式审计日志：同件重复确认追加不覆盖，解除不走本面],
+       addendum_readiness:{ total, ready, not_ready:[{file_id, name, readiness,
+       waived, reason}]（已确认件仍在清单但 waived=true——审计面不因放行
+       而消失）}, status, project_version }
+语义: #184 分级就绪的伴生闸：任一补遗不处 READY（FAILED / OCR_PENDING）时
+      draft_response_section 被 MissingAddendum 拒（§6，逐件点名）；本工具
+      对具体 file_id 记一条人工确认 → 该件不再构成阻塞。非全局布尔——
+      「3 份坏 1 份」要确认到具体哪一份、为什么故意带病放行。写账即
+      content_version +1；导入可解析版本后阻塞自然消失，确认记录无害残留
+      （与 §12 addendum_waiver 门同款语义）。
+分级: Ok → READY；OcrRequired 且 ocr_blocks>0 → READY（OCR 已出内容，与
+      ocr_tier "ocr" 档同口径）；OcrRequired 零块 → OCR_PENDING（域层暂无
+      「OCR 跑过但零产出」与「还没跑」的区分信号，合一态保守阻塞）；
+      Failed → FAILED。混存分类取重：有 FAILED 件报 parse_failed，否则
+      ocr_pending（逐件真相在 not_ready 清单）。
+状态: FILES_IMPORTED+（含 EXPORTED——与 §12 addendum_waiver 门同窗口：导入
+      后任意时刻可确认，阻塞可能出现在任何后续阶段；DRAFT 拒 E_STATE）
+错误: E_UNPROCESSABLE（principal 缺 human: 前缀 / reason 空白）；E_NOTFOUND
+      （file_id 不存在于 files——对不存在的件做确认 = 凭空免责）；E_STATE
+      （DRAFT）；拒绝路径零副作用
 ```

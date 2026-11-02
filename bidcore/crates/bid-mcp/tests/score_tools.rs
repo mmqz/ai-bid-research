@@ -246,6 +246,9 @@ fn score_section_on_drafted_leaf() {
         "project_id": &pid, "section_id": &target_leaf,
     })));
     assert_eq!(r["section_id"], target_leaf.as_str());
+    // #186 语义降级标记：规则诊断非评标模拟——两个标记必须恒在场
+    assert_eq!(r["diagnostic_only"], json!(true), "diagnostic_only=true: {r:?}");
+    assert_eq!(r["result_kind"], "rule_heuristic", "result_kind=rule_heuristic: {r:?}");
     // 形状面：max / estimated / item_scores / rationale 都在场
     assert!(r["max"].as_f64().is_some(), "max 在场（数值）: {r:?}");
     assert!(r["estimated"].as_f64().is_some(), "estimated 在场: {r:?}");
@@ -355,6 +358,9 @@ fn score_document_shapes_and_price_semantics() {
     let r = ok_result(call(&mut svc, "score_document", json!({
         "project_id": &pid,
     })));
+    // #186 语义降级标记：规则诊断非评标模拟——两个标记必须恒在场
+    assert_eq!(r["diagnostic_only"], json!(true), "diagnostic_only=true: {r:?}");
+    assert_eq!(r["result_kind"], "rule_heuristic", "result_kind=rule_heuristic: {r:?}");
     // 【#126 语义变更后的口径】技术项 REQ-0002 是**评分项**，不进正文
     // （outline.rs:324）——它的 estimated 来自「章节正文覆盖度 × 该项分值」，
     // 而覆盖度取决于**本章节的正文**（否决项/技术参数叶的稿）。

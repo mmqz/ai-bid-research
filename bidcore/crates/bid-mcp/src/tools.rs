@@ -2217,6 +2217,10 @@ fn score_price(_svc: &mut BidService, args: Value) -> ToolResult {
 
 /// `score_section` —— 章节自评（issue #100 §3.1——「这一章能得几分」）。
 ///
+/// #186 语义降级：**规则诊断，非评标模拟**——tier 是关键词覆盖/长度/证据词
+/// 存在性的启发式档位（`diagnostic_only=true, result_kind=rule_heuristic`），
+/// 不代表评委会会给的档；评分细则接入（score_rules → assess）另见 #186 第二步。
+///
 /// 壳层职责：参数校验 → route_guard（只读诊断，MatrixReady+ 窗口）→ 前置
 /// （章节在场 + 已起草——无正文的自评是空转）→ B2 [`SectionScorer`] 只调用
 /// 不改 → out 组装（item_scores 逐项明细 + rationale 可追溯面）。
@@ -2256,6 +2260,10 @@ fn score_section(svc: &mut BidService, args: Value) -> ToolResult {
     let s = scorer.score_section(&section_id, &content);
     Ok(json!({
         "project_id": project_id,
+        // #186 语义降级标记：规则诊断非评标模拟（对外承诺必须准确——
+        // external Agent 不得把 tier 理解为评委会会给的档）
+        "diagnostic_only": true,
+        "result_kind": "rule_heuristic",
         "section_id": s.section_id,
         "section_title": node.title,
         "chars": content.chars().filter(|c| !c.is_whitespace()).count(),
@@ -2276,6 +2284,11 @@ fn score_section(svc: &mut BidService, args: Value) -> ToolResult {
 /// `target` = 非硬门可达叶的满分合计（诚实满分——含价格项与未映射项，
 /// 不因「没写」而缩小分母）；`gap` = target − total；`by_item` 为全量
 /// 逐项明细（未覆盖项 estimated=0 如实呈现）。
+///
+/// #186 语义降级：**规则诊断，非评标模拟**——分数与 tier 来自关键词覆盖/
+/// 长度阈值/证据词存在性启发式（`diagnostic_only=true,
+/// result_kind=rule_heuristic`），不代表评委会评分；评分细则接入
+/// （score_rules → assess）另见 #186 第二步。
 fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
     const TOOL: &str = "score_document";
     let project_id = req_str(&args, "project_id", TOOL)?;
@@ -2378,6 +2391,10 @@ fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
     let gap = ((target - doc.total) * 100.0).round() / 100.0;
     Ok(json!({
         "project_id": project_id,
+        // #186 语义降级标记：规则诊断非评标模拟（对外承诺必须准确——
+        // external Agent 不得把 total/tier 理解为评委会会给的分/档）
+        "diagnostic_only": true,
+        "result_kind": "rule_heuristic",
         "technical": doc.technical,
         // 没报价就不算（issue §3.2：price null 而非伪装 0）
         "price": if bid_price.is_some() { json!(doc.price) } else { json!(null) },

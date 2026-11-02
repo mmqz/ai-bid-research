@@ -55,6 +55,10 @@ sections 只列可起草叶）、`score_price` / `score_section` / `score_docume
 >
 > 「这一节能得几分」看 `score_section`（评分项挂载依赖招标文件评审表里的章节引用——
 > 引用缺失时该节对评分项恒空，属数据如实）；「这份标书整体能得几分」用 `score_document`。
+>
+> ⚠️ **#186 语义纪律**：两个自评工具都是**规则诊断，不是评标模拟**（输出恒带
+> `diagnostic_only=true, result_kind="rule_heuristic"`）——tier/分数是关键词
+> 覆盖/长度/证据词启发式结果，**不得**向用户承诺为「评委会会给的档位/分数」。
 
 人工门（`record_review_gate`，reviewer 必须以 `human:` 前缀——AI 操作者不得
 自审自过）：矩阵门 `matrix_approval` → 大纲门 `outline_approval` → 导出确认门

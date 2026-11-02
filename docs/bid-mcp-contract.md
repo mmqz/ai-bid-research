@@ -490,9 +490,15 @@ out: { spec:{method,max_score,budget,deviation_rule}, bid_price, others,
 
 ## 14. score_section（#100 任务 3 · B2 章节自评）
 
+> **#186 语义降级（规则诊断非评标模拟）**：本工具是关键词覆盖/长度阈值/证据词
+> 存在性的启发式诊断（`diagnostic_only=true, result_kind=rule_heuristic`），
+> **不是评标模拟**——tier 是覆盖度档位，不代表评委会会给的档；评分细则
+> （score_rules）接入后另行升级（#186 第二步）。
+
 ```
 in : { project_id, section_id, project_version? }
-out: { project_id, section_id, section_title, chars, estimated, max,
+out: { project_id, diagnostic_only(true), result_kind("rule_heuristic"),
+       section_id, section_title, chars, estimated, max,
        covered_items:[REQ-*], missing_items:[REQ-*], rationale（逐项可追溯）,
        item_scores:[{item_id,estimated,max,tier,coverage,is_objective,rationale}], request_id }
 语义: B2 SectionScorer 只调用不改（四维规则判定——覆盖度/字数/证据/具体性）。
@@ -521,12 +527,17 @@ out: { project_id, section_id, section_title, chars, estimated, max,
 
 ## 15. score_document（#100 任务 3 · B2 整本自评——「这份标书能得几分」）
 
+> **#186 语义降级（规则诊断非评标模拟）**：同 §14——total/tier 是规则启发式
+> 诊断结果（`diagnostic_only=true, result_kind=rule_heuristic`），**不代表
+> 评委会评分**；external Agent 不得以此为对外承诺依据。
+
 ```
 in : { project_id, project_version?,
        bid_price?（缺省 = 不计价——「没报价就不算」，price 出 null 而非 0）,
        others?:[$], method?/coefficient?/max_score?/budget?/deviation?（价格口径，
        仅 bid_price 在场时消费——参数面同 §13 score_price） }
-out: { project_id, technical, price（null | 数值）, commercial（null | 数值）, total,
+out: { project_id, diagnostic_only(true), result_kind("rule_heuristic"),
+       technical, price（null | 数值）, commercial（null | 数值）, total,
        target（诚实满分 = 非硬门可达叶 max 合计——含价格项与未映射项，不因没写缩分母）,
        gap = target − total, by_item:[{item_id,criteria,max,estimated,tier,coverage,section_id}],
        breakdown:[SectionScore…（逐章节）], notes[]（UNMAPPED/SECTION_MISSING/NO_PRICE_INPUT

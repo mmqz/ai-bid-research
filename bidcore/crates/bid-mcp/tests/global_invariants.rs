@@ -474,7 +474,15 @@ fn gi_five_global_invariants() {
     }
     let _ = svc.store_mut().build_matrix().unwrap();
     use bid_domain::review::{Decision, Gate};
-    for gate in [Gate::MatrixApproval, Gate::OutlineApproval, Gate::PreExportConfirm] {
+    // 【#131 无补遗阻塞的人工出口】基座只导入招标文件（无补遗件），
+    // AddendumWaiver 门确认无补遗后起草才放行——漏记则 ⑥ 被
+    // E_UNPROCESSABLE「未发现补遗/澄清文件」拒（实测踩到）。
+    for gate in [
+        Gate::AddendumWaiver,
+        Gate::MatrixApproval,
+        Gate::OutlineApproval,
+        Gate::PreExportConfirm,
+    ] {
         svc.store_mut()
             .record_review(gate, "human:gi-lead", Decision::Approved, vec![])
             .unwrap();

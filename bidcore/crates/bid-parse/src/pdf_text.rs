@@ -1133,6 +1133,110 @@ pub fn parse_via_fallback(path: &std::path::Path, name: &str) -> Result<crate::P
     })
 }
 
+// ---------------------------------------------------------------- CJK 乱码探测（issue #169）
+//
+// 实测根因链（Windows CI 稳定复现）：
+//   pdftotext 在缺 CMap 资源包（poppler-data）的 poppler 构建上，对
+//   「非嵌入 CID 字体 + UniGB-UCS2-H」形态的中文 PDF 输出乱码——
+//   双字节字符码被逐字节当 Latin-1（实测形态：`原招标文件` → `SbheN`，
+//   即 U+539F→'S'、U+62DB→'b'、U+6807→'h'、U+6587→'e'、U+4EF6→'N'，
+//   不可打印字节被丢弃后剩下的可打印残渣）。
+//   关键危害：`pdf::parse` 对此**返回 Ok**（has_text_layer=true、blocks 非空），
+//   parse_file 拿到「成功」就不再走兜底——静默产出垃圾文本（issue #169 影响面）。
+//
+// 判据设计（语义判据，零误伤）：
+//   PDF 字典明文层声明了 CJK 字体/CMap 痕迹，而解析出的文本 CJK 占比≈0
+//   → 必然是解码失败（真中文件正常解码 CJK 占比 >0.5；纯英文件不声明
+//     CJK 字体，本判据永不触发）。
+
+/// CJK 字体 / CMap 名痕迹。PDF 对象字典不经压缩（流才压缩），字体名与
+/// 编码名可在原始字节上直接搜索。覆盖国内政采 PDF 的主流形态：
+/// ReportLab（STSong-Light + Adobe-GB1/UniGB-UCS2-H）、Word/WPS 导出
+/// （SimSun/SimHei/KaiTi/FangSong 等）、macOS（PingFang）、开源
+/// （NotoSansCJK/SourceHanSans/WenQuanYi）与繁体/日韩（B5pc/MSung/UniJIS）。
+const CJK_FONT_MARKERS: &[&[u8]] = &[
+    // CMap / CIDSystemInfo 注册名
+    b"Adobe-GB1", b"Adobe-CNS1", b"Adobe-Japan1", b"Adobe-Korea1",
+    b"UniGB-UCS", b"UniCNS-UCS", b"UniJIS-UCS", b"UniKS-UCS",
+    b"GBK-EUC", b"GB-EUC", b"GBpc-EUC", b"B5pc-", b"ETen-B5", b"CNS-EUC",
+    // 常见中文/日韩字体名（非嵌入时字典里仍留名）
+    b"STSong", b"STKaiti", b"STXihei", b"STFangsong", b"STZhongsong",
+    b"SimSun", b"SimHei", b"FangSong", b"KaiTi", b"YouYuan", b"HuaWenKaiTi",
+    b"Microsoft YaHei", b"DengXian", b"PingFang", b"Hiragino", b"Yu Gothic",
+    b"MSung", b"MHei", b"MKai", b"SourceHanSans", b"SourceHanSerif",
+    b"NotoSansCJK", b"NotoSerifCJK", b"WenQuanYi",
+];
+
+/// PDF 原始字节是否声明了 CJK 字体/CMap。
+pub fn bytes_declare_cjk_font(bytes: &[u8]) -> bool {
+    CJK_FONT_MARKERS.iter().any(|m| contains(bytes, m))
+}
+
+/// 文本的 CJK 占比：CJK 表意区（含扩展A/兼容）+ 中文标点/全角 / 非空白字符数。
+/// 与 [`looks_utf16be`] 的码位合理区同源——探测与兜底解码用同一套「中文长什么样」。
+pub fn cjk_ratio(text: &str) -> f64 {
+    let mut total = 0usize;
+    let mut cjk = 0usize;
+    for c in text.chars() {
+        if c.is_whitespace() {
+            continue;
+        }
+        total += 1;
+        if matches!(c,
+            '\u{4E00}'..='\u{9FFF}'     // CJK 统一表意
+            | '\u{3400}'..='\u{4DBF}'   // 扩展 A
+            | '\u{F900}'..='\u{FAFF}'   // 兼容表意
+            | '\u{3000}'..='\u{303F}'   // CJK 标点
+            | '\u{FF00}'..='\u{FFEF}'   // 全角形式
+            | '\u{2010}'..='\u{2027}'   // 一般标点（–—‘’“”…）
+        ) {
+            cjk += 1;
+        }
+    }
+    if total == 0 {
+        0.0
+    } else {
+        cjk as f64 / total as f64
+    }
+}
+
+/// CJK 乱码探测结论。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CjkGarbleProbe {
+    /// PDF 声明 CJK 字体且输出 CJK 占比正常——解码可信，不干预。
+    Clean,
+    /// PDF 声明 CJK 字体但输出 CJK 占比≈0——解码失败（乱码），应降级/报错。
+    Garbled,
+    /// 判据不适用：无 CJK 字体声明（英文件）或文本样本不足（<32 非空白字符）。
+    NoSignal,
+}
+
+/// 探测一条解析路的文本是否为 CJK 乱码。
+///
+/// 阈值 0.02：真中文件正常解码占比 >0.5、乱码残渣 ≈0（实测 CI 乱码串 0 个
+/// CJK 字符）——0.02 距两者都有数量级余量。位于中间的合法形态（声明了中文
+/// 字体但正文以英文为主的模板件）被降级也无损失：降级只是换纯 Rust 兜底
+/// 重解同一文件，summary 诚实自报。
+pub fn probe_cjk_garble(pdf_bytes: &[u8], text: &str) -> CjkGarbleProbe {
+    if !bytes_declare_cjk_font(pdf_bytes) {
+        return CjkGarbleProbe::NoSignal;
+    }
+    let non_ws = text.chars().filter(|c| !c.is_whitespace()).count();
+    if non_ws < 32 {
+        return CjkGarbleProbe::NoSignal;
+    }
+    if cjk_ratio(text) < 0.02 {
+        CjkGarbleProbe::Garbled
+    } else {
+        CjkGarbleProbe::Clean
+    }
+}
+
+/// 拼一条路的全部文本（探测输入）。
+pub fn parsed_text_of(pf: &crate::ParsedFile) -> String {
+    pf.blocks.iter().map(|b| b.text.as_str()).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

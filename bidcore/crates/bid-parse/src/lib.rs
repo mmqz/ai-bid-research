@@ -129,10 +129,40 @@ pub fn parse_file(path: &Path, name: &str) -> Result<ParsedFile, String> {
             // 旧文件且校验仍然 blocker=0。此处先走原链路，两条都失败时用纯 Rust
             // 提取兜底（甜区：短文本 PDF——补遗/澄清函/更正公告正好在此）。
             // 兜底也失败→ 仍然明说失败（两条原因都报出来），绝不静默降级。
-            let mut pf = match pdf::parse(path) {
-                Ok(pf) => pf,
+            //
+            // #169 防线（乱码降级 + fail-loud）：首选路「成功」也可能吐乱码——
+            // Windows CI 实测：缺 poppler-data（CMap 资源包）的 pdftotext 对
+            // 「非嵌入 CID 字体 + UniGB-UCS2-H」的中文 PDF 输出 Latin-1 化残渣
+            // （`原招标文件`→`SbheN`），has_text_layer=true、流程「成功」——
+            // 静默产出垃圾标书比解析失败更危险。语义判据探测（PDF 声明 CJK
+            // 字体而输出 CJK 占比≈0 → 必乱码，纯英文件永不触发）：
+            //   首选路乱码 → 降级纯 Rust 兜底重解（summary 诚实自报）；
+            //   兜底也乱   → 显式报错（fail-loud：宁可失败不产出垃圾）。
+            let raw = std::fs::read(path).map_err(|e| format!("读取失败 {name}: {e}"))?;
+            let (mut pf, used_fallback) = match pdf::parse(path) {
+                Ok(pf) => {
+                    match pdf_text::probe_cjk_garble(&raw, &pdf_text::parsed_text_of(&pf)) {
+                        pdf_text::CjkGarbleProbe::Garbled => {
+                            match pdf_text::parse_via_fallback(path, name) {
+                                Ok(mut good) => {
+                                    good.parse_summary = format!(
+                                        "首选路输出疑似 CJK 乱码已降级（#169）；{}",
+                                        good.parse_summary
+                                    );
+                                    (good, true)
+                                }
+                                Err(fb_err) => {
+                                    return Err(format!(
+                                        "pdf 首选路输出疑似 CJK 乱码（PDF 声明 CJK 字体而文本无 CJK——典型为 poppler 缺 CMap 资源包），纯 Rust 兜底也失败：{fb_err}"
+                                    ))
+                                }
+                            }
+                        }
+                        _ => (pf, false),
+                    }
+                }
                 Err(chain_err) => match pdf_text::parse_via_fallback(path, name) {
-                    Ok(pf) => pf,
+                    Ok(pf) => (pf, true),
                     Err(fb_err) => {
                         return Err(format!(
                             "pdf 解析失败 {name}: {chain_err}；纯 Rust 兜底也失败：{fb_err}"
@@ -140,6 +170,16 @@ pub fn parse_file(path: &Path, name: &str) -> Result<ParsedFile, String> {
                     }
                 },
             };
+            // 兜底产物（无论从哪个分支来）过同一探测：双路皆乱 → 显式失败
+            // （fail-loud——#169 影响面是「静默产出垃圾标书」，比失败更危险）。
+            if used_fallback
+                && pdf_text::probe_cjk_garble(&raw, &pdf_text::parsed_text_of(&pf))
+                    == pdf_text::CjkGarbleProbe::Garbled
+            {
+                return Err(format!(
+                    "pdf 两条路输出均为疑似 CJK 乱码（PDF 声明 CJK 字体而文本无 CJK）：{name}——拒绝静默产出垃圾文本（issue #169）"
+                ));
+            }
             pf.name = name.to_string();
             pf.sha256 = sha256;
             Ok(pf)

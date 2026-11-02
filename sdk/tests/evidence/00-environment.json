@@ -2,11 +2,11 @@
  "case": "00-environment",
  "transport": "linejson",
  "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
- "server_sha256": "babcf3bcc26236db83eda2db9744eeb598108a720e85230f98e82c1d3642eed2",
+ "server_sha256": "bde7f0dae2ef21a487e9e8a2ceb8baa1e4203411eaa4b148d80ba7778c588ca1",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-02T06:09:22+00:00",
+ "started_at": "2026-11-02T06:51:16+00:00",
  "stages": [
   {
    "stage": "环境留档",
@@ -15,7 +15,7 @@
    "result": {
     "transport_resolved": "linejson",
     "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
-    "server_sha256": "babcf3bcc26236db83eda2db9744eeb598108a720e85230f98e82c1d3642eed2",
+    "server_sha256": "bde7f0dae2ef21a487e9e8a2ceb8baa1e4203411eaa4b148d80ba7778c588ca1",
     "python": "3.12.16",
     "mcp_sdk": "1.27.0",
     "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
@@ -40,5 +40,5 @@
  ],
  "payload_shapes": {},
  "ws": null,
- "finished_at": "2026-11-02T06:09:22+00:00"
+ "finished_at": "2026-11-02T06:51:17+00:00"
 }

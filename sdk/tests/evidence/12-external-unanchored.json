@@ -2,11 +2,11 @@
  "case": "12-external-unanchored",
  "transport": "linejson",
  "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
- "server_sha256": "babcf3bcc26236db83eda2db9744eeb598108a720e85230f98e82c1d3642eed2",
+ "server_sha256": "bde7f0dae2ef21a487e9e8a2ceb8baa1e4203411eaa4b148d80ba7778c588ca1",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-02T06:09:25+00:00",
+ "started_at": "2026-11-02T06:51:20+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 3.1439210015378194
+   "elapsed_ms": 3.505670996673871
   },
   {
    "stage": "P1 import_tender_files",
@@ -154,7 +154,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 239.2714170000545
+   "elapsed_ms": 287.997056999302
   },
   {
    "stage": "P2 extract_requirements",
@@ -193,7 +193,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 64.71930599946063
+   "elapsed_ms": 67.77511600012076
   },
   {
    "stage": "P3 build_outline",
@@ -226,7 +226,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.974701000217465
+   "elapsed_ms": 7.296217001567129
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -334,7 +334,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.010190000073635,
+   "elapsed_ms": 7.002321999607375,
    "extra": {
     "sections": {
      "SEC-0007": [
@@ -531,7 +531,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.353713000862626
+   "elapsed_ms": 6.650649000221165
   },
   {
    "stage": "P4 bind_evidence",
@@ -563,43 +563,42 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.977736000408186
+   "elapsed_ms": 10.921789998974418
   },
   {
-   "stage": "G3 record_review_gate ×3",
+   "stage": "G3 record_review_gate ×2",
    "tool": "record_review_gate",
    "args": {
     "gates": [
      "matrix_approval",
-     "outline_approval",
-     "pre_export_confirm"
+     "outline_approval"
     ]
    },
    "result": {
     "gates_approved": [
      "matrix_approval",
-     "outline_approval",
-     "pre_export_confirm"
+     "outline_approval"
     ],
-    "project_version": 114,
+    "project_version": 113,
     "receipt": {
      "decision": "APPROVED",
      "finding_ids": [],
-     "gate": "pre_export_confirm",
-     "review_id": "REV-0037",
+     "gate": "outline_approval",
+     "review_id": "REV-0036",
+     "reviewed_content_digest": "257eeb460a0d96aae417bdef0e27b8b94f6a02e8152c5ad7457e3880a5dd5724",
      "reviewer": "human:mcp-e2e",
      "spawned_rt_ids": []
     },
-    "request_id": "req-000011",
+    "request_id": "req-000010",
     "status": "MATRIX_READY"
    },
    "checks": [
     {
-     "desc": "G3: 三门全过 ('matrix_approval', 'outline_approval', 'pre_export_confirm')",
+     "desc": "G3: 两门全过 ('matrix_approval', 'outline_approval')",
      "pass": true
     }
    ],
-   "elapsed_ms": 19.341503000759985
+   "elapsed_ms": 13.584372998593608
   },
   {
    "stage": "③ draft(external) 无锚承诺 [SEC-0007]",
@@ -612,7 +611,7 @@
     "content_ref": "DOC-SEC-0007-v1",
     "draft_note": "起草指令：外部手稿——含无锚承诺句",
     "project_status": "DRAFTING",
-    "project_version": 120,
+    "project_version": 119,
     "quota": {
      "min_segments": 1,
      "progress_pct": 68,
@@ -621,7 +620,7 @@
      "target_chars": 500,
      "written_chars": 343
     },
-    "request_id": "req-000012",
+    "request_id": "req-000011",
     "section_id": "SEC-0007",
     "section_status": "DRAFTED",
     "stats": {
@@ -674,5 +673,5 @@
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/external-unanchored/ws",
- "finished_at": "2026-11-02T06:09:25+00:00"
+ "finished_at": "2026-11-02T06:51:20+00:00"
 }

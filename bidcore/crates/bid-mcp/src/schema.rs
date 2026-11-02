@@ -341,20 +341,18 @@ fn input_schema(name: &str) -> Value {
                 "project_id": pid,
                 "kind": {"type": "string", "enum": ["qualification", "performance", "personnel", "certificate", "product_doc", "solution_module", "contract"], "description": "或对应中文展示名"},
                 "title": {"type": "string"},
-                "source_file": {"type": "string"},
-                "source_sha256": {"type": "string", "description": "必填——无文件身份不入账"},
+                "source_file_id": {"type": "string", "description": "TF-*——已导入文件（import_tender_files 回执 per_file[].file_id）；不存在/解析失败 → 拒（#185 来源验证）"},
                 "subject_name": {"type": "string"},
                 "scope": {"type": "string"},
                 "valid_from": {"type": "string", "description": "ISO 日期"},
                 "valid_until": {"type": "string", "description": "ISO 日期"},
-                "fingerprint": {"type": "string", "description": "算法前缀:值——缺省 sha256:<source_sha256>"},
                 "locator": {
                     "type": "object",
+                    "description": "可选——缺省为文件级锚；传入则须与解析产物对账（段落序/页号/内容指纹，#185）",
                     "properties": {
-                        "kind": {"type": "string", "enum": ["docx_paragraph", "pdf_page_text", "markdown_block"]},
+                        "kind": {"type": "string", "enum": ["docx_paragraph", "pdf_page_text"]},
                         "paragraph_index": {"type": "integer"},
                         "page": {"type": "integer"},
-                        "block_id": {"type": "string"},
                         "text_fingerprint": {"type": "string"}
                     },
                     "required": ["kind"]
@@ -381,7 +379,7 @@ fn input_schema(name: &str) -> Value {
                 },
                 "project_version": pv
             },
-            "required": ["project_id", "kind", "title", "source_file", "source_sha256", "subject_name"]
+            "required": ["project_id", "kind", "title", "source_file_id", "subject_name"]
         }),
         "bind_evidence" => json!({
             "type": "object",
@@ -493,7 +491,7 @@ fn describe(name: &str) -> &'static str {
         "save_version" => "AI 主动存版本快照（mang-snap 同源）",
         "check_bid_quality" => "只读：生成质量覆盖度检查 + 报告落盘（#68 阶段 2）",
         "build_outline" => "建纲 + 矩阵首建（G1——#80 第三批补齐；REQUIREMENTS_EXTRACTED 态）",
-        "register_evidence" => "证据登记（G2——语义位查重/换版；MATRIX_READY+；业绩类可带 client/amount_wan/completed_on 业务面；结构化字段走可选 fields 对象）",
+        "register_evidence" => "证据登记（G2——语义位查重/换版；MATRIX_READY+；#185 来源验证：source_file_id 须指向已导入文件，sha256/指纹由服务端生成；业绩类可带 client/amount_wan/completed_on 业务面；结构化字段走可选 fields 对象）",
         "bind_evidence" => "证据批量绑定 + 矩阵重算（G2——EXPIRED 禁绑；MATRIX_READY+）",
         "record_review_gate" => "三门记审（G3——matrix/outline/pre_export；#182 receipt 验签——人工确认由宿主签发 receipt 提供）",
         "record_addendum_waiver" => "补遗逐件人工确认（#184——分级阻塞的免责面；#182 receipt 验签（签域绑定 file_id）；FILES_IMPORTED+）",

@@ -371,24 +371,41 @@ out: { counts:{ sections, leaves, requirements, total_target_chars, matrix_rows,
 幂等: 推导确定性（同输入同树）；状态机面不重入（见上）
 ```
 
-## 11-A. register_evidence（#80 第三批 · G2）
+## 11-A. register_evidence（#80 第三批 · G2；#185 缺口 1 来源验证）
 
 ```
 in : { project_id, kind(qualification|performance|personnel|certificate|product_doc|
                         solution_module|contract 或中文展示名),
-       title, source_file, source_sha256(必填——无文件身份不入账),
+       title, source_file_id(TF-*——必填，须为 import_tender_files 回执
+                        per_file[].file_id 指向的已导入文件),
        subject_name, scope?, valid_from?, valid_until?(ISO 日期),
-       fingerprint?(算法前缀:值——缺省 sha256:<source_sha256>),
-       locator?({ kind: docx_paragraph|pdf_page_text|markdown_block, ...指纹字段 }),
+       locator?({ kind: docx_paragraph|pdf_page_text, ...指纹字段 }——
+               传入则与该文件解析产物对账：段落序/页号在范围内且
+               text_fingerprint 与实际内容一致；缺省 = 文件级锚),
+       client?, amount_wan?, completed_on?, fields?(#147 结构化字段),
        project_version }
 out: { ev_id: "EV-*", deduplicated, kind(snake_case), status, hint, project_version }
-语义: 语义位查重在域层（同 kind+title+subject+scope 最新非 SUPERSEDED 记录：
-      同指纹 → 幂等重放回原 id；异指纹 → 旧记录单向降级 SUPERSEDED + 签发新 EV）。
-      locator 缺省 = MarkdownBlock{ block_id: "mcp-registered:<source_file>" }——
-      诚实标记「经 MCP 登记面、无引擎定位器」（审计可辨识，不冒充引擎抽取）。
+语义: **来源身份由服务端验证（#185）**：source_file_id 查 TenderFile
+      （不存在 → E_NOTFOUND；解析失败件 → E_UNPROCESSABLE 禁引）→ 解析
+      产物按库内 sha 对账 → locator 验证 → sha256 与指纹**由系统生成**
+      （带 locator → fnv64:<定位文本哈希>；文件级锚 → sha256:<库内 sha>），
+      不接受调用方自报。语义位查重在域层（同 kind+title+subject+scope
+      最新非 SUPERSEDED 记录：同指纹 → 幂等重放回原 id；异指纹 →
+      旧记录单向降级 SUPERSEDED + 签发新 EV）。locator 缺省 =
+      MarkdownBlock{ block_id: "mcp-registered:<文件名>" }——诚实标记
+      「经登记面、无引擎定位器」（审计可辨识，不冒充引擎抽取）。
 状态: MATRIX_READY+（P4 面——矩阵就绪后登记）
-错误: E_UNPROCESSABLE（kind/日期/fingerprint 格式/locator 形态非法；source_sha256 缺失）
+错误: E_NOTFOUND（source_file_id 不存在）；E_UNPROCESSABLE（kind/日期/fields
+      非法；**旧参数 source_file / source_sha256 / fingerprint 已废除——传入
+      即拒**，文案指路 source_file_id；解析失败件/无解析产物；locator 形态
+      不支持（xlsx/docx_table_cell/markdown_block/canvas 无对账面）或越界
+      /指纹不匹配）
 ```
+
+> #185 破坏面：旧调用方传 `source_file`（文件名）+ `source_sha256` 的登记
+> 方式**不再被接受**——那正是「登记不存在的合同.pdf + 任意 hex sha 骗过
+> 格式校验成为可信证据」的来源身份漏洞。适配：先 import_tender_files
+> （回执 `per_file[].file_id`），再以 `source_file_id` 登记。
 
 ## 11-B. bind_evidence（#80 第三批 · G2）
 

@@ -37,6 +37,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = REPO_ROOT / "fixtures" / "synth-tender" / "招标文件"
+# 证据来源件（#185：register_evidence 的 source_file_id 须锚定已导入文件）
+EVIDENCE_PDF = REPO_ROOT / "fixtures" / "corpus-A" / "files" / "evidence" / "EV-02-电子与智能化工程专业承包二级资质证书.pdf"
 BIN_NAME = "bid-mcp-stdio"
 
 # external 正文模板——{req} 占位符替换为**本章节绑定集内**的 REQ。
@@ -142,15 +144,24 @@ def main() -> None:
         pid = proj["project_id"]
         print(f"      project_id = {pid}（status={proj['status']}）")
 
-        # ---- P1 导入（A 招标文件 + B 技术规范书）
+        # ---- P1 导入（A 招标文件 + B 技术规范书 + EV-02 证据件[附件]）
         print("[4/9] P1 import_tender_files …")
         imp = mcp.must("import_tender_files", {"project_id": pid, "files": [
             {"upload_ref": str(FIXTURES / "A-招标文件.docx"),
              "filename": "A-招标文件.docx", "kind": "招标文件"},
             {"upload_ref": str(FIXTURES / "B-技术规范书.docx"),
              "filename": "B-技术规范书.docx", "kind": "招标文件"},
+            # #185 来源验证：证据件同批导入（附件）——登记时以 file_id 引用
+            {"upload_ref": str(EVIDENCE_PDF),
+             "filename": EVIDENCE_PDF.name, "kind": "附件"},
         ]})
         totals = imp["totals"]
+        ev_fid = next(
+            (p["file_id"] for p in imp["per_file"] if p["filename"] == EVIDENCE_PDF.name),
+            "",
+        )
+        if not ev_fid:
+            die("导入回执缺证据件 file_id（#185 来源锚）")
         print(f"      导入 {totals['files']} 件 / {totals['chunks']} 块 / "
               f"失败 {totals['parse_failed']}（复述并比对预期：零失败 ✓）")
         if totals["parse_failed"] != 0:
@@ -193,8 +204,8 @@ def main() -> None:
         reg = mcp.must("register_evidence", {
             "project_id": pid, "kind": "qualification",
             "title": "电子与智能化工程专业承包二级资质证书（minimal-flow 演示）",
-            "source_file": "SYN-EV-资质证书.pdf",
-            "source_sha256": f"sha-minimal-flow-{os.getpid()}",
+            # #185：来源锚已导入的 EV-02 件（sha/指纹由服务端生成）
+            "source_file_id": ev_fid,
             "subject_name": "投标人", "scope": "电子与智能化工程",
         })
         ev_id = reg["ev_id"]

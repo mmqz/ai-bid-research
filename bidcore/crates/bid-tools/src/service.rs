@@ -11,12 +11,18 @@
 //!   （如「证据」），校验放壳层可让两侧各得其所；
 //! - 失败语义（R-01 / R3-S2-4）：单件解析失败 → `Failed` 落库 + 禁引 + 继续，
 //!   一个损坏件不得阻断整批导入；不可读 upload_ref 无文件身份（无 sha 可言），
-//!   不落库（空 sha 会污染幂等键空间），逐件失败登记。
+//!   不落库（空 sha 会污染幂等键空间），逐件失败登记；
+//! - 证据来源验证（#185 缺口 1）：外部面的证据登记走
+//!   [`BidService::register_evidence_verified`]（source_file_id → 库内
+//!   TenderFile → 解析产物对账 → 系统生成指纹），域层 `register_evidence`
+//!   保持纯逻辑签名不动（域测试伪造 spec 合法）。
 
+use bid_domain::evidence::{EvidenceFields, EvidenceKind, EvidenceSpec};
+use bid_domain::locator::EngineLocator;
 use bid_domain::principal::{self, TrustedPrincipal};
 use bid_domain::review::Gate;
 use bid_domain::{DomainStore, ParseStatus, Requirement, ToolError};
-use bid_parse::{parse_file, sha256_file, ParsedFile};
+use bid_parse::{parse_file, sha256_file, BlockKind, ParsedFile};
 use std::path::{Path, PathBuf};
 
 /// 单文件导入规格（MCP 壳已完成契约校验后传入）。
@@ -72,6 +78,39 @@ pub struct ImportReport {
     pub new_records: usize,
 }
 
+/// 证据登记规格（**来源验证面**，#185 缺口 1）——MCP / 外部调用方的入参。
+///
+/// 与域层 [`bid_domain::evidence::EvidenceSpec`] 的差异：来源三件套
+/// （`source_file` / `source_sha256` / `fingerprint`）**不在入参里**——由
+/// [`BidService::register_evidence_verified`] 从 TenderFile 库内记录与解析
+/// 产物生成（调用方自报的来源身份不可信：可以登记「不存在的合同.pdf」+
+/// 任意 hex sha 骗过格式校验成为「可信证据」——不是密码学问题，是来源
+/// 身份没有验证）。
+///
+/// `locator: None` = 文件级锚（不携带引擎定位器——指纹退 `sha256:<库内 sha>`，
+/// 诚实标记登记面，不冒充引擎抽取）；`Some(loc)` = 必须与该文件的解析产物
+/// 对账（见 [`verify_locator_against`]）。
+#[derive(Debug, Clone)]
+pub struct EvidenceRegistration {
+    /// 来源文件（TF-xxxx——必须是已导入的 TenderFile；不存在/解析失败/无
+    /// 解析产物一律拒，见 [`BidService::register_evidence_verified`]）。
+    pub source_file_id: String,
+    pub kind: EvidenceKind,
+    pub title: String,
+    /// 引擎定位器（`None` = 文件级锚）；`Some` 时须与解析产物对账。
+    pub locator: Option<EngineLocator>,
+    pub valid_from: Option<String>,
+    pub valid_until: Option<String>,
+    pub subject_name: String,
+    pub scope: String,
+    // ---- #117 任务 1：业绩业务面（None = 未录入；非业绩类证据不消费）
+    pub client: Option<String>,
+    pub amount_wan: Option<f64>,
+    pub completed_on: Option<String>,
+    // ---- #147：结构化字段（search_evidence exact 通道的精确查询面）
+    pub fields: EvidenceFields,
+}
+
 /// OCR 分档（契约 §2 `per_file.ocr_tier`）——从解析面信号推导的确定性档位：
 /// - `"none"`：文本层在位，无需 OCR；
 /// - `"ocr"`：无文本层但 OCR 已产出（`ocr_blocks > 0`）；
@@ -89,6 +128,111 @@ fn ocr_tier_of(status: ParseStatus, ocr_blocks: usize) -> &'static str {
             }
         }
     }
+}
+
+/// locator 按解析产物对账（#185 缺口 1 的核心验证面）。
+///
+/// 验证基准 = 本仓解析产物（`ParsedFile.blocks`——服务态唯一的内容真源）：
+/// - `DocxParagraph { paragraph_index, text_fingerprint }`：`paragraph_index`
+///   是**正文段块** 0 起序（仅计 `BlockKind::Para`，表格行不占号——与域层
+///   「仅计段落块」口径一致）；越界 → 拒；指纹与实际段落文本不符 → 拒
+///   （证明调用方确实看过该内容，而非首址乱填）；
+/// - `PdfPageText { page, text_fingerprint }`：页号 1 起须落在解析页数内；
+///   页文本 = 该页全部行块拼接（引擎路径 `第N页 行M` / OCR 路径
+///   `第N页 OCR 行M` 同前缀收敛）；指纹同口径比对；
+/// - 其余形态（xlsx_cell / xlsx_region / docx_table_cell / markdown_block /
+///   canvas_object）在标书解析产物无对应对账面 → **明确报错**（fail-closed，
+///   不静默跳过——静默跳过 = 回到「未验证来源」的老润洞）。
+///
+/// 返回系统从实际内容生成的指纹（`fnv64:<hex>`——定位文本归一化后
+/// FNV-1a 64，与既有 text_fingerprint 同族）。
+fn verify_locator_against(
+    parsed: &ParsedFile,
+    loc: &EngineLocator,
+) -> Result<String, ToolError> {
+    let un = |reason: String| ToolError::EUnprocessable { reason };
+    match loc {
+        EngineLocator::DocxParagraph {
+            paragraph_index,
+            text_fingerprint,
+        } => {
+            let paras: Vec<&str> = parsed
+                .blocks
+                .iter()
+                .filter(|b| b.kind == BlockKind::Para)
+                .map(|b| b.text.as_str())
+                .collect();
+            let idx = *paragraph_index as usize;
+            let Some(text) = paras.get(idx) else {
+                return Err(un(format!(
+                    "locator 段落越界：paragraph_index={idx}，文件「{}」正文段共 {} 个（0 起）",
+                    parsed.name,
+                    paras.len()
+                )));
+            };
+            let actual = content_fingerprint(text);
+            if *text_fingerprint != actual {
+                return Err(un(format!(
+                    "locator 指纹不匹配：paragraph_index={idx} 实际内容指纹 {actual}，登记值 {text_fingerprint}（内容已变更或未按实际内容登记）"
+                )));
+            }
+            Ok(actual)
+        }
+        EngineLocator::PdfPageText {
+            page,
+            text_fingerprint,
+        } => {
+            if *page == 0 || *page as usize > parsed.pages {
+                return Err(un(format!(
+                    "locator 页号越界：page={page}，文件「{}」共 {} 页（1 起）",
+                    parsed.name, parsed.pages
+                )));
+            }
+            // locator 前缀**两条解析路不同**（只认一种会导致：「有 poppler 的环境绿、
+            // 无 poppler 的环境全红」——CI 无 poppler 实测）：
+            //   · poppler 首选路：`第1页 行1`（页后无空格）
+            //   · 纯 Rust 兜底路：`第1 页 > 第1 行`（页后空格在「页」前）
+            let prefixes = [format!("第{page}页"), format!("第{page} 页")];
+            let page_text = parsed
+                .blocks
+                .iter()
+                .filter(|b| prefixes.iter().any(|p| b.locator.starts_with(p.as_str())))
+                .map(|b| b.text.as_str())
+                .collect::<Vec<_>>()
+                .join("\n");
+            let actual = content_fingerprint(&page_text);
+            if *text_fingerprint != actual {
+                return Err(un(format!(
+                    "locator 指纹不匹配：第 {page} 页实际内容指纹 {actual}，登记值 {text_fingerprint}（内容已变更或未按实际内容登记）"
+                )));
+            }
+            Ok(actual)
+        }
+        other => Err(un(format!(
+            "locator 形态 {} 暂不支持来源验证（当前支持 docx_paragraph / pdf_page_text——按解析产物对账；不带 locator 登记则为文件级锚）",
+            locator_kind_name(other)
+        ))),
+    }
+}
+
+/// locator 变体名（错误文案面——serde tag 同源）。
+fn locator_kind_name(loc: &EngineLocator) -> &'static str {
+    match loc {
+        EngineLocator::XlsxCell { .. } => "xlsx_cell",
+        EngineLocator::XlsxRegion { .. } => "xlsx_region",
+        EngineLocator::DocxParagraph { .. } => "docx_paragraph",
+        EngineLocator::DocxTableCell { .. } => "docx_table_cell",
+        EngineLocator::MarkdownBlock { .. } => "markdown_block",
+        EngineLocator::PdfPageText { .. } => "pdf_page_text",
+        EngineLocator::CanvasObject { .. } => "canvas_object",
+    }
+}
+
+/// 定位文本 → 内容指纹（`fnv64:<hex>`——归一化去空白后 FNV-1a 64，
+/// [`bid_domain::linkage::text_fingerprint`] 单一真源，与既有
+/// text_fingerprint 同族；算法前缀纪律见 `fingerprint_algorithm`）。
+fn content_fingerprint(text: &str) -> String {
+    format!("fnv64:{}", bid_domain::linkage::text_fingerprint(text))
 }
 
 /// 导入管线（契约 §2 业务半边）——**受信内部 API**（#183：无围栏）。
@@ -553,6 +697,101 @@ impl BidService {
         &mut self,
         spec: bid_domain::evidence::EvidenceSpec,
     ) -> Result<(String, bool), ToolError> {
+        let out = self.store.register_evidence(spec)?;
+        self.auto_checkpoint()?;
+        Ok(out)
+    }
+
+    /// `register_evidence` 的**来源验证**登记入口（#185 缺口 1）。
+    ///
+    /// 与 [`Self::register_evidence`]（域层直通面）的分野：
+    /// - 域层保持纯逻辑（`EvidenceSpec` 签名不动——域层不知道 TenderFile 表，
+    ///   域测试用伪造 spec 测查重/换版/翻转是合法路径）；
+    /// - 本入口面向 MCP / 外部调用方：来源身份**服务端验证**，不信调用方自报——
+    ///   1. 查 TenderFile 记录（`source_file_id` 不存在 → E_NOTFOUND）；
+    ///   2. 解析失败件禁引（parse_status=Failed → E_UNPROCESSABLE，R-01）；
+    ///   3. 解析产物必须在场（sha256 对账——否则该件未经 import 管线）；
+    ///   4. locator 按解析产物对账（段落越界 / 页号越界 / 指纹不匹配 → 拒；
+    ///      不支持的 locator 形态 → 明确报错，不静默跳过）；
+    ///   5. `source_file` / `source_sha256` / `fingerprint` 全部取库内与实际
+    ///      内容（调用方无从传入——「库内 sha 优先于调用方」由构造保证）。
+    ///
+    /// 指纹口径（与既有 text_fingerprint 同族）：
+    /// - 带 locator → `fnv64:<hex>`（定位文本归一化后 FNV-1a 64，
+    ///   [`bid_domain::linkage::text_fingerprint`] 单一真源）；
+    /// - 无 locator（文件级锚）→ `sha256:<库内文件 sha>`（内容指纹 = 文件身份，
+    ///   与旧缺省行为同语义，但真源是库而非调用方）。
+    pub fn register_evidence_verified(
+        &mut self,
+        reg: EvidenceRegistration,
+    ) -> Result<(String, bool), ToolError> {
+        // ---- 1. TenderFile 在场性（不存在的文件 = 无来源身份，拒）
+        let tf = self
+            .store
+            .files()
+            .iter()
+            .find(|f| f.id == reg.source_file_id)
+            .cloned()
+            .ok_or_else(|| ToolError::ENotFound {
+                what: format!(
+                    "source_file_id {} 不存在（证据来源必须是已导入文件——先 import_tender_files，以回执 per_file[].file_id 引用）",
+                    reg.source_file_id
+                ),
+            })?;
+        // ---- 2. 解析失败件禁引（R-01：失败件内容全程禁引——证据也不例外）
+        if tf.parse_status == ParseStatus::Failed {
+            return Err(ToolError::EUnprocessable {
+                reason: format!(
+                    "source_file_id {} 指向解析失败件（{}）——失败件内容禁引；修复后以新内容重传再登记",
+                    tf.id, tf.parse_summary
+                ),
+            });
+        }
+        // ---- 3. 解析产物对账（按库内 sha 加入——调用方无从伪造join键）
+        let parsed = self
+            .parsed
+            .iter()
+            .find(|p| p.sha256 == tf.sha256)
+            .ok_or_else(|| ToolError::EUnprocessable {
+                reason: format!(
+                    "source_file_id {} 对应文件无解析产物在服务态（须先经 import_tender_files 成功导入）",
+                    tf.id
+                ),
+            })?;
+        // ---- 4/5. locator 对账 + 系统生成指纹
+        let (locator, fingerprint) = match &reg.locator {
+            None => {
+                // 文件级锚：诚实标记「经登记面、无引擎定位器」（审计可辨识）
+                let fp = format!("sha256:{}", tf.sha256);
+                (
+                    EngineLocator::MarkdownBlock {
+                        block_id: format!("mcp-registered:{}", tf.name),
+                        text_fingerprint: fp.clone(),
+                    },
+                    fp,
+                )
+            }
+            Some(loc) => {
+                let fp = verify_locator_against(parsed, loc)?;
+                (loc.clone(), fp)
+            }
+        };
+        let spec = EvidenceSpec {
+            kind: reg.kind,
+            title: reg.title,
+            source_file: tf.name,
+            source_sha256: tf.sha256,
+            locator,
+            fingerprint,
+            valid_from: reg.valid_from,
+            valid_until: reg.valid_until,
+            subject_name: reg.subject_name,
+            scope: reg.scope,
+            client: reg.client,
+            amount_wan: reg.amount_wan,
+            completed_on: reg.completed_on,
+            fields: reg.fields,
+        };
         let out = self.store.register_evidence(spec)?;
         self.auto_checkpoint()?;
         Ok(out)

@@ -13,17 +13,25 @@
   "project_id": "…",
   "kind": "qualification",
   "title": "电子与智能化工程专业承包二级资质证书",
-  "source_file": "files/资质证书.pdf",
-  "source_sha256": "<必填——无文件身份不入账>",
+  "source_file_id": "TF-0003",
   "subject_name": "投标人",
   "scope": "电子与智能化工程",
   "valid_until": "2028-06-30",
-  "fingerprint": "sha256:<缺省=source_sha256>",
-  "locator": { "kind": "docx_paragraph", "…": "指纹字段" },
+  "locator": { "kind": "pdf_page_text", "page": 1,
+               "text_fingerprint": "fnv64:…" },
   "project_version": 12
 }
 ```
 
+- `source_file_id`（#185 来源验证，必填）：**已导入文件**的 TF-id——从
+  `import_tender_files` 回执 `per_file[].file_id` 拿。不存在 / 解析失败件
+  → 拒；sha256 与指纹由服务端从库内与实际内容生成，**不接受自报**
+  （旧参数 `source_file` / `source_sha256` / `fingerprint` 已废除，传入即拒）；
+- `locator` 可选：缺省 = 文件级锚（指纹退 `sha256:<库内 sha>`）；传入则与
+  该文件解析产物**对账**——`docx_paragraph`（paragraph_index 是正文段
+  0 起序，表格行不占号）/ `pdf_page_text`（page 1 起在解析页数内），且
+  `text_fingerprint` 须与实际内容一致（越界/不符 → E_UNPROCESSABLE）；
+  其他形态（xlsx_cell / markdown_block 等）无对账面，显式拒；
 - `kind` 七种：`qualification | performance | personnel | certificate |
   product_doc | solution_module | contract`（或对应中文展示名）；
 - 语义位查重：同 `kind+title+subject+scope` 的最新非 SUPERSEDED 记录——

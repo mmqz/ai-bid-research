@@ -219,6 +219,19 @@ fn leaf_ids_of(svc: &BidService) -> Vec<String> {
         .collect()
 }
 
+/// 导入回执（Ok 的 result 或 E_PARTIAL 的 data——均带 per_file）里按文件名
+/// 取 file_id（#185：证据登记的来源锚发现面）。
+fn import_file_id(data: &Value, filename: &str) -> String {
+    data["per_file"]
+        .as_array()
+        .unwrap_or_else(|| panic!("导入回执缺 per_file: {data}"))
+        .iter()
+        .find(|p| p["filename"].as_str() == Some(filename))
+        .and_then(|p| p["file_id"].as_str())
+        .unwrap_or_else(|| panic!("导入回执缺 {filename} 的 file_id: {data}"))
+        .to_string()
+}
+
 /// 待绑 REQ 发现（MCP §4 矩阵分页——类目过滤 + cursor 翻页，外部 Agent
 /// 同款视角；与 mcp_scaffold_tools 同构）。类目用矩阵行自己的 category 面
 /// （qualification / veto —— 契约 §4 filters 口径）。
@@ -308,18 +321,19 @@ fn ensure_prepared(svc: &mut BidService, ws: &Path) -> (String, Vec<String>) {
             })
         })
         .collect();
-    match call(
+    // A 件 file_id（#185 后证据登记的来源锚——Ok / E_PARTIAL 回执都带 per_file）
+    let fid_a = match call(
         svc,
         "import_tender_files",
         json!({ "project_id": &pid, "files": specs }),
     ) {
-        ToolReply::Ok(_)
-        | ToolReply::Err {
-            error: bid_mcp::ToolError::EPartial { .. },
+        ToolReply::Ok(out) => import_file_id(&out.result, "A-招标文件.docx"),
+        ToolReply::Err {
+            error: bid_mcp::ToolError::EPartial { data: Some(d), .. },
             ..
-        } => {}
+        } => import_file_id(&d, "A-招标文件.docx"),
         ToolReply::Err { error, .. } => panic!("导入意外错误: {error}"),
-    }
+    };
     match call(
         svc,
         "import_tender_files",
@@ -373,15 +387,14 @@ fn ensure_prepared(svc: &mut BidService, ws: &Path) -> (String, Vec<String>) {
     );
     bind_ids.extend(matrix_reqs(svc, &pid, "tech_param"));
 
-    // ---- 证据登记 + 绑定（MCP §11——G2 工具面）
+    // ---- 证据登记 + 绑定（MCP §11——G2 工具面；#185：source_file_id 锚 A 件）
     let reg = ok_result(call(
         svc,
         "register_evidence",
         json!({
             "project_id": &pid, "kind": "qualification",
             "title": "电子与智能化工程专业承包二级资质证书（synth·subagent-path）",
-            "source_file": "SYN-EV-资质证书.pdf",
-            "source_sha256": "sha-subagent-path",
+            "source_file_id": &fid_a,
             "subject_name": "投标人", "scope": "电子与智能化工程",
         }),
     ));

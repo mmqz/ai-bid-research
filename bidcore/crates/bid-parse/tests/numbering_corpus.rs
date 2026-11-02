@@ -79,8 +79,19 @@ fn require_corpus() -> Option<()> {
     // 编号形态/层级分布全对不上——SKIP 而非假红（issue #9 口径）。
     {
         let probe = "A-塔里木水库除险加固招标文件.pdf";
-        let parsed = bid_parse::parse_file(&d.join(probe), probe)
-            .expect("水科 PDF 应可解析（能解析但文本可能不可用）");
+        // #169 fail-loud 分流：坏 poppler（缺 CMap 资源包）+ 加密件 →
+        // parse_file 显式 Err（首选路乱码 + 兜底不解密）——环境不可信，
+        // SKIP；非 #169 的解析失败仍是真回归，panic。
+        let parsed = match bid_parse::parse_file(&d.join(probe), probe) {
+            Ok(p) => p,
+            Err(e) if e.contains("乱码") => {
+                eprintln!(
+                    "【SKIP】{probe} 在本环境解不开（#169 乱码 fail-loud：{e}）——坏 poppler（缺 CMap 资源包）+ 加密件，真实分布验收不伪装通过"
+                );
+                return None;
+            }
+            Err(e) => panic!("水科 PDF 应可解析（能解析但文本可能不可用）: {e}"),
+        };
         let joined: String = parsed.blocks.iter().map(|b| b.text.as_str()).collect();
         let ratio = cjk_ratio(&joined);
         if ratio < MIN_CJK_RATIO {

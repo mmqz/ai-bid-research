@@ -52,7 +52,19 @@ fn require_corpus() -> Option<Vec<(String, Vec<String>)>> {
             eprintln!("【SKIP】缺语料 {}——真实冒烟验收不伪装通过", path.display());
             return None;
         }
-        let parsed = bid_parse::parse_file(&path, f).expect("水科 PDF 应可解析");
+        // #169 fail-loud 分流：坏 poppler（缺 CMap 资源包）下首选路乱码 +
+        // 加密件兜底不解密 → parse_file 显式 Err——环境不可信，SKIP 而非假红；
+        // 非 #169 的解析失败仍是真回归，照旧 panic。
+        let parsed = match bid_parse::parse_file(&path, f) {
+            Ok(p) => p,
+            Err(e) if e.contains("乱码") => {
+                eprintln!(
+                    "【SKIP】{f} 在本环境解不开（#169 乱码 fail-loud：{e}）——坏 poppler（缺 CMap 资源包）+ 加密件，真实冒烟验收不伪装通过"
+                );
+                return None;
+            }
+            Err(e) => panic!("水科 PDF 应可解析: {e}"),
+        };
         let lines: Vec<String> = parsed.blocks.iter().map(|b| b.text.clone()).collect();
         // 解析保真度守卫（issue #169）：环境缺 pdfium/poppler 时纯 Rust 兜底
         // 会把中文解成碎片，此时语料「在位」但文本不可用——SKIP 而非假红。

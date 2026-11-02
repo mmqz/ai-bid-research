@@ -280,6 +280,22 @@ fn real_corpus_full_chain() {
         gt_path().display()
     );
 
+    // #169 环境前置：坏 poppler（缺 CMap 资源包，Windows runner 实测形态）
+    // 下，加密水科件「首选路乱码 + 兜底不解密」被 parse_file 的 fail-loud
+    // 显式拒绝——L1/P 红线在此环境无从对照，SKIP 留横幅（issue #9 口径：
+    // 环境差异不伪装成业务回归；非 #169 的解析失败照旧 panic）。
+    for (local, _) in CORPUS.iter() {
+        if let Err(e) = bid_parse::parse_file(&files_dir().join(local), local) {
+            if e.contains("乱码") {
+                eprintln!(
+                    "【SKIP】{local} 在本环境解不开（#169 乱码 fail-loud：{e}）——坏 poppler（缺 CMap 资源包），红线对照不可信，真实语料验收不伪装通过"
+                );
+                return;
+            }
+            panic!("水科 PDF 应可解析: {e}");
+        }
+    }
+
     let latest = out_root().join("latest");
     let _ = std::fs::remove_dir_all(&latest);
     std::fs::create_dir_all(&latest).unwrap();

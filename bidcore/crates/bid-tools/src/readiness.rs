@@ -34,7 +34,7 @@
 //! | MissingTechEvidence | 本章技术参数类 REQ 无可用证据佐证 | 阻塞 |
 //! | UncoveredVetoItem | 本章负责的否决项在矩阵未响应 / blocking | 阻塞 |
 //! | IncompleteTender | 招标包结构问题（无招标文件/多份正本/多份招标文件） | **警告**（信息面） |
-//! | **MissingAddendum** | 招标文件已导入，但补遗/澄清**缺失或解析失败** | **阻塞**（L3） |
+//! | **MissingAddendum** | 招标文件已导入，但补遗/澄清**缺失或不就绪**（逐件分级） | **阻塞**（L3，#184 升级） |
 //!
 //! ## L3：补遗缺失必须阻塞（本模块最容易被低估的一条）
 //!
@@ -49,6 +49,30 @@
 //!
 //! 补遗对条款是**实质性修改**（控制价、截止时间、参数、评分办法都在里面），
 //! 丢一份补遗等于拿过期条款投标。所以这不是「信息面警告」，是**阻塞**。
+//!
+//! ### #184 翻案：部分失败也阻塞（推翻「3 份补遗坏 1 份不该拦住工作」）
+//!
+//! **当初为何放行**：旧判定只看「是否**全部**解析失败」（
+//! `failed.len() == addenda.len()` 才阻塞）——怕多份补遗坏一份就拦住整条
+//! 工作流，过度阻塞会让工具不可用，还留了「坏件单独暴露不阻塞」的报告面。
+//!
+//! **现在为何推翻**：不知道 ≠ 没有。补遗 03 可能恰好是改控制价的那份——
+//! 它解析失败 → 我们不知道它改了什么 → 按旧价报价 → 废标。「多份里坏
+//! 一份通常还有别的覆盖」是赌概率，而废标是确定损失；工作流被拦住是
+//! **可修复的摩擦**（修复重传 / 人工逐件确认放行），废标是**不可逆的结局**。
+//! 阻塞的代价有出口（逐件 waiver），放行的代价没有出口。
+//!
+//! 新判定（分级就绪 + 逐件确认）：
+//! - 每件补遗按 [`addendum_readiness`] 分级：Ok → Ready；OcrRequired 且
+//!   OCR 已产出内容（ocr_blocks > 0）→ Ready；OcrRequired 零块 →
+//!   OcrPending；Failed → Failed（详见 [`AddendumReadiness`]——含「为什么
+//!   不区分更多态」的诚实说明）；
+//! - **任一件不处 Ready 且无该 file_id 的逐件确认** → 阻塞（
+//!   [`Blocker::MissingAddendum`]，逐件点名 + 原因）；
+//! - 人工继续必须逐件记录 [`bid_domain::AddendumWaiverRecord`]（MCP 工具
+//!   `record_addendum_waiver`）——非全局布尔，确认即审计面；
+//! - 全局 Gate::AddendumWaiver（#131）语义不变：只救「无补遗件」分支，
+//!   不掩蔽任何不就绪件（`addendum_waiver_does_not_mask_parse_failed` 钉死）。
 //!
 //! 「可用证据」= 状态 Active / Expiring（与 evidence.rs `can_bind`、
 //! draft.rs `check_evidence_bindable` 同口径）——过期件不能算有。
@@ -143,21 +167,71 @@ pub enum Blocker {
     UncoveredVetoItem { req_ids: Vec<String> },
     /// 招标包不完整（无招标文件本体 / 多份无法确定正本）。**警告面**。
     IncompleteTender { missing: Vec<String> },
-    /// 招标文件已导入，但补遗/澄清件**缺失或解析失败**（L3——**阻塞**）。
+    /// 招标文件已导入，但补遗/澄清件**缺失或不就绪**（L3——**阻塞**，#184
+    /// 升级为逐件分级判定）。
     ///
     /// 与 [`Blocker::IncompleteTender`] 的分界：那条是「招标包结构可疑，
     /// 请人工确认」；这条是「已确认导入过招标文件，但补遗这一环断了」——
     /// 补遗含对条款的实质性修改，缺了就不能按现有条款做标。
+    ///
+    /// #184 起逐件点名：`files` 里每件带就绪度与原因（parse_summary /
+    /// OCR 零块说明），阻塞消息照此展开——「3 份补遗坏 1 份」要说清坏的
+    /// 是哪一份、坏在哪。
     MissingAddendum {
-        /// 涉及的文件名（`ParseFailed` 是被解析失败的那几件；`NotProvided`
-        /// 为空——没有文件可列）。
-        files: Vec<String>,
-        /// 缺失形态。
+        /// 不就绪且未经人工确认的补遗件（逐件：文件 id / 名字 / 就绪度 / 原因）。
+        /// `NotProvided` 形态为空——没有文件可列。
+        files: Vec<AddendumFileState>,
+        /// 缺失形态（分类标签——逐件真相在 `files` 里；混存时取更重的一档：
+        /// 有 Failed 件报 ParseFailed，否则为 OcrPending）。
         reason: AddendumIssue,
     },
 }
 
-/// 补遗缺失的两种形态（L3 规格原文）。
+/// 单件补遗的就绪度分级（#184——判定矩阵的基元）。
+///
+/// - `Ok` → `Ready`：内容可读，条款修改可见；
+/// - `OcrRequired` 且 `ocr_blocks > 0` → `Ready`：OCR 已产出内容
+///   （与 service.rs `ocr_tier_of` 的 "ocr" 档同口径）；
+/// - `OcrRequired` 且零块 → `OcrPending`：**域层暂无「OCR 跑过但零产出」
+///   与「OCR 还没跑」的区分信号**（TenderFile 只记块数），两形态在本版本
+///   合为一态。信号面补齐（导入链路区分 OcrEmpty/Pending）后应拆开；
+///   现在不虚构区分——零块一律当「内容未知」，保守阻塞；
+/// - `Failed` → `Failed`：解析器明确报错（CMap/加密/滤镜不支持）。
+///
+/// 注：issue #184 提过的 `Partial`（部分页成功）变体无信号支撑（
+/// ParseStatus 无页级信息），不造死代码，不设该变体。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum AddendumReadiness {
+    Ready,
+    OcrPending,
+    Failed,
+}
+
+impl AddendumReadiness {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AddendumReadiness::Ready => "READY",
+            AddendumReadiness::OcrPending => "OCR_PENDING",
+            AddendumReadiness::Failed => "FAILED",
+        }
+    }
+}
+
+/// 单件补遗的状态展开（阻塞消息 / MCP 报告面的逐件行）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AddendumFileState {
+    /// 文件 id（逐件确认的锚——record_addendum_waiver 按它对号）。
+    pub file_id: String,
+    /// 文件名（人类可读点名）。
+    pub name: String,
+    /// 就绪度分级。
+    pub readiness: AddendumReadiness,
+    /// 不就绪原因（Failed → parse_summary 原文；OcrPending → 零块说明）。
+    pub reason: String,
+}
+
+/// 补遗缺失的形态（L3 规格 + #184 扩面）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AddendumIssue {
@@ -165,12 +239,20 @@ pub enum AddendumIssue {
     ///
     /// 注意：真实项目**可能真的没有补遗**（没发过澄清）。所以这一条是
     /// 「必须人工确认」，不是「一定错误」——但确认之前不能当它不存在。
+    /// 人工出口：Gate::AddendumWaiver（#131——全局确认本项目无补遗）。
     NotProvided,
-    /// 有补遗件但解析失败（CMap 缺失/加密/滤镜不支持/扫描件 OCR 断链）。
+    /// 有补遗件但解析失败（CMap 缺失/加密/滤镜不支持）。
     ///
     /// 这一条没有歧义：补遗确实存在，只是我们读不了它——
     /// 读不了就等于没有，绝不能按「没补遗」继续。
+    /// 人工出口：逐件 [`bid_domain::AddendumWaiverRecord`]（#184）。
     ParseFailed,
+    /// 有补遗件但 OCR 未产出任何内容（零块——内容未知，#184）。
+    ///
+    /// 与 ParseFailed 同为「不知道 ≠ 没有」的形态：件在场、内容不可见。
+    /// 旧判定把 OcrRequired 一律当「不算失败」放行——对已 OCR 出内容的件
+    /// 是对的，对零文本件就是把「不知道」当「没有」。人工出口同 ParseFailed。
+    OcrPending,
 }
 
 impl AddendumIssue {
@@ -178,6 +260,7 @@ impl AddendumIssue {
         match self {
             AddendumIssue::NotProvided => "NOT_PROVIDED",
             AddendumIssue::ParseFailed => "PARSE_FAILED",
+            AddendumIssue::OcrPending => "OCR_PENDING",
         }
     }
 }
@@ -222,8 +305,12 @@ impl Blocker {
             Blocker::MissingAddendum { files, reason } => match reason {
                 AddendumIssue::NotProvided => "未发现补遗/澄清文件——若本项目曾发过澄清答疑，现行条款可能已被修改。请补充导入补遗件，或明确确认本项目无补遗后再继续".to_string(),
                 AddendumIssue::ParseFailed => format!(
-                    "补遗/澄清文件解析失败：{}——补遗里有对条款的实质性修改（控制价/截止时间/参数/评分办法），读不了就等于没收到，按现有条款做标会直接废标",
-                    files.join("、")
+                    "补遗/澄清文件解析失败：{}——补遗里有对条款的实质性修改（控制价/截止时间/参数/评分办法），读不了就等于没收到，按现有条款做标会直接废标。请修复重传，或逐件人工确认后放行（record_addendum_waiver）",
+                    format_not_ready_files(files)
+                ),
+                AddendumIssue::OcrPending => format!(
+                    "补遗/澄清文件 OCR 未完成（零内容）：{}——扫描件内容未知，不确定它改了什么就不能按旧条款做标。请先跑 OCR 或提供可解析版本，或逐件人工确认后放行（record_addendum_waiver）",
+                    format_not_ready_files(files)
                 ),
             },
         }
@@ -286,12 +373,35 @@ impl Blocker {
                     PlaceholderKind::Missing,
                     &format!(
                         "补遗文件 {} 解析失败，请提供可解析版本",
-                        files.join("、")
+                        files.iter().map(|f| f.name.as_str()).collect::<Vec<_>>().join("、")
+                    ),
+                ),
+                AddendumIssue::OcrPending => make_placeholder(
+                    PlaceholderKind::Missing,
+                    &format!(
+                        "补遗文件 {} OCR 未完成（零内容），请先跑 OCR 或提供可解析版本",
+                        files.iter().map(|f| f.name.as_str()).collect::<Vec<_>>().join("、")
                     ),
                 ),
             },
         }
     }
+}
+
+/// 阻塞消息里的逐件展开：「名字（原因）、名字（原因）」——#184 起要能
+/// 对齐到具体是哪一份、坏在哪（验收 A：报具体文件名与原因）。
+fn format_not_ready_files(files: &[AddendumFileState]) -> String {
+    files
+        .iter()
+        .map(|f| {
+            if f.reason.trim().is_empty() {
+                f.name.clone()
+            } else {
+                format!("{}（{}）", f.name, f.reason)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("、")
 }
 
 // ---------------------------------------------------------------- 证据可用性
@@ -542,7 +652,7 @@ pub fn tender_gaps(store: &DomainStore) -> Vec<String> {
     out
 }
 
-// ---------------------------------------------------------------- L3：补遗缺失检测
+// ---------------------------------------------------------------- L3：补遗缺失检测（#184 分级就绪）
 
 /// 补遗/澄清类文件的**类别关键字**（导入时 kind 字面量）。
 ///
@@ -581,19 +691,97 @@ pub fn is_addendum_file(kind: &str, name: &str) -> bool {
         || ADDENDUM_NAME_WORDS.iter().any(|w| name.contains(w))
 }
 
-/// L3 主判定：补遗缺失或解析失败 → 一条阻塞；一切正常 → None。
+/// 单件补遗的就绪度分级（#184 判定矩阵的基元，详见 [`AddendumReadiness`]）。
+pub fn addendum_readiness(f: &bid_domain::TenderFile) -> AddendumReadiness {
+    use bid_domain::ParseStatus;
+    match f.parse_status {
+        ParseStatus::Ok => AddendumReadiness::Ready,
+        // 已 OCR 出内容（ocr_blocks>0）→ 可读，与 service.rs ocr_tier_of
+        // 的 "ocr" 档同口径；零块 → 内容未知（详见枚举文档：域层无
+        // 「OCR 跑过但零产出」信号，OcrEmpty/Pending 合一态，不虚构区分）
+        ParseStatus::OcrRequired => {
+            if f.ocr_blocks > 0 {
+                AddendumReadiness::Ready
+            } else {
+                AddendumReadiness::OcrPending
+            }
+        }
+        ParseStatus::Failed => AddendumReadiness::Failed,
+    }
+}
+
+/// 不就绪原因文本（Failed → parse_summary 原文；OcrPending → 零块说明）。
+fn not_ready_reason(f: &bid_domain::TenderFile) -> String {
+    match addendum_readiness(f) {
+        AddendumReadiness::Failed => {
+            if f.parse_summary.trim().is_empty() {
+                "解析失败（未携带原因）".to_string()
+            } else {
+                f.parse_summary.clone()
+            }
+        }
+        AddendumReadiness::OcrPending => {
+            "无文本层扫描件且 OCR 未产出任何内容（零块）——内容未知".to_string()
+        }
+        AddendumReadiness::Ready => String::new(), // 不入不就绪清单，不占理由面
+    }
+}
+
+/// 报告面的单件补遗状态（就绪度 + 是否已人工确认）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AddendumStatus {
+    pub file_id: String,
+    pub name: String,
+    pub readiness: AddendumReadiness,
+    /// 不就绪原因（Ready 件为空串）。
+    pub reason: String,
+    /// 已逐件人工确认（record_addendum_waiver 的审计回显面）。
+    pub waived: bool,
+}
+
+/// 全部补遗件的逐件状态（报告面——含已确认件：确认了也要能查到，审计面
+/// 不因放行而消失）。MCP import 响应 / record_addendum_waiver 出参的
+/// `addendum_readiness` 块由此组装（含 waived 标记）。
+///
+/// 取代旧 `addendum_parse_failures`（#184 前的死代码：只列 Failed 名字、
+/// 零消费者，且语义已被分级判定覆盖——「不就绪」不止 Failed 一种）。
+pub fn addendum_statuses(store: &DomainStore) -> Vec<AddendumStatus> {
+    store
+        .files()
+        .iter()
+        .filter(|f| is_addendum_file(&f.kind, &f.name))
+        .map(|f| AddendumStatus {
+            file_id: f.id.clone(),
+            name: f.name.clone(),
+            readiness: addendum_readiness(f),
+            reason: not_ready_reason(f),
+            waived: store.addendum_waived(&f.id),
+        })
+        .collect()
+}
+
+/// L3 主判定：补遗缺失或任一件不就绪且未逐件确认 → 一条阻塞；
+/// 一切就绪（或已逐件放行） → None。
 ///
 /// ## 判定（只认导入台账里的事实，不猜文件内容）
 ///
 /// 1. **没有招标文件本体** → None（整包没导，那是 [`tender_gaps`] 的面，
 ///    不该在这里重复报「缺补遗」——空包比缺补遗更上游）；
-/// 2. 有招标文件，**没有任何补遗件** → `MissingAddendum { NotProvided }`；
-/// 3. 有补遗件，**全部解析失败** → `MissingAddendum { ParseFailed }`；
-/// 4. 有补遗件，**部分成功** → None（读到了就是读到了；失败件在
-///    [`addendum_parse_failures`] 单独暴露给报告面，不阻塞——
-///    多份补遗里坏一份通常还有别的覆盖，过度阻塞会让工具不可用）；
-/// 5. 补遗件 `OcrRequired` 不算失败（无文本层扫描件是已知可处理态，
-///    与 ParseStatus 的三分语义一致）。
+/// 2. 有招标文件，**没有任何补遗件** → `MissingAddendum { NotProvided }`
+///    （人工出口：Gate::AddendumWaiver，#131）；
+/// 3. 有补遗件，**任一件不处 Ready 且无该 file_id 的逐件确认** →
+///    `MissingAddendum { ParseFailed | OcrPending }`，files 逐件点名
+///    （id/名字/就绪度/原因）。**#184 翻案**：旧判定是
+///    `failed.len() == addenda.len()` 才阻塞——只有全部失败才拦，部分
+///    失败放行。当初的理由是「3 份补遗坏 1 份不该拦住工作」（怕过度
+///    阻塞让工具不可用）；推翻它因为**不知道 ≠ 没有**：坏的那份可能正
+///    是改控制价的，读不到不等于没改——按旧条款报价就是废标。工作流
+///    被拦是可修复的摩擦（修复重传 / 逐件 waiver），废标是不可逆的结局；
+///    分级阻塞 + 逐件确认让「放行」也变成留底的可审计行为，而非静默赌
+///    概率；
+/// 4. **全部 Ready**（含 OCR 已产出内容的件）→ None——验收 D 直接放行；
+/// 5. **不就绪但已有逐件确认** → 该件不计入阻塞（确认即审计面；
+///    导入可解析版本后阻塞自然消失，确认记录无害残留）。
 fn missing_addendum(store: &DomainStore) -> Option<Blocker> {
     // ① 没有招标文件本体 → 交回 tender_gaps（空包告警），不在本函数报
     let has_tender = store.files().iter().any(|f| f.kind == FILE_KIND_TENDER_L3);
@@ -601,17 +789,14 @@ fn missing_addendum(store: &DomainStore) -> Option<Blocker> {
         return None;
     }
 
-    let addenda: Vec<&bid_domain::TenderFile> = store
-        .files()
-        .iter()
-        .filter(|f| is_addendum_file(&f.kind, &f.name))
-        .collect();
+    let statuses = addendum_statuses(store);
 
     // ② 一件补遗都没有——L3 阻塞的人工出口：AddendumWaiver 门 Approved
     //    = 人工确认本项目无补遗（#131 真实语料验证：此前该确认通路不存在，
     //    单件真实招标文件被死锁——阻塞提示语承诺的「明确确认无补遗后再
     //    继续」在此落地）。导入补遗件后本分支不再触发，waiver 自然失效。
-    if addenda.is_empty() {
+    //    （#184 语义不变：全局门只救 NotProvided——不掩蔽任何不就绪件。）
+    if statuses.is_empty() {
         if store.gate_approved(bid_domain::review::Gate::AddendumWaiver) {
             return None;
         }
@@ -621,35 +806,38 @@ fn missing_addendum(store: &DomainStore) -> Option<Blocker> {
         });
     }
 
-    // ③ 有补遗但**全部**失败（Failed 是唯一失败态；OcrRequired 不算）
-    let failed: Vec<String> = addenda
+    // ③ 任一件不处 Ready 且无该 file_id 的逐件确认 → 阻塞（#184 判定矩阵）。
+    //    旧实现是 `failed.len() == addenda.len()`（全坏才拦）——翻案理由
+    //    见函数级文档：不知道 ≠ 没有，部分失败也是「不知道」。
+    let blocking: Vec<AddendumFileState> = statuses
         .iter()
-        .filter(|f| f.parse_status == bid_domain::ParseStatus::Failed)
-        .map(|f| f.name.clone())
+        .filter(|s| s.readiness != AddendumReadiness::Ready && !s.waived)
+        .map(|s| AddendumFileState {
+            file_id: s.file_id.clone(),
+            name: s.name.clone(),
+            readiness: s.readiness,
+            reason: s.reason.clone(),
+        })
         .collect();
-    if failed.len() == addenda.len() {
-        return Some(Blocker::MissingAddendum {
-            files: failed,
-            reason: AddendumIssue::ParseFailed,
-        });
+    if blocking.is_empty() {
+        return None;
     }
-
-    None
-}
-
-/// 补遗解析失败件清单（**不阻塞**，但报告面要露出来——
-/// 「3 份补遗坏 1 份」不该拦住工作，但不该让用户不知道）。
-pub fn addendum_parse_failures(store: &DomainStore) -> Vec<String> {
-    store
-        .files()
+    // 混存取重：有 Failed 件报 ParseFailed，否则 OcrPending（逐件真相在 files）
+    let reason = if blocking
         .iter()
-        .filter(|f| is_addendum_file(&f.kind, &f.name))
-        .filter(|f| f.parse_status == bid_domain::ParseStatus::Failed)
-        .map(|f| f.name.clone())
-        .collect()
+        .any(|f| f.readiness == AddendumReadiness::Failed)
+    {
+        AddendumIssue::ParseFailed
+    } else {
+        AddendumIssue::OcrPending
+    };
+    Some(Blocker::MissingAddendum { files: blocking, reason })
 }
 
 // （旧 `tender_has_addendum` 已被 [`is_addendum_file`] 取代——L3 把判定面扩到 kind+名字双匹配，语义单一真源。）
+// （旧 `addendum_parse_failures`（只列 Failed 名字、零消费者）已被 [`addendum_statuses`]
+//  取代——#184 的非 Ready 清单不止 Failed 一种，且接线到 MCP import 响应与
+//  record_addendum_waiver 出参，不再留死代码。）
 
 /// 占位文本随需求生成（接线方可直接用）：本章第一条阻塞的建议占位。
 pub fn first_placeholder(r: &DraftReadiness) -> Option<String> {

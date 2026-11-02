@@ -5,7 +5,7 @@
 工具三件套（issue #137 验收第一条）：
 
   1. initialize        —— 版本协商 + serverInfo + capabilities
-  2. list_tools        —— 20 个工具全量在座，每个带合法 inputSchema
+  2. list_tools        —— 21 个工具全量在座，每个带合法 inputSchema
   3. call_tool         —— 成功路径（create_bid_project）+
                           工具执行错误（isError=true + 契约错误码）+
                           协议错误（未知工具 → McpError -32602）
@@ -34,6 +34,7 @@ EXPECTED_TOOLS = {
     "draft_response_section", "validate_bid_document", "export_bid_document",
     "get_bid_project_state", "save_version", "check_bid_quality",
     "build_outline", "register_evidence", "bind_evidence", "record_review_gate",
+    "record_addendum_waiver",
     "score_price", "score_section", "score_document",
 }
 
@@ -69,7 +70,7 @@ async def main() -> None:
             # ---- ② list_tools（全量工具面 + inputSchema 形态）----
             tools = (await session.list_tools()).tools
             names = {t.name for t in tools}
-            check(len(tools) == 20, f"list_tools: 工具数 = {len(tools)}（20）")
+            check(len(tools) == 21, f"list_tools: 工具数 = {len(tools)}（21）")
             check(names == EXPECTED_TOOLS, "list_tools: 与 TOOL_NAMES 单一真源一致")
             for t in tools:
                 check(isinstance(t.inputSchema, dict) and t.inputSchema.get("type") == "object",

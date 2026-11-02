@@ -418,6 +418,18 @@ fn input_schema(name: &str) -> Value {
             },
             "required": ["project_id", "gate", "decision", "reviewer"]
         }),
+        "record_addendum_waiver" => json!({
+            "type": "object",
+            "description": "#184 补遗分级阻塞的逐件人工确认：任一补遗不处 READY（FAILED/OCR_PENDING）时 draft_response_section 被拒；人工继续必须逐件确认到具体 file_id（非全局布尔）。确认即审计面（file_id/reason/at/principal）",
+            "properties": {
+                "project_id": pid,
+                "file_id": {"type": "string", "description": "TF-* 补遗件 id（须真实存在——import 响应 addendum_readiness.not_ready[].file_id）"},
+                "reason": {"type": "string", "description": "人工理由（非空白——不可审计的确认不成确认）"},
+                "principal": {"type": "string", "description": "确认人，须 human: 前缀（AI 不得自审自过；#182 将升级 TrustedPrincipal 验签）"},
+                "project_version": pv
+            },
+            "required": ["project_id", "file_id", "reason", "principal"]
+        }),
         "score_price" => json!({
             "type": "object",
             "description": "纯计算器（无项目路由/状态机）——bid_price 缺省 = 纯推荐模式",
@@ -484,6 +496,7 @@ fn describe(name: &str) -> &'static str {
         "register_evidence" => "证据登记（G2——语义位查重/换版；MATRIX_READY+；业绩类可带 client/amount_wan/completed_on 业务面；结构化字段走可选 fields 对象）",
         "bind_evidence" => "证据批量绑定 + 矩阵重算（G2——EXPIRED 禁绑；MATRIX_READY+）",
         "record_review_gate" => "三门记审（G3——matrix/outline/pre_export；reviewer 须 human: 前缀）",
+        "record_addendum_waiver" => "补遗逐件人工确认（#184——分级阻塞的免责面；principal 须 human: 前缀；FILES_IMPORTED+）",
         "score_price" => "价格分试算 + 最优报价反推（#100 任务 3——纯计算器，B1 五方法只调用不改）",
         "score_section" => "章节自评（#100 任务 3——四维规则判定；大纲联结补 section 映射）",
         "score_document" => "整本自评（#100 任务 3——技术/商务/价格三段 + by_item 逐项；没报价 → price null）",
@@ -513,6 +526,7 @@ fn is_implemented(name: &str) -> bool {
             | "register_evidence"
             | "bind_evidence"
             | "record_review_gate"
+            | "record_addendum_waiver"
             | "score_price"
             | "score_section"
             | "score_document"

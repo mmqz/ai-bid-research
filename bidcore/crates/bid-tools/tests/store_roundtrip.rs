@@ -193,3 +193,58 @@ fn expired_status_survives_restart_no_revival() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// #184 补遗逐件确认的持久化：确认记录跨「重启」往返保真（写后自动
+/// checkpoint → 重开可查），旧快照（无 addendum_waivers 字段的 #184 前库）
+/// 经 serde(default) 以空集合加载——加性迁移，老库不拒载。
+#[test]
+fn addendum_waiver_roundtrip_and_old_snapshot_default_load() {
+    // ---- 生命周期 1：坏补遗 + 逐件确认（record_addendum_waiver 写后自动落盘）
+    let dir = store_dir("addendum-waiver");
+    let fid = {
+        let mut svc = BidService::open(&dir).unwrap();
+        svc.create_project("补遗确认持久化", "C-AW", "明标", "aw-key").unwrap();
+        let (fid, _) = svc
+            .store_mut()
+            .upsert_file(
+                "C-补遗01.pdf", "补遗", "sha-aw-rt", 0, 0, 0, 0,
+                bid_domain::ParseStatus::Failed, "ToUnicode CMap 缺失：文本层无法解码",
+            )
+            .unwrap();
+        let rec = svc
+            .record_addendum_waiver(&fid, "已人工核对纸质原件", "human:rt-lead")
+            .unwrap();
+        assert_eq!(rec.file_id, fid);
+        assert!(rec.at > 0, "确认时刻落钟");
+        fid
+    }; // <- drop：record_addendum_waiver 已 auto_checkpoint，磁盘是唯一幸存面
+
+    // ---- 生命周期 2：重开 → 确认记录保真可查（验收 C 的持久化面）
+    {
+        let svc = BidService::open(&dir).unwrap();
+        let ws = svc.store().addendum_waivers();
+        assert_eq!(ws.len(), 1, "确认记录跨重启保真");
+        assert_eq!(ws[0].file_id, fid);
+        assert_eq!(ws[0].reason, "已人工核对纸质原件");
+        assert_eq!(ws[0].principal, "human:rt-lead");
+        assert!(svc.store().addendum_waived(&fid), "逐件查询面跨重启可用");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+
+    // ---- 旧快照兼容：#184 前的库无 addendum_waivers 字段 → serde(default)
+    //      空集合加载（不拒载、不误报——加性迁移纪律，schema_version 不 bump）
+    let mut s = bid_domain::DomainStore::new();
+    s.create_project("旧快照", "C-OLD", "明标", "old-key").unwrap();
+    s.upsert_file(
+        "A-招标文件.docx", "招标文件", "sha-old", 1, 0, 5, 0,
+        bid_domain::ParseStatus::Ok, "",
+    )
+    .unwrap();
+    let mut json = serde_json::to_value(s.to_snapshot()).unwrap();
+    json.as_object_mut().unwrap().remove("addendum_waivers");
+    let old: bid_domain::StoreSnapshot =
+        serde_json::from_value(json).expect("旧快照（缺字段）必须可载");
+    assert!(old.addendum_waivers.is_empty(), "缺字段 → serde(default) 空集合");
+    let restored = bid_domain::DomainStore::restore(old).unwrap();
+    assert!(restored.addendum_waivers().is_empty(), "恢复后查询面为空（而非报错）");
+}

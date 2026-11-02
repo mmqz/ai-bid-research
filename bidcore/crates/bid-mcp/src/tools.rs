@@ -2892,9 +2892,15 @@ fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
         });
     }
     // PDF 通道的环境预检（soffice 缺失 = 环境面——响亮拒，不静默降级 docx）
-    if format == "pdf" && !bid_tools::service::soffice_available() {
+    // PDF 通道的环境预检：Word COM 或 LibreOffice 任一可用即可
+    // （投标用户常有 Office 无 LO——只查 soffice 会误判）
+    if format == "pdf" && !bid_tools::service::pdf_converter_available() {
         return Err(ToolError::EUnprocessable {
-            what: "PDF 导出需要 soffice/libreoffice（环境缺失——安装 LibreOffice 后重试；docx 通道不受影响）".into(),
+            what: "PDF 导出需要 Microsoft Word 或 LibreOffice（均未检测到）——\
+                   建议安装 Microsoft Office（转换最快最准）；\
+                   或安装 LibreOffice（免费）；\
+                   docx 通道不受影响"
+                .into(),
         });
     }
     // 输出路径安全面：必须落在工作区内（防 ../ 逃逸——导出产物不该写任意盘位）

@@ -1,0 +1,13 @@
+# 打包纪律（issue #206）：静态链接 MSVC 运行库
+#
+# 问题：默认动态链接 → exe 依赖 VCRUNTIME140.dll / api-ms-win-crt-*.dll，
+#       目标机器没装 VC++ 运行库就报 0xC0000135（找不到 DLL），程序根本起不来。
+#
+# 说明：Win10/11 大多自带 VC++ 可再发行组件，但不是必然——
+#       全新安装的 Windows、精简版系统、部分虚拟机都可能没有。
+#       静态链接后 exe 自包含，任何 Win10+ 机器直接能跑。
+#
+# 代价：exe 体积增加约 200-400 KB（相对 17 MB 可忽略）。
+
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

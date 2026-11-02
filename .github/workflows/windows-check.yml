@@ -99,7 +99,13 @@ jobs:
         # issue #9 SKIP 机制已落地：外部工具缺件时，PDF 全链测试
         # （corpus_probe / kb_probe / e2e_m1）打 SKIP 横幅并提前 return，
         # 计数 passed 而非 failed——Windows runner 无 poppler/tesseract 也能全量跑。
-        run: cargo test --workspace
+        # --no-fail-fast：**不要**在第一个失败目标后停跑。
+        # 教训（2026-11-02）：默认行为是「遇第一个失败目标就停」，
+        # 于是 bid-mcp 的 score_tools 红了很久，bid-parse 的 9 个测试
+        # 二进制**从来没在 CI 里跑过**——#168 修好一个红灯后，
+        # 下一个红灯（addendum_recovery 的 CJK 乱码，见 #169）才浮现。
+        # 全量报错能一次看全，而不是每次只揭露一个（20 分钟/轮）。
+        run: cargo test --workspace --no-fail-fast
 
       - name: Verify SKIP banner emitted (Windows 无外部工具的预期行为)
         working-directory: bidcore

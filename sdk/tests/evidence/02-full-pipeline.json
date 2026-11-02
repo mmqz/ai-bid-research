@@ -1,12 +1,12 @@
 {
  "case": "02-full-pipeline",
- "transport": "mcp",
- "server_bin": "/tmp/shared-target/debug/bid-mcp-server",
- "server_sha256": "b5d8092aae1699ec05a3889b1542be6a7a1b49ac0c2eae7d4c85691eb32d9b4b",
+ "transport": "linejson",
+ "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
+ "server_sha256": "babcf3bcc26236db83eda2db9744eeb598108a720e85230f98e82c1d3642eed2",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-02T04:39:09+00:00",
+ "started_at": "2026-11-02T06:09:22+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.208995000633877
+   "elapsed_ms": 3.3779259993025335
   },
   {
    "stage": "P1 import_tender_files",
@@ -72,6 +72,11 @@
     ]
    },
    "result": {
+    "addendum_readiness": {
+     "not_ready": [],
+     "ready": 1,
+     "total": 1
+    },
     "file_ids": [
      "TF-0002",
      "TF-0003",
@@ -149,7 +154,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 246.63838100059365
+   "elapsed_ms": 241.79436200029158
   },
   {
    "stage": "P2 extract_requirements",
@@ -188,7 +193,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 67.46826400012651
+   "elapsed_ms": 73.07789200058323
   },
   {
    "stage": "P3 build_outline",
@@ -221,7 +226,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.629088000612683
+   "elapsed_ms": 6.998707000093418
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -329,7 +334,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 19.490987000608584,
+   "elapsed_ms": 7.0234020004136255,
    "extra": {
     "sections": {
      "SEC-0007": [
@@ -526,7 +531,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.7598679997900035
+   "elapsed_ms": 6.485125000835978
   },
   {
    "stage": "P4 bind_evidence",
@@ -558,7 +563,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.452711999576422
+   "elapsed_ms": 7.203377001133049
   },
   {
    "stage": "G3 record_review_gate ×3",
@@ -594,7 +599,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 20.784353000635747
+   "elapsed_ms": 19.984262000434683
   },
   {
    "stage": "P5 draft(external) SEC-0007",
@@ -2552,23 +2557,7 @@
         "count": 21,
         "head": [
          [
-          "SEC-0007",
-          0.6667
-         ],
-         [
-          "SEC-0008",
-          0.6667
-         ],
-         [
-          "SEC-0024",
-          0.6667
-         ],
-         [
-          "SEC-0026",
-          0.6667
-         ],
-         [
-          "SEC-0021",
+          "SEC-0009",
           0.6667
          ],
          [
@@ -2580,11 +2569,19 @@
           0.6667
          ],
          [
-          "SEC-0027",
+          "SEC-0007",
           0.6667
          ],
          [
-          "SEC-0031",
+          "SEC-0024",
+          0.6667
+         ],
+         [
+          "SEC-0020",
+          0.6667
+         ],
+         [
+          "SEC-0026",
           0.6667
          ],
          [
@@ -2592,11 +2589,19 @@
           0.6667
          ],
          [
-          "SEC-0025",
+          "SEC-0030",
           0.6667
          ],
          [
-          "SEC-0009",
+          "SEC-0031",
+          0.6667
+         ],
+         [
+          "SEC-0021",
+          0.6667
+         ],
+         [
+          "SEC-0008",
           0.6667
          ]
         ]
@@ -3154,7 +3159,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 186.3875029994233
+   "elapsed_ms": 176.05961799927172
   },
   {
    "stage": "P7 validate_bid_document",
@@ -3439,7 +3444,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 78.59895499859704
+   "elapsed_ms": 75.13543500135711
   },
   {
    "stage": "P8 export_bid_document",
@@ -3519,7 +3524,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 41.194464998625335
+   "elapsed_ms": 40.143386999261566
   },
   {
    "stage": "产物深检 docx",
@@ -3609,6 +3614,7 @@
      "export_bid_document",
      "check_bid_quality",
      "record_review_gate",
+     "record_addendum_waiver",
      "score_section",
      "score_document"
     ],
@@ -3637,5 +3643,5 @@
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/full-pipeline/ws",
- "finished_at": "2026-11-02T04:39:10+00:00"
+ "finished_at": "2026-11-02T06:09:23+00:00"
 }

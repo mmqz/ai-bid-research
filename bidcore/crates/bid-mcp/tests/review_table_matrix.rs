@@ -541,12 +541,10 @@ fn synthetic_review_docx_parses_today() {
     std::fs::remove_dir_all(&dir).ok();
 }
 
-/// 【门控——#144 交付后去掉 ignore 真跑】三语义完整验收：
+/// 【#144 已交付——门控启用】三语义完整验收：
 /// 三张表每条成 REQ + 表7/8 未响应 blocking + 表9 评分项不 blocking +
 /// params.score 承载标准分 + 总分守恒 100。
 #[test]
-#[ignore = "待 #144（审查表结构化抽取器）交付后启用：先跑上者基线确认管道，\
-            再去本 ignore 验收三语义（gated 骨架——#145 任务 2）"]
 fn review_matrix_semantics_full() {
     let dir = std::env::temp_dir().join(format!(
         "review-table-full-{}",

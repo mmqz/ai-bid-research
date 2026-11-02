@@ -36,10 +36,11 @@ pub mod clause;
 pub mod env_preflight;
 pub mod extract;
 pub mod guard;
-pub mod numbering;
 pub mod nesting;
+pub mod numbering;
 pub mod pdf;
 pub mod pdf_text;
+pub mod review_table;
 pub mod veto_lexicon;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

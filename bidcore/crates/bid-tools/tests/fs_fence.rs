@@ -32,14 +32,24 @@ fn canon_roots(d: &std::path::Path) -> Vec<std::path::PathBuf> {
 /// Windows 上 `temp_dir()` 返回 8.3 短名（`RUNNER~1`），而 canonicalize
 /// 展开为长名（`runneradmin`）；分隔符也会从 `/` 归一为 `\`。
 /// 断言必须比较【同一种形态】，否则在 Windows CI 上假红。
+/// 期望路径的规范化形态——与 `Resolved::absolute()` 对齐。
+///
+/// Windows 平台的两个坑（CI 实测，本地 Linux 看不出来）：
+/// 1. `temp_dir()` 返回 8.3 短名（`RUNNER~1`），`canonicalize` 展开长名（`runneradmin`）
+/// 2. `canonicalize` 返回 `\\?\C:\...` 扩展长度前缀，而 `display_path()` 会剥掉它
+///
+/// 断言必须比较【同一种形态】，否则在 Windows CI 上假红。
 fn exp(p: &std::path::Path) -> std::path::PathBuf {
+    // 与 fs_fence::display_path 同规则：剥 \\?\ 前缀 + `/` 归一为 `\`
     let norm = |b: &std::path::Path| -> std::path::PathBuf {
-        std::path::PathBuf::from(b.to_string_lossy().replace('/', "\\"))
+        let s = b.to_string_lossy().replace('/', "\\");
+        let s = s.strip_prefix("\\\\?\\").unwrap_or(&s).to_string();
+        std::path::PathBuf::from(s)
     };
     // 父目录 canonicalize（不存在的叶子无法 canonicalize——按同样规则拼回去）
     match (p.parent(), p.file_name()) {
         (Some(dir), Some(name)) => match std::fs::canonicalize(dir) {
-            Ok(c) => c.join(name),
+            Ok(c) => norm(&c.join(name)),
             Err(_) => norm(p),
         },
         _ => norm(p),

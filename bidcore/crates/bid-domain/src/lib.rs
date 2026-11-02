@@ -619,6 +619,32 @@ impl DomainStore {
             principal: principal.to_string(),
         };
         self.addendum_waivers.push(rec.clone());
+        // 【接线修复】豁免记录必须同时写入 Gate 审计面——
+        // `readiness::missing_addendum` 判定的是 `gate_approved(AddendumWaiver)`，
+        // 而本函数此前只 push `addendum_waivers`，两边不通：
+        // 用户记录了「本项目无补遗」确认，起草门仍报「未发现补遗/澄清文件」死锁。
+        //
+        // 实测复现（2026-11-02，无补遗件的真实招标文件）：
+        //   record_addendum_waiver → ok:true，project_version 6
+        //   draft_response_section → E_UNPROCESSABLE「未发现补遗/澄清文件」
+        //
+        // 两道记录职责不同，不能只写一处：
+        //   · addendum_waivers = 逐件免责台账（哪些件、谁确认、为什么）
+        //   · reviews(AddendumWaiver, Approved) = 门禁消费的放行事实
+        // 与 record_review 同款：内容绑定快照（#180）——补遗确认针对的是当前章节树
+        let review_id = self.next_id("REV");
+        let reviewed_content_version = self.project.as_ref().map_or(0, |p| p.content_version);
+        let reviewed_content_digest = self.sections_digest();
+        self.reviews.push(review::ReviewRecord {
+            id: review_id,
+            gate: review::Gate::AddendumWaiver,
+            reviewer: principal.to_string(),
+            decision: review::Decision::Approved,
+            findings: Vec::new(),
+            at,
+            reviewed_content_version,
+            reviewed_content_digest,
+        });
         if let Some(p) = self.project.as_mut() {
             p.content_version += 1;
         }

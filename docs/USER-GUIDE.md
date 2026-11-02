@@ -236,6 +236,20 @@ BID_LLM_MODEL      覆盖 model
 docx 是真源（PDF 由 docx 转换）。PDF 需要 LibreOffice（`soffice`）——
 缺失时 docx 通道不受影响。
 
+**Q：PDF 导入被拒，报「CJK 乱码 + 原因定位（#200 能力边界）」？**
+该 PDF 用了纯 Rust 兜底解不出的编码形态（报错里会点名具体是哪种）：
+- `GBK-EUC-H / GB-EUC / B5pc` 等**非 UCS2 预定义 CMap**——码值是 GBK/Big5
+  本地码值而非 Unicode，正确解码需内置映射大表（不硬解——硬解会产出
+  乱码文本，比失败更危险）；
+- **Adobe-GB1 等 CID 注册序号**（无 ToUnicode）——码值是 Adobe 注册表
+  字形编号，与 Unicode 无恒等关系；
+- **/ObjStm（PDF 1.5+ 对象流）**——字体字典被压缩，兜底扫描不到编码
+  声明。
+
+三条绕过（任选其一）：① 安装 pdfium（首选路自带 CMap）；② 安装带
+poppler-data（CMap 资源包）的 poppler；③ 用 Word/WPS 打开该 PDF 另存为
+DOCX 后导入（docx 是本系统真源格式，解析最完整）。
+
 **Q：生成的是模板句不是真内容？**
 没配 api_key——auto 模式降级 mock（告警里有「降级 mock」字样）。配好
 `.mang/llm.json` 或环境变量后重起草即走真实生成（`stats.generator` 可验）。

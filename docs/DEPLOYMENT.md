@@ -40,9 +40,19 @@ mang-bid/
 | 功能 | 依赖 | 没有时的表现 |
 |---|---|---|
 | **导出 PDF** | Microsoft Word **或** LibreOffice | 只能导出 DOCX |
-| **PDF 导入（文本层）** | 内置纯 Rust 兜底 | 复杂 CID 字体可能解不出 |
+| **PDF 导入（文本层）** | 内置纯 Rust 兜底（pdfium/poppler 缺席时的第三条路） | 复杂 CID 编码解不出时显式拒收并点名原因（见下表），不产出乱码 |
 | **PDF 导入（扫描件）** | poppler（`pdftoppm`）+ tesseract + chi_sim 语言包 | 扫描件导入失败 |
 | **DOCX/XLSX 导入** | 内置 | 无需依赖 |
+
+**PDF 纯 Rust 兜底的编码能力边界**（#200 登记——遇到时错误信息会点名
+具体原因并给出绕过路径，fail-loud 不硬解）：
+
+| PDF 编码形态 | 根因 | 绕过 |
+|---|---|---|
+| GBK-EUC-H/V、GB-EUC、GBpc-EUC（简体） | 码值是 GBK 码值非 Unicode，需内置映射大表 | 装 pdfium / poppler+poppler-data / 另存 DOCX 导入 |
+| B5pc-H/V、ETen-B5、CNS-EUC（繁体） | 码值是 Big5 码值非 Unicode，同上 | 同上 |
+| Adobe-GB1/CNS1/Japan1/Korea1 CID 序号（无 ToUnicode） | 码值是 Adobe 注册表字形编号，需 CIDToUnicode 映射大表 | 同上 |
+| PDF 1.5+ 对象流（/ObjStm）里的字体字典 | 兜底的字典层扫描拿不到编码声明 | 同上（pdfium/poppler 不受影响） |
 
 ---
 

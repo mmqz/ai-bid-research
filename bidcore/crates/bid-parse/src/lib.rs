@@ -152,8 +152,12 @@ pub fn parse_file(path: &Path, name: &str) -> Result<ParsedFile, String> {
                                     (good, true)
                                 }
                                 Err(fb_err) => {
+                                    // #200 能力边界：乱码拒收时点名原因与绕过（疑因线索）
+                                    let hint = pdf_text::cjk_garble_reason_hint(&raw)
+                                        .map(|h| format!("。{h}"))
+                                        .unwrap_or_default();
                                     return Err(format!(
-                                        "pdf 首选路输出疑似 CJK 乱码（PDF 声明 CJK 字体而文本无 CJK——典型为 poppler 缺 CMap 资源包），纯 Rust 兜底也失败：{fb_err}"
+                                        "pdf 首选路输出疑似 CJK 乱码（PDF 声明 CJK 字体而文本无 CJK——典型为 poppler 缺 CMap 资源包），纯 Rust 兜底也失败：{fb_err}{hint}"
                                     ))
                                 }
                             }
@@ -176,8 +180,12 @@ pub fn parse_file(path: &Path, name: &str) -> Result<ParsedFile, String> {
                 && pdf_text::probe_cjk_garble(&raw, &pdf_text::parsed_text_of(&pf))
                     == pdf_text::CjkGarbleProbe::Garbled
             {
+                // #200 能力边界：双路皆乱时点名原因与绕过（疑因线索）
+                let hint = pdf_text::cjk_garble_reason_hint(&raw)
+                    .map(|h| format!("。{h}"))
+                    .unwrap_or_default();
                 return Err(format!(
-                    "pdf 两条路输出均为疑似 CJK 乱码（PDF 声明 CJK 字体而文本无 CJK）：{name}——拒绝静默产出垃圾文本（issue #169）"
+                    "pdf 两条路输出均为疑似 CJK 乱码（PDF 声明 CJK 字体而文本无 CJK）：{name}——拒绝静默产出垃圾文本（issue #169）{hint}"
                 ));
             }
             pf.name = name.to_string();

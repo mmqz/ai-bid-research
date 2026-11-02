@@ -498,6 +498,15 @@ fn import_tender_files(svc: &mut BidService, args: Value) -> ToolResult {
     // 这里，Agent 拿 file_id 即可闭环（重传或 record_addendum_waiver）。
     // 与 draft 拒绝理由（阻塞消息）同一真源（readiness::addendum_statuses）。
     let addendum_readiness = addendum_readiness_block(svc);
+    // 已在上面 ADDENDUM_NOT_READY 点名的件（file_id 集）——输入完整性告警
+    // 跳过它们：同一件事不报两遍（补遗面已有专门的语义化告警）。
+    let addendum_warned: std::collections::HashSet<String> = addendum_readiness["not_ready"]
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter(|s| !s["waived"].as_bool().unwrap_or(false))
+        .filter_map(|s| s["file_id"].as_str().map(str::to_string))
+        .collect();
     for s in addendum_readiness["not_ready"].as_array().unwrap_or(&Vec::new()) {
         if s["waived"].as_bool().unwrap_or(false) {
             continue; // 已确认件不重复告警（审计面在清单里，噪音面不在）
@@ -506,6 +515,21 @@ fn import_tender_files(svc: &mut BidService, args: Value) -> ToolResult {
             "ADDENDUM_NOT_READY: 补遗 {} 未就绪（{}）——补遗可能改控制价/截止时间/评分办法，请修复重传或人工确认后放行（record_addendum_waiver）",
             s["name"].as_str().unwrap_or("?"),
             s["reason"].as_str().unwrap_or("未知原因"),
+        ));
+    }
+    // ---- 地图 P0-1：输入完整性接线（主件/附件/图纸坏件的第一现场）----
+    // 与 #184 补遗面同构：import 响应给出逐件不就绪清单 + 指路告警，
+    // Agent 拿 file_id 即可闭环（重传或 record_addendum_waiver——该确认
+    // 面已覆盖全部招标包输入件）。与 draft 拒绝理由同一真源
+    // （readiness::input_integrity），不是第二套判定。
+    let integrity = bid_tools::readiness::input_integrity(svc.store());
+    for f in &integrity.unready {
+        if addendum_warned.contains(&f.file_id) {
+            continue; // 补遗已由 ADDENDUM_NOT_READY 点名——同一件事不报两遍
+        }
+        warnings.push(format!(
+            "INPUT_FILE_NOT_READY: {} 未就绪（{}）——「已提取出一部分需求」不等于输入完整，起草将被拒；请修复重传或人工确认后放行（record_addendum_waiver）",
+            f.name, f.reason,
         ));
     }
     let data = json!({
@@ -519,6 +543,20 @@ fn import_tender_files(svc: &mut BidService, args: Value) -> ToolResult {
         },
         // #184：补遗分级就绪报告（total/ready/not_ready 逐件含 waived 标记）
         "addendum_readiness": addendum_readiness,
+        // 地图 P0-1：项目级输入完整性（主件/补遗/附件全覆盖——逐件
+        // unready/waived_unready，Agent 拿 file_id 即可闭环）
+        "input_integrity": {
+            "complete": integrity.complete,
+            "restricted": integrity.restricted(),
+            "unready": integrity.unready.iter().map(|f| json!({
+                "file_id": f.file_id, "name": f.name,
+                "readiness": f.readiness.as_str(), "reason": f.reason,
+            })).collect::<Vec<_>>(),
+            "waived_unready": integrity.waived_unready.iter().map(|f| json!({
+                "file_id": f.file_id, "name": f.name,
+                "readiness": f.readiness.as_str(), "reason": f.reason,
+            })).collect::<Vec<_>>(),
+        },
         "status": status_after,
         "project_version": svc.store().content_version(),
         "request_id": next_request_id(),
@@ -1889,6 +1927,18 @@ fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
         // 面零「起草指令/缺失回报」字样；Agent/人工从这里看本章起草时的
         // 指令与素材缺口，随 chapters/{id}.json 持久化）
         "quota": quota,
+        // 地图 P0-1：输入完整性面——COMPLETE / RESTRICTED。受限起草 =
+        // 有坏件经逐件人工确认放行（放行 ≠ 没问题，机器面显式标注，
+        // 不得静默当成完整输入）；waived_files 逐件点名确认来源。
+        "input_integrity": {
+            "status": if outcome.input_integrity.restricted() { "RESTRICTED" } else { "COMPLETE" },
+            "waived_files": outcome.input_integrity.waived_unready.iter().map(|f| json!({
+                "file_id": f.file_id,
+                "name": f.name,
+                "readiness": f.readiness.as_str(),
+                "reason": f.reason,
+            })).collect::<Vec<_>>(),
+        },
         "draft_note": outcome.draft_note,
         "section_status": "DRAFTED",
         "project_status": svc.store().project().map(|p| p.status.as_str()).unwrap_or("UNKNOWN"),

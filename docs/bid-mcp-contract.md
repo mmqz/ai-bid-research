@@ -131,6 +131,8 @@ in : { project_id, section_id? | spec:{title, order, parent_id?, toc_ref}, instr
        content?:"外部手稿全文" }                        ← #100 任务 2（external 的正文来源）
 out: { section_id, content_ref:"DOC-*", version, stats:{words, citations, unanchored_claims:0,
        generator:"real"|"mock"|"external", uncovered_requirements:[REQ-*]}, warnings[],
+       input_integrity:{ status:"COMPLETE"|"RESTRICTED",       ← 地图 P0-1：输入完整性面
+         waived_files:[{file_id, name, readiness, reason}] },
        draft_note }                                        ← #128（#127 P0-2）：指令与缺失
        回报的【留档账面】——随 attempt 落盘 ChapterRecord::draft_note，
        人类可读；与正文严格分离（渲染永不碰）：正文零「起草指令：」「缺失
@@ -151,12 +153,17 @@ out: { section_id, content_ref:"DOC-*", version, stats:{words, citations, unanch
      真实通路：60s 超时重试 1 次；max_tokens 按 target_chars 推导（防失控，completion 超
      硬上限 2 倍 → 整章废弃报错）；用量累计落 .mang/llm-usage.json（api_key 绝不落日志/台账）。
 执行: 后端经**文档内核稳定接口**创建/更新 DOC 块（本系统不触碰内核内部结构）；引用覆盖率校验——承诺句无证据引用计为 unanchored_claims>0 时 warning（阻断留给 validate）
-阻塞: draft 前置 readiness 闸（#110 任务 1 + L3；#184 升级为分级）：无关联 REQ/缺
+阻塞: draft 前置 readiness 闸（#110 任务 1 + L3；#184 升级为分级；地图 P0-1 扩面）：无关联 REQ/缺
       资质/业绩不足/技术参数无佐证/否决项未响应/补遗不就绪（MissingAddendum
       ——任一件非 READY 且无逐件确认即阻塞，**部分失败/零文本扫描件也算**，
-      拒稿理由逐件点名文件名与原因）六种 Blocker → E_UNPROCESSABLE（人话
+      拒稿理由逐件点名文件名与原因）/其余输入件不就绪（UnreadyInput——主件/
+      附件/图纸 FAILED 或 OCR 零内容；「已提取出一部分需求」不构成放行理由，
+      门禁以文件级状态为准）七种 Blocker → E_UNPROCESSABLE（人话
       理由，不泄漏枚举名）。人工出口分两支：无补遗件 = addendum_waiver 门
-      （§12）；补遗在场但不就绪 = record_addendum_waiver 逐件确认（§16）。
+      （§12）；任何不就绪件（补遗或主件/附件）= record_addendum_waiver 逐件
+      确认（§16）。确认放行后可起草，但 out.input_integrity.status =
+      RESTRICTED（受限起草——放行 ≠ 没问题，响应/账面（draft_note）/机器面
+      三处显式标注，不得静默当成完整输入；waived_files 逐件点名确认来源）。
 大纲: 否决项/资格条件不写规则原文但合并进【资格与响应】响应章节组（#121
       P0-1/#126：评标规则不进正文）；评分项完全不进正文（只进自评表）；
       「其他」类二次分组（章节→主题→兜底条款号区间，不裸「（第N块）」）。
@@ -600,12 +607,16 @@ out: { recorded:{ file_id, reason, at(unix epoch 秒),
        addendum_readiness:{ total, ready, not_ready:[{file_id, name, readiness,
        waived, reason}]（已确认件仍在清单但 waived=true——审计面不因放行
        而消失）}, status, project_version }
-语义: #184 分级就绪的伴生闸：任一补遗不处 READY（FAILED / OCR_PENDING）时
-      draft_response_section 被 MissingAddendum 拒（§6，逐件点名）；本工具
-      对具体 file_id 记一条人工确认 → 该件不再构成阻塞。非全局布尔——
-      「3 份坏 1 份」要确认到具体哪一份、为什么故意带病放行。写账即
-      content_version +1；导入可解析版本后阻塞自然消失，确认记录无害残留
-      （与 §12 addendum_waiver 门同款语义）。
+语义: #184 分级就绪的伴生闸（地图 P0-1 起扩面到全部招标包输入件）：任一
+      输入件不处 READY（FAILED / OCR_PENDING）时 draft_response_section 被
+      MissingAddendum（补遗面）/ UnreadyInput（主件/附件/图纸面）拒（§6，
+      逐件点名）；本工具对具体 file_id 记一条人工确认 → 该件不再构成阻塞。
+      非全局布尔——「3 份坏 1 份」要确认到具体哪一份、为什么故意带病放行。
+      写账即 content_version +1；导入可解析版本后阻塞自然消失，确认记录
+      无害残留（与 §12 addendum_waiver 门同款语义）。工具名带 addendum 是
+      #184 历史口径——确认面按 file_id 落账，覆盖所有招标包输入件（证据
+      源文件不在此面，可用性归证据系统）。确认放行后起草为**受限起草**
+      （§6 out.input_integrity.status = RESTRICTED——放行 ≠ 没问题）。
 分级: Ok → READY；OcrRequired 且 ocr_blocks>0 → READY（OCR 已出内容，与
       ocr_tier "ocr" 档同口径）；OcrRequired 零块 → OCR_PENDING（域层暂无
       「OCR 跑过但零产出」与「还没跑」的区分信号，合一态保守阻塞）；

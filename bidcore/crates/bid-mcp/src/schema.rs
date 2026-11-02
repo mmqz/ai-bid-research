@@ -418,10 +418,10 @@ fn input_schema(name: &str) -> Value {
         }),
         "record_addendum_waiver" => json!({
             "type": "object",
-            "description": "#184 补遗分级阻塞的逐件人工确认：任一补遗不处 READY（FAILED/OCR_PENDING）时 draft_response_section 被拒；人工继续必须逐件确认到具体 file_id（非全局布尔）。确认即审计面（file_id/reason/at/principal + actor）",
+            "description": "招标包输入件不就绪的逐件人工确认（#184 补遗分级阻塞 + 地图 P0-1 扩面到主件/附件）：任一输入件不处 READY（FAILED/OCR_PENDING）时 draft_response_section 被拒；人工继续必须逐件确认到具体 file_id（非全局布尔）。确认即审计面（file_id/reason/at/principal + actor）；放行后起草标 RESTRICTED（受限起草，不静默当完整输入）",
             "properties": {
                 "project_id": pid,
-                "file_id": {"type": "string", "description": "TF-* 补遗件 id（须真实存在——import 响应 addendum_readiness.not_ready[].file_id；receipt 签域绑定本件）"},
+                "file_id": {"type": "string", "description": "TF-* 输入件 id（须真实存在——import 响应 addendum_readiness.not_ready[].file_id 或任何不就绪件；receipt 签域绑定本件）"},
                 "reason": {"type": "string", "description": "人工理由（非空白——不可审计的确认不成确认）"},
                 "receipt": {"type": "string", "description": "#182 宿主签发的审批回执（签域 addendum_waiver:<file_id>，件级绑定）——principal 参数已废除，Agent 不得伪造"},
                 "project_version": pv
@@ -484,7 +484,7 @@ fn describe(name: &str) -> &'static str {
         "list_evidence" => "只读：证据台账列表（kind/status 过滤 + 游标分页）",
         "list_tasks" => "只读：任务分工列表（owner/status 过滤 + 游标分页）",
         "search_evidence" => "双通道证据检索（#145 朴素实现：exact 五字段整token/数值/日期 + semantic 子串分词；valid_at 过期降权×0.5；M2-b 落地时换真向量库 + cursor 游标信封）",
-        "draft_response_section" => "单章起草（引用回查后写内核）",
+        "draft_response_section" => "单章起草（引用回查后写内核；输入完整性门禁——主件/补遗/附件不 READY 拒，人工确认放行走受限起草 RESTRICTED）",
         "validate_bid_document" => "双层校验（确定性规则 + 模型复核）",
         "export_bid_document" => "导出（含暗标模式；#117 表格接线——profile.bid_amount/price_breakdown 报价决策，六表自动注入/附表）",
         "get_bid_project_state" => "只读：项目状态与 allowed_next_tools",

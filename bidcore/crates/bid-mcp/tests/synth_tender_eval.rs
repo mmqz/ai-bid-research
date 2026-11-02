@@ -56,6 +56,39 @@ fn ok_result(reply: ToolReply) -> Value {
     }
 }
 
+/// 地图 P0-1 降级路径：语料含已知坏件（D-图纸说明.md——fail-closed 拒 .md
+/// 后按 R-01 登记 Failed；无 OCR 环境下 E-扫描件亦然）。输入完整性门禁起
+/// 有 Failed 件不得完整起草——逐件人工确认（#182 receipt）放行，后续起草
+/// 走「受限起草」（input_integrity.status=RESTRICTED，不静默当完整输入）。
+fn waive_unready_inputs(svc: &mut BidService, pid: &str, actor: &str) -> usize {
+    let unready: Vec<String> = svc
+        .store()
+        .files()
+        .iter()
+        .filter(|f| bid_tools::readiness::is_tender_package_file(f))
+        .filter(|f| {
+            bid_tools::readiness::addendum_readiness(f)
+                != bid_tools::readiness::AddendumReadiness::Ready
+        })
+        .filter(|f| !svc.store().addendum_waived(&f.id))
+        .map(|f| f.id.clone())
+        .collect();
+    let n = unready.len();
+    for fid in unready {
+        let receipt = svc.issue_approval_receipt(actor, &format!("addendum_waiver:{fid}"));
+        ok_result(call(
+            svc,
+            "record_addendum_waiver",
+            json!({
+                "project_id": pid, "file_id": &fid,
+                "reason": "e2e 已知坏件（.md 不支持/扫描件无 OCR）人工确认放行——受限起草",
+                "receipt": receipt,
+            }),
+        ));
+    }
+    n
+}
+
 fn write_json(path: PathBuf, v: &Value) {
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     let mut f = std::fs::File::create(path).unwrap();
@@ -215,6 +248,11 @@ fn synth_tender_eval() {
         "D-图纸说明.md".to_string(),
         json!({"parse_status": d_file["parse_status"], "errors": d_file["errors"]}),
     );
+
+    // 地图 P0-1：D 件已按 R-01 登记 Failed——起草闸（输入完整性）要求逐件
+    // 确认放行（后续起草为受限起草 RESTRICTED，响应面可见不静默）
+    let waived_n = waive_unready_inputs(&mut svc, &pid, "synth-eval-lead");
+    assert!(waived_n >= 1, "至少 D 件需逐件确认（受限起草面）：{waived_n}");
 
     if pdf_env_ok {
         let c = &per_file_notes["C-补遗文件.pdf"];

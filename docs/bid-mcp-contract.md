@@ -408,17 +408,25 @@ bid_open_date 语义（#80 第三批外部 Agent 实测摩擦 #5）：证据有�
 状态: MATRIX_READY+
 ```
 
-## 12. record_review_gate（#80 第三批 · G3；#131 增第四门）
+## 12. record_review_gate（#80 第三批 · G3；#131 增第四门；#182 receipt 验签）
 
 ```
 in : { project_id, gate(matrix_approval|outline_approval|pre_export_confirm|addendum_waiver),
-       decision(APPROVED|REJECTED), reviewer(须 "human:" 前缀),
+       decision(APPROVED|REJECTED),
+       receipt(#182——宿主签发的审批回执：v1.<actor>.human.<scope>.<issued_at>.<hmac>，
+               scope=review_gate:{gate} 门级绑定；旧 reviewer 参数显式拒——Agent
+               不得自述身份，防「以为过了人工门」的假成功),
        findings?:[{ severity(BLOCKER|WARNING|INFO), code, message, section_id? }],
        project_version }
-out: { receipt:{ review_id, gate, decision, reviewer, finding_ids, spawned_rt_ids,
+out: { receipt:{ review_id, gate, decision, reviewer(legacy 回显——human:{actor_id} 派生),
+       finding_ids, spawned_rt_ids,
        reviewed_content_digest(#180——本次记审绑定的章节树内容摘要；幂等重放时为既有记录的摘要) },
-       gates_approved:[...], status, project_version }
-语义: 复审人门（borrow mdcore ReviewPolicy：AI 操作者不得自审自过）、状态门
+       actor:{ actor_id, actor_type:"human", authentication_method:"hmac_receipt_v1" }
+       (#182 可信身份回显), gates_approved:[...], status, project_version }
+语义: #182 复审人门升级为 receipt 验签（服务层 HMAC-SHA256 是 MCP 面唯一入口
+      ——宿主持钥签发、24h 时效窗、scope 门级绑定、常量时间比对；域层再拦
+      actor_type≠Human 的纵深——borrow mdcore ReviewPolicy：AI 操作者不得
+      自审自过）、状态门
       （窗口外拒收——矩阵/大纲门 VALIDATING+ 不再受理）、门序（矩阵先于大纲；
       pre_export 要求前两门 Approved）全在域层 record_review 裁决——壳层零重实现。
       gates_approved 与域层 gate_approved 同一真源。
@@ -436,7 +444,9 @@ out: { receipt:{ review_id, gate, decision, reviewer, finding_ids, spawned_rt_id
       pre_export_confirm 的 Approved 摘要 ≠ 当前 → export_allowed 拒（见 §8）；
       同门重复 Approved 的幂等分支先比摘要——内容已变则落新 REV（重过门
       重新绑定，否则改稿后重过门永远返回旧记录 = 死锁）。
-错误: E_UNPROCESSABLE（gate/decision/findings 形态非法；reviewer 缺 human: 前缀）；
+错误: E_UNPROCESSABLE（gate/decision/findings 形态非法；旧 reviewer 参数在场；
+      receipt 验签失败——Malformed/NotHuman/Expired/FutureDated/BadSignature
+      分类码随错误信息，scope 不符与伪造同归 BadSignature）；
       E_STATE（门序/窗口外）
 ```
 
@@ -540,9 +550,12 @@ out: { project_id, technical, price（null | 数值）, commercial（null | 数�
 in : { project_id, file_id(TF-*——须真实存在，import 响应/拒稿理由中的
        addendum_readiness.not_ready[].file_id),
        reason(非空白——不可审计的确认不成确认),
-       principal(须 "human:" 前缀——AI 不得自审自过，#182 将升级 TrustedPrincipal 验签),
+       receipt(#182——宿主签发的审批回执，scope=addendum_waiver:{file_id} 件级
+       绑定——TF-0003 的 receipt 免不了 TF-0004；旧 principal 参数显式拒),
        project_version }
-out: { recorded:{ file_id, reason, at(unix epoch 秒), principal },
+out: { recorded:{ file_id, reason, at(unix epoch 秒),
+       principal(legacy 回显——human:{actor_id} 派生),
+       actor:{ actor_id, actor_type:"human", authentication_method:"hmac_receipt_v1" } },
        addendum_waivers:[{file_id, reason, at, principal}…全部确认记录——
        追加式审计日志：同件重复确认追加不覆盖，解除不走本面],
        addendum_readiness:{ total, ready, not_ready:[{file_id, name, readiness,

@@ -8,3 +8,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
+# #182 TrustedPrincipal 的 receipt 验签（HMAC-SHA256）——0.12 已在 workspace
+# 锁内（Cargo.lock 既有条目），此处提为直接依赖零新增三方。
+hmac = "0.12"

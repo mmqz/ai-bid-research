@@ -3597,24 +3597,34 @@ fn parse_findings(
     Ok(out)
 }
 
-/// `record_review_gate` —— 契约 §12（G3：三门记审，MATRIX_READY+）。
+/// `record_review_gate` —— 契约 §12（G3：三门记审，MATRIX_READY+；#182
+/// receipt 验签）。
 ///
-/// 复审人门（reviewer 须 `human:` 前缀——borrow mdcore ReviewPolicy：AI 操作者
-/// 不得自审自过）、状态门（窗口外拒收）、门序（矩阵先于大纲；导出前门要求
-/// 前两门 Approved）全在域层 `record_review` 裁决——壳层零重实现。
+/// #182：`reviewer` 参数废除（裸身份串可被 Agent 伪造——P0-2 缺口），
+/// 改收宿主签发的 `receipt`（服务层验签是 MCP 面的唯一入口；状态门/
+/// 门序/身份纵深全在域层 record_review 裁决——壳层零重实现）。
+/// 旧参数显式拒绝（不静默忽略——旧调用方快速失败，防“以为过了人工门”的假成功）。
 fn record_review_gate(svc: &mut BidService, args: Value) -> ToolResult {
     const TOOL: &str = "record_review_gate";
     let project_id = req_str(&args, "project_id", TOOL)?;
     let gate = parse_gate(&req_str(&args, "gate", TOOL)?, TOOL)?;
     let decision = parse_decision(&req_str(&args, "decision", TOOL)?, TOOL)?;
-    let reviewer = req_str(&args, "reviewer", TOOL)?;
+    // #182：reviewer 参数已废除——显式拒绝（参数面先于验签面）
+    if args.get("reviewer").is_some() {
+        return Err(ToolError::EUnprocessable {
+            what: format!(
+                "{TOOL}: reviewer 参数已废除（#182）——人工确认由宿主签发 receipt 提供，Agent 不得伪造"
+            ),
+        });
+    }
+    let receipt = req_str(&args, "receipt", TOOL)?;
     let findings = parse_findings(&args, TOOL)?;
     let project_version = opt_u64(&args, "project_version", TOOL)?;
 
     route_guard(svc, &project_id, TOOL, project_version)?;
 
-    let receipt = svc
-        .record_review_gate(gate, &reviewer, decision, findings)
+    let (receipt, principal) = svc
+        .record_review_gate(gate, &receipt, decision, findings)
         .map_err(ToolError::from)?;
 
     // 门序进度（同一真源——域层 gate_approved）
@@ -3635,7 +3645,14 @@ fn record_review_gate(svc: &mut BidService, args: Value) -> ToolResult {
             "review_id": receipt.review_id,
             "gate": receipt.gate.as_str(),
             "decision": receipt.decision.as_str(),
-            "reviewer": reviewer,
+            // legacy 回显面：human:{actor_id} 派生值（#182 前口径的兼容载体）
+            "reviewer": format!("human:{}", principal.actor_id),
+            // #182 可信身份回显
+            "actor": {
+                "actor_id": principal.actor_id,
+                "actor_type": principal.actor_type.as_str(),
+                "authentication_method": principal.authentication_method,
+            },
             "finding_ids": receipt.finding_ids,
             "spawned_rt_ids": receipt.spawned_rt_ids,
             // #180 审核内容绑定：本次记审针对的章节树内容摘要（export_allowed
@@ -3678,32 +3695,41 @@ fn addendum_readiness_block(svc: &BidService) -> Value {
     json!({ "total": statuses.len(), "ready": ready, "not_ready": not_ready })
 }
 
-/// `record_addendum_waiver` —— #184 补遗分级阻塞的逐件人工确认。
+/// `record_addendum_waiver` —— #184 补遗分级阻塞的逐件人工确认
+/// （#182：receipt 验签）。
 ///
 /// 语义：任一补遗不处 Ready 时起草闸阻塞（E_UNPROCESSABLE，逐件点名）；
 /// 人工继续必须**逐件**确认到具体 file_id（非全局布尔——「3 份坏 1 份」
 /// 要对齐到哪一份、为什么故意带病放行）。确认即审计面：
-/// `{file_id, reason, at, principal}`，principal 须 `human:` 前缀（与
-/// record_review_gate 的 reviewer 同口径——AI 不得自审自过）。
+/// `{file_id, reason, at, principal, actor}`。
+///
+/// #182：`principal` 参数废除（裸身份串可被 Agent 伪造），改收宿主签发的
+/// `receipt`（服务层验签，签域 `addendum_waiver:{file_id}` 件级绑定——
+/// TF-0003 的 receipt 免不了 TF-0004）；旧参数显式拒绝（同 record_review_gate）。
 ///
 /// 出参：`recorded`（本次确认）+ `addendum_waivers`（全部确认记录——
 /// 验收 C 的「记录可查」）+ `addendum_readiness`（就绪度回显，含 waived
 /// 标记——报告面仍含该件，但不再构成阻塞）。
-///
-/// 注：`principal` 作为 MCP 参数是过渡态——#182 将升级为 TrustedPrincipal
-/// 验签面（receipt 级），届时本工具的入参口径随其演进，不另造第二套人设体系。
 fn record_addendum_waiver(svc: &mut BidService, args: Value) -> ToolResult {
     const TOOL: &str = "record_addendum_waiver";
     let project_id = req_str(&args, "project_id", TOOL)?;
     let file_id = req_str(&args, "file_id", TOOL)?;
     let reason = req_str(&args, "reason", TOOL)?;
-    let principal = req_str(&args, "principal", TOOL)?;
+    // #182：principal 参数已废除——显式拒绝（参数面先于验签面）
+    if args.get("principal").is_some() {
+        return Err(ToolError::EUnprocessable {
+            what: format!(
+                "{TOOL}: principal 参数已废除（#182）——人工确认由宿主签发 receipt 提供，Agent 不得伪造"
+            ),
+        });
+    }
+    let receipt = req_str(&args, "receipt", TOOL)?;
     let project_version = opt_u64(&args, "project_version", TOOL)?;
 
     route_guard(svc, &project_id, TOOL, project_version)?;
 
-    let recorded = svc
-        .record_addendum_waiver(&file_id, &reason, &principal)
+    let (recorded, principal) = svc
+        .record_addendum_waiver(&file_id, &reason, &receipt)
         .map_err(ToolError::from)?;
 
     let waivers: Vec<Value> = svc
@@ -3725,7 +3751,14 @@ fn record_addendum_waiver(svc: &mut BidService, args: Value) -> ToolResult {
             "file_id": recorded.file_id,
             "reason": recorded.reason,
             "at": recorded.at,
+            // legacy 回显面：human:{actor_id} 派生值
             "principal": recorded.principal,
+            // #182 可信身份回显
+            "actor": {
+                "actor_id": principal.actor_id,
+                "actor_type": principal.actor_type.as_str(),
+                "authentication_method": principal.authentication_method,
+            },
         },
         "addendum_waivers": waivers,
         "addendum_readiness": addendum_readiness_block(svc),

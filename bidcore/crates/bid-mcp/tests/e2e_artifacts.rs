@@ -481,7 +481,7 @@ fn e2e_artifacts_synth_tender() {
     // PreExportConfirm 绑定章节正文摘要，挑至全部叶起草完成后记审（见 ⑧'）
     for gate in [Gate::MatrixApproval, Gate::OutlineApproval] {
         svc.store_mut()
-            .record_review(gate, "human:e2e-artifacts-lead", Decision::Approved, vec![])
+            .record_review(gate, &bid_domain::TrustedPrincipal::human("e2e-artifacts-lead"), Decision::Approved, vec![])
             .unwrap();
     }
     tim.mark("05_证据绑定两门", &t);
@@ -601,7 +601,7 @@ fn e2e_artifacts_synth_tender() {
     // ---- ⑧' PreExportConfirm 记审（#180：定稿内容过门——全部叶起草完成后、
     //      导出前，绑定的才是将进产物的正文摘要；docx/pdf 两导出间无正文写入）
     svc.store_mut()
-        .record_review(Gate::PreExportConfirm, "human:e2e-artifacts-lead", Decision::Approved, vec![])
+        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("e2e-artifacts-lead"), Decision::Approved, vec![])
         .unwrap();
 
     // ---- ⑨ 导出 docx + pdf（MCP §8——pdf 软门）

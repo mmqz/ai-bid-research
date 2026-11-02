@@ -118,7 +118,7 @@ fn svc_drafted(tag: &str, draft_all: bool, chapter_ref: Option<&str>) -> (BidSer
     // #118 合入时漏适配本套件——AddendumWaiver 门确认无补遗后起草放行。
     use bid_domain::review::{Decision, Gate};
     svc.store_mut()
-        .record_review(Gate::AddendumWaiver, "human:score-tool-test", Decision::Approved, vec![])
+        .record_review(Gate::AddendumWaiver, &bid_domain::TrustedPrincipal::human("score-tool-test"), Decision::Approved, vec![])
         .unwrap();
     if draft_all {
         let parents: std::collections::HashSet<String> = svc.store().sections().iter()

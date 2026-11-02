@@ -292,7 +292,7 @@ fn ensure_prepared(svc: &mut BidService, ws: &Path) -> (String, String) {
     // 相位导出前——与人类流程同序：审核定稿内容）
     for gate in [Gate::MatrixApproval, Gate::OutlineApproval] {
         svc.store_mut()
-            .record_review(gate, "human:real-path-lead", Decision::Approved, vec![])
+            .record_review(gate, &bid_domain::TrustedPrincipal::human("real-path-lead"), Decision::Approved, vec![])
             .unwrap();
     }
     let n_blocking = svc.store().matrix().iter().filter(|r| r.blocking).count();
@@ -518,11 +518,14 @@ fn real_llm_human_relay_path() {
 
     // ---- PreExportConfirm 记审（#180：定稿内容过门——全部叶起草（开发者
     //      正文 + mock 补齐）完成后、导出前，绑定的才是将进产物的摘要）
+    // #182：宿主签发面（svc 与 stdio 子进程同工作区同钥——测试进程即宿主）
+    let r_precx = svc
+        .issue_approval_receipt("real-path-lead", "review_gate:pre_export_confirm");
     let g = proc.call(
         "record_review_gate",
         json!({
             "project_id": svc.store().project().unwrap().id, "gate": "pre_export_confirm",
-            "decision": "APPROVED", "reviewer": "human:real-path-lead",
+            "decision": "APPROVED", "receipt": r_precx,
         }),
     );
     assert_eq!(g["ok"], json!(true), "pre_export_confirm 记审: {g}");

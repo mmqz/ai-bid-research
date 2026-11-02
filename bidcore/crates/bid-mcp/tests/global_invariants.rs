@@ -488,7 +488,7 @@ fn gi_five_global_invariants() {
         Gate::OutlineApproval,
     ] {
         svc.store_mut()
-            .record_review(gate, "human:gi-lead", Decision::Approved, vec![])
+            .record_review(gate, &bid_domain::TrustedPrincipal::human("gi-lead"), Decision::Approved, vec![])
             .unwrap();
     }
     assert_eq!(
@@ -560,7 +560,7 @@ fn gi_five_global_invariants() {
     // ---- ⑦' PreExportConfirm 记审（#180：定稿内容过门——全部叶起草完成
     //      后、导出前，绑定的才是将进产物的正文摘要）
     svc.store_mut()
-        .record_review(Gate::PreExportConfirm, "human:gi-lead", Decision::Approved, vec![])
+        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("gi-lead"), Decision::Approved, vec![])
         .unwrap();
 
     // ---- ⑧ 导出（MCP §8）

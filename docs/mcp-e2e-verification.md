@@ -76,7 +76,7 @@ linejson 与 mcp 两种传输走的是**同一个分发内核**（`dispatch_json
 | P3 矩阵 | `get_compliance_matrix` | `total: 121`（一页 limit=1000 取全），`draft_section_id` 分组得 23 个可起草章节 ✅ |
 | P4 登记 | `register_evidence` | `ev_id: "EV-0036"`, `status: "ACTIVE"`, `deduplicated: false` ✅ |
 | P4 绑定 | `bind_evidence` | 必绑类目（资格 6+否决 13+技术参数 82）101 条全绑：`bound_new: 101`, `matrix.blocking: 19 → 0` ✅ |
-| G3 过审 | `record_review_gate ×3` | matrix/outline/pre_export 三门 APPROVED（reviewer `human:mcp-e2e`）✅ |
+| G3 过审 | `record_review_gate ×3` | matrix/outline/pre_export 三门 APPROVED（#182 receipt 验签——宿主签发；旧 reviewer 参数与伪造 receipt 双负例探针均 E_UNPROCESSABLE）✅ |
 | **P5 起草** | `draft_response_section ×23` | 全部 `generator: "external"`、`section_status: "DRAFTED"`；样例 SEC-0007：`words: 344, citations: 7, uncovered: [], unanchored: 0` ✅ |
 | P6 质检 | `check_bid_quality` | `summary: {total: 23, drafted: 23, failed: 0, uncovered_req_total: 0, unanchored_total: 0}`；报告落盘 43,434 字节 ✅ |
 | P7 校验 | `validate_bid_document` | `ok: true, counts: {blocker: 0, major: 0, minor: 24, deterministic: 24}` ✅ |

@@ -240,15 +240,19 @@ Agent 写好直注，免中继）；引擎不生成只提交——引用回查 /
 ```json
 {"tool": "record_review_gate", "args": {"project_id": "PRJ-…",
   "gate": "matrix_approval", "decision": "APPROVED",
-  "reviewer": "human:张工"}}
+  "receipt": "v1.张工.human.review_gate:matrix_approval.1790000000.6a3f…"}}
 ```
 ```json
-→ {"ok": true, "data": {"gates_approved": ["matrix_approval"]}, …}
+→ {"ok": true, "data": {"gates_approved": ["matrix_approval"],
+  "actor": {"actor_id": "张工", "actor_type": "human",
+            "authentication_method": "hmac_receipt_v1"}}, …}
 ```
 
-（同法记 `outline_approval` → `pre_export_confirm`；单件招标无补遗时另记
-`addendum_waiver`，否则 draft 会被 MissingAddendum 阻塞。reviewer 必须以
-`human:` 前缀——AI 操作者不得自审自过。）
+（#182：`receipt` 是宿主签发的审批回执——真人在宿主界面确认后由宿主用
+本地密钥签发（`<工作区>/.mang/approval.key`），Agent 拿不到密钥、传旧
+`reviewer` 参数会被显式拒绝——AI 操作者不得自审自过。同法记
+`outline_approval` → `pre_export_confirm`；单件招标无补遗时另记
+`addendum_waiver`，否则 draft 会被 MissingAddendum 阻塞。）
 
 **章节发现（P5 前置）**
 

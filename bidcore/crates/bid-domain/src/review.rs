@@ -34,16 +34,22 @@
 //! 中断绝不出现「业务态 EXPORTED 而产物缺失」的虚假成功，该纪律不变）；
 //! 两面前后串联、互补不重叠。
 //!
-//! 复审人 human: 前缀（borrow mdcore workbench ReviewPolicy——
-//! `reviewer_prefixes` 默认 `["human:"]`）：AI 操作者不得过审核门（架构
-//! 原则「AI 只提关联与推导」的门面化——AI 不得自审自过），非 human: 复审人
-//! → E_UNPROCESSABLE typed reject。
+//! 复审人身份（#182 TrustedPrincipal）：旧口径只查 `human:` 字符串前缀
+//! ——Agent 自称 `human:admin` 即可过门（P0-2 缺口）。现口径：过审面收
+//! 验签后的 [`crate::principal::TrustedPrincipal`]（HMAC-SHA256 receipt，
+//! 服务层验签是 MCP 面的唯一入口）；域层 `record_review` 再拦一次
+//! `actor_type == Human`（纵深防御——即使壳层漏验，域层也不放 Agent
+//! 过门）。`reviewer` 字段降级为 `human:{actor_id}` 派生值（legacy 快照
+//! 兼容 + 报告回显），不再是身份判据。
 
+use crate::principal::{ActorType, TrustedPrincipal};
 use crate::{DomainStore, ProjectStatus, ToolError};
 use serde::{Deserialize, Serialize};
 
 /// 复审人前缀（borrow mdcore workbench ReviewPolicy：`reviewer_prefixes` 默认
 /// `["human:"]`——人侧操作者一律 `human:` 前缀，AI 不得自审自过）。
+/// #182 起：仅作 `human:{actor_id}` 派生值的格式面（不再是从入参查的
+/// 身份判据——身份判据升级为 TrustedPrincipal 验签）。
 const HUMAN_PREFIX: &str = "human:";
 
 /// 落钟（no-chrono 纪律——u64 UNIX_EPOCH 秒；与 dates.rs `today_ymd` 同手法，
@@ -179,8 +185,14 @@ pub struct Finding {
 pub struct ReviewRecord {
     pub id: String, // REV-xxxx（store 单序列）
     pub gate: Gate,
-    /// 复审人——必须 `human:` 前缀（borrow mdcore ReviewPolicy，typed reject）
+    /// 复审人（`human:{actor_id}` 派生值——legacy 快照兼容 + 报告回显；
+    /// 身份判据已升级为 #182 TrustedPrincipal，见 `principal` 字段）
     pub reviewer: String,
+    /// #182 可信身份：验签后的 TrustedPrincipal。None = legacy 快照
+    /// （#182 之前的记录——宽容载入，裁决面按旧口径不回溯失效）；
+    /// 新记录必须 Some（record_review 收 TrustedPrincipal 构造）。
+    #[serde(default)]
+    pub principal: Option<TrustedPrincipal>,
     pub decision: Decision,
     /// FND-id 清单（发现实体住 store 的 findings 集合——记录引用不复制）
     pub findings: Vec<String>,
@@ -240,10 +252,12 @@ impl DomainStore {
     }
 
     // ------------------------------------------------------------ 记审（T-7 主入口）
-    /// 记审（三道门的统一写入面）。
+    /// 记审（三道门的统一写入面；#182——身份面收验签后的 TrustedPrincipal）。
     ///
     /// 裁决序（全部前置校验通过才落账——拒绝路径零副作用）：
-    /// 1. 复审人 `human:` 前缀（borrow mdcore ReviewPolicy——AI 不得自审自过）；
+    /// 1. 可信身份门（#182：actor_type 只认 Human——服务层验签是 MCP 面
+    ///    的唯一入口，域层再拦一次是纵深防御：即使壳层漏验，域层也不放
+    ///    Agent/System 过门）；
     /// 2. 状态门（裁决表，见各 match 臂注释）；
     /// 3. 门序（OutlineApproval 需矩阵门先过；PreExportConfirm 需前两门均过
     ///    ——跳门 → E_STATE typed reject，这就是「绕过门」的裁决面）；
@@ -259,22 +273,27 @@ impl DomainStore {
     pub fn record_review(
         &mut self,
         gate: Gate,
-        reviewer: &str,
+        principal: &TrustedPrincipal,
         decision: Decision,
         findings: Vec<(Severity, String, String, Option<String>)>,
     ) -> Result<ReviewReceipt, ToolError> {
         self.project()?; // 审核记录挂在项目下（M1 单项目存储）
         let status = self.project()?.status;
 
-        // ---- 1. 复审人门（borrow mdcore workbench ReviewPolicy：
-        //      reviewer_prefixes 默认 ["human:"]——AI 操作者不得过审核门）
-        if !reviewer.starts_with(HUMAN_PREFIX) {
+        // ---- 1. 可信身份门（#182——纵深防御：服务层验签是唯一入口，
+        //      域层不重复实现验签（零密钥零时钟），但 identity 类别必须
+        //      Human：Agent/System 的 TrustedPrincipal 不得过门）
+        if principal.actor_type != ActorType::Human {
             return Err(ToolError::EUnprocessable {
                 reason: format!(
-                    "复审人 {reviewer:?} 缺 human: 前缀（borrow mdcore ReviewPolicy：reviewer_prefixes 默认 [\"human:\"]——AI 不得自审自过）"
+                    "复审人 {:?} 是 {} 身份（#182：过审面只认 Human——Agent/System 不得自审自过，borrow mdcore ReviewPolicy 纪律的身份面升级）",
+                    principal.actor_id,
+                    principal.actor_type.as_str()
                 ),
             });
         }
+        // legacy 回显面：reviewer 从可信身份派生（human:{actor_id}）
+        let reviewer = format!("{HUMAN_PREFIX}{}", principal.actor_id);
 
         // ---- 2. 状态门 + 3. 门序（按门分派的裁决表）
         match gate {
@@ -426,7 +445,8 @@ impl DomainStore {
         self.reviews.push(ReviewRecord {
             id: review_id.clone(),
             gate,
-            reviewer: reviewer.to_string(),
+            reviewer,
+            principal: Some(principal.clone()),
             decision,
             findings: finding_ids.clone(),
             at: now_epoch_secs(),
@@ -693,9 +713,9 @@ mod tests {
         s: &mut DomainStore,
         pre_export_findings: Vec<(Severity, String, String, Option<String>)>,
     ) -> ReviewReceipt {
-        s.record_review(Gate::MatrixApproval, "human:zhang", Decision::Approved, vec![]).unwrap();
-        s.record_review(Gate::OutlineApproval, "human:li", Decision::Approved, vec![]).unwrap();
-        s.record_review(Gate::PreExportConfirm, "human:wang", Decision::Approved, pre_export_findings).unwrap()
+        s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("zhang"), Decision::Approved, vec![]).unwrap();
+        s.record_review(Gate::OutlineApproval, &TrustedPrincipal::human("li"), Decision::Approved, vec![]).unwrap();
+        s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Approved, pre_export_findings).unwrap()
     }
 
     /// #180 摘要绑定基座：基座 + 两级章节树（根 + 2 叶，全绑 REQ-0001）——
@@ -745,18 +765,18 @@ mod tests {
     fn acceptance_blocker_rt_lifecycle_and_export_gate() {
         let mut s = store_at_matrix_ready();
         // 门一：矩阵定稿（零发现——干净过门）
-        let r1 = s.record_review(Gate::MatrixApproval, "human:zhang", Decision::Approved, vec![]).unwrap();
+        let r1 = s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("zhang"), Decision::Approved, vec![]).unwrap();
         assert_eq!(r1.gate, Gate::MatrixApproval);
         assert!(r1.finding_ids.is_empty());
         assert!(r1.spawned_rt_ids.is_empty());
         // 门二：章节树定稿（1 条 Warning——不派生 RT）
-        let r2 = s.record_review(Gate::OutlineApproval, "human:li", Decision::Approved, vec![
+        let r2 = s.record_review(Gate::OutlineApproval, &TrustedPrincipal::human("li"), Decision::Approved, vec![
             (Severity::Warning, "占位符残留".into(), "大纲第 3 章标题占位".into(), Some("SEC-0001".into())),
         ]).unwrap();
         assert_eq!(r2.finding_ids.len(), 1);
         assert_eq!(r2.spawned_rt_ids.len(), 0, "Warning 不派生 RT——只有 BLOCKER 有 RT");
         // 门三：导出前确认（2 Blocker + 1 Warning）
-        let r3 = s.record_review(Gate::PreExportConfirm, "human:wang", Decision::Approved, vec![
+        let r3 = s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Approved, vec![
             (Severity::Blocker, "金额冲突".into(), "报价总价与大写金额不一致".into(), Some("SEC-0007".into())),
             (Severity::Blocker, "占位符残留".into(), "服务承诺章仍有 {{待定}} 模板占位".into(), None),
             (Severity::Warning, "格式要求".into(), "页眉缺少项目编号".into(), None),
@@ -804,7 +824,7 @@ mod tests {
         let mut early = store_review_base();
         let v = early.content_version();
         assert_eq!(
-            early.record_review(Gate::MatrixApproval, "human:zhang", Decision::Approved, vec![])
+            early.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("zhang"), Decision::Approved, vec![])
                 .unwrap_err().code(),
             "E_STATE"
         );
@@ -813,7 +833,7 @@ mod tests {
 
         // 门序强制：第三门直跳（前两门未过）→ EState 点名缺 matrix_approval
         let mut s = store_at_matrix_ready();
-        let err = s.record_review(Gate::PreExportConfirm, "human:wang", Decision::Approved, vec![]).unwrap_err();
+        let err = s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Approved, vec![]).unwrap_err();
         match &err {
             ToolError::EState { attempted, .. } =>
                 assert!(attempted.contains("matrix_approval"), "须点名第一缺门：{attempted}"),
@@ -821,14 +841,14 @@ mod tests {
         }
         // 乱序：大纲门先于矩阵门 → EState
         assert_eq!(
-            s.record_review(Gate::OutlineApproval, "human:li", Decision::Approved, vec![])
+            s.record_review(Gate::OutlineApproval, &TrustedPrincipal::human("li"), Decision::Approved, vec![])
                 .unwrap_err().code(),
             "E_STATE"
         );
         assert!(s.reviews().is_empty(), "乱序记审零入账");
         // 矩阵门过后、大纲门未过 → 第三门仍拒（点名缺 outline_approval）
-        s.record_review(Gate::MatrixApproval, "human:zhang", Decision::Approved, vec![]).unwrap();
-        let err = s.record_review(Gate::PreExportConfirm, "human:wang", Decision::Approved, vec![]).unwrap_err();
+        s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("zhang"), Decision::Approved, vec![]).unwrap();
+        let err = s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Approved, vec![]).unwrap_err();
         match &err {
             ToolError::EState { attempted, .. } =>
                 assert!(attempted.contains("outline_approval"), "须点名缺门：{attempted}"),
@@ -843,26 +863,63 @@ mod tests {
         }
     }
 
-    /// 复审人必须 human: 前缀（borrow mdcore ReviewPolicy——AI 不得自审自过）。
+    /// #182 可信身份门：Agent/System 的 TrustedPrincipal 不得过门（域层纵深
+    /// ——语义迁移自旧「human: 前缀校验」：旧测试断言裸字符串前缀拒收，
+    /// 新测试断言非 Human 身份拒收；身份保证本体在服务层 HMAC 验签）。
     #[test]
-    fn reviewer_must_be_human_prefixed() {
+    fn reviewer_must_be_human_principal() {
         let mut s = store_at_matrix_ready();
         let v = s.content_version();
-        for bad in ["ai:glm", "human", ""] {
-            match s.record_review(Gate::MatrixApproval, bad, Decision::Approved, vec![]) {
+        for (bad_id, bad_type) in [("glm-4", ActorType::Agent), ("cron", ActorType::System)] {
+            let bad = TrustedPrincipal {
+                actor_id: bad_id.into(),
+                actor_type: bad_type,
+                authentication_method: "hmac_receipt_v1".into(),
+                approval_receipt: String::new(),
+            };
+            match s.record_review(Gate::MatrixApproval, &bad, Decision::Approved, vec![]) {
                 Err(ToolError::EUnprocessable { reason }) => {
-                    assert!(reason.contains("ReviewPolicy"), "错误消息须引 ReviewPolicy 对齐：{reason}");
-                    assert!(reason.contains("human:"), "须指出前缀要求：{reason}");
+                    assert!(reason.contains("#182"), "错误消息须引 #182 对齐：{reason}");
+                    assert!(reason.contains("Human"), "须指出身份要求：{reason}");
                 }
-                other => panic!("复审人 {bad:?} 必须拒，得到 {other:?}"),
+                other => panic!("复审人 {bad_id:?}（{bad_type:?}）必须拒，得到 {other:?}"),
             }
         }
         assert!(s.reviews().is_empty());
         assert_eq!(s.content_version(), v, "拒绝路径零副作用");
-        // "human:wang" 放行（borrow mdcore 测试口径的操作者形态）
-        s.record_review(Gate::MatrixApproval, "human:wang", Decision::Approved, vec![]).unwrap();
+        // Human 放行：reviewer 派生值回填 human:{actor_id}（legacy 回显口径）
+        s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("wang"), Decision::Approved, vec![]).unwrap();
         assert_eq!(s.reviews().len(), 1);
         assert_eq!(s.reviews()[0].reviewer, "human:wang");
+        // #182：新记录落 TrustedPrincipal（审计留痕——receipt 串在座）
+        let p = s.reviews()[0].principal.as_ref().unwrap();
+        assert_eq!(p.actor_id, "wang");
+        assert_eq!(p.actor_type, ActorType::Human);
+    }
+
+    /// #182 legacy 快照兼容：带 reviewer 无 principal 的旧 ReviewRecord JSON
+    /// 载入不炸、裁决面宽容（gate_approved 不回溯失效既有 Approved）。
+    #[test]
+    fn legacy_review_record_without_principal_loads_leniently() {
+        let legacy = serde_json::json!({
+            "id": "REV-0001",
+            "gate": "MATRIX_APPROVAL",
+            "reviewer": "human:zhang",
+            "decision": "APPROVED",
+            "findings": [],
+            "at": 1_800_000_000u64,
+            "reviewed_content_version": 3,
+            "reviewed_content_digest": "deadbeef",
+        });
+        let rec: ReviewRecord = serde_json::from_value(legacy).unwrap();
+        assert!(rec.principal.is_none(), "legacy 快照 principal 缺席 → None");
+        assert_eq!(rec.reviewer, "human:zhang");
+        // 裁决面宽容：gate_approved 消费既有 Approved（不回溯失效）
+        let mut s = store_at_matrix_ready();
+        let mut snap = s.to_snapshot();
+        snap.reviews.push(rec);
+        let restored = DomainStore::restore(snap).unwrap();
+        assert!(restored.gate_approved(Gate::MatrixApproval), "legacy Approved 不回溯失效");
     }
 
     /// 拒审必须有阻断级依据（诚实状态：Warning 不构成拒审）。
@@ -870,26 +927,26 @@ mod tests {
     fn rejected_without_blocker_is_dishonest() {
         let mut s = store_at_matrix_ready();
         // 纯 Warning 的 Rejected → EUnprocessable
-        let err = s.record_review(Gate::MatrixApproval, "human:wang", Decision::Rejected, vec![
+        let err = s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("wang"), Decision::Rejected, vec![
             (Severity::Warning, "格式要求".into(), "页眉缺项目编号".into(), None),
         ]).unwrap_err();
         assert_eq!(err.code(), "E_UNPROCESSABLE");
         // 零 findings 的 Rejected → 同拒
         assert_eq!(
-            s.record_review(Gate::MatrixApproval, "human:wang", Decision::Rejected, vec![])
+            s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("wang"), Decision::Rejected, vec![])
                 .unwrap_err().code(),
             "E_UNPROCESSABLE"
         );
         assert!(s.reviews().is_empty() && s.findings().is_empty(), "拒绝路径零副作用");
         // 带 Blocker 的 Rejected 放行且 RT 照常派生（拒审不断关单通道）
-        let r = s.record_review(Gate::MatrixApproval, "human:wang", Decision::Rejected, vec![
+        let r = s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("wang"), Decision::Rejected, vec![
             (Severity::Blocker, "金额冲突".into(), "报价总价与大写金额不一致".into(), Some("SEC-0007".into())),
         ]).unwrap();
         assert_eq!(r.decision, Decision::Rejected);
         assert_eq!(r.spawned_rt_ids.len(), 1, "拒审的 Blocker 照常派生 RT");
         assert_eq!(s.reviews().len(), 1);
         // 空 message 的发现 → 拒（空发现不可审计——findings 形状门的落点）
-        let err = s.record_review(Gate::MatrixApproval, "human:li", Decision::Approved, vec![
+        let err = s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("li"), Decision::Approved, vec![
             (Severity::Info, "备注".into(), "   ".into(), None),
         ]).unwrap_err();
         assert_eq!(err.code(), "E_UNPROCESSABLE");
@@ -903,29 +960,29 @@ mod tests {
     fn blocker_rt_structural_invariant() {
         let mut s = store_at_matrix_ready();
         // 轮 1：矩阵门 Rejected（1 Blocker + 1 Warning）
-        s.record_review(Gate::MatrixApproval, "human:wang", Decision::Rejected, vec![
+        s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("wang"), Decision::Rejected, vec![
             (Severity::Blocker, "金额冲突".into(), "总价与大写不一致".into(), Some("SEC-0007".into())),
             (Severity::Warning, "格式要求".into(), "页眉缺编号".into(), None),
         ]).unwrap();
         // 轮 2：矩阵门重审 Approved（零发现——上轮 RT 未修完不阻断过门，
         // 收紧面在 export_allowed 的 RT 判决）
-        s.record_review(Gate::MatrixApproval, "human:zhang", Decision::Approved, vec![]).unwrap();
+        s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("zhang"), Decision::Approved, vec![]).unwrap();
         // 轮 3：大纲门 Approved（1 Blocker）
-        s.record_review(Gate::OutlineApproval, "human:li", Decision::Approved, vec![
+        s.record_review(Gate::OutlineApproval, &TrustedPrincipal::human("li"), Decision::Approved, vec![
             (Severity::Blocker, "占位符残留".into(), "第 5 章标题占位".into(), None),
         ]).unwrap();
         // 轮 4：第三门 Rejected（1 Blocker）
-        s.record_review(Gate::PreExportConfirm, "human:wang", Decision::Rejected, vec![
+        s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Rejected, vec![
             (Severity::Blocker, "金额冲突".into(), "报价单税率与正文不一致".into(), None),
         ]).unwrap();
         // 轮 5：第三门 Approved（1 Blocker + 1 Info）
-        s.record_review(Gate::PreExportConfirm, "human:wang", Decision::Approved, vec![
+        s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Approved, vec![
             (Severity::Blocker, "占位符残留".into(), "签署页日期占位".into(), None),
             (Severity::Info, "备注".into(), "建议附电子版目录".into(), None),
         ]).unwrap();
         // 轮 6：Approved 后的过程记录（第三门再 Rejected + 1 Blocker——
         // Rejected 不撤回 Approved 里程碑，新问题经新 RT 收紧导出面）
-        s.record_review(Gate::PreExportConfirm, "human:li", Decision::Rejected, vec![
+        s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("li"), Decision::Rejected, vec![
             (Severity::Blocker, "金额冲突".into(), "大写金额错字".into(), None),
         ]).unwrap();
         // —— 结构不变量断言 ——
@@ -951,7 +1008,7 @@ mod tests {
     #[test]
     fn rt_completion_requires_resolution_and_chain() {
         let mut s = store_at_matrix_ready();
-        let r = s.record_review(Gate::MatrixApproval, "human:wang", Decision::Rejected, vec![
+        let r = s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("wang"), Decision::Rejected, vec![
             (Severity::Blocker, "金额冲突".into(), "总价与大写不一致".into(), None),
             (Severity::Blocker, "占位符残留".into(), "签署页占位".into(), None),
         ]).unwrap();
@@ -1027,7 +1084,7 @@ mod tests {
         let shape = (s.findings().len(), s.revision_tasks().len(), s.reviews().len());
         let v = s.content_version();
         // 同门二次 Approved（携同形 findings 重放）→ 幂等返回
-        let r2 = s.record_review(Gate::PreExportConfirm, "human:wang", Decision::Approved, vec![
+        let r2 = s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Approved, vec![
             (Severity::Blocker, "金额冲突".into(), "总价与大写不一致".into(), None),
             (Severity::Blocker, "占位符残留".into(), "签署页占位".into(), None),
         ]).unwrap();
@@ -1052,7 +1109,7 @@ mod tests {
     #[test]
     fn section_scoped_and_global_findings() {
         let mut s = store_at_matrix_ready();
-        let r = s.record_review(Gate::MatrixApproval, "human:wang", Decision::Rejected, vec![
+        let r = s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("wang"), Decision::Rejected, vec![
             (Severity::Blocker, "金额冲突".into(), "总价与大写不一致".into(), Some("SEC-0007".into())),
             (Severity::Blocker, "占位符残留".into(), "全文仍有 {{待定}} 占位".into(), None),
         ]).unwrap();
@@ -1146,7 +1203,7 @@ mod tests {
         s.set_section_content("SEC-0002", "正文 v2（改稿）".into()).unwrap();
         assert!(s.export_allowed().is_err(), "改稿后旧审核失效");
         // 重过门：新 REV（非幂等重放），落账绑改后摘要
-        let second = s.record_review(Gate::PreExportConfirm, "human:wang", Decision::Approved, vec![]).unwrap();
+        let second = s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Approved, vec![]).unwrap();
         assert_ne!(second.review_id, first.review_id, "落新 REV——幂等分支没吞");
         assert_eq!(s.reviews().len(), 4, "三门 3 条 + 重过门 1 条");
         assert_eq!(second.reviewed_content_digest, s.sections_digest(), "新记录绑改后摘要");
@@ -1154,7 +1211,7 @@ mod tests {
         assert!(rec.reviewed_content_version > 0, "辅助账面在座（判定不消费）");
         assert!(s.export_allowed().is_ok(), "重过门后恢复放行");
         // 内容不再变 → 再过门恢复幂等（比对的是**最后一条**同门 Approved）
-        let third = s.record_review(Gate::PreExportConfirm, "human:li", Decision::Approved, vec![]).unwrap();
+        let third = s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("li"), Decision::Approved, vec![]).unwrap();
         assert_eq!(third.review_id, second.review_id, "摘要未变 → 幂等返回最新一轮记录");
         assert_eq!(s.reviews().len(), 4, "幂等重放零新账");
     }
@@ -1210,7 +1267,7 @@ mod tests {
             .chain(snap.reviews.iter().map(|r| r.id.clone()))
             .chain(snap.revision_tasks.iter().map(|t| t.id.clone()))
             .collect();
-        let r2 = s2.record_review(Gate::PreExportConfirm, "human:wang", Decision::Rejected, vec![
+        let r2 = s2.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Rejected, vec![
             (Severity::Blocker, "金额冲突".into(), "复审新发现：大写金额错字".into(), None),
         ]).unwrap();
         assert!(!existing.contains(&r2.review_id), "新 REV id 不碰撞");
@@ -1230,7 +1287,7 @@ mod tests {
     #[test]
     fn restore_rejects_orphan_rt_and_duplicate_ids() {
         let mut s = store_at_matrix_ready();
-        s.record_review(Gate::MatrixApproval, "human:wang", Decision::Rejected, vec![
+        s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("wang"), Decision::Rejected, vec![
             (Severity::Blocker, "金额冲突".into(), "总价与大写不一致".into(), None),
         ]).unwrap();
         let base = s.to_snapshot();

@@ -13,6 +13,8 @@
 //!   一个损坏件不得阻断整批导入；不可读 upload_ref 无文件身份（无 sha 可言），
 //!   不落库（空 sha 会污染幂等键空间），逐件失败登记。
 
+use bid_domain::principal::{self, TrustedPrincipal};
+use bid_domain::review::Gate;
 use bid_domain::{DomainStore, ParseStatus, Requirement, ToolError};
 use bid_parse::{parse_file, sha256_file, ParsedFile};
 use std::path::{Path, PathBuf};
@@ -319,12 +321,74 @@ pub struct BidService {
     store: DomainStore,
     parsed: Vec<ParsedFile>,
     persist: Option<crate::store_io::StoreFile>,
+    /// #182 人工审核 receipt 的 HMAC 签发/验签密钥（32 字节）。
+    /// 持久化工作区（open）：`<dir>/.mang/approval.key`（存在读/不存在生成
+    /// 并写，权限 0600）；纯内存（new）：内存生成不落盘。**不进 MCP 工具
+    /// 面**——宿主持钥，Agent 拿不到（这正是 #182 的信任根）。
+    approval_key: [u8; 32],
     /// 文件访问围栏根（#183/#189：import upload_ref / export output_path 的
     /// 受信边界）。`open(dir)` 默认 = 工作区目录；`with_fs_root` 覆盖
     /// （BID_FS_ROOT / 测试夹具声明更广的受信根）；`new()` = None →
     /// 导入响亮拒（见 [`Self::import`]）。持久化目录始终隐式受信（服务的
     /// 自有存储——章节/导出/manifest 都落在那里，与 fs_root 是否覆盖无关）。
     fs_root: Option<PathBuf>,
+}
+
+/// #182：32 字节随机密钥（getrandom——OS 熵源，不手拼）。
+fn random_approval_key() -> [u8; 32] {
+    let mut key = [0u8; 32];
+    getrandom::getrandom(&mut key)
+        .expect("approval_key 生成需要 OS 熵源（getrandom 失败 = 宿主环境不可用，fail-fast）");
+    key
+}
+
+/// #182：加载（或首启生成并落盘）持久化审批密钥。
+///
+/// - 存在且恰 32 字节 → 读入（重启续跑：旧 receipt 在有效窗内仍可验）；
+/// - 不存在 → 生成 + 写入 + unix 下 chmod 0600（密钥文件不给同组/其他读）；
+/// - 存在但长度 ≠ 32 → Corrupt（fail-closed 不猜测——半截密钥验不出任何
+///   旧 receipt，静默重生 = 无声作废全部在途确认）。
+fn load_or_create_approval_key(
+    dir: &Path,
+) -> Result<[u8; 32], crate::store_io::StoreIoError> {
+    let mang = dir.join(".mang");
+    std::fs::create_dir_all(&mang).map_err(crate::store_io::StoreIoError::Io)?;
+    let path = mang.join("approval.key");
+    match std::fs::read(&path) {
+        Ok(bytes) => {
+            let n = bytes.len();
+            bytes.try_into().map_err(|_| {
+                crate::store_io::StoreIoError::Corrupt(format!(
+                    "approval.key 须恰 32 字节（实际 {n}）——半截密钥验不出任何旧 receipt，拒绝猜测"
+                ))
+            })
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            let key = random_approval_key();
+            std::fs::write(&path, key).map_err(crate::store_io::StoreIoError::Io)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let perms = std::fs::Permissions::from_mode(0o600);
+                std::fs::set_permissions(&path, perms)
+                    .map_err(crate::store_io::StoreIoError::Io)?;
+            }
+            Ok(key)
+        }
+        Err(e) => Err(crate::store_io::StoreIoError::Io(e)),
+    }
+}
+
+/// #182：过审 receipt 的签域（scope）构造——过审面收到的 receipt 只对
+/// 签发时声明的具体门有效（A 门 receipt 过不了 B 门）。
+pub fn review_gate_scope(gate: Gate) -> String {
+    format!("review_gate:{}", gate.as_str())
+}
+
+/// #182：补遗逐件确认 receipt 的签域——绑定具体 file_id（TF-0003 的
+/// receipt 免不了 TF-0004）。
+pub fn addendum_waiver_scope(file_id: &str) -> String {
+    format!("addendum_waiver:{file_id}")
 }
 
 impl BidService {
@@ -334,12 +398,16 @@ impl BidService {
             store: DomainStore::new(),
             parsed: vec![],
             persist: None,
+            // #182：纯内存态——内存生成密钥不落盘（测试/嵌入方默认形态）
+            approval_key: random_approval_key(),
             fs_root: None,
         }
     }
 
     /// 打开（或首启创建）持久化服务态：目录有 `db.json` 则恢复（重启续跑——
     /// T-8 验收「建项→导入→抽条款→重启→状态完整恢复」的入口），否则空态起步。
+    /// #182：审批密钥从 `<dir>/.mang/approval.key` 装载（缺则生成落盘 0600
+    /// ——重启后旧 receipt 在 24h 有效窗内仍可验，跨进程身份连续）。
     pub fn open(dir: impl AsRef<Path>) -> Result<Self, crate::store_io::StoreIoError> {
         let sf = crate::store_io::StoreFile::new(&dir);
         let (snap, parsed) = match sf.load()? {
@@ -356,6 +424,7 @@ impl BidService {
             })?,
             None => DomainStore::new(),
         };
+        let approval_key = load_or_create_approval_key(sf.dir())?;
         Ok(Self {
             store,
             parsed,
@@ -363,6 +432,7 @@ impl BidService {
             // BID_FS_ROOT / with_fs_root 可显式声明更广的受信根）
             fs_root: Some(dir.as_ref().to_path_buf()),
             persist: Some(sf),
+            approval_key,
         })
     }
 
@@ -521,34 +591,91 @@ impl BidService {
         Ok((bound, replayed, item_errors, rows, blocking))
     }
 
-    /// `record_review_gate` 业务半边（G3）：三门记审（复审人门/状态门/门序
-    /// 裁决全在域层 record_review）。
+    /// `record_review_gate` 业务半边（G3 + #182）：三门记审。
+    ///
+    /// #182：入参从裸 `reviewer` 串改为 `receipt`（宿主签发的审批回执）。
+    /// **服务层验签是 MCP 面的唯一入口**（单一真源——壳层不重复实现）：
+    /// 签域 `review_gate:{gate}`（门级绑定——A 门 receipt 过不了 B 门）→
+    /// 验签得 TrustedPrincipal → 域层再拦 actor_type（纵深）。状态门/门序
+    /// 裁决在域层 record_review，不变。
     pub fn record_review_gate(
         &mut self,
-        gate: bid_domain::review::Gate,
-        reviewer: &str,
+        gate: Gate,
+        receipt: &str,
         decision: bid_domain::review::Decision,
         findings: Vec<(bid_domain::review::Severity, String, String, Option<String>)>,
-    ) -> Result<bid_domain::review::ReviewReceipt, ToolError> {
+    ) -> Result<(bid_domain::review::ReviewReceipt, TrustedPrincipal), ToolError> {
+        let principal = self.verify_approval_receipt(receipt, &review_gate_scope(gate))?;
         let receipt = self
             .store
-            .record_review(gate, reviewer, decision, findings)?;
+            .record_review(gate, &principal, decision, findings)?;
         self.auto_checkpoint()?;
-        Ok(receipt)
+        Ok((receipt, principal))
     }
 
-    /// `record_addendum_waiver` 业务半边（#184）：补遗逐件人工确认
-    /// （principal human: 门 / file_id 存在性 / reason 非空白全在域层裁决
-    /// ——本层只加写后自动落盘，与既有服务方法同款形态）。
+    /// `record_addendum_waiver` 业务半边（#184 + #182）：补遗逐件人工确认。
+    ///
+    /// #182：入参从裸 `principal` 串改为 `receipt`。签域
+    /// `addendum_waiver:{file_id}`（件级绑定——TF-0003 的 receipt 免不了
+    /// TF-0004）；reason 非空白 / file_id 存在性在域层裁决，不变。
     pub fn record_addendum_waiver(
         &mut self,
         file_id: &str,
         reason: &str,
-        principal: &str,
-    ) -> Result<bid_domain::AddendumWaiverRecord, ToolError> {
-        let rec = self.store.record_addendum_waiver(file_id, reason, principal)?;
+        receipt: &str,
+    ) -> Result<(bid_domain::AddendumWaiverRecord, TrustedPrincipal), ToolError> {
+        let principal = self.verify_approval_receipt(receipt, &addendum_waiver_scope(file_id))?;
+        let rec = self
+            .store
+            .record_addendum_waiver(file_id, reason, &principal)?;
         self.auto_checkpoint()?;
-        Ok(rec)
+        Ok((rec, principal))
+    }
+
+    // ------------------------------------------------------------ #182 审批 receipt 面
+    /// 宿主签发面（#182——**不进 MCP 工具表，Agent 拿不到**）：真人审核员
+    /// 在宿主进程确认后，宿主用服务态密钥签发审批回执。Actor 恒为 Human
+    /// （宿主只代真人签发；机器操作面另行留痕，不走过审面）。
+    ///
+    /// scope 由调用方声明具体用途（`review_gate:{gate}` /
+    /// `addendum_waiver:{file_id}`——见 [`review_gate_scope`] /
+    /// [`addendum_waiver_scope`]）。
+    pub fn issue_approval_receipt(&mut self, actor_id: &str, scope: &str) -> String {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        principal::issue_approval_receipt(&self.approval_key, actor_id, scope, now)
+    }
+
+    /// 验签面（#182）：receipt → TrustedPrincipal（now 取系统时钟）。
+    /// ReceiptError → EUnprocessable 带分类码（E_UNPROCESSABLE 是参数面
+    /// 的“不可用/不可恢复”口径——伪造 receipt 是调用方问题不是服务态问题）。
+    pub fn verify_approval_receipt(
+        &self,
+        receipt: &str,
+        scope: &str,
+    ) -> Result<TrustedPrincipal, ToolError> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        principal::verify_approval_receipt(receipt, &self.approval_key, scope, now).map_err(
+            |e| ToolError::EUnprocessable {
+                reason: format!(
+                    "审批 receipt 验签失败（{}——{}）。人工确认由宿主签发 receipt 提供，Agent 不得伪造",
+                    e.code(),
+                    e
+                ),
+            },
+        )
+    }
+
+    /// 审批密钥的宿主侧只读面（#182——审计/测试用：跨 crate 集成测试构造
+    /// 「Agent 伪装」「过期重放」等攻击样本需要持钥签发）。**不进 MCP
+    /// 工具表**——与 issue_approval_receipt 同一信任边界（宿主进程内）。
+    pub fn approval_key(&self) -> &[u8; 32] {
+        &self.approval_key
     }
 
     /// `import_tender_files` 业务执行（壳已完成参数校验 / 状态机裁决 /

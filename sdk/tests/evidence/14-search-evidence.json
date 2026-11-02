@@ -2,11 +2,11 @@
  "case": "14-search-evidence",
  "transport": "linejson",
  "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
- "server_sha256": "babcf3bcc26236db83eda2db9744eeb598108a720e85230f98e82c1d3642eed2",
+ "server_sha256": "bde7f0dae2ef21a487e9e8a2ceb8baa1e4203411eaa4b148d80ba7778c588ca1",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-02T06:09:26+00:00",
+ "started_at": "2026-11-02T06:51:21+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 3.325264999148203
+   "elapsed_ms": 3.355123997607734
   },
   {
    "stage": "P1 import_tender_files",
@@ -154,7 +154,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 240.2459299992188
+   "elapsed_ms": 265.02728600098635
   },
   {
    "stage": "P2 extract_requirements",
@@ -193,7 +193,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 64.49139199867204
+   "elapsed_ms": 64.77040900063002
   },
   {
    "stage": "P3 build_outline",
@@ -226,7 +226,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.193970999651356
+   "elapsed_ms": 7.043598998279776
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -334,7 +334,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.859176999772899,
+   "elapsed_ms": 7.748883999738609,
    "extra": {
     "sections": {
      "SEC-0007": [
@@ -531,7 +531,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.548696999743697
+   "elapsed_ms": 6.507363999844529
   },
   {
    "stage": "P4 bind_evidence",
@@ -563,43 +563,42 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.283351000296534
+   "elapsed_ms": 7.536018998507643
   },
   {
-   "stage": "G3 record_review_gate ×3",
+   "stage": "G3 record_review_gate ×2",
    "tool": "record_review_gate",
    "args": {
     "gates": [
      "matrix_approval",
-     "outline_approval",
-     "pre_export_confirm"
+     "outline_approval"
     ]
    },
    "result": {
     "gates_approved": [
      "matrix_approval",
-     "outline_approval",
-     "pre_export_confirm"
+     "outline_approval"
     ],
-    "project_version": 114,
+    "project_version": 113,
     "receipt": {
      "decision": "APPROVED",
      "finding_ids": [],
-     "gate": "pre_export_confirm",
-     "review_id": "REV-0037",
+     "gate": "outline_approval",
+     "review_id": "REV-0036",
+     "reviewed_content_digest": "257eeb460a0d96aae417bdef0e27b8b94f6a02e8152c5ad7457e3880a5dd5724",
      "reviewer": "human:mcp-e2e",
      "spawned_rt_ids": []
     },
-    "request_id": "req-000011",
+    "request_id": "req-000010",
     "status": "MATRIX_READY"
    },
    "checks": [
     {
-     "desc": "G3: 三门全过 ('matrix_approval', 'outline_approval', 'pre_export_confirm')",
+     "desc": "G3: 两门全过 ('matrix_approval', 'outline_approval')",
      "pass": true
     }
    ],
-   "elapsed_ms": 20.08089799892332
+   "elapsed_ms": 13.522072000341723
   },
   {
    "stage": "S0 register_evidence ×4",
@@ -609,10 +608,10 @@
    },
    "result": {
     "ev_ids": {
-     "ISO9001 质量管理体系认证证书": "EV-0038",
-     "营业执照": "EV-0039",
-     "智慧园区弱电工程合同": "EV-0040",
-     "ISO14001 环境管理体系认证证书": "EV-0041"
+     "ISO9001 质量管理体系认证证书": "EV-0037",
+     "营业执照": "EV-0038",
+     "智慧园区弱电工程合同": "EV-0039",
+     "ISO14001 环境管理体系认证证书": "EV-0040"
     }
    },
    "checks": [
@@ -625,7 +624,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 27.38942500036501
+   "elapsed_ms": 26.869347999308957
   },
   {
    "stage": "① exact cert=ISO9001",
@@ -639,9 +638,9 @@
    "result": {
     "hits": [
      {
-      "chunk_id": "EV-0038#whole",
+      "chunk_id": "EV-0037#whole",
       "content": "ISO9001 质量管理体系认证证书；质量管理体系；投标人",
-      "ev_id": "EV-0038",
+      "ev_id": "EV-0037",
       "kind": "certificate",
       "match_type": "exact",
       "score": 1.0,
@@ -654,8 +653,8 @@
       "valid_until": "2027-06-30"
      }
     ],
-    "project_version": 118,
-    "request_id": "req-000016",
+    "project_version": 117,
+    "request_id": "req-000015",
     "top_k": 20,
     "total": 1,
     "trace": {
@@ -704,7 +703,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 1.1385409998183604
+   "elapsed_ms": 0.861541000631405
   },
   {
    "stage": "①b exact amount/date",
@@ -735,7 +734,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 1.0937950009974884
+   "elapsed_ms": 1.1023150000255555
   },
   {
    "stage": "② semantic 营业执照/部分覆盖",
@@ -748,9 +747,9 @@
     "r1": {
      "hits": [
       {
-       "chunk_id": "EV-0039#whole",
+       "chunk_id": "EV-0038#whole",
        "content": "营业执照；中华人民共和国境内注册的法人；投标人",
-       "ev_id": "EV-0039",
+       "ev_id": "EV-0038",
        "kind": "qualification",
        "match_type": "semantic",
        "score": 1.0,
@@ -763,8 +762,8 @@
        "valid_until": null
       }
      ],
-     "project_version": 118,
-     "request_id": "req-000021",
+     "project_version": 117,
+     "request_id": "req-000020",
      "top_k": 20,
      "total": 1,
      "trace": {
@@ -778,9 +777,9 @@
     "r2": {
      "hits": [
       {
-       "chunk_id": "EV-0040#whole",
+       "chunk_id": "EV-0039#whole",
        "content": "智慧园区弱电工程合同；弱电工程；投标人；某某工业园区管委会",
-       "ev_id": "EV-0040",
+       "ev_id": "EV-0039",
        "kind": "performance",
        "match_type": "semantic",
        "score": 0.5,
@@ -793,8 +792,8 @@
        "valid_until": null
       }
      ],
-     "project_version": 118,
-     "request_id": "req-000022",
+     "project_version": 117,
+     "request_id": "req-000021",
      "top_k": 20,
      "total": 1,
      "trace": {
@@ -828,7 +827,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 0.8528649996151216
+   "elapsed_ms": 0.8910340002330486
   },
   {
    "stage": "③ hybrid 合并去重",
@@ -843,9 +842,9 @@
    "result": {
     "hits": [
      {
-      "chunk_id": "EV-0038#whole",
+      "chunk_id": "EV-0037#whole",
       "content": "ISO9001 质量管理体系认证证书；质量管理体系；投标人",
-      "ev_id": "EV-0038",
+      "ev_id": "EV-0037",
       "kind": "certificate",
       "match_type": "both",
       "score": 1.0,
@@ -858,8 +857,8 @@
       "valid_until": "2027-06-30"
      }
     ],
-    "project_version": 118,
-    "request_id": "req-000023",
+    "project_version": 117,
+    "request_id": "req-000022",
     "top_k": 20,
     "total": 1,
     "trace": {
@@ -896,7 +895,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 0.3584299993235618
+   "elapsed_ms": 0.38172199856489897
   },
   {
    "stage": "④ 过期降权+warning",
@@ -908,16 +907,16 @@
    "result": {
     "hits": [
      {
-      "ev_id": "EV-0038",
+      "ev_id": "EV-0037",
       "score": 1.0
      },
      {
-      "ev_id": "EV-0041",
+      "ev_id": "EV-0040",
       "score": 0.5
      }
     ],
     "warnings": [
-     "EVIDENCE_EXPIRED: EV-0041（ISO14001 环境管理体系认证证书）有效期至 2026-11-30，早于开标日 2026-12-31——已降权 score×0.5（禁绑口径见 bind_evidence）"
+     "EVIDENCE_EXPIRED: EV-0040（ISO14001 环境管理体系认证证书）有效期至 2026-11-30，早于开标日 2026-12-31——已降权 score×0.5（禁绑口径见 bind_evidence）"
     ]
    },
    "checks": [
@@ -942,7 +941,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 0.4335470002843067
+   "elapsed_ms": 0.4521369992289692
   },
   {
    "stage": "⑤ 排序确定性",
@@ -970,7 +969,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 1.210260999869206
+   "elapsed_ms": 1.2454460011213087
   },
   {
    "stage": "⑤b 错误信封（E_* 归类）",
@@ -1034,10 +1033,10 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 1.8978259995492408
+   "elapsed_ms": 1.7555150006955955
   }
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/search-evidence/ws",
- "finished_at": "2026-11-02T06:09:27+00:00"
+ "finished_at": "2026-11-02T06:51:22+00:00"
 }

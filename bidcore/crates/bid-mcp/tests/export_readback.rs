@@ -299,11 +299,13 @@ fn fixture(tag: &str, target_chars: u32) -> Fixture {
     profile.save(&dir).expect("bidder-profile.json 落盘");
 
     use bid_domain::review::{Decision, Gate};
+    // #180 审核内容绑定：AddendumWaiver/矩阵/大纲门批的是补遗/响应面/结构面，
+    // 保持起草前原位；PreExportConfirm 绑定章节正文摘要，挑至全部叶起草
+    // 完成后记审（见下方 draft 循环后）
     for gate in [
         Gate::AddendumWaiver,
         Gate::MatrixApproval,
         Gate::OutlineApproval,
-        Gate::PreExportConfirm,
     ] {
         svc.store_mut()
             .record_review(gate, "human:readback-lead", Decision::Approved, vec![])
@@ -327,6 +329,11 @@ fn fixture(tag: &str, target_chars: u32) -> Fixture {
         svc.draft_section(sid, None, None, None, &mut bid_tools::draft::MockGenerator)
             .unwrap();
     }
+    // #180：定稿内容过门（夹具链到此正文已定——Fixture 交出后再改正文的
+    // 用例须重过 PreExportConfirm，如 readback_docx_dark_bid_scrubbed）
+    svc.store_mut()
+        .record_review(Gate::PreExportConfirm, "human:readback-lead", Decision::Approved, vec![])
+        .unwrap();
     let root_titles: Vec<String> = svc
         .store()
         .sections()
@@ -734,6 +741,12 @@ fn readback_docx_dark_bid_scrubbed_and_structure_intact() {
     }
     fx.svc
         .draft_section(&sid, None, None, Some("公司名稿"), &mut CompanyGen)
+        .unwrap();
+    // #180：正文最后一次写入（公司名稿）后重过导出确认门
+    use bid_domain::review::{Decision, Gate};
+    fx.svc
+        .store_mut()
+        .record_review(Gate::PreExportConfirm, "human:readback-lead", Decision::Approved, vec![])
         .unwrap();
     let r = ok_result(call(
         &mut fx.svc,

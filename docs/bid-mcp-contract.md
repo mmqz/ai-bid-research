@@ -230,6 +230,15 @@ out: { artifact:{url, sha256, size}, content_version_snapshot, precheck:{blocker
       真源；缺字段标【待填】；标题 Heading2 样式段——防关键词假阳性）。
 幂等: (project_id, content_version, format, profile, output_path, decision_fp) 相同
      → 返回缓存 artifact（#117：报价决策指纹入键——换报价重导是新导出）
+门禁: 三门 Approved + 全 RT DONE 之外，#180 起另校验**审核内容绑定**：
+     pre_export_confirm 最后一条 Approved 的 reviewed_content_digest
+     （章节树摘要——结构定位 + 叶正文）≠ 当前 → E_UNPROCESSABLE
+     「导出前置裁决未过：审核针对的内容已变更，请重新审核（REV-x 审核摘要
+     aaaa…，当前 bbbb…）」——过门后改章节正文/结构 = 旧审核失效，重过门
+     重新绑定。绑摘要**不绑**全局 content_version（后者被导入无关件/记审
+     自身/导出推进一律 bump——必误报）：过门后导入无关件、状态推进、
+     不改正文重复导出均不受影响；#180 前旧快照的空摘要记录跳过判定
+     （宽容载入，旧数据的洞保留——重新过门即补上绑定）。
 状态: → READY_TO_EXPORT → EXPORTED
 ```
 
@@ -397,7 +406,8 @@ in : { project_id, gate(matrix_approval|outline_approval|pre_export_confirm|adde
        decision(APPROVED|REJECTED), reviewer(须 "human:" 前缀),
        findings?:[{ severity(BLOCKER|WARNING|INFO), code, message, section_id? }],
        project_version }
-out: { receipt:{ review_id, gate, decision, reviewer, finding_ids, spawned_rt_ids },
+out: { receipt:{ review_id, gate, decision, reviewer, finding_ids, spawned_rt_ids,
+       reviewed_content_digest(#180——本次记审绑定的章节树内容摘要；幂等重放时为既有记录的摘要) },
        gates_approved:[...], status, project_version }
 语义: 复审人门（borrow mdcore ReviewPolicy：AI 操作者不得自审自过）、状态门
       （窗口外拒收——矩阵/大纲门 VALIDATING+ 不再受理）、门序（矩阵先于大纲；
@@ -411,6 +421,12 @@ out: { receipt:{ review_id, gate, decision, reviewer, finding_ids, spawned_rt_id
       判定（不因 waiver 洗白 ParseFailed——补遗解析失败仍阻塞；#184 起
       OCR_PENDING 零文本件同样不被洗白，其逐件人工出口见 §16）。
 状态: MATRIX_READY+（域层按门细分窗口；addendum_waiver 无窗口限制）
+绑定: #180 起每条记录落账快照章节树内容摘要（sections_digest：按 (order,id)
+      排序逐节点喂 id/parent_id/title/level/order/content 六字段，\0 分隔，
+      sha256-hex；排除 status/dirty/content_attempt 等不进产物的账面字段）。
+      pre_export_confirm 的 Approved 摘要 ≠ 当前 → export_allowed 拒（见 §8）；
+      同门重复 Approved 的幂等分支先比摘要——内容已变则落新 REV（重过门
+      重新绑定，否则改稿后重过门永远返回旧记录 = 死锁）。
 错误: E_UNPROCESSABLE（gate/decision/findings 形态非法；reviewer 缺 human: 前缀）；
       E_STATE（门序/窗口外）
 ```

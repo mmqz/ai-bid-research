@@ -3615,6 +3615,9 @@ fn record_review_gate(svc: &mut BidService, args: Value) -> ToolResult {
             "reviewer": reviewer,
             "finding_ids": receipt.finding_ids,
             "spawned_rt_ids": receipt.spawned_rt_ids,
+            // #180 审核内容绑定：本次记审针对的章节树内容摘要（export_allowed
+            // 比对判据；幂等重放时为既有记录的摘要）
+            "reviewed_content_digest": receipt.reviewed_content_digest,
         },
         "gates_approved": gates_approved,
         "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),

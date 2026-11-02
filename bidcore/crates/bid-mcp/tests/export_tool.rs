@@ -50,18 +50,30 @@ fn mk_req(id: &str, category: &str, excerpt: &str) -> Requirement {
 }
 
 
-/// 三道门过审（T-7 审核闭环——reviewer 必须 human: 前缀，AI 不得自审自过）。
-fn pass_three_gates(svc: &mut BidService) {
+/// 前置门过审（T-7 审核闭环——reviewer 必须 human: 前缀，AI 不得自审自过）。
+/// #180 审核内容绑定：MatrixApproval/OutlineApproval/AddendumWaiver 批的是
+/// 矩阵/大纲/补遗，保持起草前原位；PreExportConfirm 绑定章节正文摘要，
+/// 必须在全部叶起草完成后记审（拆到 [`pass_pre_export_confirm`]）。
+fn pass_setup_gates(svc: &mut BidService) {
     use bid_domain::review::{Decision, Gate};
     // #131：无补遗确认门一并过（基座只导入招标文件，L3 阻塞的人工出口；
     // #118 合入时漏适配本套件的起草面）
     svc.store_mut()
         .record_review(Gate::AddendumWaiver, "human:lead", Decision::Approved, vec![])
         .unwrap_or_else(|e| panic!("无补遗确认门失败（{e:?}）"));
-    for gate in [Gate::MatrixApproval, Gate::OutlineApproval, Gate::PreExportConfirm] {
+    for gate in [Gate::MatrixApproval, Gate::OutlineApproval] {
         svc.store_mut().record_review(gate, "human:lead", Decision::Approved, vec![])
-            .unwrap_or_else(|e| panic!("三门过审失败（{e:?}）——门序/状态窗检查夹具"));
+            .unwrap_or_else(|e| panic!("前置门过审失败（{e:?}）——门序/状态窗检查夹具"));
     }
+}
+
+/// PreExportConfirm 记审（#180：绑定章节树内容摘要——须在全部叶起草完成、
+/// 正文最后一次写入之后调用，否则 export_allowed 以「审核针对的内容已变更」拒）。
+fn pass_pre_export_confirm(svc: &mut BidService) {
+    use bid_domain::review::{Decision, Gate};
+    svc.store_mut()
+        .record_review(Gate::PreExportConfirm, "human:lead", Decision::Approved, vec![])
+        .unwrap_or_else(|e| panic!("导出确认门失败（{e:?}）"));
 }
 
 fn tmp_dir(tag: &str) -> std::path::PathBuf {
@@ -117,7 +129,7 @@ fn svc_drafted(tag: &str, format_req: bool) -> (BidService, String, std::path::P
         svc.store_mut().bind_evidence(&eid, rid, "2026-12-31").unwrap();
     }
     let _ = svc.store_mut().build_matrix().unwrap(); // 绑定后重建（幂等派生态）
-    pass_three_gates(&mut svc);
+    pass_setup_gates(&mut svc);
     // 全部叶起草（mock 生成器——draft 工具在并往 PR #60；此处直接走服务面同真源）
     let leaf_ids: Vec<String> = {
         let parents: std::collections::HashSet<String> = svc.store().sections().iter()
@@ -131,6 +143,9 @@ fn svc_drafted(tag: &str, format_req: bool) -> (BidService, String, std::path::P
         svc.draft_section(sid, None, None, None, &mut bid_tools::draft::MockGenerator).unwrap();
     }
     assert_eq!(svc.store().project().unwrap().status, ProjectStatus::Drafting);
+    // #180：PreExportConfirm 在定稿后记审（夹具链到此正文已定——Svc 交出后
+    // 若两改正文，调用方须重过 [`pass_pre_export_confirm`]）
+    pass_pre_export_confirm(&mut svc);
     (svc, pid, dir)
 }
 
@@ -336,7 +351,8 @@ fn export_blocked_by_unresponded_mandatory_rows() {
     for sid in &leaves {
         svc.draft_section(sid, None, None, None, &mut bid_tools::draft::MockGenerator).unwrap();
     }
-    pass_three_gates(&mut svc);
+    pass_setup_gates(&mut svc);
+    pass_pre_export_confirm(&mut svc); // #180：正文最后一次写入后记审
     let r = ok_result(call(&mut svc, "export_bid_document", json!({
         "project_id": pid, "format": "docx", "output_path": "out/x.docx",
     })));
@@ -380,6 +396,8 @@ fn export_dark_bid_anonymizes_company_name() {
         }
     }
     svc.draft_section(&sid, None, None, Some("带公司名稿"), &mut CompanyGen).unwrap();
+    // #180：正文最后一次写入（带公司名稿）后重过导出确认门
+    pass_pre_export_confirm(&mut svc);
 
     let r = ok_result(call(&mut svc, "export_bid_document", json!({
         "project_id": pid, "format": "docx", "output_path": "out/暗标.docx",

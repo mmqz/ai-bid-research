@@ -653,17 +653,19 @@ async def setup_project(client: Any, rec: Recorder, tag: str) -> dict:
               elapsed_ms=(time.monotonic() - t0) * 1000)
     require(checks)
 
-    # ---- G3 三门过审（reviewer 必须 human: 前缀）
+    # ---- G3 两门过审（reviewer 必须 human: 前缀；#180 审核内容绑定：
+    #      pre_export_confirm 绑定章节正文摘要，须在全部叶起草完成后记审
+    #      ——挪至 _case_full_pipeline 的 P7.5（导出前），与人类流程同序）
     t0 = time.monotonic()
-    gates = ("matrix_approval", "outline_approval", "pre_export_confirm")
+    gates = ("matrix_approval", "outline_approval")
     for g in gates:
         r = await call(client, "record_review_gate", {
             "project_id": pid, "gate": g, "decision": "APPROVED",
             "reviewer": "human:mcp-e2e",
         })
     approved = r.get("gates_approved", [])
-    checks = [(f"G3: 三门全过 {gates}", set(gates).issubset(set(approved)))]
-    rec.stage("G3 record_review_gate ×3", "record_review_gate", {"gates": list(gates)},
+    checks = [(f"G3: 两门全过 {gates}", set(gates).issubset(set(approved)))]
+    rec.stage("G3 record_review_gate ×2", "record_review_gate", {"gates": list(gates)},
               r, checks, elapsed_ms=(time.monotonic() - t0) * 1000)
     require(checks)
 
@@ -848,6 +850,29 @@ async def _case_full_pipeline(rec: Recorder, ws: Path) -> None:
         ]
         rec.stage("P7 validate_bid_document", "validate_bid_document", {"scope": "all"},
                   data, checks, elapsed_ms=(time.monotonic() - t0) * 1000)
+        require(checks)
+
+        # ---- P7.5 PreExportConfirm 记审（#180 审核内容绑定：该门绑定章节树
+        #      内容摘要——须在全部叶起草完成后、导出前记审，绑定的才是将进
+        #      产物的正文；门先于起草会被 export_allowed 以「审核针对的内容
+        #      已变更」拒，与人类流程同序：审核定稿内容）
+        t0 = time.monotonic()
+        r = await call(client, "record_review_gate", {
+            "project_id": pid, "gate": "pre_export_confirm", "decision": "APPROVED",
+            "reviewer": "human:mcp-e2e",
+        })
+        receipt = r.get("receipt", {})
+        digest = receipt.get("reviewed_content_digest")
+        checks = [
+            ("P7.5: pre_export_confirm 记审进门序",
+             "pre_export_confirm" in r.get("gates_approved", [])),
+            ("P7.5: receipt.reviewed_content_digest 在场且为 sha256 hex 64 位（#180）",
+             isinstance(digest, str) and len(digest) == 64
+             and all(c in "0123456789abcdef" for c in digest)),
+        ]
+        rec.stage("P7.5 record_review_gate pre_export_confirm", "record_review_gate",
+                  {"gate": "pre_export_confirm", "digest": digest}, r, checks,
+                  elapsed_ms=(time.monotonic() - t0) * 1000)
         require(checks)
 
         # ---- P8 导出（docx）

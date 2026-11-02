@@ -208,17 +208,8 @@ fn mcp_only_full_pipeline_drives_to_export() {
         json!({ "project_id": &pid, "gate": "outline_approval", "decision": "APPROVED",
                 "reviewer": "human:mcp-scaffold-lead" }),
     ));
-    let g3 = ok(call(
-        &mut svc,
-        "record_review_gate",
-        json!({ "project_id": &pid, "gate": "pre_export_confirm", "decision": "APPROVED",
-                "reviewer": "human:mcp-scaffold-lead" }),
-    ));
-    assert_eq!(
-        g3["gates_approved"].as_array().unwrap().len(),
-        3,
-        "三门齐: {g3:?}"
-    );
+    // #180 审核内容绑定：pre_export_confirm 绑定章节正文摘要，须在全部叶
+    // 起草完成后记审（挑至 ⑪'/⑫ 之间——与人类流程同序：审核定稿内容）。
 
     // ---- ⑨ 章节发现（check_bid_quality——叶清单只读面）
     let q = ok(call(
@@ -271,6 +262,21 @@ fn mcp_only_full_pipeline_drives_to_export() {
         json!({ "project_id": &pid, "scope": "all" }),
     ));
     assert_eq!(v["counts"]["blocker"], json!(0), "校验: {v:?}");
+    // ---- ⑪' PreExportConfirm 记审（#180：定稿内容过门——全部叶起草完成
+    //      后、导出前，绑定的才是将进产物的正文摘要）
+    let g3 = ok(call(
+        &mut svc,
+        "record_review_gate",
+        json!({ "project_id": &pid, "gate": "pre_export_confirm", "decision": "APPROVED",
+                "reviewer": "human:mcp-scaffold-lead" }),
+    ));
+    // #180 后记审时序：addendum_waiver 已先于起草进门序进度（len=4），
+    // 「三门齐」改逐门点名（弱化计数不是弱化断言——三门缺一必红）
+    let gates_now: Vec<&str> = g3["gates_approved"].as_array().unwrap().iter()
+        .filter_map(|g| g.as_str()).collect();
+    for expected in ["matrix_approval", "outline_approval", "pre_export_confirm"] {
+        assert!(gates_now.contains(&expected), "三门齐（缺 {expected}）: {g3:?}");
+    }
     let e = ok(call(
         &mut svc,
         "export_bid_document",

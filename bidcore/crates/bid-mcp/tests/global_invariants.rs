@@ -477,11 +477,13 @@ fn gi_five_global_invariants() {
     // 【#131 无补遗阻塞的人工出口】基座只导入招标文件（无补遗件），
     // AddendumWaiver 门确认无补遗后起草才放行——漏记则 ⑥ 被
     // E_UNPROCESSABLE「未发现补遗/澄清文件」拒（实测踩到）。
+    // #180 审核内容绑定：MatrixApproval/OutlineApproval 批矩阵/大纲，保持
+    // 起草前原位；PreExportConfirm 绑定章节正文摘要，挪至全部叶起草完成后
+    // 记审（见 ⑦' ——过门时摘要还是空正文态，起草后即失效）。
     for gate in [
         Gate::AddendumWaiver,
         Gate::MatrixApproval,
         Gate::OutlineApproval,
-        Gate::PreExportConfirm,
     ] {
         svc.store_mut()
             .record_review(gate, "human:gi-lead", Decision::Approved, vec![])
@@ -552,6 +554,12 @@ fn gi_five_global_invariants() {
     ));
     assert_eq!(val["ok"], json!(true), "⑦ 校验未过: {}", val["errors"]);
     assert_eq!(val["counts"]["blocker"], json!(0));
+
+    // ---- ⑦' PreExportConfirm 记审（#180：定稿内容过门——全部叶起草完成
+    //      后、导出前，绑定的才是将进产物的正文摘要）
+    svc.store_mut()
+        .record_review(Gate::PreExportConfirm, "human:gi-lead", Decision::Approved, vec![])
+        .unwrap();
 
     // ---- ⑧ 导出（MCP §8）
     let exp = ok_result(call(

@@ -110,17 +110,24 @@ fn fp_of(text: &str) -> String {
 }
 
 /// PDF 页文本（该页全部行块拼接——与服务层同口径）。
+/// 取某 PDF 第 page 页的全部文本（#185 验收 C 的 pdf 页锚用）。
+///
+/// **必须同时兼容两条解析路**（CI 无 poppler，本地常有——只写一种会「本地绿、
+/// CI 红」）：
+/// - poppler 首选路：`第1页 行1`（页后无空格）
+/// - 纯 Rust 兜底路：`第1 页 > 第1 行`（页后有空格）
 fn pdf_page_text(svc: &BidService, sha: &str, page: u32) -> String {
     let parsed = svc
         .parsed()
         .iter()
         .find(|p| p.sha256 == sha)
         .unwrap_or_else(|| panic!("解析产物缺 sha={sha}"));
-    let prefix = format!("第{page}页 ");
+    // 两种前缀都试：兜底路是「第N 页」（空格在页前）
+    let prefixes = [format!("第{page}页"), format!("第{page} 页")];
     parsed
         .blocks
         .iter()
-        .filter(|b| b.locator.starts_with(&prefix))
+        .filter(|b| prefixes.iter().any(|p| b.locator.starts_with(p.as_str())))
         .map(|b| b.text.as_str())
         .collect::<Vec<_>>()
         .join("\n")

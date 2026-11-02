@@ -188,11 +188,15 @@ fn verify_locator_against(
                     parsed.name, parsed.pages
                 )));
             }
-            let prefix = format!("第{page}页 ");
+            // locator 前缀**两条解析路不同**（只认一种会导致：「有 poppler 的环境绿、
+            // 无 poppler 的环境全红」——CI 无 poppler 实测）：
+            //   · poppler 首选路：`第1页 行1`（页后无空格）
+            //   · 纯 Rust 兜底路：`第1 页 > 第1 行`（页后空格在「页」前）
+            let prefixes = [format!("第{page}页"), format!("第{page} 页")];
             let page_text = parsed
                 .blocks
                 .iter()
-                .filter(|b| b.locator.starts_with(&prefix))
+                .filter(|b| prefixes.iter().any(|p| b.locator.starts_with(p.as_str())))
                 .map(|b| b.text.as_str())
                 .collect::<Vec<_>>()
                 .join("\n");

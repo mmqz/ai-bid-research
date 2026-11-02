@@ -59,8 +59,11 @@ pub mod outline;
 pub mod param;
 pub mod party;
 pub mod pricing;
+pub mod principal;
 pub mod review;
 pub mod scoring;
+
+pub use principal::{ActorType, TrustedPrincipal};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -289,9 +292,11 @@ pub struct TenderFile {
 /// 意带病放行）。记录即审计面：file_id 锚定具体件、reason 是人类给出的
 /// 免责理由、principal 是确认人。
 ///
-/// - `principal` 沿用复审人口径：必须 `human:` 前缀（AI 不得自审自过——
-///   与 review.rs HUMAN_PREFIX 同一纪律）；#182 将升级为 TrustedPrincipal
-///   验签面，本字段是过渡态，**不得另造第二套人设体系**；
+/// - `principal` 字符串字段：`human:{actor_id}` 派生值（legacy 回显/报告面
+///   ——「#182 之前的口径」的兼容载体，**不得另造第二套人设体系**）；
+/// - `trusted`（#182）：验签后的 [`TrustedPrincipal`]。None = legacy 快照
+///   （#182 之前的记录——宽容载入，裁决面按旧口径不回溯失效）；新记录
+///   必 Some（record_addendum_waiver 收 TrustedPrincipal 构造）。
 /// - 同一 file_id 重复确认 = 追加新记录（审计日志语义：每次确认都留底，
 ///   查询面返回全部记录；解除确认不走本面——导入可解析版本后阻塞自然
 ///   消失，确认记录无害残留，与 AddendumWaiver 门同款语义）。
@@ -300,7 +305,11 @@ pub struct AddendumWaiverRecord {
     pub file_id: String, // TF-xxxx（必须存在于 files——对不存在的件做确认 = 凭空免责）
     pub reason: String,  // 人工理由（非空白——「不可审计的确认」不成确认）
     pub at: u64,         // 确认时刻（unix epoch 秒）
-    pub principal: String, // 确认人（human: 前缀口径）
+    pub principal: String, // 确认人（human:{actor_id} 派生值——legacy 回显面）
+    /// #182 可信身份：验签后的 TrustedPrincipal。None = legacy 快照
+    /// （#182 之前的记录——宽容载入；新记录必须 Some）。
+    #[serde(default)]
+    pub trusted: Option<TrustedPrincipal>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -571,12 +580,14 @@ impl DomainStore {
         self.addendum_waivers.iter().any(|w| w.file_id == file_id)
     }
 
-    /// 记录一条补遗逐件确认（#184——分级就绪的人工出口）。
+    /// 记录一条补遗逐件确认（#184——分级就绪的人工出口；#182 升级为
+    /// TrustedPrincipal 验签面）。
     ///
     /// 裁决序（全部前置校验通过才落账——拒绝路径零副作用）：
     /// 1. project 在场（记录挂在项目下）；
-    /// 2. `principal` 须 `human:` 前缀（与 review.rs 复审人同口径——
-    ///    AI 不得自审自过；确认「带病放行」比过门更重，没有理由放宽）；
+    /// 2. `principal` 须 Human 身份（#182——服务层验签是 MCP 面的唯一入口，
+    ///    域层再拦一次 actor_type 是纵深防御：即使壳层漏验，域层也不放
+    ///    Agent/System 过「带病放行」的免责面）；
     /// 3. `reason` 非空白（不可审计的确认不成确认）；
     /// 4. `file_id` 必须存在于 files（对不存在的件做确认 = 凭空免责）。
     ///
@@ -588,13 +599,15 @@ impl DomainStore {
         &mut self,
         file_id: &str,
         reason: &str,
-        principal: &str,
+        principal: &TrustedPrincipal,
     ) -> Result<AddendumWaiverRecord, ToolError> {
         self.project()?;
-        if !principal.starts_with("human:") {
+        if principal.actor_type != ActorType::Human {
             return Err(ToolError::EUnprocessable {
                 reason: format!(
-                    "确认人 {principal:?} 缺 human: 前缀（与复审人同口径：AI 不得自审自过——补遗确认是「带病放行」的免责面，没有理由放宽）"
+                    "确认人 {:?} 是 {} 身份（#182：确认面只认 Human——Agent/System 不得自审自过，「带病放行」的免责面没有理由放宽）",
+                    principal.actor_id,
+                    principal.actor_type.as_str()
                 ),
             });
         }
@@ -616,7 +629,10 @@ impl DomainStore {
             file_id: file_id.to_string(),
             reason: reason.trim().to_string(),
             at,
-            principal: principal.to_string(),
+            // #182：legacy 回显面从可信身份派生（human:{actor_id}）——
+            // 不另造第二套人设体系
+            principal: format!("human:{}", principal.actor_id),
+            trusted: Some(principal.clone()),
         };
         self.addendum_waivers.push(rec.clone());
         if let Some(p) = self.project.as_mut() {
@@ -1156,7 +1172,7 @@ mod tests {
         let (mut s, fid) = store_with_failed_addendum();
         let v = s.content_version();
         let rec = s
-            .record_addendum_waiver(&fid, "已人工核对纸质原件", "human:184-lead")
+            .record_addendum_waiver(&fid, "已人工核对纸质原件", &TrustedPrincipal::human("184-lead"))
             .unwrap();
         assert_eq!(rec.file_id, fid);
         assert!(rec.at > 0, "确认时刻落钟");
@@ -1169,7 +1185,7 @@ mod tests {
 
         // 同件重复确认：追加不覆盖（审计日志语义）
         let rec2 = s
-            .record_addendum_waiver(&fid, "复核后维持原确认", "human:184-second")
+            .record_addendum_waiver(&fid, "复核后维持原确认", &TrustedPrincipal::human("184-second"))
             .unwrap();
         assert_ne!(rec2.at, 0);
         assert_eq!(s.addendum_waivers().len(), 2, "追加式留底");
@@ -1179,20 +1195,27 @@ mod tests {
     #[test]
     fn addendum_waiver_rejects_bad_principal_reason_and_ghost_file() {
         let (mut s, fid) = store_with_failed_addendum();
-        // 非 human: 确认人（先于 file 存在性校验——操作者门是最上游的资格面，
-        // 与 record_review 的裁决序同构）
+        // #182：Agent 身份的 TrustedPrincipal（域层纵深——即使壳层漏验，
+        // 域层也不放 Agent 过「带病放行」的免责面；先于 file 存在性校验，
+        // 操作者门是最上游的资格面，与 record_review 的裁决序同构）
+        let agent = TrustedPrincipal {
+            actor_id: "bot".into(),
+            actor_type: ActorType::Agent,
+            authentication_method: "hmac_receipt_v1".into(),
+            approval_receipt: String::new(),
+        };
         assert!(matches!(
-            s.record_addendum_waiver(&fid, "r", "agent:bot"),
+            s.record_addendum_waiver(&fid, "r", &agent),
             Err(ToolError::EUnprocessable { .. })
         ));
         // 空白理由
         assert!(matches!(
-            s.record_addendum_waiver(&fid, "   ", "human:x"),
+            s.record_addendum_waiver(&fid, "   ", &TrustedPrincipal::human("x")),
             Err(ToolError::EUnprocessable { .. })
         ));
         // 幽灵 file_id（对不存在的件做确认 = 凭空免责）
         assert!(matches!(
-            s.record_addendum_waiver("TF-9999", "r", "human:x"),
+            s.record_addendum_waiver("TF-9999", "r", &TrustedPrincipal::human("x")),
             Err(ToolError::ENotFound { .. })
         ));
         // 拒绝路径零副作用
@@ -1203,7 +1226,7 @@ mod tests {
     fn addendum_waiver_snapshot_roundtrip_and_old_snapshot_loads() {
         // 新字段往返：to_snapshot → restore 全保真
         let (mut s, fid) = store_with_failed_addendum();
-        s.record_addendum_waiver(&fid, "人工核对原件", "human:rt-lead").unwrap();
+        s.record_addendum_waiver(&fid, "人工核对原件", &TrustedPrincipal::human("rt-lead")).unwrap();
         let snap = s.to_snapshot();
         assert_eq!(snap.addendum_waivers.len(), 1);
         let restored = DomainStore::restore(snap).unwrap();
@@ -1225,11 +1248,29 @@ mod tests {
             reason: "幽灵确认".into(),
             at: 1,
             principal: "human:x".into(),
+            trusted: None,
         });
         assert!(matches!(
             DomainStore::restore(bad),
             Err(ToolError::EUnprocessable { .. })
         ));
+
+        // #182 legacy 快照兼容：带 principal 无 trusted 的旧 waiver JSON
+        // 载入不炸（trusted → None，宽容）；新记录则必有 trusted
+        let legacy = serde_json::json!({
+            "file_id": fid,
+            "reason": "旧口径确认",
+            "at": 1_700_000_000u64,
+            "principal": "human:old-lead",
+        });
+        let rec: AddendumWaiverRecord = serde_json::from_value(legacy).unwrap();
+        assert!(rec.trusted.is_none());
+        assert_eq!(rec.principal, "human:old-lead");
+        let new_rec = s.addendum_waivers()[0].clone();
+        assert!(
+            new_rec.trusted.as_ref().is_some_and(|t| t.actor_type == ActorType::Human),
+            "新记录必有 trusted（Human）"
+        );
     }
 
     #[test]

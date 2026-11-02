@@ -551,6 +551,14 @@
     );
     saveRecent();
   }
+  // #194：工作区目录进最近列表（kind="dir"——与文件区分图标/语义）。
+  function touchRecentWorkspace(path) {
+    const name = baseName(path) || path;
+    state.recent = [{ path, name, kind: "dir", openedAt: Date.now() }].concat(
+      state.recent.filter((r) => r.path !== path)
+    );
+    saveRecent();
+  }
   var menusById = {};
   function menuDefs() {
     return [
@@ -559,7 +567,7 @@
         label: "\u6587\u4EF6",
         items: [
           { label: "\u6253\u5F00\u6587\u4EF6\u2026", key: "Ctrl+O", act: () => ui.openFileDialog() },
-          { label: "\u6253\u5F00\u6587\u4EF6\u5939\u2026", key: "Ctrl+K Ctrl+O", act: () => ui.openFolderDialog() },
+          { label: "\u6253\u5F00\u5DE5\u4F5C\u533A\u2026", key: "Ctrl+K Ctrl+O", act: () => ui.openFolderDialog() },
           { sep: true },
           { label: "\u5173\u95ED", key: "Ctrl+W", act: () => ui.closeActiveTab(), enabled: () => !!activeTab() },
           { label: "\u5173\u95ED\u5176\u4ED6", act: () => ui.closeOtherTabs(), enabled: () => state.tabs.length > 1 },
@@ -730,8 +738,8 @@
     const el = document.getElementById("sidebar-workspace");
     if (!el) return;
     if (!ws) {
-      el.textContent = "\u672A\u6253\u5F00\u6587\u4EF6\u5939";
-      el.title = "\u70B9\u4E00\u4E0B\u9009\u62E9\u5DE5\u4F5C\u533A\u6587\u4EF6\u5939 (Ctrl+K Ctrl+O)";
+      el.textContent = "\u672A\u6253\u5F00\u5DE5\u4F5C\u533A";
+      el.title = "\u70B9\u4E00\u4E0B\u9009\u62E9\u5DE5\u4F5C\u533A (Ctrl+K Ctrl+O)";
       el.dataset.empty = "1";
       return;
     }
@@ -740,13 +748,13 @@
     const cut = Math.max(clean.lastIndexOf("\\"), clean.lastIndexOf("/"));
     const name = cut >= 0 ? clean.slice(cut + 1) : clean;
     el.textContent = name || clean;
-    el.title = clean + "\uFF08\u70B9\u51FB\u5207\u6362\u6587\u4EF6\u5939\uFF09";
+    el.title = clean + "\uFF08\u70B9\u51FB\u5207\u6362\u5DE5\u4F5C\u533A\uFF09";
   }
   function renderSidebarHeader() {
     const view = SIDEBARS.find((s) => s.id === settings.sidebarActive) || SIDEBARS[0];
     const actions = {
       files: [
-        { icon: "folderOpen", title: "\u5207\u6362\u6587\u4EF6\u5939 (Ctrl+K Ctrl+O)", act: () => ui.openFolderDialog() },
+        { icon: "folderOpen", title: "\u5207\u6362\u5DE5\u4F5C\u533A (Ctrl+K Ctrl+O)", act: () => ui.openFolderDialog() },
         { icon: "refresh", title: "\u5237\u65B0 (F5)", act: () => ui.refreshTree() }
       ],
       history: [{ icon: "close", title: "\u6E05\u7A7A\u5386\u53F2", act: () => ui.clearRecent() }],
@@ -1856,12 +1864,13 @@
   function recentRowsHtml(limit) {
     if (!state.recent.length) return '<div class="recent-empty">\u8FD8\u6CA1\u6709\u6700\u8FD1\u6253\u5F00\u7684\u6587\u4EF6</div>';
     return state.recent.slice(0, limit).map((r) => {
-      const kind = kindOf(r.path || r.name);
+      // #194：工作区条目（kind=dir）按目录图标呈现（kindOf 只认文件扩展名）
+      const kind = r.kind === "dir" ? "dir" : kindOf(r.path || r.name);
       return '<button class="recent-item" data-path="' + esc(r.path) + '" title="' + esc(r.path) + '"><span class="tree-icon" style="width:16px;height:16px;color:var(--fg-muted)">' + ICON[KIND_ICON[kind] || "text"] + '</span><span class="recent-name">' + esc(r.name || baseName(r.path)) + '</span><span class="recent-path">' + esc(dirName(r.path)) + '</span><span class="recent-time">' + esc(timeAgo(r.openedAt)) + "</span></button>";
     }).join("");
   }
   function renderEmptyState(host) {
-    host.innerHTML = '<div class="empty-card"><div><h1 class="empty-hero">mang \u2014 \u6807\u4E66\u5DE5\u4F5C\u53F0</h1><p class="empty-hero-sub">' + (state.workspace ? "\u5DE5\u4F5C\u533A\uFF1A" + esc(state.workspace) : "\u5C1A\u672A\u6253\u5F00\u5DE5\u4F5C\u533A") + '</p></div><div class="empty-section-title">\u6700\u8FD1\u6253\u5F00</div><div class="recent-list">' + recentRowsHtml(8) + '</div><div class="empty-actions"><button class="btn btn-primary" data-act="open-file">' + ICON.text + '\u6253\u5F00\u6587\u4EF6</button><button class="btn" data-act="open-folder">' + ICON.folder + '\u6253\u5F00\u6587\u4EF6\u5939</button></div><div class="empty-section-title">\u5FEB\u6377\u952E</div><div class="empty-hints"><span><span class="kbd">Ctrl+O</span></span><span>\u6253\u5F00\u6587\u4EF6</span><span><span class="kbd">Ctrl+B</span></span><span>\u663E\u793A / \u9690\u85CF\u4FA7\u680F</span><span><span class="kbd">Ctrl+W</span></span><span>\u5173\u95ED\u5F53\u524D Tab</span><span><span class="kbd">Ctrl+Tab</span></span><span>\u5207\u6362 Tab</span></div></div>';
+    host.innerHTML = '<div class="empty-card"><div><h1 class="empty-hero">mang \u2014 \u6807\u4E66\u5DE5\u4F5C\u53F0</h1><p class="empty-hero-sub">' + (state.workspace ? "\u5DE5\u4F5C\u533A\uFF1A" + esc(state.workspace) : "\u5C1A\u672A\u6253\u5F00\u5DE5\u4F5C\u533A") + '</p></div><div class="empty-section-title">\u6700\u8FD1\u6253\u5F00</div><div class="recent-list">' + recentRowsHtml(8) + '</div><div class="empty-actions"><button class="btn btn-primary" data-act="open-file">' + ICON.text + '\u6253\u5F00\u6587\u4EF6</button><button class="btn" data-act="open-folder">' + ICON.folder + '\u6253\u5F00\u5DE5\u4F5C\u533A</button></div><div class="empty-section-title">\u5FEB\u6377\u952E</div><div class="empty-hints"><span><span class="kbd">Ctrl+O</span></span><span>\u6253\u5F00\u6587\u4EF6</span><span><span class="kbd">Ctrl+B</span></span><span>\u663E\u793A / \u9690\u85CF\u4FA7\u680F</span><span><span class="kbd">Ctrl+W</span></span><span>\u5173\u95ED\u5F53\u524D Tab</span><span><span class="kbd">Ctrl+Tab</span></span><span>\u5207\u6362 Tab</span></div></div>';
   }
   function renderEmpty() {
     const host = $("#empty");
@@ -1878,7 +1887,10 @@
     host.addEventListener("click", (e) => {
       const item = e.target.closest(".recent-item[data-path]");
       if (item) {
-        ui.openPath(item.dataset.path);
+        // #194：最近列表的工作区条目（kind=dir）→ 切工作区；文件照旧打开
+        const rec = state.recent.find((r) => r.path === item.dataset.path);
+        if (rec && rec.kind === "dir") ui.switchWorkspace(item.dataset.path);
+        else ui.openPath(item.dataset.path);
         return;
       }
       const act = e.target.closest("[data-act]");
@@ -2461,9 +2473,44 @@
         const r = await ipc("dialog.openFolder", {}, 12e4);
         const p0 = r && r.paths && r.paths[0];
         if (!p0) return;
-        await ui.refreshTree();
+        await ui.switchWorkspace(p0);
       } catch (err) {
-        ui.toast("error", "\u6253\u5F00\u6587\u4EF6\u5939\u5931\u8D25\uFF1A" + err.message);
+        ui.toast("error", "\u6253\u5F00\u5DE5\u4F5C\u533A\u5931\u8D25\uFF1A" + err.message);
+      }
+    },
+    /**
+     * #194：切换工作区（= 切换标书项目——.mang/ 与 db.json 都在工作区根下）。
+     * 壳侧 workspace.open 换根（校验 + 记忆，重启停在上次的工作区）；
+     * UI 侧随之刷新：文件树 / 最近列表 / 状态栏 / git 面板，编辑器全关
+     * （旧工作区的文件句柄不再有效——防读写落到围栏外）。
+     */
+    async switchWorkspace(p0) {
+      if (!p0) return;
+      const info = await ipc("workspace.open", { path: p0 }, 15e3);
+      const root = info && info.root || p0;
+      state.workspace = root;
+      setWorkspaceLabel(root);
+      // 工作区进最近列表（kind=dir——下次可从欢迎页一键切回）
+      touchRecentWorkspace(root);
+      // 清空编辑器（Tab dispose 走 closeTab 的完整清理链）
+      ui.closeAllTabs();
+      // 旧工作区的会话态全部失效：展开目录/选中项/git 数据/快照面板
+      state.expanded = new Set();
+      state.selectedRel = "";
+      state.git = { status: "idle", available: false, branch: "", items: [], log: [], error: "" };
+      state.snapshots = { status: "idle", file: "", entries: [], error: "" };
+      // 重载：文件树（新根）+ 空态/侧栏/状态栏
+      await ui.refreshTree();
+      loadRecent().then(() => {
+        renderEmpty();
+        renderHistoryViewIfVisible();
+      });
+      renderSidebar();
+      renderStatusBar();
+      // git 面板当前可见才立刻拉新工作区的数据（不可见时等打开再拉）
+      if (settings.sidebarActive === "changes") ui.loadGit();
+      if (info && info.changed) {
+        ui.toast("ok", "\u5DF2\u5207\u6362\u5DE5\u4F5C\u533A\uFF1A" + (baseName(root) || root));
       }
     },
     async openFileDialog() {

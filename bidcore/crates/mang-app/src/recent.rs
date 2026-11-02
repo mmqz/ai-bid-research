@@ -91,6 +91,49 @@ pub fn load() -> Result<Value, IpcError> {
     Ok(json!({ "items": items, "file": paths::display(&path) }))
 }
 
+// ── #194：最后工作区记忆（%APPDATA%\mang\last-workspace.json）────
+//
+// 用途：mang-app 无参启动（双击/开始菜单）时停留在上次的工作区，
+// 而不是落进无意义的 cwd。CLI 显式参数依然优先（见 main.rs 解析序）。
+// 写盘与 recent.json 同口径：先 .tmp 再 rename，防半截 JSON。
+
+/// last-workspace.json 的路径（与 recent.json 同目录）。
+pub fn last_workspace_path() -> PathBuf {
+    recent_path().with_file_name("last-workspace.json")
+}
+
+/// 读回上次工作区（文件缺失/损坏/目录已不存在 → None——回退 cwd）。
+pub fn last_workspace() -> Option<PathBuf> {
+    let _g = RECENT_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let bytes = std::fs::read(last_workspace_path()).ok()?;
+    let v: Value = serde_json::from_slice(&bytes).ok()?;
+    let root = v.get("root")?.as_str()?.trim().to_string();
+    if root.is_empty() {
+        return None;
+    }
+    let p = PathBuf::from(&root);
+    // 目录没了就不再「停留」——拿着失效路径起 Workspace::new 只会启动失败
+    if !p.is_dir() {
+        return None;
+    }
+    Some(p)
+}
+
+/// 切换工作区成功后落盘（display 形态存根路径——与 UI 呈现一致）。
+pub fn remember_last_workspace(root: &std::path::Path) -> Result<(), IpcError> {
+    let _g = RECENT_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let path = last_workspace_path();
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| paths::map_io(dir, &e))?;
+    }
+    let bytes = serde_json::to_vec_pretty(&json!({ "root": paths::display(root) }))
+        .map_err(|e| IpcError::io(e.to_string()))?;
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, &bytes).map_err(|e| paths::map_io(&tmp, &e))?;
+    std::fs::rename(&tmp, &path).map_err(|e| paths::map_io(&path, &e))?;
+    Ok(())
+}
+
 /// recent.save {items:[...]} → {ok:true, count, file}
 pub fn save(args: Args<'_>) -> Result<Value, IpcError> {
     let arr = match args.get("items") {
@@ -306,5 +349,33 @@ mod tests {
         assert_eq!(out["count"], json!(1));
         let loaded = load().unwrap();
         assert!(loaded["items"].is_array());
+    }
+
+    // ── #194：最后工作区记忆 ───────────────────────────────
+
+    #[test]
+    fn last_workspace_roundtrip_and_staleness() {
+        let dir = std::env::temp_dir().join(format!(
+            "mang-lastws-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        // 落盘 → 读回一致
+        remember_last_workspace(&dir).unwrap();
+        assert_eq!(last_workspace().as_deref(), Some(dir.as_path()));
+        // 目录没了 → None（不再「停留」在失效路径）
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(last_workspace(), None);
+        // 损坏 JSON → None（不炸）
+        std::fs::write(last_workspace_path(), "{oops").unwrap();
+        assert_eq!(last_workspace(), None);
+        // 空根串 → None
+        std::fs::write(last_workspace_path(), r#"{"root":"  "}"#).unwrap();
+        assert_eq!(last_workspace(), None);
+        let _ = std::fs::remove_file(last_workspace_path());
     }
 }

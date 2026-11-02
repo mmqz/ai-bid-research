@@ -9,6 +9,7 @@
 //!     `mang://localhost/__ipc/<id>.json` 取回，**服务一次即删除**。
 
 use std::path::{Path, PathBuf};
+use std::sync::RwLock;
 
 use serde_json::{json, Map, Value};
 
@@ -288,14 +289,51 @@ pub fn purge_pending() {
 // ---------------------------------------------------------------- 分发
 
 /// 执行上下文：工作区 + UI 目录 + 版本信息
+///
+/// #194：`workspace` 是读写锁——运行期可经 `workspace.open` 换根
+///（此前不可变字段导致「只能退出重开」）。语义提醒：mang-app 的
+/// workspace 就是标书项目目录（.mang/llm.json、.mang/history/、
+/// db.json 都在其下），切换工作区 = 切换项目，无第二套概念。
 pub struct Ctx {
-    pub workspace: Workspace,
+    pub workspace: RwLock<Workspace>,
     pub ui_dir: PathBuf,
 }
 
 impl Ctx {
     pub fn new(workspace: Workspace, ui_dir: PathBuf) -> Self {
-        Self { workspace, ui_dir }
+        Self { workspace: RwLock::new(workspace), ui_dir }
+    }
+
+    /// 工作区读视图（单条命令执行期内一致）。锁毒化不复位
+    ///（与 recent.rs 的 Mutex 同口径：panic 已不可救，让下个锁者也直说）。
+    pub fn ws(&self) -> std::sync::RwLockReadGuard<'_, Workspace> {
+        self.workspace.read().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// #194：工作区快照（后台线程传值用——Workspace 是 Clone 的
+    /// PathBuf 壳，克隆成本可忽略）。
+    pub fn workspace_snapshot(&self) -> Workspace {
+        self.ws().clone()
+    }
+
+    /// #194：切换工作区。校验复用 [`Workspace::new`]（canonicalize +
+    /// is_dir——与启动同一套判错），成功即换根 + 记忆
+    ///（recent::remember_last_workspace——重启停在上次的工作区）。
+    /// 记忆失败不阻断切换（记忆是尽力而为，切换是主语义）。
+    pub fn open_workspace(&self, raw: &str) -> Result<Value, IpcError> {
+        let next = Workspace::new(Path::new(raw))?;
+        let prev = self.ws().root_display();
+        let changed = prev != next.root_display();
+        let root_display = next.root_display();
+        *self.workspace.write().unwrap_or_else(|e| e.into_inner()) = next.clone();
+        if let Err(e) = crate::recent::remember_last_workspace(next.root_canonical()) {
+            eprintln!("[mang] 记忆最后工作区失败（不阻断切换）：{e}");
+        }
+        Ok(json!({
+            "root": root_display,
+            "previous": prev,
+            "changed": changed,
+        }))
     }
 
     /// 执行一条请求，返回响应帧（永不 panic、永远给 id 一个答复）
@@ -308,12 +346,28 @@ impl Ctx {
     }
 
     fn exec(&self, cmd: &str, a: Args<'_>) -> Result<Value, IpcError> {
+        // #194：工作区命令先行分派——open 要写锁，不能与下面整段
+        // 持读锁的常规命令重入（RwLock 读锁未释时取写锁 = 死锁）。
+        match cmd {
+            "workspace.current" => {
+                let ws = self.ws();
+                return Ok(json!({
+                    "root": ws.root_display(),
+                    "canonical": paths::display(ws.root_canonical()),
+                }));
+            }
+            "workspace.open" => return self.open_workspace(a.req_str("path")?),
+            _ => {}
+        }
+        // 常规命令：同一条命令的整个执行期持同一读视图（切工作区
+        // 与命令执行串行化——本壳 IPC 单线程分派，无并发窗口）。
+        let ws = self.ws();
         match cmd {
             "ping" => Ok(json!({ "pong": true, "t": now_ms() })),
 
             "app.info" => Ok(json!({
                 "version": env!("CARGO_PKG_VERSION"),
-                "workspace": self.workspace.root_display(),
+                "workspace": ws.root_display(),
                 "ui_dir": paths::display(&self.ui_dir),
                 "exe": std::env::current_exe().map(|p| paths::display(&p)).unwrap_or_default(),
                 "pid": std::process::id(),
@@ -325,68 +379,68 @@ impl Ctx {
                 "profile": if cfg!(debug_assertions) { "debug" } else { "release" },
             })),
 
-            "fs.tree" => crate::fsapi::tree(&self.workspace, a),
+            "fs.tree" => crate::fsapi::tree(&ws, a),
 
-            "fs.read" => crate::fsapi::read(&self.workspace, a),
+            "fs.read" => crate::fsapi::read(&ws, a),
 
-            "fs.readBytes" => crate::fsapi::read_bytes(&self.workspace, a),
+            "fs.readBytes" => crate::fsapi::read_bytes(&ws, a),
 
-            "fs.writeBytes" => crate::fsapi::write_bytes(&self.workspace, a),
+            "fs.writeBytes" => crate::fsapi::write_bytes(&ws, a),
 
-            "fs.stat" => crate::fsapi::stat(&self.workspace, a),
+            "fs.stat" => crate::fsapi::stat(&ws, a),
 
-            "fs.mkdir" => crate::fsapi::mkdir(&self.workspace, a),
+            "fs.mkdir" => crate::fsapi::mkdir(&ws, a),
 
-            "explorer.reveal" => crate::shell::reveal(&self.workspace, a),
+            "explorer.reveal" => crate::shell::reveal(&ws, a),
 
             "recent.load" => crate::recent::load(),
 
             "recent.save" => crate::recent::save(a),
 
-            "history.list" => crate::recent::history_list(&self.workspace, a),
+            "history.list" => crate::recent::history_list(&ws, a),
 
             // git 提交记录（只读）：改动/历史面板的数据源
             "git.log" => {
                 let rel = a.opt_path("path")?;
                 let limit = a.u64("limit")?.unwrap_or(80) as usize;
-                crate::gitlog::log(&self.workspace, rel, limit)
+                crate::gitlog::log(&ws, rel, limit)
             }
 
             "git.show" => {
                 let hash = a.req_str("hash")?;
                 let rel = a.opt_path("path")?;
-                crate::gitlog::show(&self.workspace, hash, rel)
+                crate::gitlog::show(&ws, hash, rel)
             }
 
             "git.status" => {
                 let rel = a.opt_path("path")?;
-                crate::gitlog::status(&self.workspace, rel)
+                crate::gitlog::status(&ws, rel)
             }
 
             "preview.write" => crate::fsapi::preview_write(a),
 
             // 版本快照（issue #42 阶段 7）：自动/手动存版本 + 预览 + 回滚
-            "snapshots.check" => crate::snapshots::check(&self.workspace, a),
+            "snapshots.check" => crate::snapshots::check(&ws, a),
 
-            "snapshots.save" => crate::snapshots::save(&self.workspace, a),
+            "snapshots.save" => crate::snapshots::save(&ws, a),
 
-            "snapshots.read" => crate::snapshots::read(&self.workspace, a),
+            "snapshots.read" => crate::snapshots::read(&ws, a),
 
-            "snapshots.rollback" => crate::snapshots::rollback(&self.workspace, a),
+            "snapshots.rollback" => crate::snapshots::rollback(&ws, a),
 
             // 来源标注边车（issue #42 阶段 8）：浮层数据 + 认校验三态
-            "annotations.load" => crate::annotations::load(&self.workspace, a),
+            "annotations.load" => crate::annotations::load(&ws, a),
 
-            "annotations.setStatus" => crate::annotations::set_status(&self.workspace, a),
+            "annotations.setStatus" => crate::annotations::set_status(&ws, a),
 
             // ── #76 设置面板状态面（diag.rs）──────────────────────────
             "mcp.status" => crate::diag::mcp_status(),
-            "llm.status" => crate::diag::llm_status(&self.workspace),
-            "llm.save" => crate::diag::llm_save(&self.workspace, &a),
-            "fspec.status" => crate::diag::fspec_status(&self.workspace),
+            "llm.status" => crate::diag::llm_status(&ws),
+            "llm.save" => crate::diag::llm_save(&ws, &a),
+            "fspec.status" => crate::diag::fspec_status(&ws),
 
             // 绝对路径（拖拽/对话框/最近打开）→ 归一成 {path, rel, kind, size, mtimeMs, insideWorkspace}
-            "file.fromPath" => crate::fsapi::from_path(&self.workspace, a),
+            "file.fromPath" => crate::fsapi::from_path(&ws, a),
 
             // 对话框必须在主线程同步跑（Win32 模态），这里只做参数校验占位，
             // 真正的执行在 main.rs 的事件循环里（main_thread_cmd）。
@@ -470,5 +524,84 @@ mod tests {
         let small = ok_frame(&id, json!({"pong":true}));
         let out = spill_if_large(&id, small.clone());
         assert_eq!(out, small);
+    }
+
+    // ── #194：工作区切换 ─────────────────────────────────────
+
+    fn tmp_dir(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "mang-ws-{tag}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn workspace_open_switches_root_and_reports_change() {
+        let a = std::fs::canonicalize(tmp_dir("a")).unwrap();
+        let b = std::fs::canonicalize(tmp_dir("b")).unwrap();
+        let ctx = Ctx::new(Workspace::new(&a).unwrap(), PathBuf::new());
+        // 切到 B：root 变化、changed=true
+        let out = ctx.open_workspace(b.to_string_lossy().as_ref()).unwrap();
+        assert_eq!(out["changed"], json!(true));
+        assert_eq!(out["root"].as_str().unwrap(), paths::display(&b));
+        // 常规命令面看到的已是 B（fs.tree 的根 = 当前工作区）
+        let mut m = Map::new();
+        m.insert("depth".into(), json!(1));
+        let tree = ctx.exec("fs.tree", Args::new(&m)).unwrap();
+        assert_eq!(tree["root"].as_str().unwrap(), paths::display(&b));
+        // 重复打开同一工作区：changed=false（幂等）
+        let out = ctx.open_workspace(b.to_string_lossy().as_ref()).unwrap();
+        assert_eq!(out["changed"], json!(false));
+        // workspace.current 与 app.info 同步
+        let cur = ctx.exec("workspace.current", Args::new(&Map::new())).unwrap();
+        assert_eq!(cur["root"].as_str().unwrap(), paths::display(&b));
+        let info = ctx.exec("app.info", Args::new(&Map::new())).unwrap();
+        assert_eq!(info["workspace"].as_str().unwrap(), paths::display(&b));
+        let _ = std::fs::remove_dir_all(a);
+        let _ = std::fs::remove_dir_all(b);
+    }
+
+    #[test]
+    fn workspace_open_rejects_bad_paths_without_switching() {
+        let a = std::fs::canonicalize(tmp_dir("keep")).unwrap();
+        let b = tmp_dir("gone");
+        std::fs::remove_dir_all(&b).unwrap(); // B 不存在
+        let ctx = Ctx::new(Workspace::new(&a).unwrap(), PathBuf::new());
+        // 不存在的目录：not_found，且不换根
+        let err = ctx.open_workspace(b.to_string_lossy().as_ref()).unwrap_err();
+        assert_eq!(err.code, "not_found");
+        // 文件不是目录：bad_args
+        let f = a.join("plain.txt");
+        std::fs::write(&f, "x").unwrap();
+        let err = ctx.open_workspace(f.to_string_lossy().as_ref()).unwrap_err();
+        assert_eq!(err.code, "bad_args");
+        // 现工作区未受影响
+        let cur = ctx.exec("workspace.current", Args::new(&Map::new())).unwrap();
+        assert_eq!(cur["root"].as_str().unwrap(), paths::display(&a));
+        // workspace.open 缺参数 → bad_args
+        let err = ctx.exec("workspace.open", Args::new(&Map::new())).unwrap_err();
+        assert_eq!(err.code, "bad_args");
+        let _ = std::fs::remove_dir_all(a);
+    }
+
+    #[test]
+    fn workspace_open_persists_last_workspace() {
+        let a = tmp_dir("la");
+        let b = std::fs::canonicalize(tmp_dir("lb")).unwrap();
+        let ctx = Ctx::new(Workspace::new(&a).unwrap(), PathBuf::new());
+        ctx.open_workspace(b.to_string_lossy().as_ref()).unwrap();
+        // 记忆落盘 + 读回一致（重启恢复口径）
+        assert_eq!(
+            crate::recent::last_workspace().as_deref(),
+            Some(b.as_path())
+        );
+        let _ = std::fs::remove_dir_all(a);
+        let _ = std::fs::remove_dir_all(b);
     }
 }

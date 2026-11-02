@@ -7,6 +7,8 @@ pub mod context;
 pub mod draft;
 pub mod export;
 pub mod format_spec;
+// #183+#189：MCP 文件访问围栏（导入 upload_ref / 导出 output_path 共用单一实现）
+pub mod fs_fence;
 pub mod llm;
 pub mod placeholder;
 pub mod quality;

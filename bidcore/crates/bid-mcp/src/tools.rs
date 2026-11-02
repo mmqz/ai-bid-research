@@ -17,7 +17,6 @@
 
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::path::PathBuf;
 
 use crate::cursor;
 use crate::error::{ToolError, ToolResult};
@@ -373,6 +372,16 @@ fn import_tender_files(svc: &mut BidService, args: Value) -> ToolResult {
         });
     }
     let project_version = opt_u64(&args, "project_version", "import_tender_files")?;
+    // ---- #183 围栏（壳层半边）：无受信根 → 响亮拒（指路 BID_WS）；
+    //      有根 → 逐件 resolve_read（工作区相对 / 围栏内绝对；`..`/越界/
+    //      symlink 段 → E_UNPROCESSABLE，先于项目路由与状态机——零副作用）。
+    //      服务层 import 持根复验（双保险），见 service.rs。
+    let fs_roots = svc.fs_roots();
+    if fs_roots.is_empty() {
+        return Err(ToolError::EUnprocessable {
+            what: "导入需要工作区（设 BID_WS 环境变量，或用 BidService::open 打开持久化工作区，或 BID_FS_ROOT 声明受信导入根）".into(),
+        });
+    }
     let mut specs = Vec::with_capacity(files.len());
     for (i, f) in files.iter().enumerate() {
         let at = format!("files[{i}]");
@@ -391,8 +400,16 @@ fn import_tender_files(svc: &mut BidService, args: Value) -> ToolResult {
             None => "附件".to_string(), // 契约 §2 kind 可选——缺省归通用附件
         };
         let expected_pages = opt_u64(f, "expected_pages", &at)?;
+        // 围栏解析：相对 = 围栏根锚定（不再按进程 CWD 解析——那是不可控行为）；
+        // upload_ref 装载 canonical 绝对路径（缺失件不在围栏层抢答——R-01 逐件
+        // 失败语义在服务层 sha256_file，见 fs_fence.rs 模块头）。
+        let fenced = bid_tools::fs_fence::resolve_read(
+            &fs_roots,
+            std::path::Path::new(&upload_ref),
+        )
+        .map_err(ToolError::from)?;
         specs.push(ImportSpec {
-            upload_ref: PathBuf::from(upload_ref),
+            upload_ref: fenced.absolute(),
             filename,
             kind,
             expected_pages,

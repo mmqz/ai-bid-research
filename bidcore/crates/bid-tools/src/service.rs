@@ -20,8 +20,11 @@ use std::path::{Path, PathBuf};
 /// 单文件导入规格（MCP 壳已完成契约校验后传入）。
 #[derive(Debug, Clone)]
 pub struct ImportSpec {
-    /// 上传工件引用。AdapterA 本实现 = 文件系统路径（绝对路径稳妥——相对路径
-    /// 按进程 CWD 解析）；未来对象存储句柄在同位替换，管线不变。
+    /// 上传工件引用。AdapterA 本实现 = 文件系统路径。**#183 围栏口径**：
+    /// 壳层/服务层会把本字段过 [`crate::fs_fence::resolve_read`]（工作区
+    /// 相对或围栏内绝对路径，越界/`..`/symlink 段 → E_UNPROCESSABLE）并
+    /// 替换为围栏内 canonical 绝对路径；未来对象存储句柄在同位替换，
+    /// 管线不变。
     pub upload_ref: PathBuf,
     /// 逻辑文件名（落库 `TenderFile.name` 与解析标签——与 upload_ref 解耦，
     /// 供 item_errors 对账与证据锚溯源）。
@@ -86,7 +89,11 @@ fn ocr_tier_of(status: ParseStatus, ocr_blocks: usize) -> &'static str {
     }
 }
 
-/// 导入管线（契约 §2 业务半边）。
+/// 导入管线（契约 §2 业务半边）——**受信内部 API**（#183：无围栏）。
+///
+/// 调用方：[`BidService::import`]（服务层，带围栏复验+限额——MCP 壳的正道）
+/// 与 runner.rs 场景运行器（files_dir 受信内部目录）。外部输入必须先过
+/// 围栏（见 [`crate::fs_fence`]），不要直接把 MCP 调用者的路径喂进本函数。
 ///
 /// 逐件：sha256 幂等（已存在 → no-op 返回原 file_id，`deduplicated:true`）→
 /// `parse_file` → `upsert_file` 落库；成功件的解析产物累积进 `parsed`
@@ -312,6 +319,12 @@ pub struct BidService {
     store: DomainStore,
     parsed: Vec<ParsedFile>,
     persist: Option<crate::store_io::StoreFile>,
+    /// 文件访问围栏根（#183/#189：import upload_ref / export output_path 的
+    /// 受信边界）。`open(dir)` 默认 = 工作区目录；`with_fs_root` 覆盖
+    /// （BID_FS_ROOT / 测试夹具声明更广的受信根）；`new()` = None →
+    /// 导入响亮拒（见 [`Self::import`]）。持久化目录始终隐式受信（服务的
+    /// 自有存储——章节/导出/manifest 都落在那里，与 fs_root 是否覆盖无关）。
+    fs_root: Option<PathBuf>,
 }
 
 impl BidService {
@@ -321,13 +334,14 @@ impl BidService {
             store: DomainStore::new(),
             parsed: vec![],
             persist: None,
+            fs_root: None,
         }
     }
 
     /// 打开（或首启创建）持久化服务态：目录有 `db.json` 则恢复（重启续跑——
     /// T-8 验收「建项→导入→抽条款→重启→状态完整恢复」的入口），否则空态起步。
     pub fn open(dir: impl AsRef<Path>) -> Result<Self, crate::store_io::StoreIoError> {
-        let sf = crate::store_io::StoreFile::new(dir);
+        let sf = crate::store_io::StoreFile::new(&dir);
         let (snap, parsed) = match sf.load()? {
             Some((s, p)) => (Some(s), p),
             None => (None, vec![]),
@@ -345,8 +359,45 @@ impl BidService {
         Ok(Self {
             store,
             parsed,
+            // #183/#189：默认围栏根 = 工作区（导入导出都锁在工作区内；
+            // BID_FS_ROOT / with_fs_root 可显式声明更广的受信根）
+            fs_root: Some(dir.as_ref().to_path_buf()),
             persist: Some(sf),
         })
+    }
+
+    /// 覆盖文件访问围栏根（#183/#189）。builder 形态：`open(ws).with_fs_root(x)`
+    /// / `new().with_fs_root(x)`。根不存在时保留原样（围栏将拒绝一切路径并
+    /// 响亮报错，不静默降级）。持久化目录（若在）始终隐式受信——测试夹具
+    /// 用本方法声明仓库夹具根后，导出写工作区仍合法。
+    #[must_use]
+    pub fn with_fs_root(mut self, root: impl AsRef<Path>) -> Self {
+        let r = root.as_ref().to_path_buf();
+        self.fs_root = Some(std::fs::canonicalize(&r).unwrap_or(r));
+        self
+    }
+
+    /// 围栏根清单（canonical；去重）：fs_root 在场用 fs_root，否则退回持久化
+    /// 目录；持久化目录始终追加（服务自有存储隐式受信）。空清单 = 无围栏
+    /// 可言（纯内存态未声明根）→ 导入响亮拒。
+    #[must_use]
+    pub fn fs_roots(&self) -> Vec<PathBuf> {
+        let mut roots: Vec<PathBuf> = Vec::new();
+        let primary = self
+            .fs_root
+            .clone()
+            .or_else(|| self.persist.as_ref().map(|sf| sf.dir().to_path_buf()));
+        if let Some(p) = primary {
+            let c = std::fs::canonicalize(&p).unwrap_or(p);
+            roots.push(c);
+        }
+        if let Some(sf) = &self.persist {
+            let c = std::fs::canonicalize(sf.dir()).unwrap_or_else(|_| sf.dir().to_path_buf());
+            if !roots.iter().any(|r| crate::fs_fence::is_inside(&c, r) && crate::fs_fence::is_inside(r, &c)) {
+                roots.push(c);
+            }
+        }
+        roots
     }
 
     /// 显式落盘（幂等纯 IO——外部对账/退出前钩子用；写路径已自动 checkpoint）。
@@ -502,8 +553,63 @@ impl BidService {
 
     /// `import_tender_files` 业务执行（壳已完成参数校验 / 状态机裁决 /
     /// 乐观并发检查——本层只跑管线；T-8：持久化在场时写后自动落盘）。
+    ///
+    /// #183 围栏（双保险的服务层半边）：壳层已逐件 resolve_read 过一次，
+    /// 这里持根复验（壳与服务层任一被绕过都不放行）+ 施加大小/件数/累计
+    /// 限额（超限 E_UNPROCESSABLE 逐件报因）。upload_ref 会被替换成围栏内
+    /// canonical 绝对路径再进管线。
     pub fn import(&mut self, specs: &[ImportSpec]) -> Result<ImportReport, ToolError> {
-        let report = import_files(&mut self.store, &mut self.parsed, specs);
+        use crate::fs_fence::{resolve_read, MAX_BATCH_FILES, MAX_FILE_BYTES, MAX_TOTAL_BYTES};
+        let roots = self.fs_roots();
+        if roots.is_empty() {
+            return Err(ToolError::EUnprocessable {
+                reason: "导入需要工作区（设 BID_WS 环境变量，或用 BidService::open 打开持久化工作区，或 with_fs_root 声明受信导入根）".into(),
+            });
+        }
+        if specs.len() > MAX_BATCH_FILES {
+            return Err(ToolError::EUnprocessable {
+                reason: format!(
+                    "单批导入件数超限：{} 件 > {} 件（分批重传）",
+                    specs.len(),
+                    MAX_BATCH_FILES
+                ),
+            });
+        }
+        let mut resolved: Vec<ImportSpec> = Vec::with_capacity(specs.len());
+        let mut total: u64 = 0;
+        for spec in specs {
+            let r = resolve_read(&roots, &spec.upload_ref)?;
+            let abs = r.absolute();
+            // 大小门（存在才量——缺失件交给下游逐件失败语义，不在这里抢答）
+            if let Ok(md) = std::fs::metadata(&abs) {
+                if md.len() > MAX_FILE_BYTES {
+                    return Err(ToolError::EUnprocessable {
+                        reason: format!(
+                            "{} 超过单文件导入上限（{} 字节 > {} 字节）",
+                            spec.filename,
+                            md.len(),
+                            MAX_FILE_BYTES
+                        ),
+                    });
+                }
+                total = total.saturating_add(md.len());
+                if total > MAX_TOTAL_BYTES {
+                    return Err(ToolError::EUnprocessable {
+                        reason: format!(
+                            "批次累计导入超限（截至 {} 已 {} 字节 > {} 字节）",
+                            spec.filename, total, MAX_TOTAL_BYTES
+                        ),
+                    });
+                }
+            }
+            resolved.push(ImportSpec {
+                upload_ref: abs,
+                filename: spec.filename.clone(),
+                kind: spec.kind.clone(),
+                expected_pages: spec.expected_pages,
+            });
+        }
+        let report = import_files(&mut self.store, &mut self.parsed, &resolved);
         self.auto_checkpoint()?;
         Ok(report)
     }
@@ -607,8 +713,13 @@ impl BidService {
                 reason: "导出需要持久化工作区（BidService::open 建立的服务态才有章内容可导）"
                     .into(),
             })?;
-        // 路径逃逸校验（拿到工作区后才可判前缀）
-        validate_output_path(&dir, output_path)?;
+        // 路径逃逸校验（#189：升级为围栏 resolve_write——旧 validate_output_path
+        // 的字符串前缀比较有 `c:/bid/work-evil` 命中 `c:/bid/work` 的前缀陷阱，
+        // 且无符号链接检查；组件级比较 + 逐段 symlink 检查在此拦下越界写）。
+        // 返回的 canonical 绝对路径作为后续真实写目标（防检查与写入两套口径）。
+        let fenced_out = crate::fs_fence::resolve_write(&self.fs_roots(), output_path)?;
+        let fenced_abs = fenced_out.absolute();
+        let output_path = fenced_abs.as_path();
         let opts = crate::export::ExportOptions {
             format_spec: Some(&spec),
             project_name: self.store.project()?.name.clone(),
@@ -774,52 +885,6 @@ impl Default for BidService {
 /// 完整链）；已是 EXPORTED → no-op（重导幂等）。前段态直达 → 状态机错误
 /// 透传（防御面——guard 不应放行）。
 
-/// 导出路径校验（逃逸防护）：拒绝父级逃逸与工作区外的绝对路径。
-///
-/// 合法形态：
-///   - 相对路径且不含 `..`（如 `out/标书.docx`）—— 相对工作区解析
-///   - 绝对路径但落在工作区内（如 `<ws>/out/标书.docx`）—— 服务层内部拼接产物
-///
-/// 拒绝形态：
-///   - 任意位置的父级分量 `..`（逃出工作区）
-///   - 绝对路径且不以工作区为前缀（写到盘上任意位置 = 任意写权限）
-fn validate_output_path(
-    workspace: &std::path::Path,
-    output: &std::path::Path,
-) -> Result<(), ToolError> {
-    for comp in output.components() {
-        if matches!(comp, std::path::Component::ParentDir) {
-            return Err(ToolError::EUnprocessable {
-                reason: format!(
-                    "output_path 不得包含父级逃逸 `..`（实际：{}）",
-                    output.display()
-                ),
-            });
-        }
-    }
-    if output.is_absolute() {
-        // 工作区与目标都做「去 \\?\ 前缀 + 大小写归一」后再比前缀
-        let ws = normalize_for_prefix(workspace);
-        let tgt = normalize_for_prefix(output);
-        if !tgt.starts_with(&ws) {
-            return Err(ToolError::EUnprocessable {
-                reason: format!(
-                    "output_path 必须在工作区内（工作区：{}；实际：{}）",
-                    workspace.display(),
-                    output.display()
-                ),
-            });
-        }
-    }
-    Ok(())
-}
-
-/// 前缀比较用的路径归一：去 Windows `\\?\` 扩展前缀，统一小写（Windows 大小写不敏感）。
-fn normalize_for_prefix(p: &std::path::Path) -> String {
-    let s = p.to_string_lossy();
-    let s = s.strip_prefix(r"\\?\").unwrap_or(&s);
-    s.replace('\\', "/").to_lowercase()
-}
 fn advance_project_to_exported(store: &mut DomainStore) -> Result<(), ToolError> {
     use bid_domain::ProjectStatus::*;
     let cur = store.project()?.status;

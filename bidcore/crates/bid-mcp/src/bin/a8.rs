@@ -6,7 +6,7 @@
 //! 用法：`cargo run -p bid-mcp --bin a8 -- <招标文件.docx> [输出.json]`
 //! 退出码：0 全链成功 / 1 任一环失败（stderr 带环节定位）。
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use bid_tools::service::{BidService, ImportSpec};
 
@@ -22,7 +22,9 @@ fn main() {
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("a8-compliance-matrix.json"));
 
-    let mut svc = BidService::new();
+    // #183：a8 是 CLI 直连服务层（非 MCP 壳），upload_ref 过围栏——围栏根
+    // = 招标文件所在目录（CLI 的受信面就是用户指的那个目录）。
+    let mut svc = BidService::new().with_fs_root(docx.parent().unwrap_or_else(|| Path::new(".")));
 
     // ---- ① create_bid_project（状态机入口：DRAFT；T-8：服务层包装写后自动落盘）
     let (_, created) = svc

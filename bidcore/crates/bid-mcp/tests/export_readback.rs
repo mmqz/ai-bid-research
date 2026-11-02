@@ -780,18 +780,17 @@ enum PdfChannel {
 }
 
 fn read_pdf(path: &Path, name: &str) -> Option<PdfChannel> {
-    // 首选：引擎侧公共路径（pdfium/pdftotext 在位时给出真页数 + 真文本层）
-    if let Ok(pf) = bid_parse::parse_file(path, name) {
-        if pf.has_text_layer && pf.blocks.iter().any(|b| !b.text.trim().is_empty()) {
-            return Some(PdfChannel::Engine(pf));
-        }
+    // 统一走 `parse_file`：它在 pdfium/pdftotext 全缺时本就落到纯 Rust 兜底
+    // （bid-parse/src/lib.rs 模块头：「parse_file B4 后仅剩 pdf 面」）。
+    //
+    // 不再直调 `PdfText::extract` —— 那条路径返回 `PdfTextError`，该类型未从
+    // `pdf_text` 模块再导出，测试侧够不着（E0599 根因），且语义与 parse_file 重复。
+    let pf = bid_parse::parse_file(path, name).ok()?;
+    if pf.has_text_layer && pf.blocks.iter().any(|b| !b.text.trim().is_empty()) {
+        Some(PdfChannel::Engine(pf))
+    } else {
+        None
     }
-    // 兜底：纯 Rust 解字节（无 pdfium/poppler 环境也有一层可读面）
-    let bytes = std::fs::read(path).ok()?;
-    bid_parse::pdf_text::PdfText::extract(&bytes)
-        .ok()
-        .filter(|t| t.has_text())
-        .map(PdfChannel::Fallback)
 }
 
 impl PdfChannel {
@@ -1004,7 +1003,7 @@ fn decode_entities(s: &str) -> String {
             "lt" => Some('<'),
             "gt" => Some('>'),
             "quot" => Some('"'),
-            "apos" => Some('''),
+            "apos" => Some('\''),
             hex if hex.starts_with("#x") || hex.starts_with("#X") => u32::from_str_radix(&hex[2..], 16)
                 .ok()
                 .and_then(char::from_u32),
@@ -1033,8 +1032,12 @@ fn read_xlsx(path: &Path) -> XlsxRead {
         let mut e = zip.by_index(i).unwrap();
         parts.push(e.name().to_string());
         match e.name() {
-            "xl/workbook.xml" => e.read_to_string(&mut workbook_src).unwrap(),
-            "xl/sharedStrings.xml" => e.read_to_string(&mut shared_src).unwrap(),
+            "xl/workbook.xml" => {
+                e.read_to_string(&mut workbook_src).unwrap();
+            }
+            "xl/sharedStrings.xml" => {
+                e.read_to_string(&mut shared_src).unwrap();
+            }
             n if n.starts_with("xl/worksheets/") && n.ends_with(".xml") => {
                 let mut s = String::new();
                 e.read_to_string(&mut s).unwrap();

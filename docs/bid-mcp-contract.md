@@ -430,9 +430,29 @@ out: { project_id, section_id, section_title, chars, estimated, max,
        covered_items:[REQ-*], missing_items:[REQ-*], rationale（逐项可追溯）,
        item_scores:[{item_id,estimated,max,tier,coverage,is_objective,rationale}], request_id }
 语义: B2 SectionScorer 只调用不改（四维规则判定——覆盖度/字数/证据/具体性）。
-      评分项 section 映射：REQ params.section 优先，缺省按大纲绑定关系联结
-      （REQ 所在叶——确定性兜底，无 LLM）；价格类叶跳过内容自评（价格分 =
-      f(报价)，由 score_price 计算）；结构节点（有子）与未起草叶 → E_UNPROCESSABLE。
+       评分项 section 映射：REQ params.section 优先，缺省按大纲绑定关系联结
+       （REQ 所在叶——确定性兜底，无 LLM）；价格类叶跳过内容自评（价格分 =
+       f(报价)，由 score_price 计算）；结构节点（有子）与未起草叶 → E_UNPROCESSABLE。
+
+       ⚠️【#126 后的重要变更——2026-11-02 校正】
+       评分项**不进正文**（outline.rs:324：评分方法是评标委员会的算分规则，
+       正文写「价格分 30 分」等于把报价策略与评标办法混谈）。因此：
+         · 评分项 REQ 不在任何叶的 requirement_ids 里
+         · `build_scorer` 的 leaf_of 反查（叶 requirement_ids → 叶 id）**永不命中**
+         · 评分项 section_id 恒为 None → `score_section` 该节恒返回空结果
+           （max=0 / estimated=0 / item_scores=[]，rationale 说明「无映射到本章节的评分项」）
+       这不是缺陷，是 #126 语义的必然结果。前述「缺省按大纲绑定关系联结」
+       **对评分项已失效**（对正文类目 REQ 仍然有效）。
+
+       实际影响：
+         · score_document（整本自评）✅ 正常——按 requirements 全量派生，不依赖 section
+         · score_section（单节自评）❌ 对评分项恒空——只能评估**正文类目节**
+                                    （否决项/技术参数等有正文的节）
+
+       若未来需要「评分项按章节自评」，需先补映射来源：招标文件详细评审表的
+       「评审项目 → 被评章节」对应（#158 已具备审查表抽取能力，但尚未接线）。
+       三条候选修法见 issue **#170**（A 按章节标题匹配 / B 建纲时反填 / C 承认取舍）。
+       当前采用 **C**：本工具对评分项不做章节级自评，语义在此写明。
 状态: MATRIX_READY+（只读诊断——与 check_bid_quality 同窗口）
 错误: E_NOTFOUND（section 不存在）；E_UNPROCESSABLE（未起草/结构节点）；E_STATE（无章节树）
 ```

@@ -76,6 +76,12 @@ fn svc_drafted(tag: &str, draft_all: bool, chapter_ref: Option<&str>) -> (BidSer
         // 登记「第X章」引用——此处直接模拟登记产物测联结）
         req2.params.insert("section_title".to_string(), serde_json::json!(title));
     }
+    // #186 预留面：REQ-0002 登记评分细则（params.score_rules——extract.rs
+    // 评审表路径的登记形态）→ by_item/item_scores 透传 + 判档不消费
+    req2.params.insert(
+        "score_rules".to_string(),
+        serde_json::json!("技术方案应具有针对性、组织体系合理、进度计划可执行，并提供应急保障措施；每缺一项扣 2 分"),
+    );
     svc.set_requirements(vec![
         mk_req("REQ-0001", "评分项",
             "4.1 价格分（30 分）：以通过初步评审的有效投标报价的算术平均值下浮 5% 为基准价，价格分＝（基准价／投标报价）×30",
@@ -246,6 +252,9 @@ fn score_section_on_drafted_leaf() {
         "project_id": &pid, "section_id": &target_leaf,
     })));
     assert_eq!(r["section_id"], target_leaf.as_str());
+    // #186 语义降级标记：规则诊断非评标模拟——两个标记必须恒在场
+    assert_eq!(r["diagnostic_only"], json!(true), "diagnostic_only=true: {r:?}");
+    assert_eq!(r["result_kind"], "rule_heuristic", "result_kind=rule_heuristic: {r:?}");
     // 形状面：max / estimated / item_scores / rationale 都在场
     assert!(r["max"].as_f64().is_some(), "max 在场（数值）: {r:?}");
     assert!(r["estimated"].as_f64().is_some(), "estimated 在场: {r:?}");
@@ -312,6 +321,12 @@ fn score_section_maps_scoring_item_via_chapter_ref() {
         items.iter().any(|i| i["item_id"].as_str() == Some("REQ-0002")),
         "item_scores 应含章引用挂载的 REQ-0002：{items:?}"
     );
+    // #186 预留面：item_scores 透传细则原文（判档不消费——对照面）
+    let r2_item = items.iter().find(|i| i["item_id"].as_str() == Some("REQ-0002")).unwrap();
+    assert!(
+        r2_item["score_rules"].as_str().unwrap_or("").contains("每缺一项扣 2 分"),
+        "细则原文透传：{r2_item:?}"
+    );
     let rationale = r["rationale"].as_str().unwrap_or("");
     assert!(rationale.contains("覆盖"), "有映射项 → 覆盖度明细：{rationale}");
 }
@@ -355,6 +370,9 @@ fn score_document_shapes_and_price_semantics() {
     let r = ok_result(call(&mut svc, "score_document", json!({
         "project_id": &pid,
     })));
+    // #186 语义降级标记：规则诊断非评标模拟——两个标记必须恒在场
+    assert_eq!(r["diagnostic_only"], json!(true), "diagnostic_only=true: {r:?}");
+    assert_eq!(r["result_kind"], "rule_heuristic", "result_kind=rule_heuristic: {r:?}");
     // 【#126 语义变更后的口径】技术项 REQ-0002 是**评分项**，不进正文
     // （outline.rs:324）——它的 estimated 来自「章节正文覆盖度 × 该项分值」，
     // 而覆盖度取决于**本章节的正文**（否决项/技术参数叶的稿）。
@@ -377,6 +395,16 @@ fn score_document_shapes_and_price_semantics() {
     assert!(tech_item["estimated"].as_f64().is_some_and(|v| v >= 0.0), "技术项估分非负");
     // 【#126 后】评分项进不了叶 → leaf_of 反查落空 → section_id 为 None（合法）。
     // 「大纲联结」这条路径对评分项已失效（#126 的必然结果，非缺陷）。
+    // #186 预留面：by_item 透传细则原文（判档不消费）+ 无细则项显式 null
+    assert!(
+        tech_item["score_rules"].as_str().unwrap_or("").contains("每缺一项扣 2 分"),
+        "技术项细则原文透传：{tech_item:?}"
+    );
+    assert!(price_item["score_rules"].is_null(), "价格项无细则 → null（不虚构）：{price_item:?}");
+    assert!(
+        notes.iter().any(|n| n.as_str().unwrap_or("").contains("SCORE_RULES_RESERVED")),
+        "预留面 note 显式登记（不伪装按细则评分）：{notes:?}"
+    );
 
     // ---- 有报价（synth 4.1：平均价法 0.95、满分 30、比率）：价格计入 total
     let r2 = ok_result(call(&mut svc, "score_document", json!({

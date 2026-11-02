@@ -507,11 +507,19 @@ out: { spec:{method,max_score,budget,deviation_rule}, bid_price, others,
 
 ## 14. score_section（#100 任务 3 · B2 章节自评）
 
+> **#186 语义降级（规则诊断非评标模拟）**：本工具是关键词覆盖/长度阈值/证据词
+> 存在性的启发式诊断（`diagnostic_only=true, result_kind=rule_heuristic`），
+> **不是评标模拟**——tier 是覆盖度档位，不代表评委会会给的档。item_scores
+> 透传 `score_rules` 评分细则原文（**判档不消费**——起草/审校对照用预留面），
+> 细则判档接入后另行升级（#186 第二步，依赖 #170）。
+
 ```
 in : { project_id, section_id, project_version? }
-out: { project_id, section_id, section_title, chars, estimated, max,
+out: { project_id, diagnostic_only(true), result_kind("rule_heuristic"),
+       section_id, section_title, chars, estimated, max,
        covered_items:[REQ-*], missing_items:[REQ-*], rationale（逐项可追溯）,
-       item_scores:[{item_id,estimated,max,tier,coverage,is_objective,rationale}], request_id }
+       item_scores:[{item_id,estimated,max,tier,coverage,is_objective,rationale,
+                     score_rules?（细则原文——判档不消费，无则缺省）}], request_id }
 语义: B2 SectionScorer 只调用不改（四维规则判定——覆盖度/字数/证据/具体性）。
        评分项 section 映射：REQ params.section 优先，缺省按大纲绑定关系联结
        （REQ 所在叶——确定性兜底，无 LLM）；价格类叶跳过内容自评（价格分 =
@@ -538,16 +546,24 @@ out: { project_id, section_id, section_title, chars, estimated, max,
 
 ## 15. score_document（#100 任务 3 · B2 整本自评——「这份标书能得几分」）
 
+> **#186 语义降级（规则诊断非评标模拟）**：同 §14——total/tier 是规则启发式
+> 诊断结果（`diagnostic_only=true, result_kind=rule_heuristic`），**不代表
+> 评委会评分**；external Agent 不得以此为对外承诺依据。`score_rules` 为
+> **预留面**：细则原文透出（by_item），当前判档不消费——notes 以
+> SCORE_RULES_RESERVED 显式登记，接入见 #186 第二步（依赖 #170）。
+
 ```
 in : { project_id, project_version?,
        bid_price?（缺省 = 不计价——「没报价就不算」，price 出 null 而非 0）,
        others?:[$], method?/coefficient?/max_score?/budget?/deviation?（价格口径，
        仅 bid_price 在场时消费——参数面同 §13 score_price） }
-out: { project_id, technical, price（null | 数值）, commercial（null | 数值）, total,
+out: { project_id, diagnostic_only(true), result_kind("rule_heuristic"),
+       technical, price（null | 数值）, commercial（null | 数值）, total,
        target（诚实满分 = 非硬门可达叶 max 合计——含价格项与未映射项，不因没写缩分母）,
-       gap = target − total, by_item:[{item_id,criteria,max,estimated,tier,coverage,section_id}],
+       gap = target − total, by_item:[{item_id,criteria,max,estimated,tier,coverage,section_id,
+               score_rules（细则原文 | null——判档不消费，透出供对照）}],
        breakdown:[SectionScore…（逐章节）], notes[]（UNMAPPED/SECTION_MISSING/NO_PRICE_INPUT
-       诚实登记）, price_input（价格口径 echo | null）, sections_scored, request_id }
+       /SCORE_RULES_RESERVED 诚实登记）, price_input（价格口径 echo | null）, sections_scored, request_id }
 语义: B2 score_document 三段聚合（技术 = 主观叶估分和；商务 = 客观叶；价格 = B1
       实算）+ by_item 全量逐项（未覆盖 estimated=0 如实呈现）。e2e 十一件套的
       11_self-score.json 即本工具产物（scripts/e2e_bid/run_e2e_artifacts.sh）。

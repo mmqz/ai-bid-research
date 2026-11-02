@@ -34,11 +34,17 @@ in : { project_id, files:[{upload_ref, filename, kind(招标文件|附件|图纸
       upload_ref（#183/#189 文件围栏）: 必须落在受信根内——BID_FS_ROOT 声明的
       导入根，或 BID_WS 工作区（二者的并集）；相对路径按受信根锚定（不再按
       进程 CWD 解析）；词法 `..` 分量预拒（先于一切磁盘操作，零副作用）。
-out: { file_ids:[TF-*], per_file:[{file_id, sha256, pages, tables, chunks, ocr_tier, parse_status, errors?}],
+out: { file_ids:[TF-*], per_file:[{file_id, sha256, pages, tables, chunks, ocr_tier, parse_status, deduplicated, errors?, warnings?(#188 METADATA_CONFLICT)}],
        totals:{files, chunks, parse_failed, partial},
        addendum_readiness:{ total, ready, not_ready:[{file_id, name,
          readiness(READY|FAILED|OCR_PENDING), waived, reason}] } }   ← #184 分级就绪报告
-幂等: sha256 已存在 → no-op 返回原 file_id（deduplicated:true）
+幂等: sha256 已存在 → no-op 返回原 file_id（deduplicated:true）。
+      #188 业务角色不随去重丢失：同 SHA **异身份**（kind/文件名不同）导入
+      → 登记 FileRole（角色追加不覆盖，判定面看任一身份——补遗/正本识别
+      从此看得到「它也是补遗」）；完全相同的重放（同 SHA 同 kind 同名）纯
+      no-op。原记录 kind/name 不覆盖，import 响应 per_file.warnings 携带
+      「METADATA_CONFLICT: 同 SHA 文件以不同身份再次导入（原 X「a」，本次
+      Y「b」）…」显式报告（告警不失败）。
 语义: 后端确定性管线——解析（表格单元格级、扫描件 OCR 分档）→ 结构化切块（chunk_id 稳定、登记 文件→位置 映射）→ 证据注册（切块即入 EV 台账——后续 register_evidence 签发的 EV-id 从已有计数后继，不是从 EV-0001 起——#80 第三批外部 Agent 实测摩擦 #7）→ 向量+精确双索引。**Agent 不做解析与切块，只核对返回统计并重试失败件（R-01）。**
 限额: 单件 500MB / 单批 64 件 / 累计 2GB（#183——超限 E_UNPROCESSABLE 逐件报因）
 警告: 补遗件非 READY 且未逐件确认 → warnings[] 携带

@@ -29,7 +29,9 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 fn repo_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..")
+    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    // #183 围栏：词法 `..` 会被围栏预拒——受信夹具根统一 canonical 绝对路径
+    std::fs::canonicalize(&p).unwrap_or(p)
 }
 
 fn files_dir() -> PathBuf {
@@ -318,7 +320,7 @@ fn real_corpus_full_chain() {
             std::process::id()
         ));
         std::fs::create_dir_all(&ws).unwrap();
-        let mut svc = BidService::open(&ws).unwrap();
+        let mut svc = BidService::open(&ws).unwrap().with_fs_root(files_dir());
         let pid = ok_result(call(
             &mut svc,
             "create_bid_project",

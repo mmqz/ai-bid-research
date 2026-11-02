@@ -12,7 +12,9 @@ use serde_json::{json, Value};
 use std::path::PathBuf;
 
 fn fixtures() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../fixtures")
+    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../fixtures");
+    // #183 围栏：词法 `..` 会被围栏预拒——受信夹具根统一 canonical 绝对路径
+    std::fs::canonicalize(&p).unwrap_or(p)
 }
 
 fn corpus_a_main() -> PathBuf {
@@ -61,7 +63,7 @@ fn import_main(svc: &mut BidService, pid: &str, path: &PathBuf, name: &str) -> V
 
 #[test]
 fn extract_rejects_draft_state_escalation() {
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     let pid = create(&mut svc, "b5-state-draft");
     // DRAFT 态（未导入文件）直接抽取 = 越级 → E_STATE
     let reply = call(&mut svc, "extract_requirements", json!({ "project_id": pid }));
@@ -70,7 +72,7 @@ fn extract_rejects_draft_state_escalation() {
 
 #[test]
 fn extract_rejects_wrong_project_id() {
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     create(&mut svc, "b5-notfound");
     let reply = call(&mut svc, "extract_requirements", json!({ "project_id": "PRJ-9999" }));
     assert_eq!(err_code(&reply), "E_NOTFOUND");
@@ -83,7 +85,7 @@ fn extract_then_matrix_end_to_end_on_corpus_a() {
     if !corpus_a_ready("extract_then_matrix_end_to_end_on_corpus_a") {
         return;
     }
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     let pid = create(&mut svc, "b5-e2e");
     import_main(&mut svc, &pid, &corpus_a_main(), "A-招标文件.docx");
 
@@ -131,7 +133,7 @@ fn extract_is_idempotent_merge_on_rerun() {
     if !corpus_a_ready("extract_is_idempotent_merge_on_rerun") {
         return;
     }
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     let pid = create(&mut svc, "b5-idem");
     import_main(&mut svc, &pid, &corpus_a_main(), "A-招标文件.docx");
     let r1 = ok_result(call(&mut svc, "extract_requirements", json!({ "project_id": pid })));
@@ -153,7 +155,7 @@ fn matrix_is_read_only_no_state_side_effect() {
     if !corpus_a_ready("matrix_is_read_only_no_state_side_effect") {
         return;
     }
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     let pid = create(&mut svc, "b5-ro");
     import_main(&mut svc, &pid, &corpus_a_main(), "A-招标文件.docx");
     ok_result(call(&mut svc, "extract_requirements", json!({ "project_id": pid })));
@@ -176,7 +178,7 @@ fn matrix_category_filter_and_pagination() {
     if !corpus_a_ready("matrix_category_filter_and_pagination") {
         return;
     }
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     let pid = create(&mut svc, "b5-filter");
     import_main(&mut svc, &pid, &corpus_a_main(), "A-招标文件.docx");
     ok_result(call(&mut svc, "extract_requirements", json!({ "project_id": pid })));
@@ -205,7 +207,7 @@ fn matrix_empty_requirements_emits_warning() {
     if !corpus_a_ready("matrix_empty_requirements_emits_warning") {
         return;
     }
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     let pid = create(&mut svc, "b5-empty");
     import_main(&mut svc, &pid, &corpus_a_main(), "A-招标文件.docx");
     // 未抽取直接调矩阵：空行 + EMPTY_MATRIX warning（不报错——只读工具任何阶段可调）
@@ -230,7 +232,7 @@ fn extract_reports_missing_sequence() {
     }
     // 构造缺号：corpus-A 主文件抽取后，手工核对 missing_sequence 面存在性
     //（契约硬规则：缺号必须报告——非破坏性验证：字段在位且为数组）
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     let pid = create(&mut svc, "b5-missing");
     import_main(&mut svc, &pid, &corpus_a_main(), "A-招标文件.docx");
     let r = ok_result(call(&mut svc, "extract_requirements", json!({ "project_id": pid })));

@@ -36,7 +36,9 @@ use std::path::PathBuf;
 // ---------------------------------------------------------------- 夹具与环境
 
 fn repo_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..")
+    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    // #183 围栏：词法 `..` 会被围栏预拒——受信夹具根统一 canonical 绝对路径
+    std::fs::canonicalize(&p).unwrap_or(p)
 }
 
 fn files_dir() -> PathBuf {
@@ -388,7 +390,7 @@ fn gi_five_global_invariants() {
         return; // SKIP 横幅已由 skip_if_fixture_missing 打出
     }
     let ws = ws_dir("main");
-    let mut svc = BidService::open(&ws).unwrap();
+    let mut svc = BidService::open(&ws).unwrap().with_fs_root(files_dir());
 
     // ---- ① 建项目（MCP §1）
     let pid = ok_result(call(

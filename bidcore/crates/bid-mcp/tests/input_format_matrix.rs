@@ -14,7 +14,9 @@ use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
 fn repo_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..")
+    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    // #183 围栏：词法 `..` 会被围栏预拒——受信夹具根统一 canonical 绝对路径
+    std::fs::canonicalize(&p).unwrap_or(p)
 }
 
 fn fixtures() -> PathBuf {
@@ -100,7 +102,7 @@ fn import(svc: &mut BidService, pid: &str, path: &Path, name: &str, kind: &str) 
 #[test]
 fn supported_formats_route_to_engine() {
     let ws = temp_ws("formats");
-    let mut svc = BidService::open(&ws).unwrap();
+    let mut svc = BidService::open(&ws).unwrap().with_fs_root(fixtures());
     let pid = new_project(&mut svc, "fmt");
 
     let dir = fixtures();
@@ -147,7 +149,7 @@ fn supported_formats_route_to_engine() {
 #[test]
 fn zero_byte_file_is_item_failure_with_zero_side_effect() {
     let ws = temp_ws("zero");
-    let mut svc = BidService::open(&ws).unwrap();
+    let mut svc = BidService::open(&ws).unwrap().with_fs_root(fixtures());
     let pid = new_project(&mut svc, "zero");
 
     let empty = ws.join("empty.docx");
@@ -180,7 +182,7 @@ fn zero_byte_file_is_item_failure_with_zero_side_effect() {
 #[test]
 fn truncated_docx_is_item_failure() {
     let ws = temp_ws("trunc");
-    let mut svc = BidService::open(&ws).unwrap();
+    let mut svc = BidService::open(&ws).unwrap().with_fs_root(fixtures());
     let pid = new_project(&mut svc, "trunc");
 
     let bad = ws.join("truncated.docx");
@@ -206,7 +208,7 @@ fn truncated_docx_is_item_failure() {
 #[test]
 fn lying_extension_fails_loudly() {
     let ws = temp_ws("liar");
-    let mut svc = BidService::open(&ws).unwrap();
+    let mut svc = BidService::open(&ws).unwrap().with_fs_root(fixtures());
     let pid = new_project(&mut svc, "liar");
 
     let liar = ws.join("actually.xlsx.docx");
@@ -230,7 +232,7 @@ fn lying_extension_fails_loudly() {
 #[test]
 fn nonexistent_path_is_handled() {
     let ws = temp_ws("gone");
-    let mut svc = BidService::open(&ws).unwrap();
+    let mut svc = BidService::open(&ws).unwrap().with_fs_root(fixtures());
     let pid = new_project(&mut svc, "gone");
     let ghost = ws.join("not-here.docx");
 
@@ -248,7 +250,7 @@ fn nonexistent_path_is_handled() {
 #[test]
 fn directory_as_file_is_handled() {
     let ws = temp_ws("dir");
-    let mut svc = BidService::open(&ws).unwrap();
+    let mut svc = BidService::open(&ws).unwrap().with_fs_root(fixtures());
     let pid = new_project(&mut svc, "dir");
     let dir_as_file = ws.join("iam-a-dir.docx");
     std::fs::create_dir_all(&dir_as_file).unwrap();
@@ -270,7 +272,7 @@ fn directory_as_file_is_handled() {
 #[test]
 fn filename_edge_cases_are_data_not_paths() {
     let ws = temp_ws("names");
-    let mut svc = BidService::open(&ws).unwrap();
+    let mut svc = BidService::open(&ws).unwrap().with_fs_root(fixtures());
     let pid = new_project(&mut svc, "names");
 
     let dir = fixtures();
@@ -303,7 +305,7 @@ fn filename_edge_cases_are_data_not_paths() {
 #[test]
 fn illegal_kind_is_rejected_with_zero_side_effect() {
     let ws = temp_ws("kind");
-    let mut svc = BidService::open(&ws).unwrap();
+    let mut svc = BidService::open(&ws).unwrap().with_fs_root(fixtures());
     let pid = new_project(&mut svc, "kind");
     let dir = fixtures();
     let Some(src) = std::fs::read_dir(&dir).ok().and_then(|rd| {
@@ -336,7 +338,7 @@ fn illegal_kind_is_rejected_with_zero_side_effect() {
 #[test]
 fn partial_batch_keeps_good_files() {
     let ws = temp_ws("partial");
-    let mut svc = BidService::open(&ws).unwrap();
+    let mut svc = BidService::open(&ws).unwrap().with_fs_root(fixtures());
     let pid = new_project(&mut svc, "partial");
 
     let dir = fixtures();

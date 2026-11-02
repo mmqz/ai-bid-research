@@ -277,7 +277,7 @@ fn per_file_waiver_releases_parse_failed_and_is_queryable() {
 
     // 只确认第一份坏件 → 仍阻塞（第二份未确认——逐件语义的正身）
     let rec1 = store
-        .record_addendum_waiver(&fid_bad1, "已人工核对纸质原件，本件无实质条款变化", "human:l3-lead")
+        .record_addendum_waiver(&fid_bad1, "已人工核对纸质原件，本件无实质条款变化", &bid_domain::TrustedPrincipal::human("l3-lead"))
         .unwrap();
     assert_eq!(rec1.file_id, fid_bad1);
     assert_eq!(rec1.principal, "human:l3-lead");
@@ -295,7 +295,7 @@ fn per_file_waiver_releases_parse_failed_and_is_queryable() {
 
     // 确认第二份 → 不再阻塞（验收 C：逐件确认放行）
     let rec2 = store
-        .record_addendum_waiver(&fid_bad2, "扫描原件比对，条款与正文一致", "human:l3-lead")
+        .record_addendum_waiver(&fid_bad2, "扫描原件比对，条款与正文一致", &bid_domain::TrustedPrincipal::human("l3-lead"))
         .unwrap();
     let r = check_draft_readiness(&store, "SEC-0001");
     assert!(
@@ -320,19 +320,27 @@ fn per_file_waiver_releases_parse_failed_and_is_queryable() {
 }
 
 /// 负例：waiver 的 file_id 不存在 → 拒（对不存在的件做确认 = 凭空免责）；
-/// principal 无 human: 前缀 → 拒（AI 不得自审自过——与复审人同口径）。
+/// principal 非 Human 身份 → 拒（#182 域层纵深——Agent 不得自审自过，
+/// 语义自旧「human: 前缀校验」迁移）。
 #[test]
 fn per_file_waiver_rejects_ghost_file_and_non_human_principal() {
     let mut store = base_store();
     let fid = import_addendum(&mut store, "C-补遗01.pdf", ParseStatus::Failed, "sha-n1");
     assert!(matches!(
-        store.record_addendum_waiver("TF-9999", "r", "human:x"),
+        store.record_addendum_waiver("TF-9999", "r", &bid_domain::TrustedPrincipal::human("x")),
         Err(bid_domain::ToolError::ENotFound { .. })
     ), "幽灵 file_id 必须拒");
+    // #182：Agent 身份的 TrustedPrincipal（域层纵深拒收）
+    let agent = bid_domain::TrustedPrincipal {
+        actor_id: "bot".into(),
+        actor_type: bid_domain::ActorType::Agent,
+        authentication_method: "hmac_receipt_v1".into(),
+        approval_receipt: String::new(),
+    };
     assert!(matches!(
-        store.record_addendum_waiver(&fid, "r", "agent:bot"),
+        store.record_addendum_waiver(&fid, "r", &agent),
         Err(bid_domain::ToolError::EUnprocessable { .. })
-    ), "非 human: 前缀必须拒");
+    ), "Agent 身份必须拒");
     assert!(store.addendum_waivers().is_empty(), "拒绝路径零副作用");
 }
 
@@ -498,7 +506,7 @@ fn addendum_waiver_releases_not_provided_blocker() {
     store
         .record_review(
             Gate::AddendumWaiver,
-            "human:real-corpus-lead",
+            &bid_domain::TrustedPrincipal::human("real-corpus-lead"),
             Decision::Approved,
             vec![],
         )
@@ -522,7 +530,7 @@ fn addendum_waiver_does_not_mask_parse_failed() {
     store
         .record_review(
             Gate::AddendumWaiver,
-            "human:real-corpus-lead",
+            &bid_domain::TrustedPrincipal::human("real-corpus-lead"),
             Decision::Approved,
             vec![],
         )
@@ -546,7 +554,7 @@ fn addendum_waiver_does_not_mask_ocr_pending() {
     store
         .record_review(
             Gate::AddendumWaiver,
-            "human:real-corpus-lead",
+            &bid_domain::TrustedPrincipal::human("real-corpus-lead"),
             Decision::Approved,
             vec![],
         )
@@ -570,7 +578,7 @@ fn addendum_waiver_survives_reimport_of_addendum() {
     store
         .record_review(
             Gate::AddendumWaiver,
-            "human:real-corpus-lead",
+            &bid_domain::TrustedPrincipal::human("real-corpus-lead"),
             Decision::Approved,
             vec![],
         )

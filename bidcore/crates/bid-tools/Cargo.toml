@@ -22,6 +22,9 @@ docx-rs = "0.4"
 ureq = { workspace = true }
 # #68 阶段 3：导出图片嵌入（格式验证/转 PNG/版面缩放——Pic 构建面）。
 image = { workspace = true }
+# #182：审批密钥的 OS 熵源（getrandom 0.2 已在 workspace 锁内——Cargo.lock
+# 既有条目，零新增网络取数；直连声明同 sha2 先例）。
+getrandom = "0.2"
 
 [dev-dependencies]
 # 测试面（S-6 验收）：解包导出产物校验 zip 完整性 + XML 良构（「Word 打开

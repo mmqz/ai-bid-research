@@ -211,11 +211,17 @@ fn addendum_waiver_roundtrip_and_old_snapshot_default_load() {
                 bid_domain::ParseStatus::Failed, "ToUnicode CMap 缺失：文本层无法解码",
             )
             .unwrap();
-        let rec = svc
-            .record_addendum_waiver(&fid, "已人工核对纸质原件", "human:rt-lead")
+        // #182：宿主签发 receipt（签域绑定 file_id）→ 服务层验签过免责面
+        let receipt = svc.issue_approval_receipt("rt-lead", &format!("addendum_waiver:{fid}"));
+        let (rec, principal) = svc
+            .record_addendum_waiver(&fid, "已人工核对纸质原件", &receipt)
             .unwrap();
         assert_eq!(rec.file_id, fid);
         assert!(rec.at > 0, "确认时刻落钟");
+        // #182：回执身份（服务层验签产物）+ 记录内的 trusted 都在座
+        assert_eq!(principal.actor_id, "rt-lead");
+        let t = rec.trusted.as_ref().expect("新记录必有 trusted");
+        assert_eq!(t.actor_id, "rt-lead");
         fid
     }; // <- drop：record_addendum_waiver 已 auto_checkpoint，磁盘是唯一幸存面
 
@@ -227,6 +233,11 @@ fn addendum_waiver_roundtrip_and_old_snapshot_default_load() {
         assert_eq!(ws[0].file_id, fid);
         assert_eq!(ws[0].reason, "已人工核对纸质原件");
         assert_eq!(ws[0].principal, "human:rt-lead");
+        // #182：trusted 身份跨重启保真（快照序列化面）
+        assert_eq!(
+            ws[0].trusted.as_ref().map(|t| t.actor_id.as_str()),
+            Some("rt-lead")
+        );
         assert!(svc.store().addendum_waived(&fid), "逐件查询面跨重启可用");
     }
     let _ = std::fs::remove_dir_all(&dir);
@@ -247,4 +258,42 @@ fn addendum_waiver_roundtrip_and_old_snapshot_default_load() {
     assert!(old.addendum_waivers.is_empty(), "缺字段 → serde(default) 空集合");
     let restored = bid_domain::DomainStore::restore(old).unwrap();
     assert!(restored.addendum_waivers().is_empty(), "恢复后查询面为空（而非报错）");
+}
+
+/// #182 审批密钥文件：首启生成（32 字节 / 0600）→ 重启复用（跨进程身份
+/// 连续——旧 receipt 在重开后的服务态仍可验，24h 窗内）。
+#[test]
+fn approval_key_file_persists_and_receipt_survives_reopen() {
+    let dir = store_dir("approval-key");
+    let receipt = {
+        let mut svc = BidService::open(&dir).unwrap();
+        svc.issue_approval_receipt("admin", "review_gate:pre_export_confirm")
+    };
+    {
+        let svc = BidService::open(&dir).unwrap();
+        // 密钥文件在座：恰 32 字节、unix 权限 0600（同组/其他不可读）
+        let key_path = dir.join(".mang").join("approval.key");
+        let meta = std::fs::metadata(&key_path).expect("approval.key 首启生成");
+        assert_eq!(meta.len(), 32, "密钥恒 32 字节");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                meta.permissions().mode() & 0o777,
+                0o600,
+                "密钥文件权限 0600"
+            );
+        }
+        // 重启后同钥：首启签发的 receipt 仍可验（重开不换钥 = 在途确认不作废）
+        let p = svc
+            .verify_approval_receipt(&receipt, "review_gate:pre_export_confirm")
+            .expect("跨重启同钥：receipt 仍可验");
+        assert_eq!(p.actor_id, "admin");
+        assert_eq!(p.actor_type, bid_domain::ActorType::Human);
+        // 签域不符：同 receipt 过不了别的门
+        assert!(svc
+            .verify_approval_receipt(&receipt, "review_gate:matrix_approval")
+            .is_err());
+    }
+    let _ = std::fs::remove_dir_all(&dir);
 }

@@ -31,14 +31,14 @@
 | T-02 | PDF JavaScript 动作/嵌入对象 | 上传面 | mdc-pdf ExtractText 仅提取文本（JS 不执行） | 同 T-01 白名单；poppler 提取路径无执行面 | 解析器单测 + 组件版本矩阵（test-plan §5.2） | VERIFIED_SOURCE（poppler 行为） |
 | T-03 | **压缩包炸弹**（高压缩比 XLSX/DOCX 撑爆内存） | 解析面 | office-io XLSX 三门 + 稀疏炸弹闭环（fd 校准实测，§2.7） | **已实施（M1.5，2026-10-25；R3 修复轮 + S3-1/S3-3 加固；M1.6 EOCD 镜像重写 2026-10-26）**：bid-parse/guard.rs 挂门——输入字节/prescan 三门/压缩比（**乘法判据**）/实际读取累计计量（声明撒谎截停）/**EOCD 守恒门 crate 4.6.1 选择语义全文件镜像**（V6 尾垃圾出窗/V7 影子 EOCD/V8 字段分歧三绕过已封 + A7 前置垃圾门真跑 + 无可验候选 fail-closed 拒绝）+ 条目名拒绝 + XML 深度 + xlsx 读后行/单元格双轴门（**双轴负向测试均已入仓**：行轴 20 万+1 + 格轴 95,239×21）；负向测试 18 项全绿（含撒谎样本 + zip64 重复负向 + 尾垃圾三档差分 + 影子 EOCD + 字段分歧双向 + 终端 fail-closed + 压缩比边界对） | 已实施：guard.rs 18 测试 + xlsx 3 测试 + corpus-A 回归 | **IMPLEMENTED+（残余：calamine 黑盒内部解压内存尖峰——入口三门 + 读后双轴门已挡常规面与下游无界，根治需流式自读 M2+；镜像严格方向残留三形态均 fail-closed 已登记 §4；A6 同族端态维持登记——常规面与结构化路径均已封）** |
 | T-04 | **外部解析器挂死**（畸形 PDF 卡住 pdftoppm/tesseract） | 解析面 | —（引擎自有渲染线不依赖外部进程） | **已实施（M1.5，2026-10-25；R3 修复轮 + P2-4 加固）**：run_limited——超时杀进程组/溢出即时杀/五分类/并发门 4 席/TmpGuard 全路径回收/OCR 页数门 200/stderr 持续 drain（P2-4：原 take 读满即停会 SIGPIPE 中杀 verbose 合法工具——实测修正审计原描述，非阻塞 Timeout；drain 后保留头 64KB 不阻塞不中杀）；挂死样本（sleep 30 超时 1.2s 杀）、无限输出样本（yes 溢出即时杀）、stderr 洪泛样本（256KB→Success）回归入测 | 已实施：guard.rs 9 测试 + corpus-A OCR 链路回归 | **IMPLEMENTED** |
-| T-05 | 超大文件资源耗尽 | 上传面 | 写面限额（MAX_PARAGRAPHS/RUNS；G11 容量匹配） | 上传大小上限（M0 检查单）+ 解析块数统计返回（import 返回 stats 供核对） | M0 检查单；import stats 契约 | DESIGN_ASSUMPTION |
+| T-05 | 超大文件资源耗尽 | 上传面 | 写面限额（MAX_PARAGRAPHS/RUNS；G11 容量匹配） | **已实施（#183）**：fs_fence 限额门——单件 500MB / 单批 64 件 / 累计 2GB，超限 E_UNPROCESSABLE 逐件报因（先于读取，不吞资源） | bid-tools tests/fs_fence.rs 限额面 + bid-mcp 30 目标回归 | **IMPLEMENTED（#183）** |
 
 ### 2.2 越权与外发
 
 | ID | 威胁 | 面 | 引擎继承 | 业务补充 | 测试锚点 | 状态 |
 |---|---|---|---|---|---|---|
 | T-06 | 跨项目/跨企业资料越权 | 领域库 | — | ID 命名空间隔离（PRJ/REQ/EV/CMP/SEC 永不混用，domain-model §2）+ 资料库按项目隔离的访问范围 | M2 权限用例（越权访问他项目 EV → 拒绝） | DESIGN_ASSUMPTION |
-| T-07 | 任意路径读写 | 工具面 | PathPolicy 允许列表模式（§2.7） | MCP 工具参数只收库内 ID（serde schema 编译期拒绝自由路径串——bid-tools 类型化契约） | cargo test 类型化 schema 拒绝用例（已在 M1 自测门禁） | TESTED（M1 schema 拒绝） |
+| T-07 | 任意路径读写 | 工具面 | PathPolicy 允许列表模式（§2.7） | 库内 ID 面：serde schema 编译期拒绝自由路径串（M1 起）。**路径面已实施（#183/#189）**：import_tender_files 的 upload_ref 受文件围栏约束——受信根（BID_FS_ROOT ∪ BID_WS）内组件级包含判定（防 `work` vs `work-evil` 前缀陷阱）、词法 `..` 预拒、逐段 symlink 检查；导出侧 resolve_write 同款纵深（工具层工作区相对路径形状校验之外的第二层）；壳层逐件 resolve_read + 服务层持根复验双保险 | bid-tools tests/fs_fence.rs（10 项：逃逸三态/前缀陷阱/多根/限额）+ bid-mcp 30 测试目标回归 + sdk e2e 双传输 | **IMPLEMENTED（#183/#189；TOCTOU check-then-use v1 残余登记 §4-6）** |
 | T-08 | 审批绕过（AI 写审校态/自我 WAIVE） | 审批面 | ReviewPolicy `human:` 前缀强制——AI 操作者在引擎层不可写审核态；失效不过审（§2.7） | 双层门禁：MCP §8 precheck（BLOCKER 清零/显式 WAIVE 前置）+ 引擎 allow_approval_of_broken_linkage=false（§5.5）；终裁门禁 V2 R4 已验（终裁前不得 ACCEPTED） | run_tests T8 R4；引擎 security.rs 语义锁测试 | TESTED（V2 SEMUL + 引擎单测） |
 | T-09 | 数据出域外发 | 部署面 | —（本地纪律：sidecar 本地） | 部署红线：自托管、无公网出口依赖；外发域名白名单（若有通知场景）；R-09 数据边界 | 部署检查单 | DESIGN_ASSUMPTION |
 
@@ -79,6 +79,7 @@
 3. **T-10 起草层注入（L3 残余，不可穷举）**：已知模式扫描仅告警；唯一收口 = 人工审校门禁（审校态 AI 不可写，T-08 双层门禁）。
 4. **T-14 引擎侧 G3**：暗标元数据清零的业务侧缓解（zip 补丁）为过渡——引擎导出面产品化前，每次导出必须跑 T7d 断言（已入每轮回归）。
 5. T-15 供应链闭包审查待 M0 执行（NOTICES 机制）。
+6. **T-07 文件围栏 TOCTOU（check-then-use v1，#183 实装时登记）**：fs_fence 的 resolve_read/resolve_write 为「解析-校验-使用」三步分离——校验与实际 open 之间路径组件（symlink 改指）理论上可被置换。当前单机单用户部署面（Agent 与用户同 OS 权限）下不构成新增威胁面；根治 = 打开目录句柄后相对路径操作（Unix openat+O_NOFOLLOW 语义），Windows 面用 File::open 后校验 handle 真实路径——按需排期。
 
 > 以上 GAP 与待办已回填 risk-register（R-09/R-10/R-13 相关行注记）；T-03/T-04 已于
 > M1.5 完成（真实施装 + 负向测试 + corpus-A 回归全绿，见 verification-plan §6 三级词典）——

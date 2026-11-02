@@ -2,11 +2,11 @@
  "case": "14-search-evidence",
  "transport": "linejson",
  "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
- "server_sha256": "bde7f0dae2ef21a487e9e8a2ceb8baa1e4203411eaa4b148d80ba7778c588ca1",
+ "server_sha256": "16be0b8a1493d480aa5c7b341812703e051b4c122b6325a7df0b83704ca51726",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-02T06:51:21+00:00",
+ "started_at": "2026-11-02T09:27:11+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 3.355123997607734
+   "elapsed_ms": 3.1739300002300297
   },
   {
    "stage": "P1 import_tender_files",
@@ -154,7 +154,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 265.02728600098635
+   "elapsed_ms": 239.09952300027726
   },
   {
    "stage": "P2 extract_requirements",
@@ -193,7 +193,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 64.77040900063002
+   "elapsed_ms": 66.43420099999275
   },
   {
    "stage": "P3 build_outline",
@@ -226,7 +226,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.043598998279776
+   "elapsed_ms": 7.063919000302121
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -334,7 +334,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.748883999738609,
+   "elapsed_ms": 7.634589000190317,
    "extra": {
     "sections": {
      "SEC-0007": [
@@ -531,7 +531,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.507363999844529
+   "elapsed_ms": 7.678846000089834
   },
   {
    "stage": "P4 bind_evidence",
@@ -563,7 +563,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.536018998507643
+   "elapsed_ms": 7.178922000093735
   },
   {
    "stage": "G3 record_review_gate ×2",
@@ -598,7 +598,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 13.522072000341723
+   "elapsed_ms": 13.475032999849645
   },
   {
    "stage": "S0 register_evidence ×4",
@@ -624,7 +624,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 26.869347999308957
+   "elapsed_ms": 26.309098999718117
   },
   {
    "stage": "① exact cert=ISO9001",
@@ -703,7 +703,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 0.861541000631405
+   "elapsed_ms": 1.0308300002179749
   },
   {
    "stage": "①b exact amount/date",
@@ -734,7 +734,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 1.1023150000255555
+   "elapsed_ms": 0.7067480000841897
   },
   {
    "stage": "② semantic 营业执照/部分覆盖",
@@ -827,7 +827,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 0.8910340002330486
+   "elapsed_ms": 0.4567890000544139
   },
   {
    "stage": "③ hybrid 合并去重",
@@ -895,7 +895,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 0.38172199856489897
+   "elapsed_ms": 0.2650470000844507
   },
   {
    "stage": "④ 过期降权+warning",
@@ -941,7 +941,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 0.4521369992289692
+   "elapsed_ms": 0.3098829997725261
   },
   {
    "stage": "⑤ 排序确定性",
@@ -969,7 +969,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 1.2454460011213087
+   "elapsed_ms": 0.8692510000400944
   },
   {
    "stage": "⑤b 错误信封（E_* 归类）",
@@ -1033,10 +1033,10 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 1.7555150006955955
+   "elapsed_ms": 1.2579620001815783
   }
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/search-evidence/ws",
- "finished_at": "2026-11-02T06:51:22+00:00"
+ "finished_at": "2026-11-02T09:27:12+00:00"
 }

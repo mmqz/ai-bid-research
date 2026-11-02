@@ -2,14 +2,14 @@
  "case": "01-initialize-and-tools",
  "transport": "linejson",
  "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
- "server_sha256": "bde7f0dae2ef21a487e9e8a2ceb8baa1e4203411eaa4b148d80ba7778c588ca1",
+ "server_sha256": "16be0b8a1493d480aa5c7b341812703e051b4c122b6325a7df0b83704ca51726",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-02T06:51:17+00:00",
+ "started_at": "2026-11-02T09:27:07+00:00",
  "stages": [],
  "payload_shapes": {},
  "ws": null,
- "finished_at": "2026-11-02T06:51:17+00:00",
+ "finished_at": "2026-11-02T09:27:07+00:00",
  "note": "SKIPPED: Skipped: MCP 协议层（initialize/tools/list/tools/call）待 #137 交付 bid-mcp-server；当前传输=linejson（逐行 JSON，无握手面）——本用例如实 SKIP，不假装通过"
 }

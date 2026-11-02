@@ -29,21 +29,35 @@ fn canon_roots(d: &std::path::Path) -> Vec<std::path::PathBuf> {
 
 /// 期望路径的规范化形态——与 `Resolved::absolute()` 对齐。
 ///
-/// Windows CI 的三个坑（本地 Linux 全看不出来，逐轮踩过）：
-/// 1. `temp_dir()` 返回 8.3 短名（`RUNNER~1`），`canonicalize` 展开长名（`runneradmin`）
-/// 2. `canonicalize` 返回 `\\?\C:\...` 扩展长度前缀，而 `display_path()` 会剥掉它
-/// 3. 路径末尾可能还不存在（如 `no-such-dir/ghost.docx`），不能整体 canonicalize
+/// 平台坑（CI windows-latest + 本地 Linux 双跑，逐轮实测）：
+/// 1. Windows `temp_dir()` 返回 8.3 短名（`RUNNER~1`），`canonicalize`
+///    展开长名（`runneradmin`）——期望值必须同样走 canonicalize 展开
+/// 2. Windows `canonicalize` 返回 `\\?\C:\...` 扩展长度前缀，而
+///    `display_path()` 会剥掉它
+/// 3. 路径末尾可能还不存在（如 `no-such-dir/ghost.docx`），不能整体
+///    canonicalize
 ///
 /// 做法：从最深一层向上找【已存在】的祖先做 canonicalize，再把剩余段拼回去。
+/// 分隔符归一与 `\\?\` 剥除仅 Windows 需要——Unix 上恒等（曾因无条件
+/// `/`→`\` 替换把 Linux 路径全盘打碎，本地 3 条同款假红；CI 只有
+/// windows-latest 所以没暴露）。
 fn exp(p: &std::path::Path) -> std::path::PathBuf {
-    /// 剥 \\?\ 前缀 + `/` 归一为 `\`（与 fs_fence::display_path 同规则）
+    /// 剥 \\?\ 前缀 + `/` 归一为 `\`（与 fs_fence::display_path 同规则）；
+    /// Unix 恒等（canonicalize 不加前缀，分隔符本来就是 `/`）
     fn display(path: &std::path::Path) -> std::path::PathBuf {
-        let s = path.to_string_lossy().replace('/', "\\");
-        let out = match s.strip_prefix("\\\\?\\") {
-            Some(rest) => rest.to_string(),
-            None => s,
-        };
-        std::path::PathBuf::from(out)
+        #[cfg(windows)]
+        {
+            let s = path.to_string_lossy().replace('/', "\\");
+            let out = match s.strip_prefix("\\\\?\\") {
+                Some(rest) => rest.to_string(),
+                None => s,
+            };
+            std::path::PathBuf::from(out)
+        }
+        #[cfg(not(windows))]
+        {
+            path.to_path_buf()
+        }
     }
 
     // 向上找第一个存在的祖先；不存在的段先收集起来
@@ -74,8 +88,6 @@ fn exp(p: &std::path::Path) -> std::path::PathBuf {
         None => display(p),
     }
 }
-
-
 
 // ---------------------------------------------------------------- read 面
 

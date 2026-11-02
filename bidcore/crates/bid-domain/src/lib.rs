@@ -654,7 +654,9 @@ impl DomainStore {
         self.reviews.push(review::ReviewRecord {
             id: review_id,
             gate: review::Gate::AddendumWaiver,
-            reviewer: principal.to_string(),
+            // legacy 回显面同款派生（record_review 口径——human:{actor_id}）
+            reviewer: format!("{}{}", review::HUMAN_PREFIX, principal.actor_id),
+            principal: Some(principal.clone()),
             decision: review::Decision::Approved,
             findings: Vec::new(),
             at,

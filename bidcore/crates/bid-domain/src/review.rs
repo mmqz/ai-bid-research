@@ -50,7 +50,8 @@ use serde::{Deserialize, Serialize};
 /// `["human:"]`——人侧操作者一律 `human:` 前缀，AI 不得自审自过）。
 /// #182 起：仅作 `human:{actor_id}` 派生值的格式面（不再是从入参查的
 /// 身份判据——身份判据升级为 TrustedPrincipal 验签）。
-const HUMAN_PREFIX: &str = "human:";
+/// （pub：lib.rs 的 record_addendum_waiver 审计接线同口径派生——单一真源。）
+pub const HUMAN_PREFIX: &str = "human:";
 
 /// 落钟（no-chrono 纪律——u64 UNIX_EPOCH 秒；与 dates.rs `today_ymd` 同手法，
 /// 时钟异常回退 → 0，绝不 panic）。

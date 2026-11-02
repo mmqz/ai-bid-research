@@ -54,6 +54,8 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         "register_evidence" => register_evidence(svc, args),
         "bind_evidence" => bind_evidence(svc, args),
         "record_review_gate" => record_review_gate(svc, args),
+        // ---- #184：补遗分级阻塞的逐件人工确认（L3 伴生闸）----
+        "record_addendum_waiver" => record_addendum_waiver(svc, args),
         // ---- #100 任务 3：B1/B2 接线（能得几分、该报多少价）----
         // score_price 是纯计算器（无 project 路由/状态门——报价推演面）；
         // score_section / score_document 走既有 route_guard（只读诊断）。
@@ -473,6 +475,22 @@ fn import_tender_files(svc: &mut BidService, args: Value) -> ToolResult {
             status_before.as_str()
         ));
     }
+    // ---- #184：补遗就绪度接线（非 Ready 清单不留在死代码里）----
+    // import 响应是 Agent 看到坏补遗的第一现场（E_PARTIAL 的 what 只说
+    // 「N 件导入失败」，不说补遗语义）；把逐件非 Ready 清单 + 指路告警放
+    // 这里，Agent 拿 file_id 即可闭环（重传或 record_addendum_waiver）。
+    // 与 draft 拒绝理由（阻塞消息）同一真源（readiness::addendum_statuses）。
+    let addendum_readiness = addendum_readiness_block(svc);
+    for s in addendum_readiness["not_ready"].as_array().unwrap_or(&Vec::new()) {
+        if s["waived"].as_bool().unwrap_or(false) {
+            continue; // 已确认件不重复告警（审计面在清单里，噪音面不在）
+        }
+        warnings.push(format!(
+            "ADDENDUM_NOT_READY: 补遗 {} 未就绪（{}）——补遗可能改控制价/截止时间/评分办法，请修复重传或人工确认后放行（record_addendum_waiver）",
+            s["name"].as_str().unwrap_or("?"),
+            s["reason"].as_str().unwrap_or("未知原因"),
+        ));
+    }
     let data = json!({
         "file_ids": file_ids,
         "per_file": per_file,
@@ -482,6 +500,8 @@ fn import_tender_files(svc: &mut BidService, args: Value) -> ToolResult {
             "parse_failed": parse_failed,
             "partial": report.item_failures,
         },
+        // #184：补遗分级就绪报告（total/ready/not_ready 逐件含 waived 标记）
+        "addendum_readiness": addendum_readiness,
         "status": status_after,
         "project_version": svc.store().content_version(),
         "request_id": next_request_id(),
@@ -3597,6 +3617,92 @@ fn record_review_gate(svc: &mut BidService, args: Value) -> ToolResult {
             "spawned_rt_ids": receipt.spawned_rt_ids,
         },
         "gates_approved": gates_approved,
+        "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
+}
+
+// ---------------------------------------------------------------- #184 record_addendum_waiver
+
+/// 补遗就绪度报告块（import 响应 / record_addendum_waiver 出参共用）：
+/// `{total, ready, not_ready: [{file_id, name, readiness, waived, reason}]}`。
+///
+/// 非 Ready 清单含**已确认**件（waived=true——审计面不因放行而消失，
+/// Agent 据此知道哪些件是带确认放行的）。
+fn addendum_readiness_block(svc: &BidService) -> Value {
+    let statuses = bid_tools::readiness::addendum_statuses(svc.store());
+    let ready = statuses
+        .iter()
+        .filter(|s| s.readiness == bid_tools::readiness::AddendumReadiness::Ready)
+        .count();
+    let not_ready: Vec<Value> = statuses
+        .iter()
+        .filter(|s| s.readiness != bid_tools::readiness::AddendumReadiness::Ready)
+        .map(|s| {
+            json!({
+                "file_id": s.file_id,
+                "name": s.name,
+                "readiness": s.readiness.as_str(),
+                "waived": s.waived,
+                "reason": s.reason,
+            })
+        })
+        .collect();
+    json!({ "total": statuses.len(), "ready": ready, "not_ready": not_ready })
+}
+
+/// `record_addendum_waiver` —— #184 补遗分级阻塞的逐件人工确认。
+///
+/// 语义：任一补遗不处 Ready 时起草闸阻塞（E_UNPROCESSABLE，逐件点名）；
+/// 人工继续必须**逐件**确认到具体 file_id（非全局布尔——「3 份坏 1 份」
+/// 要对齐到哪一份、为什么故意带病放行）。确认即审计面：
+/// `{file_id, reason, at, principal}`，principal 须 `human:` 前缀（与
+/// record_review_gate 的 reviewer 同口径——AI 不得自审自过）。
+///
+/// 出参：`recorded`（本次确认）+ `addendum_waivers`（全部确认记录——
+/// 验收 C 的「记录可查」）+ `addendum_readiness`（就绪度回显，含 waived
+/// 标记——报告面仍含该件，但不再构成阻塞）。
+///
+/// 注：`principal` 作为 MCP 参数是过渡态——#182 将升级为 TrustedPrincipal
+/// 验签面（receipt 级），届时本工具的入参口径随其演进，不另造第二套人设体系。
+fn record_addendum_waiver(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "record_addendum_waiver";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let file_id = req_str(&args, "file_id", TOOL)?;
+    let reason = req_str(&args, "reason", TOOL)?;
+    let principal = req_str(&args, "principal", TOOL)?;
+    let project_version = opt_u64(&args, "project_version", TOOL)?;
+
+    route_guard(svc, &project_id, TOOL, project_version)?;
+
+    let recorded = svc
+        .record_addendum_waiver(&file_id, &reason, &principal)
+        .map_err(ToolError::from)?;
+
+    let waivers: Vec<Value> = svc
+        .store()
+        .addendum_waivers()
+        .iter()
+        .map(|w| {
+            json!({
+                "file_id": w.file_id,
+                "reason": w.reason,
+                "at": w.at,
+                "principal": w.principal,
+            })
+        })
+        .collect();
+
+    Ok(json!({
+        "recorded": {
+            "file_id": recorded.file_id,
+            "reason": recorded.reason,
+            "at": recorded.at,
+            "principal": recorded.principal,
+        },
+        "addendum_waivers": waivers,
+        "addendum_readiness": addendum_readiness_block(svc),
         "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
         "project_version": svc.store().content_version(),
         "request_id": next_request_id(),

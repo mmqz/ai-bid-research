@@ -486,6 +486,20 @@ impl BidService {
         Ok(receipt)
     }
 
+    /// `record_addendum_waiver` 业务半边（#184）：补遗逐件人工确认
+    /// （principal human: 门 / file_id 存在性 / reason 非空白全在域层裁决
+    /// ——本层只加写后自动落盘，与既有服务方法同款形态）。
+    pub fn record_addendum_waiver(
+        &mut self,
+        file_id: &str,
+        reason: &str,
+        principal: &str,
+    ) -> Result<bid_domain::AddendumWaiverRecord, ToolError> {
+        let rec = self.store.record_addendum_waiver(file_id, reason, principal)?;
+        self.auto_checkpoint()?;
+        Ok(rec)
+    }
+
     /// `import_tender_files` 业务执行（壳已完成参数校验 / 状态机裁决 /
     /// 乐观并发检查——本层只跑管线；T-8：持久化在场时写后自动落盘）。
     pub fn import(&mut self, specs: &[ImportSpec]) -> Result<ImportReport, ToolError> {

@@ -157,6 +157,9 @@ impl ProjectStatus {
                 "get_compliance_matrix",
                 "search_evidence",
                 "get_bid_project_state",
+                // #184：补遗分级阻塞的人工出口（导入后任意时刻可逐件确认——
+                // 与 Gate::AddendumWaiver 门同窗口语义，坏补遗不能拖到 MATRIX_READY+ 才能救）
+                "record_addendum_waiver",
             ],
             RequirementsExtracted => &[
                 "import_tender_files",
@@ -166,6 +169,8 @@ impl ProjectStatus {
                 "get_bid_project_state",
                 // #80 第三批 MCP 补齐 G1：建纲+矩阵首建（P3 的前置）
                 "build_outline",
+                // #184：同 FilesImported 的窗口语义（导入后任意时刻）
+                "record_addendum_waiver",
             ],
             MatrixReady | EvidenceBound => &[
                 "get_compliance_matrix",
@@ -177,6 +182,8 @@ impl ProjectStatus {
                 "register_evidence",
                 "bind_evidence",
                 "record_review_gate",
+                // #184：补遗分级阻塞的逐件确认（导入后任意时刻）
+                "record_addendum_waiver",
                 // #100 任务 3：B2 自评接线（只读诊断——与 check_bid_quality 同窗口）
                 "score_section",
                 "score_document",
@@ -191,6 +198,8 @@ impl ProjectStatus {
                 "check_bid_quality",
                 // G3：PreExportConfirm 门在 Drafting+ 窗口内
                 "record_review_gate",
+                // #184：补遗分级阻塞的逐件确认（导入后任意时刻）
+                "record_addendum_waiver",
                 "score_section",
                 "score_document",
             ],
@@ -202,6 +211,8 @@ impl ProjectStatus {
                 "export_bid_document",
                 "check_bid_quality",
                 "record_review_gate",
+                // #184：补遗分级阻塞的逐件确认（导入后任意时刻）
+                "record_addendum_waiver",
                 "score_section",
                 "score_document",
             ],
@@ -212,6 +223,8 @@ impl ProjectStatus {
                 "export_bid_document",
                 "check_bid_quality",
                 "record_review_gate",
+                // #184：补遗分级阻塞的逐件确认（导入后任意时刻）
+                "record_addendum_waiver",
                 "score_section",
                 "score_document",
             ],
@@ -269,6 +282,27 @@ pub struct TenderFile {
     pub parse_summary: String,
 }
 
+/// 补遗逐件人工确认记录（#184）。
+///
+/// 分级就绪的伴生闸：任一补遗不处 Ready 时起草闸阻塞，人工继续必须**逐件**
+/// 确认（非全局布尔——「3 份补遗坏 1 份」要对齐到具体是哪一份、为什么故
+/// 意带病放行）。记录即审计面：file_id 锚定具体件、reason 是人类给出的
+/// 免责理由、principal 是确认人。
+///
+/// - `principal` 沿用复审人口径：必须 `human:` 前缀（AI 不得自审自过——
+///   与 review.rs HUMAN_PREFIX 同一纪律）；#182 将升级为 TrustedPrincipal
+///   验签面，本字段是过渡态，**不得另造第二套人设体系**；
+/// - 同一 file_id 重复确认 = 追加新记录（审计日志语义：每次确认都留底，
+///   查询面返回全部记录；解除确认不走本面——导入可解析版本后阻塞自然
+///   消失，确认记录无害残留，与 AddendumWaiver 门同款语义）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AddendumWaiverRecord {
+    pub file_id: String, // TF-xxxx（必须存在于 files——对不存在的件做确认 = 凭空免责）
+    pub reason: String,  // 人工理由（非空白——「不可审计的确认」不成确认）
+    pub at: u64,         // 确认时刻（unix epoch 秒）
+    pub principal: String, // 确认人（human: 前缀口径）
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Requirement {
     pub id: String,       // REQ-xxxx
@@ -319,6 +353,8 @@ pub struct DomainStore {
     reviews: Vec<review::ReviewRecord>,
     /// T-7 修订工单（RT-xxxx——BLOCKER 的关单面；全 DONE 才可导出）
     revision_tasks: Vec<review::RevisionTask>,
+    /// #184 补遗逐件人工确认（非 Ready 件的人工放行账——追加式审计日志）
+    addendum_waivers: Vec<AddendumWaiverRecord>,
     /// 幂等键 → 首次结果 JSON（同 key 重放返回首次结果，不重复执行）
     idempotency: HashMap<String, serde_json::Value>,
     id_seq: u64,
@@ -340,6 +376,7 @@ impl DomainStore {
             findings: vec![],
             reviews: vec![],
             revision_tasks: vec![],
+            addendum_waivers: vec![],
             idempotency: HashMap::new(),
             id_seq: 0,
         }
@@ -522,6 +559,72 @@ impl DomainStore {
         Ok((id, false))
     }
 
+    // ------------------------------------------------------------ #184 补遗逐件确认
+    /// 补遗逐件确认记录（全量查询面——追加式审计日志，含历史确认）。
+    pub fn addendum_waivers(&self) -> &[AddendumWaiverRecord] {
+        &self.addendum_waivers
+    }
+
+    /// 某补遗件是否已有确认记录（readiness 判定的消费面：file_id 匹配即
+    /// 该件已人工接受）。
+    pub fn addendum_waived(&self, file_id: &str) -> bool {
+        self.addendum_waivers.iter().any(|w| w.file_id == file_id)
+    }
+
+    /// 记录一条补遗逐件确认（#184——分级就绪的人工出口）。
+    ///
+    /// 裁决序（全部前置校验通过才落账——拒绝路径零副作用）：
+    /// 1. project 在场（记录挂在项目下）；
+    /// 2. `principal` 须 `human:` 前缀（与 review.rs 复审人同口径——
+    ///    AI 不得自审自过；确认「带病放行」比过门更重，没有理由放宽）；
+    /// 3. `reason` 非空白（不可审计的确认不成确认）；
+    /// 4. `file_id` 必须存在于 files（对不存在的件做确认 = 凭空免责）。
+    ///
+    /// 落账：追加 `AddendumWaiverRecord`（同件重复确认追加不覆盖——审计
+    /// 日志语义）+ content_version + 1（与 record_review 的「写账即版本」
+    /// 同口径）。不设状态门：与 Gate::AddendumWaiver 同窗口语义——
+    /// 导入后任意时刻可确认（阻塞可能出现在任何后续阶段）。
+    pub fn record_addendum_waiver(
+        &mut self,
+        file_id: &str,
+        reason: &str,
+        principal: &str,
+    ) -> Result<AddendumWaiverRecord, ToolError> {
+        self.project()?;
+        if !principal.starts_with("human:") {
+            return Err(ToolError::EUnprocessable {
+                reason: format!(
+                    "确认人 {principal:?} 缺 human: 前缀（与复审人同口径：AI 不得自审自过——补遗确认是「带病放行」的免责面，没有理由放宽）"
+                ),
+            });
+        }
+        if reason.trim().is_empty() {
+            return Err(ToolError::EUnprocessable {
+                reason: "确认理由不得为空白（不可审计的确认不成确认）".into(),
+            });
+        }
+        if !self.files.iter().any(|f| f.id == file_id) {
+            return Err(ToolError::ENotFound {
+                what: format!("文件 {file_id} 不存在（对不存在的件做确认 = 凭空免责）"),
+            });
+        }
+        let at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let rec = AddendumWaiverRecord {
+            file_id: file_id.to_string(),
+            reason: reason.trim().to_string(),
+            at,
+            principal: principal.to_string(),
+        };
+        self.addendum_waivers.push(rec.clone());
+        if let Some(p) = self.project.as_mut() {
+            p.content_version += 1;
+        }
+        Ok(rec)
+    }
+
     // ------------------------------------------------------------ extract_requirements（契约 §3）
     /// 写入条款集（dedupe_hash 幂等合并：同源锚+同陈述 → 复用既有 REQ）。
     pub fn set_requirements(
@@ -628,6 +731,10 @@ pub struct StoreSnapshot {
     pub reviews: Vec<review::ReviewRecord>,
     #[serde(default)]
     pub revision_tasks: Vec<review::RevisionTask>,
+    /// #184 补遗逐件人工确认（加性迁移——旧快照无此字段 → 空集合加载；
+    /// schema_version 不 bump，见 StoreSnapshot 头注释的加性演进纪律）
+    #[serde(default)]
+    pub addendum_waivers: Vec<AddendumWaiverRecord>,
     #[serde(default)]
     pub idempotency: BTreeMap<String, serde_json::Value>,
     #[serde(default)]
@@ -652,6 +759,7 @@ impl DomainStore {
             findings: self.findings.clone(),
             reviews: self.reviews.clone(),
             revision_tasks: self.revision_tasks.clone(),
+            addendum_waivers: self.addendum_waivers.clone(),
             // HashMap → BTreeMap：持久化 DTO 要求跨进程字节一致（HashMap 迭代序不确定）
             idempotency: self.idempotency.clone().into_iter().collect(),
             id_seq: self.id_seq,
@@ -796,6 +904,20 @@ impl DomainStore {
                 rev.id
             )));
         }
+        // #184 补遗确认引用完整：waiver 的 file_id 必须存在于 files
+        // （孤儿确认 = 对不存在的件免责——半个账本，拒载）。
+        let file_ids: std::collections::HashSet<&str> =
+            snap.files.iter().map(|f| f.id.as_str()).collect();
+        if let Some(w) = snap
+            .addendum_waivers
+            .iter()
+            .find(|w| !file_ids.contains(w.file_id.as_str()))
+        {
+            return Err(un(format!(
+                "addendum_waiver 引用了不存在的文件 {}（孤儿确认——拒载）",
+                w.file_id
+            )));
+        }
         // 孤儿数据（有集合无项目 = 半个库）
         if snap.project.is_none()
             && (!snap.files.is_empty()
@@ -805,7 +927,8 @@ impl DomainStore {
                 || !snap.assignments.is_empty()
                 || !snap.findings.is_empty()
                 || !snap.reviews.is_empty()
-                || !snap.revision_tasks.is_empty())
+                || !snap.revision_tasks.is_empty()
+                || !snap.addendum_waivers.is_empty())
         {
             return Err(un("快照有数据但无项目（孤儿集合——拒绝加载半个库）".into()));
         }
@@ -823,6 +946,7 @@ impl DomainStore {
             findings: snap.findings,
             reviews: snap.reviews,
             revision_tasks: snap.revision_tasks,
+            addendum_waivers: snap.addendum_waivers,
             idempotency: snap.idempotency.into_iter().collect(),
             id_seq: snap.id_seq,
         })
@@ -850,6 +974,7 @@ fn tool_name(tool: &str) -> &'static str {
         "register_evidence" => "register_evidence",
         "bind_evidence" => "bind_evidence",
         "record_review_gate" => "record_review_gate",
+        "record_addendum_waiver" => "record_addendum_waiver",
         _ => "unknown_tool",
     }
 }
@@ -1007,5 +1132,117 @@ mod tests {
         let v = s.content_version();
         assert!(s.check_version(Some(v)).is_ok());
         assert!(s.check_version(None).is_ok(), "内部步骤跳过检查");
+    }
+
+    // ------------------------------------------------------------ #184 补遗逐件确认
+
+    fn store_with_failed_addendum() -> (DomainStore, String) {
+        let mut s = store_with_files();
+        let (fid, _) = s
+            .upsert_file(
+                "C-补遗01.pdf",
+                "补遗",
+                "sha-aw-1",
+                0, 0, 0, 0,
+                ParseStatus::Failed,
+                "ToUnicode CMap 缺失：文本层无法解码",
+            )
+            .unwrap();
+        (s, fid)
+    }
+
+    #[test]
+    fn addendum_waiver_happy_path_records_and_queries() {
+        let (mut s, fid) = store_with_failed_addendum();
+        let v = s.content_version();
+        let rec = s
+            .record_addendum_waiver(&fid, "已人工核对纸质原件", "human:184-lead")
+            .unwrap();
+        assert_eq!(rec.file_id, fid);
+        assert!(rec.at > 0, "确认时刻落钟");
+        assert_eq!(rec.principal, "human:184-lead");
+        assert!(s.addendum_waived(&fid), "file_id 匹配即该件已接受");
+        let ws = s.addendum_waivers();
+        assert_eq!(ws.len(), 1);
+        assert_eq!(ws[0].file_id, fid);
+        assert_eq!(s.content_version(), v + 1, "写账即版本（与 record_review 同口径）");
+
+        // 同件重复确认：追加不覆盖（审计日志语义）
+        let rec2 = s
+            .record_addendum_waiver(&fid, "复核后维持原确认", "human:184-second")
+            .unwrap();
+        assert_ne!(rec2.at, 0);
+        assert_eq!(s.addendum_waivers().len(), 2, "追加式留底");
+        assert!(s.addendum_waived(&fid));
+    }
+
+    #[test]
+    fn addendum_waiver_rejects_bad_principal_reason_and_ghost_file() {
+        let (mut s, fid) = store_with_failed_addendum();
+        // 非 human: 确认人（先于 file 存在性校验——操作者门是最上游的资格面，
+        // 与 record_review 的裁决序同构）
+        assert!(matches!(
+            s.record_addendum_waiver(&fid, "r", "agent:bot"),
+            Err(ToolError::EUnprocessable { .. })
+        ));
+        // 空白理由
+        assert!(matches!(
+            s.record_addendum_waiver(&fid, "   ", "human:x"),
+            Err(ToolError::EUnprocessable { .. })
+        ));
+        // 幽灵 file_id（对不存在的件做确认 = 凭空免责）
+        assert!(matches!(
+            s.record_addendum_waiver("TF-9999", "r", "human:x"),
+            Err(ToolError::ENotFound { .. })
+        ));
+        // 拒绝路径零副作用
+        assert!(s.addendum_waivers().is_empty());
+    }
+
+    #[test]
+    fn addendum_waiver_snapshot_roundtrip_and_old_snapshot_loads() {
+        // 新字段往返：to_snapshot → restore 全保真
+        let (mut s, fid) = store_with_failed_addendum();
+        s.record_addendum_waiver(&fid, "人工核对原件", "human:rt-lead").unwrap();
+        let snap = s.to_snapshot();
+        assert_eq!(snap.addendum_waivers.len(), 1);
+        let restored = DomainStore::restore(snap).unwrap();
+        assert_eq!(restored.addendum_waivers(), s.addendum_waivers());
+
+        // 旧快照（无 addendum_waivers 字段）→ serde(default) 空集合加载
+        let mut json = serde_json::to_value(s.to_snapshot()).unwrap();
+        let obj = json.as_object_mut().unwrap();
+        obj.remove("addendum_waivers");
+        let old_snap: StoreSnapshot = serde_json::from_value(json).unwrap();
+        assert!(old_snap.addendum_waivers.is_empty());
+        let old_store = DomainStore::restore(old_snap).unwrap();
+        assert!(old_store.addendum_waivers().is_empty());
+
+        // 孤儿确认（引用不存在的 file_id）→ 拒载（fail-closed）
+        let mut bad = s.to_snapshot();
+        bad.addendum_waivers.push(AddendumWaiverRecord {
+            file_id: "TF-9999".into(),
+            reason: "幽灵确认".into(),
+            at: 1,
+            principal: "human:x".into(),
+        });
+        assert!(matches!(
+            DomainStore::restore(bad),
+            Err(ToolError::EUnprocessable { .. })
+        ));
+    }
+
+    #[test]
+    fn record_addendum_waiver_state_window_is_files_imported_plus() {
+        // 与 Gate::AddendumWaiver 同窗口：DRAFT 拒（E_STATE），FILES_IMPORTED+ 放行
+        let mut s = DomainStore::new();
+        s.create_project("窗口", "C-W", "明标", "w-key").unwrap();
+        assert!(matches!(
+            s.guard_tool("record_addendum_waiver"),
+            Err(ToolError::EState { .. })
+        ));
+        s.upsert_file("A-招标文件.docx", "招标文件", "sha-w", 1, 0, 5, 0, ParseStatus::Ok, "")
+            .unwrap();
+        assert!(s.guard_tool("record_addendum_waiver").is_ok());
     }
 }

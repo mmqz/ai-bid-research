@@ -1,4 +1,4 @@
-//! 状态机全路径矩阵——10 状态 × 20 工具 × 合法/非法迁移的全覆盖。
+//! 状态机全路径矩阵——10 状态 × 21 工具 × 合法/非法迁移的全覆盖。
 //!
 //! 为什么单开这个文件：`ProjectStatus::next_allowed()` 与 `allowed_tools()`
 //! 是**状态机的唯一权威真源**（lib.rs），但此前只被 e2e 顺带覆盖——
@@ -24,9 +24,12 @@ const ALL_STATES: [ProjectStatus; 10] = [
     ProjectStatus::Exported,
 ];
 
-/// 全部 20 个工具（TOOL_NAMES 的真源在 bid-mcp——这里钉死字面量，
+/// 全部 21 个工具（TOOL_NAMES 的真源在 bid-mcp——这里钉死字面量，
 /// 目的是「工具面变更必须显式改测试」，而不是静默跟随）。
-const ALL_TOOLS: [&str; 20] = [
+/// #184 增 `record_addendum_waiver`（尾插——放行窗口与 record_review_gate
+/// 同族但更宽：FILES_IMPORTED+，含 Exported——与 Gate::AddendumWaiver
+/// 「导入后任意时刻」同窗口语义，审计面写入与 record_review_gate 同款）。
+const ALL_TOOLS: [&str; 21] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -47,6 +50,7 @@ const ALL_TOOLS: [&str; 20] = [
     "score_section",
     "score_document",
     "score_tender",
+    "record_addendum_waiver",
 ];
 
 // ---------------------------------------------------------------- 1. 前向迁移表
@@ -181,33 +185,33 @@ fn terminal_state_blocks_write_tools() {
 
 // ---------------------------------------------------------------- 3. 全矩阵钉死
 
-/// 全矩阵快照：10 状态 × 20 工具的放行位。
+/// 全矩阵快照：10 状态 × 21 工具的放行位。
 ///
 /// 这是**回归护栏**——表一变测试就红，逼人显式确认「这是有意的变更」。
 /// 用 grid 字面量（每个状态一行，工具按 ALL_TOOLS 顺序）便于肉眼 diff。
 #[test]
 fn full_matrix_snapshot() {
     let grid: Vec<(ProjectStatus, &str)> = vec![
-        // Draft
-        (ProjectStatus::Draft, "11000000000000100000"),
+        // Draft（record_addendum_waiver 拒——导入前无件可确认）
+        (ProjectStatus::Draft, "110000000000001000000"),
         // FilesImported
-        (ProjectStatus::FilesImported, "01101000100000100000"),
+        (ProjectStatus::FilesImported, "011010001000001000001"),
         // RequirementsExtracted
-        (ProjectStatus::RequirementsExtracted, "01111000100000100000"),
+        (ProjectStatus::RequirementsExtracted, "011110001000001000001"),
         // MatrixReady
-        (ProjectStatus::MatrixReady, "00001110110010110110"),
+        (ProjectStatus::MatrixReady, "000011101100101101101"),
         // EvidenceBound
-        (ProjectStatus::EvidenceBound, "00001110110010110110"),
+        (ProjectStatus::EvidenceBound, "000011101100101101101"),
         // Drafting
-        (ProjectStatus::Drafting, "00001000110111110110"),
+        (ProjectStatus::Drafting, "000010001101111101101"),
         // Validating
-        (ProjectStatus::Validating, "00001000100111110110"),
+        (ProjectStatus::Validating, "000010001001111101101"),
         // Reviewing
-        (ProjectStatus::Reviewing, "00001000100111110110"),
+        (ProjectStatus::Reviewing, "000010001001111101101"),
         // ReadyToExport
-        (ProjectStatus::ReadyToExport, "00001000100111110110"),
+        (ProjectStatus::ReadyToExport, "000010001001111101101"),
         // Exported
-        (ProjectStatus::Exported, "00001000100011110110"),
+        (ProjectStatus::Exported, "000010001000111101101"),
     ];
     assert_eq!(grid.len(), ALL_STATES.len());
 

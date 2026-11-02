@@ -36,7 +36,7 @@ pub use transport::Transport;
 
 use serde_json::Value;
 
-/// 20 个工具名（单一真源；schema 声明与分发都从这里取）。
+/// 21 个工具名（单一真源；schema 声明与分发都从这里取）。
 ///
 /// V3-5（S-4 游标分页）新增 `list_evidence` / `list_tasks` 两个只读列表工具
 /// （原 8 工具契约 + `get_bid_project_state` + 2 = 11）；#42 阶段 10 增
@@ -44,8 +44,10 @@ use serde_json::Value;
 /// 增 4 个：`build_outline` / `register_evidence` / `bind_evidence` /
 /// `record_review_gate`（G1/G2/G3——外部 Agent 纯 MCP 驱动全链的缺口面）；
 /// #100 任务 3 增 3 个：`score_price` / `score_section` / `score_document`
-/// （B1 价格分 + B2 自评的 MCP 接线——「能得几分、该报多少价」）。
-pub const TOOL_NAMES: [&str; 20] = [
+/// （B1 价格分 + B2 自评的 MCP 接线——「能得几分、该报多少价」）；
+/// #184 增 1 个：`record_addendum_waiver`（补遗分级阻塞的逐件人工确认）
+/// = 21。
+pub const TOOL_NAMES: [&str; 21] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -63,6 +65,7 @@ pub const TOOL_NAMES: [&str; 20] = [
     "register_evidence",
     "bind_evidence",
     "record_review_gate",
+    "record_addendum_waiver",
     "score_price",
     "score_section",
     "score_document",

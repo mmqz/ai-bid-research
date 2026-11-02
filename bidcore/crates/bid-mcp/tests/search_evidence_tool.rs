@@ -10,11 +10,13 @@
 //! [x] 排序确定性（score DESC, ev_id ASC——两次调用 serde 全等，R-15 可重放）
 //! ```
 //!
-//! **工具数口径（如实登记）**：`TOOL_NAMES` 共 **20** 个，`search_evidence`
-//! 本来就在声明面里（#139 报告「20 声明 / 19 实装」）——本轮把它从
-//! `UNIMPLEMENTED_INTERNAL` 变实装，**声明数=实装数=20**。#145 任务书写的
-//! 「21 个工具」来自把「20 实装 + 1 新增」的误算：不为凑数往 TOOL_NAMES
-//! 里塞第 21 个工具（单一真源不改口径）。
+//! **工具数口径（如实登记）**：`TOOL_NAMES` 在 #145 时点共 **20** 个，
+//! `search_evidence` 本来就在声明面里（#139 报告「20 声明 / 19 实装」）——
+//! 那一轮把它从 `UNIMPLEMENTED_INTERNAL` 变实装，声明数=实装数=20。#145
+//! 任务书写的「21 个工具」来自把「20 实装 + 1 新增」的误算：不为凑数往
+//! TOOL_NAMES 里塞第 21 个工具（单一真源不改口径）。
+//! （#184 起新增 `record_addendum_waiver`——工具面变 21，非凑数：分级
+//! 阻塞的伴生确认面，见 dispatch_contract.rs。）
 //!
 //! 全部用例走 `dispatch_with`（工具面全链：参数校验 → 通道计算 → 降权 →
 //! 排序 → 截断 → 信封组装），不绕过壳层直测内部函数。
@@ -193,7 +195,8 @@ fn search_store() -> (BidService, String) {
 
 // ---------------------------------------------------------------- 验收用例
 
-/// tools/list 声明 + implemented 双面（工具数口径见模块注释——20 不是 21，如实）。
+/// tools/list 声明 + implemented 双面（工具数口径见模块注释——#145 时点
+/// 20，#184 增 record_addendum_waiver 后 21，如实）。
 #[test]
 fn tools_list_declares_search_evidence_implemented() {
     let schema = bid_mcp::tools_schema();
@@ -205,10 +208,10 @@ fn tools_list_declares_search_evidence_implemented() {
     );
     let se = tools.iter().find(|t| t["name"].as_str() == Some("search_evidence")).unwrap();
     assert_eq!(se["implemented"].as_bool(), Some(true), "implemented 必须 true：{se}");
-    // 声明数 = 实装数 = 20（#145 任务书的「21」是误算——见模块注释）
+    // 声明数 = 实装数（#145 时点 20；#184 增 record_addendum_waiver → 21）
     let n_impl = tools.iter().filter(|t| t["implemented"].as_bool() == Some(true)).count();
-    assert_eq!(names.len(), 20, "TOOL_NAMES 声明数应为 20：{names:?}");
-    assert_eq!(n_impl, 20, "实装数应与声明数一致（20）：{names:?}");
+    assert_eq!(names.len(), 21, "TOOL_NAMES 声明数应为 21（#184 增确认面）：{names:?}");
+    assert_eq!(n_impl, 21, "实装数应与声明数一致（21）：{names:?}");
 }
 
 /// 验收①：exact 模式 cert=ISO9001（有界短语——不误报 ISO14001）。

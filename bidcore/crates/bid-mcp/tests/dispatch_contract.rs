@@ -21,8 +21,10 @@ fn tool_names_are_the_contract_twenty() {
     // bind_evidence / record_review_gate）= 17（G1/G2/G3——外部 Agent
     // 纯 MCP 驱动全链）；
     // #100 任务 3 增 3（score_price / score_section / score_document）
-    // = 20（B1 价格分 + B2 自评的 MCP 接线——「能得几分、该报多少价」）
-    assert_eq!(TOOL_NAMES.len(), 20, "工具面必须恰为 20 个（17 + #100 任务 3 评分三件）");
+    // = 20（B1 价格分 + B2 自评的 MCP 接线——「能得几分、该报多少价」）；
+    // #184 增 1（record_addendum_waiver——补遗分级阻塞的逐件人工确认）
+    // = 21
+    assert_eq!(TOOL_NAMES.len(), 21, "工具面必须恰为 21 个（20 + #184 补遗逐件确认）");
     for name in TOOL_NAMES {
         assert!(!name.is_empty());
     }
@@ -98,7 +100,7 @@ fn json_roundtrip_failure_is_typed() {
 fn tools_schema_lists_all_twenty() {
     let v = bid_mcp::tools_schema();
     let arr = v["tools"].as_array().unwrap();
-    assert_eq!(arr.len(), 20);
+    assert_eq!(arr.len(), 21);
     let implemented: Vec<&str> = arr
         .iter()
         .filter(|t| t["implemented"] == true)
@@ -111,7 +113,8 @@ fn tools_schema_lists_all_twenty() {
     // 收缩，防骨架与实现脱钩；
     // #100 任务 3：score_price / score_section / score_document（B1/B2 接线）；
     // #145 任务 1：search_evidence 接线 + save_version 补登（此前 is_implemented
-    // 漏登致 tools/list 误报 false——#145 测试面抓出，如实登记）→ 全部 20 实装
+    // 漏登致 tools/list 误报 false——#145 测试面抓出，如实登记）→ 全部 20 实装；
+    // #184：record_addendum_waiver（补遗分级阻塞的逐件人工确认）→ 21 实装
     assert_eq!(
         implemented,
         vec![
@@ -132,6 +135,7 @@ fn tools_schema_lists_all_twenty() {
             "register_evidence",
             "bind_evidence",
             "record_review_gate",
+            "record_addendum_waiver",
             "score_price",
             "score_section",
             "score_document",
@@ -141,4 +145,6 @@ fn tools_schema_lists_all_twenty() {
     for t in arr.iter().filter(|t| t["name"].as_str().unwrap().starts_with("score_")) {
         assert_ne!(t["description"], "unknown", "score_* 描述必须在场: {t}");
     }
+    let ra = arr.iter().find(|t| t["name"] == "record_addendum_waiver").unwrap();
+    assert_ne!(ra["description"], "unknown", "record_addendum_waiver 描述必须在场: {ra}");
 }

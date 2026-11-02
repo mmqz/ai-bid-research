@@ -1,68 +1,15 @@
 {
  "case": "01-initialize-and-tools",
- "transport": "mcp",
- "server_bin": "/tmp/shared-target/debug/bid-mcp-server",
- "server_sha256": "b5d8092aae1699ec05a3889b1542be6a7a1b49ac0c2eae7d4c85691eb32d9b4b",
+ "transport": "linejson",
+ "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
+ "server_sha256": "babcf3bcc26236db83eda2db9744eeb598108a720e85230f98e82c1d3642eed2",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-02T04:39:08+00:00",
- "stages": [
-  {
-   "stage": "MCP 握手 + 工具清单",
-   "tool": null,
-   "args": {},
-   "result": {
-    "serverInfo": {
-     "name": "bid-mcp",
-     "version": "0.1.0"
-    },
-    "protocolVersion": "2025-11-25",
-    "n_tools": 20,
-    "tool_names": {
-     "count": 20,
-     "head": [
-      "bind_evidence",
-      "build_outline",
-      "check_bid_quality",
-      "create_bid_project",
-      "draft_response_section",
-      "export_bid_document",
-      "extract_requirements",
-      "get_bid_project_state",
-      "get_compliance_matrix",
-      "import_tender_files",
-      "list_evidence",
-      "list_tasks"
-     ]
-    }
-   },
-   "checks": [
-    {
-     "desc": "握手: initialize 成功且 serverInfo.name == 'bid-mcp'",
-     "pass": true
-    },
-    {
-     "desc": "握手: protocolVersion 已协商",
-     "pass": true
-    },
-    {
-     "desc": "握手: capabilities.tools 在场",
-     "pass": true
-    },
-    {
-     "desc": "握手: tools/list ≥ 20（实际 20）",
-     "pass": true
-    },
-    {
-     "desc": "握手: 关键工具全在场（P0-P8 主链 12 个）",
-     "pass": true
-    }
-   ],
-   "elapsed_ms": null
-  }
- ],
+ "started_at": "2026-11-02T06:09:22+00:00",
+ "stages": [],
  "payload_shapes": {},
  "ws": null,
- "finished_at": "2026-11-02T04:39:08+00:00"
+ "finished_at": "2026-11-02T06:09:22+00:00",
+ "note": "SKIPPED: Skipped: MCP 协议层（initialize/tools/list/tools/call）待 #137 交付 bid-mcp-server；当前传输=linejson（逐行 JSON，无握手面）——本用例如实 SKIP，不假装通过"
 }

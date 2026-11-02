@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import hmac
 import json
 import os
 import platform
@@ -128,6 +129,31 @@ SEARCH_EXTRA_EVIDENCE = [
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+
+
+def mint_receipt(ws: Path, actor_id: str, scope: str) -> str:
+    """#182 宿主签发面复刻：读工作区密钥，按域层线格式签审批 receipt。
+
+    e2e 测试进程即宿主（spawn server 的同一进程树/同一文件系统权限）——
+    持钥签发是宿主特权；MCP 工具面上不存在等价能力（这正是 #182 的信任根）。
+    契约与 bid-domain/src/principal.rs 一字不差：
+      线格式 v1.<actor>.human.<scope>.<issued_at>.<hex_hmac_sha256>
+      HMAC 消息 v1|<actor>|human|<scope>|<issued_at>
+    """
+    key = (ws / ".mang" / "approval.key").read_bytes()
+    now = int(time.time())
+    msg = f"v1|{actor_id}|human|{scope}|{now}".encode()
+    mac = hmac.new(key, msg, hashlib.sha256).hexdigest()
+    return f"v1.{actor_id}.human.{scope}.{now}.{mac}"
+
+
+async def expect_reject(client: Any, tool: str, args: dict) -> str:
+    """负例探针：返回错误码（如 E_UNPROCESSABLE）；意外成功返回 "OK:…"。"""
+    try:
+        r = await call(client, tool, args)
+        return f"OK:{json.dumps(r, ensure_ascii=False)[:80]}"
+    except ToolFailure as e:
+        return e.code
 
 
 def sha256_file(path: Path) -> str:
@@ -494,8 +520,10 @@ def require(checks: list[tuple[str, bool]]) -> None:
 # ---------------------------------------------------------------- 场景体（P0→P4→三门）
 
 
-async def setup_project(client: Any, rec: Recorder, tag: str) -> dict:
+async def setup_project(client: Any, rec: Recorder, tag: str, ws: Path) -> dict:
     """建项→导入→抽取→建纲→矩阵→登记→绑定→三门过审。
+
+    ws 用于 #182 宿主签发面（读 approval.key 签 receipt——测试进程即宿主）。
 
     全部走 MCP 工具（外部 Agent 视角的纯 MCP 驱动面），
     返回 ctx：pid / ev_id / sections(sec→[req]) / mandatory REQ 清单。
@@ -653,19 +681,46 @@ async def setup_project(client: Any, rec: Recorder, tag: str) -> dict:
               elapsed_ms=(time.monotonic() - t0) * 1000)
     require(checks)
 
-    # ---- G3 两门过审（reviewer 必须 human: 前缀；#180 审核内容绑定：
-    #      pre_export_confirm 绑定章节正文摘要，须在全部叶起草完成后记审
-    #      ——挪至 _case_full_pipeline 的 P7.5（导出前），与人类流程同序）
+    # ---- G3 两门过审（#182：receipt 验签——宿主签发，Agent 不得伪造；
+    #      #180 审核内容绑定：pre_export_confirm 绑定章节正文摘要，须在全部
+    #      叶起草完成后记审——挪至 _case_full_pipeline 的 P7.5（导出前），
+    #      与人类流程同序）
     t0 = time.monotonic()
+    # #182 负例探针（issue 验收 A/C）：旧 reviewer 参数 → 参数面显式拒；
+    # 伪造 receipt（篡改末段 mac）→ 服务层验签拒。两者均零副作用。
+    probe_old_param = await expect_reject(client, "record_review_gate", {
+        "project_id": pid, "gate": "matrix_approval", "decision": "APPROVED",
+        "reviewer": "human:admin",
+    })
+    forged = mint_receipt(ws, "admin", "review_gate:matrix_approval")
+    forged = forged[:-1] + ("1" if forged[-1] != "1" else "0")
+    probe_forged = await expect_reject(client, "record_review_gate", {
+        "project_id": pid, "gate": "matrix_approval", "decision": "APPROVED",
+        "receipt": forged,
+    })
     gates = ("matrix_approval", "outline_approval")
     for g in gates:
         r = await call(client, "record_review_gate", {
             "project_id": pid, "gate": g, "decision": "APPROVED",
-            "reviewer": "human:mcp-e2e",
+            "receipt": mint_receipt(ws, "mcp-e2e-lead", f"review_gate:{g}"),
         })
     approved = r.get("gates_approved", [])
-    checks = [(f"G3: 两门全过 {gates}", set(gates).issubset(set(approved)))]
-    rec.stage("G3 record_review_gate ×2", "record_review_gate", {"gates": list(gates)},
+    actor = r.get("receipt", {}).get("actor", {})
+    checks = [
+        (f"G3: 两门全过 {gates}", set(gates).issubset(set(approved))),
+        ("G3: #182 旧 reviewer 参数被拒（E_UNPROCESSABLE）",
+         probe_old_param == "E_UNPROCESSABLE"),
+        ("G3: #182 伪造 receipt 被拒（E_UNPROCESSABLE）",
+         probe_forged == "E_UNPROCESSABLE"),
+        ("G3: #182 actor 回显 actor_type=human（宿主签发的可信身份）",
+         actor.get("actor_type") == "human"),
+        ("G3: #182 actor 回显 authentication_method=hmac_receipt_v1",
+         actor.get("authentication_method") == "hmac_receipt_v1"),
+    ]
+    rec.stage("G3 record_review_gate ×2", "record_review_gate",
+              {"gates": list(gates),
+               "#182_probes": {"old_param": probe_old_param,
+                               "forged_receipt": probe_forged}},
               r, checks, elapsed_ms=(time.monotonic() - t0) * 1000)
     require(checks)
 
@@ -780,7 +835,7 @@ async def _case_initialize_and_tools(rec: Recorder) -> None:
 
 async def _case_full_pipeline(rec: Recorder, ws: Path) -> None:
     async with open_client(ws) as client:
-        ctx = await setup_project(client, rec, "mcp-e2e-pipeline")
+        ctx = await setup_project(client, rec, "mcp-e2e-pipeline", ws)
         pid, sections, ev_id = ctx["pid"], ctx["sections"], ctx["ev_id"]
         mandatory = set(ctx["mandatory"])
 
@@ -857,9 +912,10 @@ async def _case_full_pipeline(rec: Recorder, ws: Path) -> None:
         #      产物的正文；门先于起草会被 export_allowed 以「审核针对的内容
         #      已变更」拒，与人类流程同序：审核定稿内容）
         t0 = time.monotonic()
+        # #182：宿主签发 receipt（测试进程即宿主——读工作区密钥签发）
         r = await call(client, "record_review_gate", {
             "project_id": pid, "gate": "pre_export_confirm", "decision": "APPROVED",
-            "reviewer": "human:mcp-e2e",
+            "receipt": mint_receipt(ws, "mcp-e2e-lead", "review_gate:pre_export_confirm"),
         })
         receipt = r.get("receipt", {})
         digest = receipt.get("reviewed_content_digest")
@@ -1052,7 +1108,7 @@ async def _case_error_envelope(rec: Recorder, ws: Path) -> None:
 async def _case_external_ghost_ev(rec: Recorder, ws: Path) -> None:
     """① 正文里有不存在的 EV- 编号 → 引擎剔除 + warning（不拒稿）。"""
     async with open_client(ws) as client:
-        ctx = await setup_project(client, rec, "mcp-e2e-ghost-ev")
+        ctx = await setup_project(client, rec, "mcp-e2e-ghost-ev", ws)
         pid, sections, ev_id = ctx["pid"], ctx["sections"], ctx["ev_id"]
         # 选必绑 REQ 最多的章（其响应面里 known EV 集非空——真 EV 与幽灵 EV 混引）
         sec, reqs = max(sections.items(),
@@ -1094,7 +1150,7 @@ async def _case_external_ghost_ev(rec: Recorder, ws: Path) -> None:
 async def _case_external_uncovered(rec: Recorder, ws: Path) -> None:
     """② 正文覆盖不全 → 返回 uncovered_requirements。"""
     async with open_client(ws) as client:
-        ctx = await setup_project(client, rec, "mcp-e2e-uncovered")
+        ctx = await setup_project(client, rec, "mcp-e2e-uncovered", ws)
         pid, sections = ctx["pid"], ctx["sections"]
         sec, reqs = max(sections.items(), key=lambda kv: len(kv[1]))
         assert len(reqs) >= 2, f"用例②需要 ≥2 REQ 的章节（{sec} 只有 {len(reqs)}）"
@@ -1125,7 +1181,7 @@ async def _case_external_uncovered(rec: Recorder, ws: Path) -> None:
 async def _case_external_unanchored(rec: Recorder, ws: Path) -> None:
     """③ 有承诺句但没引用 → count_unanchored_claims > 0。"""
     async with open_client(ws) as client:
-        ctx = await setup_project(client, rec, "mcp-e2e-unanchored")
+        ctx = await setup_project(client, rec, "mcp-e2e-unanchored", ws)
         pid, sections = ctx["pid"], ctx["sections"]
         sec, reqs = next(iter(sections.items()))
         body = author_body(reqs, promise_sentences=PROMISE_SENTENCES)
@@ -1154,7 +1210,7 @@ async def _case_external_unanchored(rec: Recorder, ws: Path) -> None:
 async def _case_external_cas_version(rec: Recorder, ws: Path) -> None:
     """④ 正常正文 → CAS 写入成功，版本递增；同稿重提幂等。"""
     async with open_client(ws) as client:
-        ctx = await setup_project(client, rec, "mcp-e2e-cas")
+        ctx = await setup_project(client, rec, "mcp-e2e-cas", ws)
         pid, sections, ev_id = ctx["pid"], ctx["sections"], ctx["ev_id"]
         mandatory = set(ctx["mandatory"])
         sec, reqs = max(sections.items(),
@@ -1231,7 +1287,7 @@ async def _case_search_evidence(rec: Recorder, ws: Path) -> None:
       hybrid 合并去重 / 过期证据降权+warning / 排序确定性（可重放）。
     """
     async with open_client(ws) as client:
-        ctx = await setup_project(client, rec, "mcp-e2e-search")
+        ctx = await setup_project(client, rec, "mcp-e2e-search", ws)
         pid = ctx["pid"]
 
         # ---- 证据面：setup 登记的资质证书（无有效期）+ 四条检索验收件

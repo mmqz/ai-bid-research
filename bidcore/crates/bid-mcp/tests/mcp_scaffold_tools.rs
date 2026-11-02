@@ -18,6 +18,13 @@ use bid_mcp::{dispatch_with, BidService, ToolCall, ToolReply};
 use serde_json::{json, Value};
 use std::path::PathBuf;
 
+/// #182 宿主签发面（测试进程即宿主——持 svc 即持钥）：门级 receipt。
+/// scope 格式 `review_gate:{gate}` 与 bid-tools 服务层 review_gate_scope 同源
+/// （此处内联——测试面不引服务层符号，格式由 #182 域层 receipt 契约钉死）。
+fn gate_receipt(svc: &mut BidService, actor: &str, gate: &str) -> String {
+    svc.issue_approval_receipt(actor, &format!("review_gate:{gate}"))
+}
+
 fn files_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../fixtures/synth-tender/招标文件")
 }
@@ -189,12 +196,13 @@ fn mcp_only_full_pipeline_drives_to_export() {
         "重放全命中: {bind2:?}"
     );
 
-    // ---- ⑧ 三门记审（G3）+ 门序进度真源
+    // ---- ⑧ 三门记审（G3）+ 门序进度真源（#182：receipt 验签——宿主签发）
+    let r_matrix = gate_receipt(&mut svc, "mcp-scaffold-lead", "matrix_approval");
     let g = ok(call(
         &mut svc,
         "record_review_gate",
         json!({ "project_id": &pid, "gate": "matrix_approval", "decision": "APPROVED",
-                "reviewer": "human:mcp-scaffold-lead" }),
+                "receipt": r_matrix }),
     ));
     assert_eq!(g["receipt"]["decision"], json!("APPROVED"));
     assert_eq!(
@@ -202,11 +210,12 @@ fn mcp_only_full_pipeline_drives_to_export() {
         1,
         "门序进度: {g:?}"
     );
+    let r_outline = gate_receipt(&mut svc, "mcp-scaffold-lead", "outline_approval");
     ok(call(
         &mut svc,
         "record_review_gate",
         json!({ "project_id": &pid, "gate": "outline_approval", "decision": "APPROVED",
-                "reviewer": "human:mcp-scaffold-lead" }),
+                "receipt": r_outline }),
     ));
     // #180 审核内容绑定：pre_export_confirm 绑定章节正文摘要，须在全部叶
     // 起草完成后记审（挑至 ⑪'/⑫ 之间——与人类流程同序：审核定稿内容）。
@@ -229,11 +238,12 @@ fn mcp_only_full_pipeline_drives_to_export() {
     // #131：无补遗确认门（L3 人工出口——MCP 面）：导入面只有 A/B 招标文件
     // （无补遗件），起草前须人工确认无补遗；#118 合入时漏适配本套件。
     // 走 MCP 工具面记录（顺带断言第四门的 parse_gate 接线与门序进度）。
+    let r_waiver = gate_receipt(&mut svc, "mcp-scaffold-lead", "addendum_waiver");
     let gw = ok(call(
         &mut svc,
         "record_review_gate",
         json!({ "project_id": &pid, "gate": "addendum_waiver", "decision": "APPROVED",
-                "reviewer": "human:mcp-scaffold-lead" }),
+                "receipt": r_waiver }),
     ));
     assert_eq!(gw["receipt"]["gate"], json!("addendum_waiver"));
     assert!(
@@ -264,11 +274,12 @@ fn mcp_only_full_pipeline_drives_to_export() {
     assert_eq!(v["counts"]["blocker"], json!(0), "校验: {v:?}");
     // ---- ⑪' PreExportConfirm 记审（#180：定稿内容过门——全部叶起草完成
     //      后、导出前，绑定的才是将进产物的正文摘要）
+    let r_precx = gate_receipt(&mut svc, "mcp-scaffold-lead", "pre_export_confirm");
     let g3 = ok(call(
         &mut svc,
         "record_review_gate",
         json!({ "project_id": &pid, "gate": "pre_export_confirm", "decision": "APPROVED",
-                "reviewer": "human:mcp-scaffold-lead" }),
+                "receipt": r_precx }),
     ));
     // #180 后记审时序：addendum_waiver 已先于起草进门序进度（len=4），
     // 「三门齐」改逐门点名（弱化计数不是弱化断言——三门缺一必红）
@@ -362,7 +373,7 @@ fn scaffold_guards_and_error_paths() {
             "bind_evidence" => json!({ "project_id": &pid, "ev_id": "EV-0001",
                 "requirement_ids": ["REQ-0001"], "bid_open_date": "2026-11-30" }),
             _ => json!({ "project_id": &pid, "gate": "matrix_approval",
-                "decision": "APPROVED", "reviewer": "human:lead" }),
+                "decision": "APPROVED", "receipt": gate_receipt(&mut svc, "lead", "matrix_approval") }),
         };
         let e = err_of(call(&mut svc, tool, args));
         assert!(
@@ -427,12 +438,13 @@ fn scaffold_guards_and_error_paths() {
         "空批次: {e:?}"
     );
 
-    // 参数面：gate 名非法 → E_UNPROCESSABLE
+    // 参数面：gate 名非法 → E_UNPROCESSABLE（parse_gate 先于 receipt 面）
+    let r_gate_bad = gate_receipt(&mut svc, "lead", "matrix_approval");
     let e = err_of(call(
         &mut svc,
         "record_review_gate",
         json!({ "project_id": &pid, "gate": "final_approval",
-                "decision": "APPROVED", "reviewer": "human:lead" }),
+                "decision": "APPROVED", "receipt": r_gate_bad }),
     ));
     assert!(
         matches!(e, bid_mcp::ToolError::EUnprocessable { .. }),
@@ -499,30 +511,47 @@ fn scaffold_guards_and_error_paths() {
         other => panic!("过期证据应 E_PARTIAL: {other:?}"),
     }
 
-    // 复审人门：AI 不得自审自过（reviewer 缺 human: 前缀 → E_UNPROCESSABLE）
+    // #182 复审人门升级——AI 不得自审自过的两面拒绝：
+    // ① 旧 reviewer 参数（即便合法 human: 形态）→ 参数面显式拒
+    //    （MCP 面不再暴露身份自述——防「以为过了人工门」的假成功）
     let e = err_of(call(
         &mut svc,
         "record_review_gate",
         json!({ "project_id": &pid, "gate": "matrix_approval",
-                "decision": "APPROVED", "reviewer": "ai:agent-01" }),
+                "decision": "APPROVED", "reviewer": "human:admin" }),
     ));
     assert!(
-        matches!(e, bid_mcp::ToolError::EUnprocessable { .. })
-            || matches!(e, bid_mcp::ToolError::EState { .. }),
-        "非 human 复审人被拒（域层裁决）: {e:?}"
+        matches!(e, bid_mcp::ToolError::EUnprocessable { .. }),
+        "#182 旧 reviewer 参数必须显式拒: {e:?}"
+    );
+    // ② 伪造 receipt（篡改末段 mac）→ 服务层验签拒（Agent 拿不到宿主密钥）
+    let mut forged = gate_receipt(&mut svc, "admin", "matrix_approval");
+    let last = if forged.ends_with('0') { "1" } else { "0" };
+    forged.replace_range(forged.len() - 1.., last);
+    let e = err_of(call(
+        &mut svc,
+        "record_review_gate",
+        json!({ "project_id": &pid, "gate": "matrix_approval",
+                "decision": "APPROVED", "receipt": forged }),
+    ));
+    assert!(
+        matches!(e, bid_mcp::ToolError::EUnprocessable { .. }),
+        "#182 伪造 receipt（坏签名）必须验签拒: {e:?}"
     );
 
-    // 门序：outline 先于 matrix → E_STATE（域层门序裁决）
+    // 门序：outline 先于 matrix → E_STATE（域层门序裁决——receipt 须有效，
+    // 否则先死在验签面测不到门序）
+    let r_outline = gate_receipt(&mut svc, "lead", "outline_approval");
     let e = err_of(call(
         &mut svc,
         "record_review_gate",
         json!({ "project_id": &pid, "gate": "outline_approval",
-                "decision": "APPROVED", "reviewer": "human:lead" }),
+                "decision": "APPROVED", "receipt": r_outline }),
     ));
     assert!(
         matches!(e, bid_mcp::ToolError::EState { .. }),
         "门序（矩阵先于大纲）: {e:?}"
     );
 
-    println!("[mcp-scaffold] 错误路径面 ✅ E_STATE×4 / E_UNPROCESSABLE×5 / E_PARTIAL×2（含 R-03 禁绑 + 逐件定位）");
+    println!("[mcp-scaffold] 错误路径面 ✅ E_STATE×4 / E_UNPROCESSABLE×6 / E_PARTIAL×2（含 R-03 禁绑 + 逐件定位）");
 }

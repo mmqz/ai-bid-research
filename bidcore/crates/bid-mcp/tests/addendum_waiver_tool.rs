@@ -2,7 +2,8 @@
 //!
 //! 覆盖：
 //! - `record_addendum_waiver` 工具：happy path（记录 + 全量可查 + 就绪度
-//!   回显）、负例（未知 file_id / 非 human: principal / DRAFT 越级）；
+//!   回显）、负例（未知 file_id / 旧 principal 参数 / 伪造·错域 receipt /
+//!   DRAFT 越级——#182 receipt 验签面）；
 //! - `draft_response_section` 起草闸：部分补遗损坏 → E_UNPROCESSABLE
 //!   （逐件点名）→ 逐件 waiver 后放行（验收 A→C 的 MCP 全链）；
 //! - `import_tender_files` 响应接线：`addendum_readiness` 块 +
@@ -144,14 +145,30 @@ fn waiver_tool_param_and_gate_validation() {
         bid_domain::ParseStatus::Ok, "",
     ).unwrap();
     let pid = svc.store().project().unwrap().id.clone();
+    // #182：宿主签发面（测试进程即宿主——持 svc 即持钥，内存态密钥不落盘）
+    let r_tf2 = svc.issue_approval_receipt("aw-lead", "addendum_waiver:TF-0002");
+    let r_tf3 = svc.issue_approval_receipt("aw-lead", "addendum_waiver:TF-0003");
+    // 伪造样本：真 receipt 篡改末段 mac（验签必拒——Agent 拿不到宿主密钥）
+    let mut r_forged = svc.issue_approval_receipt("aw-lead", "addendum_waiver:TF-0002");
+    let last = if r_forged.ends_with('0') { "1" } else { "0" };
+    r_forged.replace_range(r_forged.len() - 1.., last);
     let cases: Vec<(Value, &str, &str)> = vec![
-        (json!({ "project_id": &pid }), "E_UNPROCESSABLE", "缺 file_id/reason/principal"),
-        (json!({ "project_id": &pid, "file_id": "TF-0002", "reason": "r" }), "E_UNPROCESSABLE", "缺 principal"),
-        (json!({ "project_id": &pid, "file_id": "TF-0002", "reason": "  ", "principal": "human:x" }), "E_UNPROCESSABLE", "空白 reason"),
-        (json!({ "project_id": &pid, "file_id": "TF-0002", "reason": "r", "principal": "agent:bot" }), "E_UNPROCESSABLE", "非 human: principal"),
-        // 未知 file_id：域层 ENotFound（对不存在的件做确认 = 凭空免责）
-        (json!({ "project_id": &pid, "file_id": "TF-9999", "reason": "r", "principal": "human:x" }), "E_NOTFOUND", "未知 file_id"),
-        (json!({ "project_id": "PRJ-9999", "file_id": "TF-0002", "reason": "r", "principal": "human:x" }), "E_NOTFOUND", "未知 project"),
+        (json!({ "project_id": &pid }), "E_UNPROCESSABLE", "缺 file_id/reason/receipt"),
+        (json!({ "project_id": &pid, "file_id": "TF-0002", "reason": "r" }), "E_UNPROCESSABLE", "缺 receipt"),
+        // #182：旧 principal 参数显式拒（参数面先于验签面——防假成功）
+        (json!({ "project_id": &pid, "file_id": "TF-0002", "reason": "r", "principal": "human:x" }), "E_UNPROCESSABLE", "旧 principal 参数"),
+        (json!({ "project_id": &pid, "file_id": "TF-0002", "reason": "  ", "receipt": r_tf2 }), "E_UNPROCESSABLE", "空白 reason"),
+        (json!({ "project_id": &pid, "file_id": "TF-0002", "reason": "r", "receipt": r_forged }), "E_UNPROCESSABLE", "伪造 receipt（坏签名）"),
+        // 错域 receipt：签给 TF-0003 的 receipt 免不了 TF-0002（scope 绑定）
+        (json!({ "project_id": &pid, "file_id": "TF-0002", "reason": "r", "receipt": r_tf3 }), "E_UNPROCESSABLE", "错域 receipt（scope 绑定）"),
+        // 未知 file_id：域层 ENotFound（对不存在的件做确认 = 凭空免责——
+        // receipt 本身对 TF-9999 签发合法，验签过后由域层拦）
+        (json!({ "project_id": &pid, "file_id": "TF-9999", "reason": "r",
+                  "receipt": svc.issue_approval_receipt("aw-lead", "addendum_waiver:TF-9999") }),
+         "E_NOTFOUND", "未知 file_id"),
+        (json!({ "project_id": "PRJ-9999", "file_id": "TF-0002", "reason": "r",
+                  "receipt": svc.issue_approval_receipt("aw-lead", "addendum_waiver:TF-0002") }),
+         "E_NOTFOUND", "未知 project"),
     ];
     for (args, want_code, why) in cases {
         let reply = call(&mut svc, "record_addendum_waiver", args);
@@ -169,8 +186,9 @@ fn waiver_tool_param_and_gate_validation() {
         "name": "草稿态", "bid_deadline": "2026-12-31", "mode": "明标", "external_key": "aw-draft",
     })));
     let draft_pid = draft_svc.store().project().unwrap().id.clone();
+    let r_draft = draft_svc.issue_approval_receipt("aw-lead", "addendum_waiver:TF-0001");
     let reply = call(&mut draft_svc, "record_addendum_waiver", json!({
-        "project_id": &draft_pid, "file_id": "TF-0001", "reason": "r", "principal": "human:x",
+        "project_id": &draft_pid, "file_id": "TF-0001", "reason": "r", "receipt": r_draft,
     }));
     assert_eq!(err_code(&reply), "E_STATE", "DRAFT 态必须 E_STATE");
 }
@@ -198,10 +216,12 @@ fn draft_blocks_on_partial_bad_addendum_until_per_file_waiver() {
     }
 
     // ---- C：逐件 waiver（MCP 工具面）→ 放行 + 记录可查
+    //（#182：receipt 件级签域 addendum_waiver:{file_id}——宿主签发）
+    let r_waiver = svc.issue_approval_receipt("184-lead", &format!("addendum_waiver:{fid_bad}"));
     let w = ok_result(call(&mut svc, "record_addendum_waiver", json!({
         "project_id": &pid, "file_id": &fid_bad,
         "reason": "已人工核对纸质原件：本件仅重申开标地点，条款无实质变化",
-        "principal": "human:184-lead",
+        "receipt": r_waiver,
     })));
     assert_eq!(w["recorded"]["file_id"], json!(&fid_bad));
     assert!(w["recorded"]["at"].as_u64().unwrap() > 0, "落钟在座");
@@ -211,6 +231,12 @@ fn draft_blocks_on_partial_bad_addendum_until_per_file_waiver() {
     assert_eq!(ws[0]["file_id"], json!(&fid_bad));
     assert_eq!(ws[0]["principal"], json!("human:184-lead"));
     assert!(ws[0]["reason"].as_str().unwrap().contains("人工核对"));
+    // #182 可信身份回显：actor_type=Human + HMAC 认证方式标记
+    assert_eq!(w["recorded"]["actor"]["actor_type"], json!("human"), "actor_type=Human: {w}");
+    assert_eq!(
+        w["recorded"]["actor"]["authentication_method"], json!("hmac_receipt_v1"),
+        "认证方式标记: {w}"
+    );
     // 就绪度回显：坏件 waived=true，不再构成阻塞
     let nr = w["addendum_readiness"]["not_ready"].as_array().unwrap();
     assert_eq!(nr.len(), 1, "报告面仍含该件（审计面）：{nr:?}");
@@ -289,9 +315,10 @@ fn import_response_carries_addendum_readiness_block() {
 
     // 拿清单里的 file_id 走 MCP waiver → 该件 waived 翻转（Agent 闭环）
     let fid = nr[0]["file_id"].as_str().unwrap().to_string();
+    let r_imp = svc.issue_approval_receipt("import-lead", &format!("addendum_waiver:{fid}"));
     let w = ok_result(call(&mut svc, "record_addendum_waiver", json!({
         "project_id": &pid, "file_id": &fid,
-        "reason": "坏件已人工核对，无实质条款变化", "principal": "human:import-lead",
+        "reason": "坏件已人工核对，无实质条款变化", "receipt": r_imp,
     })));
     let nr2 = w["addendum_readiness"]["not_ready"].as_array().unwrap();
     assert_eq!(nr2[0]["waived"], json!(true), "确认后 waived 翻转：{nr2:?}");

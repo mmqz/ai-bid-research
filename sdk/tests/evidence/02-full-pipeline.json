@@ -2,11 +2,11 @@
  "case": "02-full-pipeline",
  "transport": "linejson",
  "server_bin": "/tmp/shared-target/debug/bid-mcp-stdio",
- "server_sha256": "bde7f0dae2ef21a487e9e8a2ceb8baa1e4203411eaa4b148d80ba7778c588ca1",
+ "server_sha256": "a53b4767d4ba5181ece9a6f50eccf9ef1f8697c63f75a03a8fa0f8b78ef9a1d7",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-02T06:51:17+00:00",
+ "started_at": "2026-11-02T13:59:47+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 3.624698001658544
+   "elapsed_ms": 3.612025000165886
   },
   {
    "stage": "P1 import_tender_files",
@@ -154,7 +154,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 268.02082599897403
+   "elapsed_ms": 257.96891900017727
   },
   {
    "stage": "P2 extract_requirements",
@@ -193,7 +193,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 66.96536399977049
+   "elapsed_ms": 65.05372800029363
   },
   {
    "stage": "P3 build_outline",
@@ -226,7 +226,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.340102998568909
+   "elapsed_ms": 6.792842999857385
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -334,7 +334,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.631166001374368,
+   "elapsed_ms": 7.004461000178708,
    "extra": {
     "sections": {
      "SEC-0007": [
@@ -531,7 +531,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.717358002788387
+   "elapsed_ms": 6.30511999997907
   },
   {
    "stage": "P4 bind_evidence",
@@ -563,7 +563,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.187084000179311
+   "elapsed_ms": 6.751524999799585
   },
   {
    "stage": "G3 record_review_gate ×2",
@@ -572,7 +572,11 @@
     "gates": [
      "matrix_approval",
      "outline_approval"
-    ]
+    ],
+    "#182_probes": {
+     "old_param": "E_UNPROCESSABLE",
+     "forged_receipt": "E_UNPROCESSABLE"
+    }
    },
    "result": {
     "gates_approved": [
@@ -581,12 +585,17 @@
     ],
     "project_version": 113,
     "receipt": {
+     "actor": {
+      "actor_id": "mcp-e2e-lead",
+      "actor_type": "human",
+      "authentication_method": "hmac_receipt_v1"
+     },
      "decision": "APPROVED",
      "finding_ids": [],
      "gate": "outline_approval",
      "review_id": "REV-0036",
      "reviewed_content_digest": "257eeb460a0d96aae417bdef0e27b8b94f6a02e8152c5ad7457e3880a5dd5724",
-     "reviewer": "human:mcp-e2e",
+     "reviewer": "human:mcp-e2e-lead",
      "spawned_rt_ids": []
     },
     "request_id": "req-000010",
@@ -596,9 +605,25 @@
     {
      "desc": "G3: 两门全过 ('matrix_approval', 'outline_approval')",
      "pass": true
+    },
+    {
+     "desc": "G3: #182 旧 reviewer 参数被拒（E_UNPROCESSABLE）",
+     "pass": true
+    },
+    {
+     "desc": "G3: #182 伪造 receipt 被拒（E_UNPROCESSABLE）",
+     "pass": true
+    },
+    {
+     "desc": "G3: #182 actor 回显 actor_type=human（宿主签发的可信身份）",
+     "pass": true
+    },
+    {
+     "desc": "G3: #182 actor 回显 authentication_method=hmac_receipt_v1",
+     "pass": true
     }
    ],
-   "elapsed_ms": 13.564722998125944
+   "elapsed_ms": 13.950782999927469
   },
   {
    "stage": "P5 draft(external) SEC-0007",
@@ -2556,15 +2581,11 @@
         "count": 21,
         "head": [
          [
-          "SEC-0008",
+          "SEC-0028",
           0.6667
          ],
          [
-          "SEC-0025",
-          0.6667
-         ],
-         [
-          "SEC-0022",
+          "SEC-0019",
           0.6667
          ],
          [
@@ -2572,11 +2593,11 @@
           0.6667
          ],
          [
-          "SEC-0009",
+          "SEC-0024",
           0.6667
          ],
          [
-          "SEC-0023",
+          "SEC-0008",
           0.6667
          ],
          [
@@ -2588,19 +2609,23 @@
           0.6667
          ],
          [
-          "SEC-0029",
-          0.6667
-         ],
-         [
-          "SEC-0027",
-          0.6667
-         ],
-         [
-          "SEC-0024",
+          "SEC-0018",
           0.6667
          ],
          [
           "SEC-0020",
+          0.6667
+         ],
+         [
+          "SEC-0022",
+          0.6667
+         ],
+         [
+          "SEC-0009",
+          0.6667
+         ],
+         [
+          "SEC-0007",
           0.6667
          ]
         ]
@@ -3158,7 +3183,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 176.95283599823597
+   "elapsed_ms": 174.58585899976242
   },
   {
    "stage": "P7 validate_bid_document",
@@ -3443,7 +3468,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 75.21881000138819
+   "elapsed_ms": 74.6404760002406
   },
   {
    "stage": "P7.5 record_review_gate pre_export_confirm",
@@ -3460,12 +3485,17 @@
     ],
     "project_version": 205,
     "receipt": {
+     "actor": {
+      "actor_id": "mcp-e2e-lead",
+      "actor_type": "human",
+      "authentication_method": "hmac_receipt_v1"
+     },
      "decision": "APPROVED",
      "finding_ids": [],
      "gate": "pre_export_confirm",
      "review_id": "REV-0037",
      "reviewed_content_digest": "160919630aaeca9ca31eca408072d7ee83017a3940e17c7745b00c23e24a5386",
-     "reviewer": "human:mcp-e2e",
+     "reviewer": "human:mcp-e2e-lead",
      "spawned_rt_ids": []
     },
     "request_id": "req-000035",
@@ -3481,7 +3511,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 9.087064001505496
+   "elapsed_ms": 8.783676999883028
   },
   {
    "stage": "P8 export_bid_document",
@@ -3561,7 +3591,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 41.69095000179368
+   "elapsed_ms": 39.93752299993503
   },
   {
    "stage": "产物深检 docx",
@@ -3680,5 +3710,5 @@
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/full-pipeline/ws",
- "finished_at": "2026-11-02T06:51:18+00:00"
+ "finished_at": "2026-11-02T13:59:48+00:00"
 }

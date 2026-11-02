@@ -166,7 +166,7 @@ fn scale_500k_chars_full_pipeline_under_redlines() {
     // #180 审核内容绑定：矩阵/大纲批的是响应面与结构面，保持起草前原位；
     // PreExportConfirm 绑定章节正文摘要，挑至全部叶起草完成后记审（见 ⑤'）
     for gate in [Gate::MatrixApproval, Gate::OutlineApproval] {
-        svc.store_mut().record_review(gate, "human:scale-lead", Decision::Approved, vec![]).unwrap();
+        svc.store_mut().record_review(gate, &bid_domain::TrustedPrincipal::human("scale-lead"), Decision::Approved, vec![]).unwrap();
     }
     println!("[规模] ③绑定（{} 条）+两门: {}ms", must.len(), t.elapsed().as_millis());
 
@@ -204,7 +204,7 @@ fn scale_500k_chars_full_pipeline_under_redlines() {
     // ⑤' PreExportConfirm 记审（#180：定稿内容过门——全部叶起草完成后、
     //     导出前，绑定的才是将进产物的正文摘要）
     svc.store_mut()
-        .record_review(Gate::PreExportConfirm, "human:scale-lead", Decision::Approved, vec![])
+        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("scale-lead"), Decision::Approved, vec![])
         .unwrap();
 
     // ⑥ 导出（Lead 红线：< 120s）——含内存峰值断言（< 2GB）

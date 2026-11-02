@@ -122,7 +122,7 @@ fn svc_export_ready(tag: &str, n_reqs: usize, target_chars: u32) -> (BidService,
     // #180 审核内容绑定：矩阵/大纲批的是响应面与结构面，保持起草前原位；
     // PreExportConfirm 绑定章节正文摘要，挑至全部叶起草完成后记审
     for gate in [Gate::MatrixApproval, Gate::OutlineApproval] {
-        svc.store_mut().record_review(gate, "human:pdf-lead", Decision::Approved, vec![]).unwrap();
+        svc.store_mut().record_review(gate, &bid_domain::TrustedPrincipal::human("pdf-lead"), Decision::Approved, vec![]).unwrap();
     }
     let parents: std::collections::HashSet<String> = svc.store().sections().iter()
         .filter_map(|n| n.parent_id.clone()).collect();
@@ -134,7 +134,7 @@ fn svc_export_ready(tag: &str, n_reqs: usize, target_chars: u32) -> (BidService,
     // #180：定稿内容过门（夹具链到此正文已定——Svc 交出后再改正文的用例
     // 须重过 PreExportConfirm，如 pdf_export_dark_bid_scrubbed）
     svc.store_mut()
-        .record_review(Gate::PreExportConfirm, "human:pdf-lead", Decision::Approved, vec![])
+        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("pdf-lead"), Decision::Approved, vec![])
         .unwrap();
     (svc, pid)
 }
@@ -239,7 +239,7 @@ fn pdf_export_dark_bid_scrubbed() {
     // #180：正文最后一次写入（公司名稿）后重过导出确认门
     use bid_domain::review::{Decision, Gate};
     svc.store_mut()
-        .record_review(Gate::PreExportConfirm, "human:pdf-lead", Decision::Approved, vec![])
+        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("pdf-lead"), Decision::Approved, vec![])
         .unwrap();
     let r = ok_result(call(&mut svc, "export_bid_document", json!({
         "project_id": pid, "format": "pdf", "output_path": "out/暗标.pdf",

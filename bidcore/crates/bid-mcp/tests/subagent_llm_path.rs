@@ -403,12 +403,17 @@ fn ensure_prepared(svc: &mut BidService, ws: &Path) -> (String, Vec<String>) {
     // #180 审核内容绑定：pre_export_confirm 绑定章节正文摘要，挑至全部叶
     // 起草完成后记审（见 serve 相位导出前——与人类流程同序：审核定稿内容）
     for gate in ["matrix_approval", "outline_approval"] {
+        // #182：宿主签发面（svc 与 stdio 子进程同工作区同钥——测试进程即宿主）
+        let receipt = svc.issue_approval_receipt(
+            "subagent-path-lead",
+            &format!("review_gate:{gate}"),
+        );
         let g = ok_result(call(
             svc,
             "record_review_gate",
             json!({
                 "project_id": &pid, "gate": gate, "decision": "APPROVED",
-                "reviewer": "human:subagent-path-lead",
+                "receipt": receipt,
             }),
         ));
         assert_eq!(
@@ -768,11 +773,27 @@ fn subagent_llm_multi_chapter_path() {
 
     // ---- PreExportConfirm 记审（#180：定稿内容过门——全部叶起草（子代理
     //      真实正文 + mock 补齐）完成后、导出前，绑定的才是将进产物的摘要）
+    // #182：宿主签发面——serve 相位 in-proc svc 已让渡，直读工作区密钥签发
+    //（stdio 子进程 open 同一工作区 → 同一 approval.key，测试进程即宿主）
+    let key: [u8; 32] = std::fs::read(ws.join(".mang").join("approval.key"))
+        .expect("读 approval.key")
+        .try_into()
+        .expect("approval.key 须恰 32 字节");
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let receipt = bid_domain::principal::issue_approval_receipt(
+        &key,
+        "subagent-path-lead",
+        "review_gate:pre_export_confirm",
+        now,
+    );
     let g = proc.call(
         "record_review_gate",
         json!({
             "project_id": &pid, "gate": "pre_export_confirm", "decision": "APPROVED",
-            "reviewer": "human:subagent-path-lead",
+            "receipt": receipt,
         }),
     );
     assert_eq!(g["ok"], json!(true), "pre_export_confirm 记审: {g}");

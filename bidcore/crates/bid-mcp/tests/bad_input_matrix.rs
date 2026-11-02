@@ -253,7 +253,7 @@ fn zero_byte_files_are_never_silent_success() {
     // 若坏件也推进状态，后续会认为「文件已导入」而允许 extract_requirements，
     // 可失败件是禁引的 → 基于空内容一路走到导出 → **产出空标书**（最危险形态）。
     // #175 已修（upsert_file 加条件 parse_status != Failed），此处钉死。
-    let st = ok_result(call(&mut svc, "get_bid_project_state", json!({})));
+    let st = ok(&mut svc, "get_bid_project_state", json!({}));
     assert_eq!(
         st["status"].as_str(),
         Some("DRAFT"),

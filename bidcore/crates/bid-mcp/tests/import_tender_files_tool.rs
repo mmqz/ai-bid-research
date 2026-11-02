@@ -20,12 +20,14 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 fn fixtures() -> PathBuf {
-    std::env::var("BID_FIXTURES")
+    let p = std::env::var("BID_FIXTURES")
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
             // crates/bid-mcp → 仓库根
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../fixtures")
-        })
+        });
+    // #183 围栏：词法 `..` 会被围栏预拒——受信夹具根统一 canonical 绝对路径
+    std::fs::canonicalize(&p).unwrap_or(p)
 }
 
 fn word_complex() -> PathBuf {
@@ -74,10 +76,18 @@ fn create(svc: &mut BidService, external_key: &str, deadline: &str) -> Value {
     r
 }
 
+/// #183 围栏受信临时根（每测试独立）——「用户上传区」语义：好件坏件都在
+/// 授权范围内，坏件的失败走 R-01 逐件语义（E_PARTIAL）而非围栏整批预拒。
+fn upload_root(tag: &str) -> PathBuf {
+    let d = std::env::temp_dir().join(format!("b1_mcp_uploads_{tag}_{}", std::process::id()));
+    std::fs::create_dir_all(&d).unwrap();
+    d
+}
+
 /// 截断 docx 夹具（真实 word-complex.docx 前 1200 字节——EOCD 缺失 →
-/// zip 防护拒绝，稳定的确定性失败面）
-fn truncated(tag: &str) -> PathBuf {
-    let p = std::env::temp_dir().join(format!("b1_mcp_truncated_{tag}_{}.docx", std::process::id()));
+/// zip 防护拒绝，稳定的确定性失败面）。生成于受信根内（#183）。
+fn truncated_at(root: &std::path::Path, tag: &str) -> PathBuf {
+    let p = root.join(format!("truncated_{tag}.docx"));
     let bytes = std::fs::read(word_complex()).expect("word-complex.docx 夹具缺失");
     std::fs::write(&p, &bytes[..1200]).unwrap();
     p
@@ -89,7 +99,7 @@ fn truncated(tag: &str) -> PathBuf {
 /// （+ 契约 §2 in 形状的其余校验面）。
 #[test]
 fn param_validation_rejects_malformed_import_args() {
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     let wc = word_complex().display().to_string();
     let cases: Vec<(Value, &str)> = vec![
         (json!({}), "缺 project_id"),
@@ -125,7 +135,7 @@ fn param_validation_rejects_malformed_import_args() {
 /// create_bid_project 参数校验（契约 §1）：mode 枚举 / deadline 形状 / 必填缺失。
 #[test]
 fn param_validation_rejects_malformed_create_args() {
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     let cases: Vec<Value> = vec![
         json!({"bid_deadline": "2099-01-01", "mode": "明标", "external_key": "k"}),
         json!({"name": "n", "mode": "明标", "external_key": "k"}),
@@ -145,7 +155,7 @@ fn param_validation_rejects_malformed_create_args() {
 /// 无项目 / project_id 不符 → E_NOTFOUND（不伪造已存储的项目）。
 #[test]
 fn import_without_or_mismatched_project_is_not_found() {
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     let wc = word_complex().display().to_string();
     // 无项目
     let reply = call(&mut svc, "import_tender_files", json!({
@@ -169,7 +179,7 @@ fn import_without_or_mismatched_project_is_not_found() {
 /// per_file 统计非零。借鉴锚点：gen-log.txt `word-complex ... tables=1`。
 #[test]
 fn real_docx_import_transitions_draft_to_files_imported() {
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     create(&mut svc, "ext-real-docx", "2099-01-01");
     if skip_if_fixture_missing("real_docx_import_transitions_draft_to_files_imported", &[&word_complex()]) {
         return;
@@ -225,7 +235,7 @@ fn real_docx_import_transitions_draft_to_files_imported() {
 /// 任务测试 3：同一文件导两次 → 同 file_id + deduplicated:true，no-op 不推版本。
 #[test]
 fn same_sha_reimport_is_noop_deduplicated() {
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     create(&mut svc, "ext-dedup", "2099-01-01");
     if skip_if_fixture_missing("same_sha_reimport_is_noop_deduplicated", &[&word_complex()]) {
         return;
@@ -252,7 +262,7 @@ fn same_sha_reimport_is_noop_deduplicated() {
 /// 单批次内同 sha 双条目：第二条按已落库档 dedup。
 #[test]
 fn duplicate_upload_within_single_batch_dedups() {
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     create(&mut svc, "ext-batch-dup", "2099-01-01");
     if skip_if_fixture_missing("duplicate_upload_within_single_batch_dedups", &[&word_complex()]) {
         return;
@@ -279,7 +289,7 @@ fn duplicate_upload_within_single_batch_dedups() {
 /// 追加导入在两个非 DRAFT 态都合法——以最强态（REQUIREMENTS_EXTRACTED）验证。
 #[test]
 fn post_draft_append_allowed_with_dirty_warning() {
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     create(&mut svc, "ext-dirty", "2099-01-01");
     if skip_if_fixture_missing("post_draft_append_allowed_with_dirty_warning",
         &[&d1a_tables(), &r6a_insertion()]) {
@@ -324,7 +334,7 @@ fn post_draft_append_allowed_with_dirty_warning() {
 /// 裁决表本身由 bid-domain tc11_state_guard_rejects_skip_ahead 覆盖。
 #[test]
 fn genuinely_illegal_transition_rejected_estate_zero_side_effect() {
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     create(&mut svc, "ext-estate", "2099-01-01");
     let wc = word_complex().display().to_string();
     ok_result(call(&mut svc, "import_tender_files", json!({
@@ -357,12 +367,13 @@ fn genuinely_illegal_transition_rejected_estate_zero_side_effect() {
 /// 成功面统计随 error.data 携带（R-01：错误码不吞成功面）。
 #[test]
 fn truncated_docx_single_failure_is_epartial() {
-    let mut svc = BidService::new();
+    let root = upload_root("single");
+    let mut svc = BidService::new().with_fs_root(&root);
     create(&mut svc, "ext-trunc", "2099-01-01");
     if skip_if_fixture_missing("truncated_docx_single_failure_is_epartial", &[&word_complex()]) {
         return;
     }
-    let bad = truncated("single").display().to_string();
+    let bad = truncated_at(&root, "single").display().to_string();
 
     let reply = call(&mut svc, "import_tender_files", json!({
         "project_id": "PRJ-0001",
@@ -393,13 +404,17 @@ fn truncated_docx_single_failure_is_epartial() {
 /// 好件正常落库可用。
 #[test]
 fn mixed_good_and_bad_batch_totals_partial() {
-    let mut svc = BidService::new();
+    let root = upload_root("mixed");
+    // 好件拷入受信根（内容同 sha——断言面不变，路径语义变「用户上传区」）
+    let good_path = root.join("word-complex.docx");
+    std::fs::copy(word_complex(), &good_path).expect("好件拷入受信根");
+    let mut svc = BidService::new().with_fs_root(&root);
     create(&mut svc, "ext-mixed", "2099-01-01");
     if skip_if_fixture_missing("mixed_good_and_bad_batch_totals_partial", &[&word_complex()]) {
         return;
     }
-    let good = word_complex().display().to_string();
-    let bad = truncated("mixed").display().to_string();
+    let good = good_path.display().to_string();
+    let bad = truncated_at(&root, "mixed").display().to_string();
 
     let reply = call(&mut svc, "import_tender_files", json!({
         "project_id": "PRJ-0001",
@@ -428,12 +443,13 @@ fn mixed_good_and_bad_batch_totals_partial() {
 /// 修复后的新内容 = 新 sha = 新档（hint 指引的通路）。
 #[test]
 fn failed_file_reimport_stays_epartial_same_id() {
-    let mut svc = BidService::new();
+    let root = upload_root("retry");
+    let mut svc = BidService::new().with_fs_root(&root);
     create(&mut svc, "ext-retry", "2099-01-01");
     if skip_if_fixture_missing("failed_file_reimport_stays_epartial_same_id", &[&word_complex()]) {
         return;
     }
-    let bad = truncated("retry").display().to_string();
+    let bad = truncated_at(&root, "retry").display().to_string();
     let args = json!({
         "project_id": "PRJ-0001",
         "files": [{"upload_ref": bad, "filename": "truncated.docx", "kind": "招标文件"}],
@@ -454,7 +470,7 @@ fn failed_file_reimport_stays_epartial_same_id() {
 /// 不可读 upload_ref：无文件身份（无 sha）——不落库、逐件失败、批次不中止。
 #[test]
 fn unreadable_upload_is_item_failure_without_record() {
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     create(&mut svc, "ext-unreadable", "2099-01-01");
     if skip_if_fixture_missing("unreadable_upload_is_item_failure_without_record", &[&word_complex()]) {
         return;
@@ -485,7 +501,7 @@ fn unreadable_upload_is_item_failure_without_record() {
 /// project_version 过期 → E_CONFLICT（零副作用）；携带正确版本 → 过。
 #[test]
 fn stale_project_version_conflicts_zero_side_effect() {
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     create(&mut svc, "ext-version", "2099-01-01");
     let wc = word_complex().display().to_string();
     let files = json!([{"upload_ref": wc, "filename": "word-complex.docx", "kind": "招标文件"}]);
@@ -510,7 +526,7 @@ fn stale_project_version_conflicts_zero_side_effect() {
 /// expected_pages 不符 → 逐件 EXPECTED_PAGES_MISMATCH 告警（不阻断）。
 #[test]
 fn expected_pages_mismatch_is_warning_not_error() {
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     create(&mut svc, "ext-pages", "2099-01-01");
     let wc = word_complex().display().to_string();
     let data = ok_result(call(&mut svc, "import_tender_files", json!({
@@ -528,7 +544,7 @@ fn expected_pages_mismatch_is_warning_not_error() {
 /// 契约 §1：deadline 已过 → 创建即警告 BID_DEADLINE_PAST（不阻断）。
 #[test]
 fn past_deadline_creates_with_warning() {
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     let data = ok_result(call(&mut svc, "create_bid_project", json!({
         "name": "过期项目", "bid_deadline": "2020-01-01", "mode": "暗标", "external_key": "ext-past",
     })));
@@ -543,7 +559,7 @@ fn past_deadline_creates_with_warning() {
 /// project_status 仍是 M0 纯函数面（假想态探测）。
 #[test]
 fn get_state_reads_live_service_by_default() {
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     // 无项目 → E_NOTFOUND（不伪造）
     assert_eq!(err_code(&call(&mut svc, "get_bid_project_state", json!({}))), "E_NOTFOUND");
     // 建项 + 导入 → 实况
@@ -601,6 +617,8 @@ fn stdio_end_to_end_real_docx_import() {
     .unwrap();
 
     let mut child = Command::new(exe)
+        // #183：子进程全局态的围栏根——受信夹具根（canonical，与 upload_ref 同源）
+        .env("BID_FS_ROOT", fixtures())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -639,7 +657,7 @@ fn stdio_end_to_end_real_docx_import() {
 /// 路径——两条路都必须产出可抽取的文本层块（B1 设备清单件）。
 #[test]
 fn pdf_import_routes_engine_with_legacy_fallback() {
-    let mut svc = BidService::new();
+    let mut svc = BidService::new().with_fs_root(fixtures());
     let r = ok_result(call(&mut svc, "create_bid_project", json!({
         "name": "B3-5 pdf 路由测试", "bid_deadline": "2026-12-31", "mode": "明标",
         "external_key": "b35-pdf-route",

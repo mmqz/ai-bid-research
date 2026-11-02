@@ -31,7 +31,9 @@ use std::path::PathBuf;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 fn repo_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..")
+    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    // #183 围栏：词法 `..` 会被围栏预拒——受信夹具根统一 canonical 绝对路径
+    std::fs::canonicalize(&p).unwrap_or(p)
 }
 
 fn files_dir() -> PathBuf {
@@ -109,7 +111,7 @@ fn e2e_artifacts_synth_tender() {
             .as_nanos()
     ));
     std::fs::create_dir_all(&ws).unwrap();
-    let mut svc = BidService::open(&ws).unwrap();
+    let mut svc = BidService::open(&ws).unwrap().with_fs_root(files_dir());
 
     // run-id 目录（+ latest 刷新）
     let stamp = SystemTime::now()

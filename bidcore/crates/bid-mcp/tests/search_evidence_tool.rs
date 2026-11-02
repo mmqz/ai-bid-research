@@ -738,7 +738,13 @@ fn register_evidence_accepts_fields() {
 fn matrix_ready_store() -> (BidService, String) {
     let ws = std::env::temp_dir().join(format!("search-fields-{}", std::process::id()));
     std::fs::create_dir_all(&ws).unwrap();
-    let mut svc = BidService::open(&ws).unwrap();
+    // #183 围栏：受信导入根（canonical——词法 `..` 会被围栏预拒）
+    let files_dir = {
+        let p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/synth-tender/招标文件");
+        std::fs::canonicalize(&p).unwrap_or(p)
+    };
+    let mut svc = BidService::open(&ws).unwrap().with_fs_root(files_dir.clone());
     let pid = ok_result(call(
         &mut svc,
         "create_bid_project",
@@ -748,8 +754,6 @@ fn matrix_ready_store() -> (BidService, String) {
         .as_str()
         .unwrap()
         .to_string();
-    let files_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../fixtures/synth-tender/招标文件");
     ok_result(call(
         &mut svc,
         "import_tender_files",

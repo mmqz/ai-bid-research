@@ -20,11 +20,13 @@ use bid_tools::service::{BidService, ImportSpec};
 use std::path::PathBuf;
 
 fn fixtures() -> PathBuf {
-    std::env::var("BID_FIXTURES")
+    let p = std::env::var("BID_FIXTURES")
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../fixtures")
-        })
+        });
+    // #183 围栏：词法 `..` 会被围栏预拒——受信夹具根统一 canonical 绝对路径
+    std::fs::canonicalize(&p).unwrap_or(p)
 }
 
 fn spec(path: PathBuf, filename: &str, kind: &str) -> ImportSpec {
@@ -73,7 +75,8 @@ fn restart_resumes_full_service_state() {
 
     // ---- 生命周期 1：全链路写入（写后自动 checkpoint）
     let (snap1, parsed1, req_count, ev_id, sec_count) = {
-        let mut svc = BidService::open(&dir).unwrap();
+        // #183 围栏：upload_ref 指向仓库夹具（工作区外）——声明受信导入根
+        let mut svc = BidService::open(&dir).unwrap().with_fs_root(fixtures());
         svc.create_project("重启续跑项目", "ZFCG-2026-GK-0311", "明标", "restart-key").unwrap();
 
         let report = svc.import(&[spec(a_docx.clone(), "A-招标文件.docx", "招标文件")]).unwrap();
@@ -96,7 +99,7 @@ fn restart_resumes_full_service_state() {
 
     // ---- 生命周期 2：「重启」——全部状态从 db.json 恢复
     {
-        let mut svc = BidService::open(&dir).unwrap();
+        let mut svc = BidService::open(&dir).unwrap().with_fs_root(fixtures());
         let p = svc.store().project().unwrap();
         assert_eq!(p.status, ProjectStatus::RequirementsExtracted, "状态机位置恢复");
         assert_eq!(p.external_key, "restart-key");

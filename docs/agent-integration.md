@@ -50,6 +50,13 @@ BID_WS=/path/to/workspace cargo run -p bid-mcp --bin bid-mcp-stdio
 - `BID_WS`（工作区目录）：设置后进程级服务态**持久化**（db.json 恢复 + 每次写
   面 checkpoint 落盘）；不设 = 纯内存态（进程退出即丢——只适合冒烟）。
   工作区损坏/不可写 → 启动即 panic（不静默降级）。
+- `BID_FS_ROOT`（文件访问围栏根，#183/#189）：import_tender_files 的
+  `upload_ref` 必须落在受信根内（`BID_FS_ROOT` 导入根 ∪ `BID_WS` 工作区）；
+  词法 `..` 分量预拒、symlink 段逃逸拒绝、组件级包含判定（防 `work` vs
+  `work-evil` 前缀陷阱）；限额单件 500MB / 单批 64 件 / 累计 2GB。
+  夹具/素材在 workspace 外时（如 e2e、共享资料目录）显式声明此变量；
+  未设且未设 `BID_WS` → 导入响亮拒（指路 `BID_WS`）。导出侧同款纵深
+  （resolve_write——工具层「工作区相对路径」形状校验之外的第二层）。
 - 工具名单一真源 `TOOL_NAMES`（20 个）与契约：`docs/bid-mcp-contract.md`；
   未接线工具（如 `search_evidence`）返回 typed `UNIMPLEMENTED_INTERNAL`，
   **绝不静默成功**。

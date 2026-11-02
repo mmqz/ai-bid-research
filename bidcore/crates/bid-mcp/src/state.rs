@@ -21,12 +21,31 @@ static GLOBAL: LazyLock<Mutex<BidService>> = LazyLock::new(|| Mutex::new(open_gl
 /// checkpoint 落盘——长进程 stdio 宿主如 Claude Desktop / e2e 驱动需要跨调用
 /// 持久）；未设 → 纯内存态（M0 骨架默认，行为不变）。打开失败要响亮 panic
 /// （配置错误不能降级成静默内存态——那会让宿主误以为在持久区工作）。
+///
+/// `BID_FS_ROOT`（#183/#189 可选）：文件访问围栏根覆盖（默认 = BID_WS 工作区
+/// ——导入导出都锁在工作区内）。显式声明更广的受信导入根（如共享夹具
+/// 目录）时设此变量；工作区（若在）始终隐式受信（服务自有存储）。未设
+/// BID_WS 时也可单设 BID_FS_ROOT（纯内存态 + 围栏导入根——便捷接线面，
+/// 无持久化）。
 fn open_global_service() -> BidService {
+    let fs_root = std::env::var("BID_FS_ROOT")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
     match std::env::var("BID_WS") {
-        Ok(dir) if !dir.trim().is_empty() => BidService::open(dir.trim()).unwrap_or_else(|e| {
-            panic!("bid-mcp 全局服务态：BID_WS={dir} 打开失败（工作区损坏或不可写）: {e}")
-        }),
-        _ => BidService::new(),
+        Ok(dir) if !dir.trim().is_empty() => {
+            let mut svc = BidService::open(dir.trim()).unwrap_or_else(|e| {
+                panic!("bid-mcp 全局服务态：BID_WS={dir} 打开失败（工作区损坏或不可写）: {e}")
+            });
+            if let Some(root) = fs_root {
+                svc = svc.with_fs_root(root);
+            }
+            svc
+        }
+        _ => match fs_root {
+            Some(root) => BidService::new().with_fs_root(root),
+            None => BidService::new(),
+        },
     }
 }
 

@@ -89,7 +89,9 @@ fn band_tolerance() -> Option<f64> {
 }
 
 fn repo_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..")
+    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    // #183 围栏：词法 `..` 会被围栏预拒——受信夹具根统一 canonical 绝对路径
+    std::fs::canonicalize(&p).unwrap_or(p)
 }
 
 fn files_dir() -> PathBuf {
@@ -516,7 +518,7 @@ fn subagent_llm_multi_chapter_path() {
 
     // ---- 准备链（幂等）
     let t0 = Instant::now();
-    let mut svc = BidService::open(&ws).expect("打开工作区");
+    let mut svc = BidService::open(&ws).expect("打开工作区").with_fs_root(files_dir());
     let (pid, targets) = ensure_prepared(&mut svc, &ws);
     let leaves = leaf_ids_of(&svc);
     println!(

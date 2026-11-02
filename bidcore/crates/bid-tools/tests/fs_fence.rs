@@ -27,6 +27,25 @@ fn canon_roots(d: &std::path::Path) -> Vec<std::path::PathBuf> {
     vec![std::fs::canonicalize(d).unwrap()]
 }
 
+/// 期望路径的规范化形态——与 `Resolved::absolute()` 对齐。
+///
+/// Windows 上 `temp_dir()` 返回 8.3 短名（`RUNNER~1`），而 canonicalize
+/// 展开为长名（`runneradmin`）；分隔符也会从 `/` 归一为 `\`。
+/// 断言必须比较【同一种形态】，否则在 Windows CI 上假红。
+fn exp(p: &std::path::Path) -> std::path::PathBuf {
+    let norm = |b: &std::path::Path| -> std::path::PathBuf {
+        std::path::PathBuf::from(b.to_string_lossy().replace('/', "\\"))
+    };
+    // 父目录 canonicalize（不存在的叶子无法 canonicalize——按同样规则拼回去）
+    match (p.parent(), p.file_name()) {
+        (Some(dir), Some(name)) => match std::fs::canonicalize(dir) {
+            Ok(c) => c.join(name),
+            Err(_) => norm(p),
+        },
+        _ => norm(p),
+    }
+}
+
 // ---------------------------------------------------------------- read 面
 
 /// 验收 A：工作区相对引用解析到围栏内（相对不再按进程 CWD 解析）。
@@ -36,13 +55,13 @@ fn resolve_read_accepts_inside() {
     let roots = canon_roots(&root);
     // 相对路径
     let r = resolve_read(&roots, std::path::Path::new("sub/a.docx")).unwrap();
-    assert_eq!(r.absolute(), root.join("sub/a.docx"));
+    assert_eq!(r.absolute(), exp(&root.join("sub/a.docx")));
     // 围栏内绝对路径（服务层内部拼接产物同款形态）
     let r = resolve_read(&roots, &root.join("b.pdf")).unwrap();
-    assert_eq!(r.absolute(), root.join("b.pdf"));
+    assert_eq!(r.absolute(), exp(&root.join("b.pdf")));
     // 围栏内缺失件不是围栏条件（R-01：交给下游逐件失败，不在这里抢答）
     let r = resolve_read(&roots, std::path::Path::new("no-such-dir/ghost.docx")).unwrap();
-    assert_eq!(r.absolute(), root.join("no-such-dir/ghost.docx"));
+    assert_eq!(r.absolute(), exp(&root.join("no-such-dir/ghost.docx")));
     let _ = std::fs::remove_dir_all(&root);
 }
 
@@ -171,10 +190,10 @@ fn resolve_write_accepts_new_leaf() {
     let root = tmp_root("wr-in");
     let roots = canon_roots(&root);
     let r = resolve_write(&roots, std::path::Path::new("out/deep/标书.docx")).unwrap();
-    assert_eq!(r.absolute(), root.join("out/deep/标书.docx"));
+    assert_eq!(r.absolute(), exp(&root.join("out/deep/标书.docx")));
     // 已存在的目标原样过
     let r = resolve_write(&roots, std::path::Path::new("b.pdf")).unwrap();
-    assert_eq!(r.absolute(), root.join("b.pdf"));
+    assert_eq!(r.absolute(), exp(&root.join("b.pdf")));
     let _ = std::fs::remove_dir_all(&root);
 }
 
@@ -272,7 +291,7 @@ fn multi_root_read_and_write() {
     assert!(resolve_read(&roots, std::path::Path::new("sub/a.docx")).is_ok());
     // b 内绝对写（相对锚定 roots[0]，跨根用绝对）
     let r = resolve_write(&roots, &root_b.join("new/deep.docx")).unwrap();
-    assert_eq!(r.absolute(), root_b.join("new/deep.docx"));
+    assert_eq!(r.absolute(), exp(&root_b.join("new/deep.docx")));
     // 越界仍拒
     let outside = std::env::temp_dir().join(format!("bid-fence-multi-out-{}.docx", std::process::id()));
     assert!(resolve_read(&roots, &outside).is_err());

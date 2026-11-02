@@ -504,7 +504,17 @@ impl DomainStore {
             parse_summary: parse_summary.into(),
         });
         if let Some(p) = self.project.as_mut() {
-            if p.status == ProjectStatus::Draft {
+            // 【issue #174】解析失败的文件**不推进**状态。
+            //
+            // 失败件仍会落库（有意设计：Failed + 禁引 R-01，便于重放与审计），
+            // 但「落库」不等于「导入成功」。若失败件也把 Draft 推进到
+            // FILES_IMPORTED，后续会认为「文件已导入」而允许 extract_requirements，
+            // 可失败件是禁引的、抽不到内容——于是基于空内容一路走到导出，
+            // **产出空标书**。这是最危险的形态（用户拿空文件去投标）。
+            //
+            // 语义：全部失败 → 停在 Draft（用户立刻知道没成）；
+            //       部分成功 → 成功那件推进（合理）；正常文件 → 推进。
+            if p.status == ProjectStatus::Draft && parse_status != ParseStatus::Failed {
                 p.status = ProjectStatus::FilesImported;
             }
             p.content_version += 1; // 内容变化（追加文件属允许的脏追加，契约 §2）

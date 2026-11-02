@@ -4,6 +4,7 @@
 //!       / fs.stat / fs.mkdir / path-guard(../ 与绝对越界) / 大响应落盘与取回 / recent 往返
 //!       / history.list / unknown_cmd / bad_json
 //!       / mcp.status / llm.status+save 往返（#76）/ fspec.status（#76）
+//!       / workspace.open+current（#194：切换/新根命令面/幂等/记忆/失败不换根）
 //! 输出形如 `PASS  <name>：<detail>` / `FAIL  <name>：<detail>`，最后一行汇总 + 退出码。
 
 use serde_json::{json, Value};
@@ -11,6 +12,7 @@ use serde_json::{json, Value};
 use crate::b64;
 use crate::ipc::{self, Ctx};
 use crate::paths::{display, Workspace};
+use crate::recent;
 
 struct Report {
     pass: usize,
@@ -350,6 +352,56 @@ pub fn run(ui_dir: Option<&std::path::Path>) -> i32 {
         fs1["present"] == json!(true) && fs1["invalid"] == json!(false) && fs1["page"]["size"] == json!("A4") && fs1["font"]["body"] == json!("仿宋_GB2312"),
         format!("{} {}pt", fs1["page"]["size"], fs1["font"]["size_pt"]),
     );
+
+    // ---- #194：工作区切换（workspace.open / workspace.current）
+    let ws_b = scratch_dir();
+    let ws_b_display = Workspace::new(&ws_b).unwrap().root_display();
+    let resp = call(&ctx, json!({"id":"t-ws-open","cmd":"workspace.open","path": ws_b.to_string_lossy()}));
+    let opened = result(&resp);
+    r.check(
+        "workspace.open",
+        resp["ok"] == json!(true)
+            && opened["root"].as_str() == Some(ws_b_display.as_str())
+            && opened["changed"] == json!(true),
+        format!("{} → {}", opened["previous"], opened["root"]),
+    );
+    // 切换后的命令面全走新根（fs.tree / app.info 一致）
+    let resp = call(&ctx, json!({"id":"t-ws-tree","cmd":"fs.tree"}));
+    r.check(
+        "fs.tree(切换后新根)",
+        result(&resp)["root"].as_str() == Some(ws_b_display.as_str()),
+        format!("{}", result(&resp)["root"]),
+    );
+    let resp = call(&ctx, json!({"id":"t-ws-cur","cmd":"workspace.current"}));
+    r.check(
+        "workspace.current",
+        result(&resp)["root"].as_str() == Some(ws_b_display.as_str()),
+        format!("{}", result(&resp)["root"]),
+    );
+    // 幂等：重复打开同一工作区 changed=false
+    let resp = call(&ctx, json!({"id":"t-ws-again","cmd":"workspace.open","path": ws_b.to_string_lossy()}));
+    r.check(
+        "workspace.open(幂等)",
+        resp["ok"] == json!(true) && result(&resp)["changed"] == json!(false),
+        format!("{resp}"),
+    );
+    // 记忆落盘（重启停留口径）+ 读回一致
+    r.check(
+        "last-workspace 记忆",
+        recent::last_workspace().map(|p| p.ends_with(ws_b.file_name().unwrap_or_default())).unwrap_or(false),
+        format!("{:?}", recent::last_workspace_path()),
+    );
+    // 失败不换根：不存在的目录 → not_found 且现工作区不变
+    let ghost = root.join("no-such-dir");
+    let resp = call(&ctx, json!({"id":"t-ws-ghost","cmd":"workspace.open","path": ghost.to_string_lossy()}));
+    let resp2 = call(&ctx, json!({"id":"t-ws-after","cmd":"workspace.current"}));
+    r.check(
+        "workspace.open(失败不换根)",
+        resp["ok"] == json!(false) && err_code(&resp) == "not_found"
+            && result(&resp2)["root"].as_str() == Some(ws_b_display.as_str()),
+        format!("err={} cur={}", err_code(&resp), result(&resp2)["root"]),
+    );
+    let _ = std::fs::remove_dir_all(&ws_b);
 
     println!();
     println!("== {} passed, {} failed ==", r.pass, r.fail);

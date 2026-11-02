@@ -575,10 +575,18 @@ async def setup_project(client: Any, rec: Recorder, tag: str, ws: Path) -> dict:
     ]
     r = await call(client, "import_tender_files", {"project_id": pid, "files": files})
     totals = r.get("totals", {})
+    # #185 来源验证：import 回执的 per_file[].file_id 是证据登记的来源锚
+    # （register_evidence 的 source_file_id——不再自报文件名/sha）
+    file_ids: dict[str, str] = {
+        p.get("filename", ""): p.get("file_id", "")
+        for p in r.get("per_file", [])
+    }
     checks = [
         ("P1: totals.files >= 4", totals.get("files", 0) >= 4),
         ("P1: parse_failed == 0", totals.get("parse_failed", -1) == 0),
         ("P1: partial == 0", totals.get("partial", -1) == 0),
+        ("P1: per_file 回执 4 件 file_id 齐备（#185 来源锚）",
+         len([v for v in file_ids.values() if v.startswith("TF-")]) >= 4),
     ]
     rec.stage("P1 import_tender_files", "import_tender_files",
               {"files": [f["filename"] for f in files]}, r, checks,
@@ -646,15 +654,15 @@ async def setup_project(client: Any, rec: Recorder, tag: str, ws: Path) -> dict:
               elapsed_ms=(time.monotonic() - t0) * 1000)
     require(checks)
 
-    # ---- P4 证据登记（MCP 工具；source_sha256 用真件实算）
+    # ---- P4 证据登记（MCP 工具；#185 来源验证——source_file_id 锚已导入的
+    #      EV-02 证据件，sha/指纹由服务端生成）
     t0 = time.monotonic()
-    ev_path = FIXTURES / EV_SOURCE
+    ev_fid = file_ids[EV_SOURCE]  # filename 入参带 evidence/ 前缀——per_file 回显同键
     r = await call(client, "register_evidence", {
         "project_id": pid,
         "kind": "qualification",
         "title": "电子与智能化工程专业承包二级资质证书",
-        "source_file": ev_path.name,
-        "source_sha256": sha256_file(ev_path),
+        "source_file_id": ev_fid,
         "subject_name": "投标人",
         "scope": "电子与智能化工程",
     })
@@ -665,7 +673,7 @@ async def setup_project(client: Any, rec: Recorder, tag: str, ws: Path) -> dict:
         ("P4: deduplicated=false（首登）", r.get("deduplicated") is False),
     ]
     rec.stage("P4 register_evidence", "register_evidence",
-              {"kind": "qualification", "source_file": ev_path.name}, r, checks,
+              {"kind": "qualification", "source_file_id": ev_fid}, r, checks,
               elapsed_ms=(time.monotonic() - t0) * 1000)
     require(checks)
 
@@ -732,6 +740,7 @@ async def setup_project(client: Any, rec: Recorder, tag: str, ws: Path) -> dict:
     return {
         "pid": pid, "ev_id": ev_id, "rows": rows,
         "sections": sections, "mandatory": mandatory,
+        "file_ids": file_ids,
     }
 
 
@@ -1298,16 +1307,15 @@ async def _case_search_evidence(rec: Recorder, ws: Path) -> None:
         # ---- 证据面：setup 登记的资质证书（无有效期）+ 四条检索验收件
         t0 = time.monotonic()
         reg_ids: dict[str, str] = {}
-        ev_pdf = FIXTURES / EV_SOURCE
-        base_sha = sha256_file(ev_pdf)
+        # #185 来源验证：四条同锚 EV-02 证据件（语义位四元组互异——kind/title/
+        # scope 不同 → 不触发查重合并；sha/指纹由服务端从库内生成）
+        ev_fid = ctx["file_ids"][EV_SOURCE]  # 同上：键带 evidence/ 前缀
         for kind, title, scope, valid_until, extra in SEARCH_EXTRA_EVIDENCE:
             r = await call(client, "register_evidence", {
                 "project_id": pid,
                 "kind": kind,
                 "title": title,
-                "source_file": ev_pdf.name,
-                # 语义位四元组互异（kind/title/scope）→ sha 复用不触发查重合并
-                "source_sha256": base_sha,
+                "source_file_id": ev_fid,
                 "subject_name": "投标人",
                 "scope": scope,
                 "valid_until": valid_until,

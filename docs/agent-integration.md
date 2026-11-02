@@ -170,15 +170,19 @@ Agent 写好直注，免中继）；引擎不生成只提交——引用回查 /
   {"upload_ref": "fixtures/synth-tender/招标文件/A-招标文件.docx",
    "filename": "A-招标文件.docx", "kind": "招标文件"},
   {"upload_ref": "fixtures/synth-tender/招标文件/B-技术规范书.docx",
-   "filename": "B-技术规范书.docx", "kind": "招标文件"}]}}
+   "filename": "B-技术规范书.docx", "kind": "招标文件"},
+  {"upload_ref": "fixtures/corpus-A/files/evidence/EV-02-电子与智能化工程专业承包二级资质证书.pdf",
+   "filename": "EV-02-电子与智能化工程专业承包二级资质证书.pdf", "kind": "附件"}]}}
 ```
 ```json
-→ {"ok": true, "data": {"file_ids": ["TF-…", "TF-…"],
-   "totals": {"files": 2, "chunks": 214, "parse_failed": 0, "partial": 0}},
+→ {"ok": true, "data": {"file_ids": ["TF-…", "TF-…", "TF-…"],
+   "per_file": [{"file_id": "TF-…", "filename": "A-招标文件.docx", "sha256": "…"}, …],
+   "totals": {"files": 3, "chunks": 221, "parse_failed": 0, "partial": 0}},
    "project_version": 5}
 ```
 
-（复述：共导入 2 件 / 214 块 / 零失败——数字与预期比对。）
+（复述：共导入 3 件 / 零失败——数字与预期比对；**记住证据件的
+ `per_file[].file_id`**——P4 登记的来源锚 `source_file_id` 用它，#185。）
 
 **P2 抽条款**
 
@@ -216,13 +220,20 @@ Agent 写好直注，免中继）；引擎不生成只提交——引用回查 /
 {"tool": "register_evidence", "args": {"project_id": "PRJ-…",
   "kind": "qualification",
   "title": "电子与智能化工程专业承包二级资质证书",
-  "source_file": "SYN-EV-资质证书.pdf", "source_sha256": "sha-…-001",
+  "source_file_id": "TF-…（P1 回执里 EV-02 件的 file_id）",
   "subject_name": "投标人", "scope": "电子与智能化工程"}}
 ```
 ```json
 → {"ok": true, "data": {"ev_id": "EV-0007", "deduplicated": false,
    "status": "ACTIVE"}, "project_version": 15}
 ```
+
+（#185 来源验证：`source_file_id` 必须指向已导入文件——sha256 与指纹由
+服务端从库内与实际内容生成，**不接受自报**；旧参数 `source_file` /
+`source_sha256` / `fingerprint` 已废除，传入即拒。可选 `locator`
+（docx_paragraph / pdf_page_text）会与该文件解析产物对账——段落序/
+页号越界或内容指纹不符 → E_UNPROCESSABLE。）
+
 ```json
 {"tool": "bind_evidence", "args": {"project_id": "PRJ-…", "ev_id": "EV-0007",
   "requirement_ids": ["REQ-0001", "…（资格+否决+技术参数行全集）"],

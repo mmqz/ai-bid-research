@@ -78,8 +78,9 @@ fn matrix_reqs(svc: &mut BidService, pid: &str, category: &str) -> Vec<String> {
     out
 }
 
-/// A+B 导入 + 抽取（两个测试共用的前段——返回 (svc, pid)）。
-fn prepared(ws: &PathBuf, external_key: &str) -> (BidService, String) {
+/// A+B 导入 + 抽取（两个测试共用的前段——返回 (svc, pid, A 件 file_id)。
+/// file_id 是 #185 后证据登记的来源锚（source_file_id——不再自报文件名/sha））。
+fn prepared(ws: &PathBuf, external_key: &str) -> (BidService, String, String) {
     std::fs::create_dir_all(ws).unwrap();
     let mut svc = BidService::open(ws).unwrap().with_fs_root(files_dir());
     let pid = ok(call(
@@ -110,6 +111,15 @@ fn prepared(ws: &PathBuf, external_key: &str) -> (BidService, String) {
         json!(0),
         "A/B 应全成功: {import:?}"
     );
+    // A 件 file_id（证据登记的来源锚——import 回执是外部 Agent 的发现面）
+    let fid_a = import["per_file"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["filename"].as_str() == Some("A-招标文件.docx"))
+        .and_then(|p| p["file_id"].as_str())
+        .unwrap()
+        .to_string();
 
     let extract = ok(call(
         &mut svc,
@@ -118,13 +128,13 @@ fn prepared(ws: &PathBuf, external_key: &str) -> (BidService, String) {
     ));
     let total = extract["counts"]["total"].as_u64().unwrap();
     assert!(total >= 60, "A+B 抽取规模（实测 108）: {total}");
-    (svc, pid)
+    (svc, pid, fid_a)
 }
 
 #[test]
 fn mcp_only_full_pipeline_drives_to_export() {
     let ws = std::env::temp_dir().join(format!("mcp-scaffold-e2e-{}", std::process::id()));
-    let (mut svc, pid) = prepared(&ws, "mcp-scaffold-e2e");
+    let (mut svc, pid, fid_a) = prepared(&ws, "mcp-scaffold-e2e");
 
     // ---- ④ build_outline（G1）：建纲 + 矩阵首建 → MATRIX_READY
     let bo = ok(call(
@@ -156,10 +166,11 @@ fn mcp_only_full_pipeline_drives_to_export() {
     bind_ids.extend(matrix_reqs(&mut svc, &pid, "tech_param"));
 
     // ---- ⑥ register_evidence（G2）+ 语义位幂等重放
+    // #185 后：source_file_id 锚定已导入的 A 件（sha/指纹由服务端生成）
     let reg_args = json!({
         "project_id": &pid, "kind": "qualification",
         "title": "电子与智能化工程专业承包二级资质证书（synth·mcp-scaffold）",
-        "source_file": "SYN-EV-资质证书.pdf", "source_sha256": "sha-mcp-scaffold-001",
+        "source_file_id": &fid_a,
         "subject_name": "投标人", "scope": "电子与智能化工程",
     });
     let reg = ok(call(&mut svc, "register_evidence", reg_args.clone()));
@@ -346,11 +357,19 @@ fn scaffold_guards_and_error_paths() {
         { "upload_ref": files_dir().join("A-招标文件.docx").display().to_string(),
           "filename": "A-招标文件.docx", "kind": "招标文件" },
     ]);
-    ok(call(
+    let import = ok(call(
         &mut svc,
         "import_tender_files",
         json!({ "project_id": &pid, "files": files }),
     ));
+    let fid_a = import["per_file"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["filename"].as_str() == Some("A-招标文件.docx"))
+        .and_then(|p| p["file_id"].as_str())
+        .unwrap()
+        .to_string();
     let e = err_of(call(
         &mut svc,
         "build_outline",
@@ -370,7 +389,7 @@ fn scaffold_guards_and_error_paths() {
     for tool in ["register_evidence", "bind_evidence", "record_review_gate"] {
         let args = match tool {
             "register_evidence" => json!({ "project_id": &pid, "kind": "qualification",
-                "title": "x", "source_file": "f.pdf", "source_sha256": "s",
+                "title": "x", "source_file_id": &fid_a,
                 "subject_name": "投标人" }),
             "bind_evidence" => json!({ "project_id": &pid, "ev_id": "EV-0001",
                 "requirement_ids": ["REQ-0001"], "bid_open_date": "2026-11-30" }),
@@ -391,36 +410,48 @@ fn scaffold_guards_and_error_paths() {
         json!({ "project_id": &pid }),
     ));
 
-    // 参数面：缺 source_sha256（无文件身份不入账）→ E_UNPROCESSABLE
+    // 参数面：缺 source_file_id（#185 来源验证——无来源身份不入账）→ E_UNPROCESSABLE
     let e = err_of(call(
         &mut svc,
         "register_evidence",
         json!({ "project_id": &pid, "kind": "qualification", "title": "x",
-                "source_file": "f.pdf", "subject_name": "投标人" }),
+                "subject_name": "投标人" }),
     ));
     assert!(
         matches!(e, bid_mcp::ToolError::EUnprocessable { .. }),
-        "缺 sha: {e:?}"
+        "缺 source_file_id: {e:?}"
     );
+
+    // 参数面：旧参数 source_file/source_sha256/fingerprint 已废除 → 显式拒（#185）
+    for legacy in ["source_file", "source_sha256", "fingerprint"] {
+        let mut args = json!({ "project_id": &pid, "kind": "qualification", "title": "x",
+                "source_file_id": &fid_a, "subject_name": "投标人" });
+        args[legacy] = json!("legacy-value");
+        let e = err_of(call(&mut svc, "register_evidence", args));
+        assert!(
+            matches!(e, bid_mcp::ToolError::EUnprocessable { .. }),
+            "旧参数 {legacy} 应显式拒: {e:?}"
+        );
+    }
 
     // 参数面：kind 非法 → E_UNPROCESSABLE
     let e = err_of(call(
         &mut svc,
         "register_evidence",
         json!({ "project_id": &pid, "kind": "不是类别", "title": "x",
-                "source_file": "f.pdf", "source_sha256": "s", "subject_name": "投标人" }),
+                "source_file_id": &fid_a, "subject_name": "投标人" }),
     ));
     assert!(
         matches!(e, bid_mcp::ToolError::EUnprocessable { .. }),
         "kind 非法: {e:?}"
     );
 
-    // 参数面：locator.kind 首版未支持 → E_UNPROCESSABLE
+    // 参数面：locator.kind 无对账面 → E_UNPROCESSABLE（fail-closed，不静默跳过）
     let e = err_of(call(
         &mut svc,
         "register_evidence",
         json!({ "project_id": &pid, "kind": "qualification", "title": "x",
-                "source_file": "f.pdf", "source_sha256": "s", "subject_name": "投标人",
+                "source_file_id": &fid_a, "subject_name": "投标人",
                 "locator": { "kind": "xlsx_cell" } }),
     ));
     assert!(
@@ -453,13 +484,15 @@ fn scaffold_guards_and_error_paths() {
         "gate 非法: {e:?}"
     );
 
-    // 登记一条有效证据 + 一条过期证据
+    // 登记一条有效证据 + 一条过期证据（#185：同锚 A 件、不同语义位——
+    // sha/指纹由服务端生成，调用方只给业务面）
     let ev_ok = ok(call(
         &mut svc,
         "register_evidence",
         json!({ "project_id": &pid, "kind": "qualification",
-                "title": "有效资质（scaffold-err）", "source_file": "f1.pdf",
-                "source_sha256": "sha-ok", "subject_name": "投标人" }),
+                "title": "有效资质（scaffold-err）",
+                "source_file_id": &fid_a,
+                "subject_name": "投标人" }),
     ))["ev_id"]
         .as_str()
         .unwrap()
@@ -468,8 +501,9 @@ fn scaffold_guards_and_error_paths() {
         &mut svc,
         "register_evidence",
         json!({ "project_id": &pid, "kind": "qualification",
-                "title": "过期资质（scaffold-err）", "source_file": "f2.pdf",
-                "source_sha256": "sha-expired", "subject_name": "投标人",
+                "title": "过期资质（scaffold-err）",
+                "source_file_id": &fid_a,
+                "subject_name": "投标人",
                 "valid_until": "2026-01-01" }),
     ))["ev_id"]
         .as_str()
@@ -555,5 +589,5 @@ fn scaffold_guards_and_error_paths() {
         "门序（矩阵先于大纲）: {e:?}"
     );
 
-    println!("[mcp-scaffold] 错误路径面 ✅ E_STATE×4 / E_UNPROCESSABLE×6 / E_PARTIAL×2（含 R-03 禁绑 + 逐件定位）");
+    println!("[mcp-scaffold] 错误路径面 ✅ E_STATE×4 / E_UNPROCESSABLE×8（含 #185 旧参数显式拒 ×3）/ E_PARTIAL×2（含 R-03 禁绑 + 逐件定位）");
 }

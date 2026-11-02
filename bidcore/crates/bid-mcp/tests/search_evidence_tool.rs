@@ -735,7 +735,8 @@ fn register_evidence_accepts_fields() {
 /// 走**纯 MCP 工具面全链**（create → import → extract → build_outline →
 /// register_evidence）——G2 的 MATRIX_READY 前置未过时先撞 E_STATE，
 /// 校验面就测不到（如实：这是踩过的坑，不靠直调 store 绕状态机）。
-fn matrix_ready_store() -> (BidService, String) {
+/// 返回 (svc, pid, A 件 file_id)——#185 后登记须以 source_file_id 锚定已导入文件。
+fn matrix_ready_store() -> (BidService, String, String) {
     let ws = std::env::temp_dir().join(format!("search-fields-{}", std::process::id()));
     std::fs::create_dir_all(&ws).unwrap();
     // #183 围栏：受信导入根（canonical——词法 `..` 会被围栏预拒）
@@ -754,26 +755,34 @@ fn matrix_ready_store() -> (BidService, String) {
         .as_str()
         .unwrap()
         .to_string();
-    ok_result(call(
+    let import = ok_result(call(
         &mut svc,
         "import_tender_files",
         json!({ "project_id": &pid, "files": [
             { "upload_ref": files_dir.join("A-招标文件.docx").display().to_string(),
               "filename": "A-招标文件.docx", "kind": "招标文件" } ] }),
     ));
+    let fid_a = import["per_file"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["filename"].as_str() == Some("A-招标文件.docx"))
+        .and_then(|p| p["file_id"].as_str())
+        .unwrap()
+        .to_string();
     ok_result(call(&mut svc, "extract_requirements", json!({ "project_id": &pid })));
     ok_result(call(&mut svc, "build_outline", json!({ "project_id": &pid })));
-    (svc, pid)
+    (svc, pid, fid_a)
 }
 
 #[test]
 fn register_evidence_rejects_malformed_fields() {
-    let (mut svc, pid) = matrix_ready_store();
+    let (mut svc, pid, fid_a) = matrix_ready_store();
     let n_before = svc.store().evidences().len();
     let base = json!({
         "project_id": &pid, "kind": "certificate",
-        "title": "结构化字段非法样例", "source_file": "bad.pdf",
-        "source_sha256": "sha-bad-fields", "subject_name": "投标人甲",
+        "title": "结构化字段非法样例", "source_file_id": &fid_a,
+        "subject_name": "投标人甲",
     });
     let cases: Vec<(&str, Value)> = vec![
         ("fields 非对象", json!("not-an-object")),
@@ -806,10 +815,9 @@ fn register_evidence_rejects_malformed_fields() {
         "fields=null → 空结构"
     );
 
-    // 合法 fields：全填 → 落账可读（工具面 → 领域面往返）
+    // 合法 fields：全填 → 落账可读（工具面 → 领域面往返；#185：来源锚 A 件）
     let mut args = base.clone();
     args["title"] = json!("结构化字段合法样例");
-    args["source_sha256"] = json!("sha-ok-fields");
     args["fields"] = json!({
         "project_name": "某项目", "client": "某甲方", "amount_wan": 0.0,
         "signed_at": "2024-02-29", "finished_at": "2025-01-01",

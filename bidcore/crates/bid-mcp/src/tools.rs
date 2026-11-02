@@ -3292,22 +3292,22 @@ fn build_outline(svc: &mut BidService, args: Value) -> ToolResult {
     }))
 }
 
-/// 注册入参的可选定位器解析（契约 §11——三种最常用形态的扁平面）。
+/// 注册入参的可选定位器解析（契约 §11——#185 来源验证后的可验证形态面）。
 ///
-/// 缺省（不传 locator）→ `MarkdownBlock { block_id: "mcp-registered:<source_file>" }`
-/// ——诚实标记「经 MCP 登记面、无引擎定位器」（审计面可辨识，不冒充引擎抽取）。
+/// 缺省（不传 locator）→ `Ok(None)`：文件级锚——服务层以库内 sha 生成
+/// `MarkdownBlock { block_id: "mcp-registered:<文件名>" }`（诚实标记「经
+/// 登记面、无引擎定位器」，审计面可辨识，不冒充引擎抽取）。
+///
+/// 传入 locator → 必须是**能按解析产物对账**的形态（docx_paragraph /
+/// pdf_page_text——服务层验段落序/页号与内容指纹）；markdown_block 及
+/// XLSX/Canvas 面无对账基准 → 显式拒（fail-closed，不静默降级到未验证面）。
 fn parse_locator_arg(
     args: &Value,
-    source_file: &str,
-    fingerprint: &str,
     at: &str,
-) -> Result<bid_domain::locator::EngineLocator, ToolError> {
+) -> Result<Option<bid_domain::locator::EngineLocator>, ToolError> {
     use bid_domain::locator::EngineLocator;
     let Some(loc) = args.get("locator").filter(|v| !v.is_null()) else {
-        return Ok(EngineLocator::MarkdownBlock {
-            block_id: format!("mcp-registered:{source_file}"),
-            text_fingerprint: fingerprint.to_string(),
-        });
+        return Ok(None);
     };
     if !loc.is_object() {
         return Err(ToolError::EUnprocessable {
@@ -3317,32 +3317,26 @@ fn parse_locator_arg(
     let kind = loc["kind"]
         .as_str()
         .ok_or_else(|| ToolError::EUnprocessable {
-            what: format!("{at}: locator.kind 必填（docx_paragraph|pdf_page_text|markdown_block）"),
+            what: format!("{at}: locator.kind 必填（docx_paragraph|pdf_page_text）"),
         })?;
     let fp = |v: &Value| v.as_str().map(str::to_string).filter(|s| !s.is_empty());
     match kind {
-        "docx_paragraph" => Ok(EngineLocator::DocxParagraph {
+        "docx_paragraph" => Ok(Some(EngineLocator::DocxParagraph {
             paragraph_index: loc["paragraph_index"].as_u64().unwrap_or(0).min(u32::MAX as u64) as u32,
             text_fingerprint: fp(&loc["text_fingerprint"]).ok_or_else(|| ToolError::EUnprocessable {
                 what: format!("{at}: locator.text_fingerprint 必填（算法前缀:值——如 fnv64:xx）"),
             })?,
-        }),
-        "pdf_page_text" => Ok(EngineLocator::PdfPageText {
+        })),
+        "pdf_page_text" => Ok(Some(EngineLocator::PdfPageText {
             page: loc["page"].as_u64().unwrap_or(1).max(1).min(u32::MAX as u64) as u32,
             text_fingerprint: fp(&loc["text_fingerprint"]).ok_or_else(|| ToolError::EUnprocessable {
                 what: format!("{at}: locator.text_fingerprint 必填（算法前缀:值——如 fnv64:xx）"),
             })?,
-        }),
-        "markdown_block" => Ok(EngineLocator::MarkdownBlock {
-            block_id: fp(&loc["block_id"]).ok_or_else(|| ToolError::EUnprocessable {
-                what: format!("{at}: locator.block_id 必填"),
-            })?,
-            text_fingerprint: fp(&loc["text_fingerprint"]).ok_or_else(|| ToolError::EUnprocessable {
-                what: format!("{at}: locator.text_fingerprint 必填（算法前缀:值——如 fnv64:xx）"),
-            })?,
-        }),
+        })),
         other => Err(ToolError::EUnprocessable {
-            what: format!("{at}: locator.kind 非法：{other}（首版支持 docx_paragraph|pdf_page_text|markdown_block；XLSX/Canvas 面待素材库）"),
+            what: format!(
+                "{at}: locator.kind 非法：{other}（#185 来源验证面支持 docx_paragraph|pdf_page_text——须与解析产物对账；不带 locator 则为文件级锚）"
+            ),
         }),
     }
 }
@@ -3385,35 +3379,38 @@ fn parse_evidence_fields(
 ///
 /// 语义位查重/换版在域层（同 kind+title+subject+scope 的最新非 Superseded
 /// 记录：同指纹 → 幂等重放；异指纹 → 旧记录单向降级 Superseded + 签发新 EV）。
-/// fingerprint 缺省 = `sha256:<source_sha256>`（内容指纹 = 文件身份——调用方
-/// 未给更细粒度时的诚实缺省）。
+///
+/// #185 缺口 1（来源验证）：来源身份由**服务端**裁决——`source_file_id` 必须
+/// 指向已导入的 TenderFile（不存在/解析失败 → 拒）；sha256 与指纹由系统从
+/// 库内与实际内容生成，**不接受调用方自报**。旧参数 `source_file` /
+/// `source_sha256` / `fingerprint` 显式拒绝（E_UNPROCESSABLE + 指路
+/// source_file_id——与 #182 reviewer 参数废除同款纪律：防「以为登记成功」
+/// 的假成功，不静默忽略）。
 fn register_evidence(svc: &mut BidService, args: Value) -> ToolResult {
     const TOOL: &str = "register_evidence";
+    // ---- 旧来源参数显式拒绝（#185：防假成功——静默忽略会让调用方以为已登记）
+    for legacy in ["source_file", "source_sha256", "fingerprint"] {
+        if args.get(legacy).map(|v| !v.is_null()).unwrap_or(false) {
+            return Err(ToolError::EUnprocessable {
+                what: format!(
+                    "{TOOL}: 参数 {legacy} 已废除（#185 来源验证）——证据来源必须锚定已导入文件：先 import_tender_files（回执 per_file[].file_id），再以 source_file_id 登记；sha256 与指纹由服务端从库内与实际内容生成，不接受调用方自报"
+                ),
+            });
+        }
+    }
     let project_id = req_str(&args, "project_id", TOOL)?;
     let kind = parse_evidence_kind(&req_str(&args, "kind", TOOL)?, TOOL)?;
     let title = req_str(&args, "title", TOOL)?;
-    let source_file = req_str(&args, "source_file", TOOL)?;
-    // 无文件身份不入账（域层 validate_spec 同口径——工具面先拦，文案更定位）
-    let source_sha256 = req_str(&args, "source_sha256", TOOL)?;
+    let source_file_id = req_str(&args, "source_file_id", TOOL)?;
     let subject_name = req_str(&args, "subject_name", TOOL)?;
     let scope = opt_str(&args, "scope", TOOL)?.unwrap_or_default();
     let valid_from = opt_str(&args, "valid_from", TOOL)?;
     let valid_until = opt_str(&args, "valid_until", TOOL)?;
     let project_version = opt_u64(&args, "project_version", TOOL)?;
 
-    // fingerprint：显式 > sha256:<source_sha256>（裸值补前缀——跨算法可比性）
-    let fingerprint = match opt_str(&args, "fingerprint", TOOL)? {
-        Some(f) => f,
-        None => {
-            let s = source_sha256.trim();
-            if s.contains(':') {
-                s.to_string()
-            } else {
-                format!("sha256:{s}")
-            }
-        }
-    };
-    let locator = parse_locator_arg(&args, &source_file, &fingerprint, TOOL)?;
+    // locator 可选（None = 文件级锚）；传入则须可验证（形态面本层拦，
+    // 段落序/页号/指纹对账在服务层——按解析产物）
+    let locator = parse_locator_arg(&args, TOOL)?;
 
     route_guard(svc, &project_id, TOOL, project_version)?;
 
@@ -3435,13 +3432,11 @@ fn register_evidence(svc: &mut BidService, args: Value) -> ToolResult {
     // 非对象 / 字段类型不匹配 / 业务口径非法 → 一律 E_UNPROCESSABLE（不静默吞）。
     let fields = parse_evidence_fields(&args, TOOL)?;
 
-    let spec = bid_domain::evidence::EvidenceSpec {
+    let reg = bid_tools::service::EvidenceRegistration {
+        source_file_id,
         kind,
         title,
-        source_file,
-        source_sha256,
         locator,
-        fingerprint,
         valid_from,
         valid_until,
         subject_name,
@@ -3451,7 +3446,7 @@ fn register_evidence(svc: &mut BidService, args: Value) -> ToolResult {
         completed_on,
         fields,
     };
-    let (ev_id, deduplicated) = svc.register_evidence(spec).map_err(ToolError::from)?;
+    let (ev_id, deduplicated) = svc.register_evidence_verified(reg).map_err(ToolError::from)?;
     let status = svc
         .store()
         .evidence(&ev_id)

@@ -34,13 +34,12 @@ fn require_fixture() -> Option<PathBuf> {
 }
 
 /// 通过公开 API 路径解析（走的就是生产代码那条路，不是测试侧另开小址）。
-// 【临时 ignore · issue #169】
-// CI（无 pdfium/poppler）走 pdf_text 纯 Rust 兜底时，CJK 解码出乱码：
-//   期望「1580 万元」实得「eWeNN:Q0bhN"e6R0g,eWT」形态的碎片。
-// 这是**真实缺陷**（不是环境缺件）——兜底路径读到文本但解码错，
-// 后果是所有中文 PDF 在无 pdfium 环境里静默产出垃圾。
-// 修好后去掉本属性。留证与待办见 issue #169。
-#[ignore = "issue #169：PDF 纯 Rust 兜底 CJK 解码乱码（读到文本但解码错）"]
+/// #169 修复后此测试在任何环境都应通过：
+///   - poppler 解码正常（装了 poppler-data）→ 首选路直出中文；
+///   - poppler 缺 CMap 资源包（Windows runner 实测形态：首选路「成功」
+///     吐 Latin-1 化乱码残渣）→ 被 probe_cjk_garble 拦截（PDF 声明 CJK
+///     字体而文本无 CJK）→ 降级纯 Rust 兜底重解，summary 诚实自报；
+///   - 无 poppler → 直接走兜底（原有第三条降级路）。
 #[test]
 fn addendum_pdf_yields_text_through_public_parse_path() {
     let Some(p) = require_fixture() else { return };
@@ -121,5 +120,106 @@ fn fallback_reports_failure_instead_of_garbage() {
         "失败原因要能读懂：{msg}"
     );
 
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+// ================================================================ #169：CJK 乱码防线
+
+/// #169 判据单元面：同一份 PDF 字节（声明 CJK 字体），三种输出三态判定。
+/// CI 实测乱码残渣串（Latin-1 化 + 不可打印字节被清洗后的形态）作 Garbled 样本。
+#[test]
+fn cjk_garble_probe_three_states() {
+    let Some(p) = require_fixture() else { return };
+    let raw = std::fs::read(&p).unwrap();
+    assert!(bid_parse::pdf_text::bytes_declare_cjk_font(&raw),
+        "补遗 PDF 字典应声明 CJK 字体/CMap（STSong-Light + Adobe-GB1）");
+
+    // 正常解码的中文 → Clean
+    let good = "某市第一人民医院智慧病房物联网平台建设项目补遗文件（01 号）\n\
+        1.1 原招标文件规定的开标时间变更为 2026-11-30 09:30；调整后的控制价 1580 万元。";
+    assert_eq!(bid_parse::pdf_text::probe_cjk_garble(&raw, good),
+        bid_parse::pdf_text::CjkGarbleProbe::Clean);
+
+    // CI 实测乱码残渣（Windows poppler 缺 CMap 资源的输出形态）→ Garbled
+    let garbled = "g--^{,NN\"lS;bfzagu?b?riTQ^sS^oeyveWeN01 S\n\
+        s[?bheNLRQ[,,O\\YNonNOe90g,eWeNN:bheNv~~bLRNbheNQwgT{Il_eHR\n\
+        NNNKYNg,eWeNN:Q0bhN\"e6R0g,eWT 24 \\eQNfbVbgxn/0\n\
+        1.1 SbheN~[v_he\"2026-11-18 09:30\"SfN:\"2026-11-30 09:30\"";
+    assert_eq!(bid_parse::pdf_text::probe_cjk_garble(&raw, garbled),
+        bid_parse::pdf_text::CjkGarbleProbe::Garbled);
+
+    // 无 CJK 字体声明的字节 → 永不触发（纯英文件防误伤）
+    let english_pdf = b"%PDF-1.4\n1 0 obj\n<< /BaseFont /Helvetica /Type /Font /Subtype /Type1 >>\nendobj\n%%EOF";
+    assert_eq!(bid_parse::pdf_text::probe_cjk_garble(english_pdf, garbled),
+        bid_parse::pdf_text::CjkGarbleProbe::NoSignal);
+
+    // 样本不足（<32 非空白）→ NoSignal（空文本层由上层既有判定处理）
+    assert_eq!(bid_parse::pdf_text::probe_cjk_garble(&raw, "short text"),
+        bid_parse::pdf_text::CjkGarbleProbe::NoSignal);
+}
+
+/// 最小 PDF：字典声明 SimSun，内容流是不压缩的英文 literal string。
+/// pdftotext 对它输出正常英文（cjk_ratio=0）→ 命中 Garbled 判据 →
+/// 降级兜底 → 兜底输出同样无中文 → **双路皆乱 fail-loud**。
+/// 这是 #169 影响面的最终防线：宁可失败，不静默产出垃圾。
+#[test]
+fn both_paths_garbled_fails_loudly() {
+    let content = b"BT /F1 12 Tf 72 720 Td (This PDF declares a CJK font but contains only English text) Tj ET";
+    let pdf = format!(
+        "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n\
+         2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n\
+         3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n\
+         4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /SimSun >>\nendobj\n\
+         5 0 obj\n<< /Length {} >>\nstream\n{}\nendstream\nendobj\n\
+         xref\n0 6\ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{}\n%%EOF",
+        content.len(),
+        String::from_utf8_lossy(content),
+        0 // xref 偏移占位（pdf_text 兜底不依赖 xref；pdftotext 容错）
+    );
+    let dir = std::env::temp_dir().join(format!("bidparse-garble-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let p = dir.join("cjk-marker-english.pdf");
+    std::fs::write(&p, pdf.as_bytes()).unwrap();
+
+    let r = bid_parse::parse_file(&p, "cjk-marker-english.pdf");
+    match r {
+        Ok(pf) => panic!(
+            "声明 CJK 字体而双路文本均无 CJK 应显式失败（fail-loud），实际 Ok：{}",
+            pf.parse_summary
+        ),
+        Err(e) => assert!(
+            e.contains("乱码") && e.contains("#169"),
+            "失败原因要点明乱码防线（实际：{e}）"
+        ),
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// 防误伤正面用例：纯英文 PDF（无 CJK 字体声明）任何环境下都正常解析，
+/// 乱码防线永不介入。
+#[test]
+fn english_pdf_is_never_flagged() {
+    let content = b"BT /F1 12 Tf 72 720 Td (Plain English tender document with sufficient text to pass sample gate) Tj ET";
+    let pdf = format!(
+        "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n\
+         2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n\
+         3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n\
+         4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n\
+         5 0 obj\n<< /Length {} >>\nstream\n{}\nendstream\nendobj\n\
+         xref\n0 6\ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{}\n%%EOF",
+        content.len(),
+        String::from_utf8_lossy(content),
+        0
+    );
+    let dir = std::env::temp_dir().join(format!("bidparse-english-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let p = dir.join("english.pdf");
+    std::fs::write(&p, pdf.as_bytes()).unwrap();
+
+    let r = bid_parse::parse_file(&p, "english.pdf");
+    // 有 poppler：首选路 Ok（English 文本，NoSignal 不干预）；
+    // 无 poppler：兜底解出同一英文（NoSignal 不干预）——两种环境都应 Ok。
+    let pf = r.unwrap_or_else(|e| panic!("纯英文 PDF 不应被乱码防线误伤：{e}"));
+    assert!(!pf.blocks.is_empty(), "英文 PDF 应解出文本块");
     let _ = std::fs::remove_dir_all(&dir);
 }

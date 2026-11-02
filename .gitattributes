@@ -1,0 +1,8 @@
+# 二进制件钉死：防 git 误判为文本后 Windows checkout 做 LF→CRLF 转换
+# （#169 排查时实锤：合成的 C-补遗/E-扫描件 无 NUL 字节被 git 判为文本——
+#   虽实测证明本仓兜底解析器对此免疫，仍按卫生惯例钉死，防未来真实件中招）
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.png binary
+*.zip binary

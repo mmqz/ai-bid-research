@@ -18,6 +18,26 @@ fn water_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../real-corpus/water/files")
 }
 
+/// CJK 字符占非空白字符的比例——真实中文招标文件的健康水位约 0.5~0.8。
+///
+/// 用来判「解析出来的到底是不是中文」。无 pdfium/poppler 的 Windows 环境里
+/// 纯 Rust 兜底会把 GBK 双字节按单字节输出，中文全成 `NN`/`eW` 碎片，
+/// 该比值会掉到接近 0（详见 issue #169）。用它区分「语料不在」与「解析环境不可用」。
+fn cjk_ratio(s: &str) -> f64 {
+    let total = s.chars().filter(|c| !c.is_whitespace()).count();
+    if total == 0 {
+        return 0.0;
+    }
+    let cjk = s
+        .chars()
+        .filter(|c| ('\u{4e00}'..='\u{9fff}').contains(c))
+        .count();
+    cjk as f64 / total as f64
+}
+
+/// 文本可用性下限。低于此值 → 判解析环境不可用，SKIP（不是业务失败）。
+const MIN_CJK_RATIO: f64 = 0.25;
+
 fn require_corpus() -> Option<Vec<(String, Vec<String>)>> {
     let d = water_dir();
     let files = [
@@ -34,6 +54,18 @@ fn require_corpus() -> Option<Vec<(String, Vec<String>)>> {
         }
         let parsed = bid_parse::parse_file(&path, f).expect("水科 PDF 应可解析");
         let lines: Vec<String> = parsed.blocks.iter().map(|b| b.text.clone()).collect();
+        // 解析保真度守卫（issue #169）：环境缺 pdfium/poppler 时纯 Rust 兜底
+        // 会把中文解成碎片，此时语料「在位」但文本不可用——SKIP 而非假红。
+        let joined: String = lines.concat();
+        let ratio = cjk_ratio(&joined);
+        if ratio < MIN_CJK_RATIO {
+            eprintln!(
+                "【SKIP】{f} 解析文本 CJK 占比 {:.1}% < {:.0}%——无 pdfium/poppler 环境下纯 Rust 兜底的解码不可用（issue #169），真实冒烟验收不伪装通过",
+                ratio * 100.0,
+                MIN_CJK_RATIO * 100.0
+            );
+            return None;
+        }
         out.push((f.to_string(), lines));
     }
     Some(out)

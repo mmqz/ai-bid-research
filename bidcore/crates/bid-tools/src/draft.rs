@@ -551,6 +551,27 @@ impl super::service::BidService {
         // 符）；draft_note 是**账面**（正文渲染永远不碰）。两者同源。
         let draft_note = compose_draft_note(instructions, &readiness);
 
+        // ---- 1.6 输入完整性（地图 P0-1）：受限起草显式标注
+        //
+        // readiness 闸只拦「未确认的不就绪」；经逐件人工确认放行的坏件
+        // 在这里变成**可见的受限标记**——放行 ≠ 没问题，三面都要说清
+        // 「本次起草基于不完整输入」：warnings（响应面）、draft_note
+        // （账面）、MCP out 的 input_integrity 块（机器面）。不得静默
+        // 当成完整输入。
+        let integrity = crate::readiness::input_integrity(self.store());
+        if integrity.restricted() {
+            warnings.push(format!("受限起草（输入不完整）：{}", integrity.to_message()));
+        }
+        let draft_note = if integrity.restricted() {
+            let note = format!("受限起草：{}", integrity.to_message());
+            Some(match draft_note {
+                Some(n) => format!("{n}\n\n{note}"),
+                None => note,
+            })
+        } else {
+            draft_note
+        };
+
         // ---- 2. 生成
         let draft = generator.generate(&input).map_err(|why| ToolError::EUnprocessable {
             reason: format!("章节 {section_id} 生成失败: {why}"),
@@ -631,6 +652,8 @@ impl super::service::BidService {
             warnings,
             instructions: instructions.map(str::to_string),
             draft_note,
+            // 地图 P0-1：输入完整性随行（MCP 壳组装 input_integrity 块）
+            input_integrity: integrity,
             content,
         })
     }
@@ -652,6 +675,9 @@ pub struct DraftOutcome {
     /// 起草指令 + 缺失回报的留档账面（#127 P0-2——与正文分离；随
     /// ChapterRecord 落盘，正文渲染面不碰）。`None` = 无指令无缺失回报。
     pub draft_note: Option<String>,
+    /// 项目级输入完整性（地图 P0-1——受限起草的判定面：restricted() =
+    /// true 时本次起草基于不完整输入，MCP 响应标 RESTRICTED）。
+    pub input_integrity: crate::readiness::InputIntegrity,
     pub content: String,
 }
 

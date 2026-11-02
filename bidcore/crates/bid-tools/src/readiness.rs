@@ -19,8 +19,10 @@
 //!
 //! - 本模块是**纯只读派生**（D2 同语义：诊断是导数不是源数据）——不写
 //!   store、不推状态、不 bump content_version，随便调；
-//! - **不接线**：接线到 `draft_section` 是云端代理 C 的活（它在改
-//!   draft.rs）。这里只交付能力，[`draft.rs`] 一个字节都不动；
+//! - 接线面：`draft_section` / `draft_section_iterative`（#110 任务 1 起）
+//!   在生成前调 [`check_draft_readiness`]，阻塞 → E_UNPROCESSABLE；
+//!   受限起草面（地图 P0-1）另消费 [`input_integrity`]——放行不等于
+//!   没问题，响应显式标 RESTRICTED；
 //! - 判定只用 store 已有的真源：章节树（requirement_ids / title）、条款
 //!   集（category）、证据台账（kind / status）、绑定、矩阵、文件种类。
 //!
@@ -35,6 +37,7 @@
 //! | UncoveredVetoItem | 本章负责的否决项在矩阵未响应 / blocking | 阻塞 |
 //! | IncompleteTender | 招标包结构问题（无招标文件/多份正本/多份招标文件） | **警告**（信息面） |
 //! | **MissingAddendum** | 招标文件已导入，但补遗/澄清**缺失或不就绪**（逐件分级） | **阻塞**（L3，#184 升级） |
+//! | **UnreadyInput** | 招标包输入件（主件/附件/图纸——**非补遗**）不就绪且未逐件确认 | **阻塞**（地图 P0-1） |
 //!
 //! ## L3：补遗缺失必须阻塞（本模块最容易被低估的一条）
 //!
@@ -79,6 +82,32 @@
 //!
 //! 措辞纪律：**面向业务说人话**。说「缺 3 个类似项目业绩，现有 1 条」，
 //! 不说 `MissingPerformance { required: 3 }`。
+//!
+//! ## 地图 P0-1：输入完整性——部分失败不得错误放行
+//!
+//! #184 把**补遗**的不就绪升格为阻塞；P0-1 把同一判据推广到**整个招标包**
+//! （主件/附件/图纸/评分办法/格式模板——一切非证据类导入件）：
+//!
+//! ```text
+//! 主件 Ok + 补遗A Ok + 补遗B OCR_PENDING + 附件C 解析失败
+//!   → 旧现状：「已提取出一部分需求」→ 允许起草
+//!   → 后果：基于不完整输入写标书，漏掉其中的新控制价/新截止时间
+//! ```
+//!
+//! 判据（可计算，文件级状态与项目级门禁联动）：
+//! - 每件输入件按 [`addendum_readiness`] 分级（READY / OCR_PENDING /
+//!   FAILED——同一标度，不另造第二套）；
+//! - **主件 READY + 所有补遗 READY + 无其他输入件 OCR_PENDING/FAILED**
+//!   → 完整（[`InputIntegrity::complete`]）；
+//! - 任一件不就绪且无逐件人工确认 → 阻塞（补遗报
+//!   [`Blocker::MissingAddendum`]，其余报 [`Blocker::UnreadyInput`]——
+//!   同一件事不报两遍，人工出口同为 record_addendum_waiver）；
+//! - 不就绪但已逐件确认 → 放行 + **受限起草**（`RESTRICTED`——放行
+//!   ≠ 没问题，起草响应/账面/出参三面显式标注，不得静默当成完整输入）。
+//!
+//! 边界：**证据源文件（kind=证据）不在此面**——证据可用性归证据系统
+//! 自己的生命周期裁决（状态/有效期/换版，见 evidence.rs）；本面只管
+//! 「招标包输入是否读全了」。
 
 use std::collections::BTreeSet;
 
@@ -185,6 +214,24 @@ pub enum Blocker {
         /// 有 Failed 件报 ParseFailed，否则为 OcrPending）。
         reason: AddendumIssue,
     },
+    /// 招标包输入件（主件/附件/图纸等，**非补遗**）不就绪且未逐件确认——
+    /// 项目级阻塞（地图 P0-1：部分失败不得错误放行）。
+    ///
+    /// 与 [`Blocker::MissingAddendum`] 的分界：那条管补遗/澄清件（对条款
+    /// 的实质性修改面——控制价/截止时间/评分办法）；本条管其余输入件——
+    /// **主件读不了 = 章节树的全部条款都来自不可信的残缺输入**；附件/
+    /// 图纸读不了 = 对应响应面可能有看不见的要求。「已提取出一部分需求」
+    /// 不等于输入完整——门禁以文件级状态为准，不以「有没有产出」为准。
+    ///
+    /// 人工出口与补遗同款：逐件 [`bid_domain::AddendumWaiverRecord`]（
+    /// MCP 工具 record_addendum_waiver——#184 起确认面按 file_id 落账，
+    /// 覆盖所有招标包输入件；工具名带 addendum 是历史口径）。放行 ≠
+    /// 没问题：起草响应带 `input_integrity.status = RESTRICTED`（受限
+    /// 起草显式标注，不静默当完整输入）。
+    UnreadyInput {
+        /// 不就绪且未经人工确认的输入件（逐件：id/名/就绪度/原因）。
+        files: Vec<AddendumFileState>,
+    },
 }
 
 /// 单件补遗的就绪度分级（#184——判定矩阵的基元）。
@@ -218,7 +265,11 @@ impl AddendumReadiness {
     }
 }
 
-/// 单件补遗的状态展开（阻塞消息 / MCP 报告面的逐件行）。
+/// 单件文件的状态展开（阻塞消息 / MCP 报告面的逐件行）。
+///
+/// #184 时只服务补遗面；地图 P0-1 起同为 [`Blocker::UnreadyInput`] /
+/// [`InputIntegrity`] 的逐件载体（字段本就是通用的 id/名/就绪度/原因，
+/// 名字里的 Addendum 是历史口径，不另造第二套同构体）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AddendumFileState {
     /// 文件 id（逐件确认的锚——record_addendum_waiver 按它对号）。
@@ -313,6 +364,10 @@ impl Blocker {
                     format_not_ready_files(files)
                 ),
             },
+            Blocker::UnreadyInput { files } => format!(
+                "招标包输入不完整：{}——这些文件不是 READY（解析失败/OCR 零内容），「已提取出一部分需求」不等于输入完整（主件坏=全部条款来自残缺输入；附件/图纸坏=对应响应面可能有看不见的要求）。请修复重传，或逐件人工确认后放行（record_addendum_waiver——放行后为受限起草）",
+                format_not_ready_files(files)
+            ),
         }
     }
 
@@ -326,6 +381,7 @@ impl Blocker {
             Blocker::UncoveredVetoItem { .. } => "UNCOVERED_VETO_ITEM",
             Blocker::IncompleteTender { .. } => "INCOMPLETE_TENDER",
             Blocker::MissingAddendum { .. } => "MISSING_ADDENDUM",
+            Blocker::UnreadyInput { .. } => "UNREADY_INPUT",
         }
     }
 
@@ -384,6 +440,13 @@ impl Blocker {
                     ),
                 ),
             },
+            Blocker::UnreadyInput { files } => make_placeholder(
+                PlaceholderKind::Confirm,
+                &format!(
+                    "招标包输入不完整（{}），请提供可解析版本或人工确认后继续",
+                    files.iter().map(|f| f.name.as_str()).collect::<Vec<_>>().join("、")
+                ),
+            ),
         }
     }
 }
@@ -449,6 +512,15 @@ pub fn check_draft_readiness(store: &DomainStore, section_id: &str) -> DraftRead
     // 每一章都是在过期条款上做标。放在章节判定之前——章节不存在时也要报，
     // 否则「查一个不存在的章节」会显得风平浪静。
     if let Some(blocker) = missing_addendum(store) {
+        blockers.push(blocker);
+    }
+
+    // ---- 输入完整性（地图 P0-1）：非补遗输入件（主件/附件/图纸）不就绪 —— 阻塞
+    //
+    // 全局面（与 missing_addendum 同位，先于章节判定——「查一个不存在的
+    // 章节」也不能显得风平浪静）。补遗不在此列（missing_addendum 已管，
+    // 同一件事不报两遍）；证据源文件不在此列（可用性归证据系统）。
+    if let Some(blocker) = unready_input_files(store) {
         blockers.push(blocker);
     }
 
@@ -650,6 +722,106 @@ pub fn tender_gaps(store: &DomainStore) -> Vec<String> {
     // 不再在这里重复一条警告——同一件事报两遍会让报告面噪音翻倍，
     // 而且「警告」与「阻塞」并列出现会削弱阻塞的分量。
     out
+}
+
+// ---------------------------------------------------------------- 输入完整性（地图 P0-1）
+
+/// 证据源文件的业务类别字面量（运行器侧自有类别——service.rs 分层：
+/// MCP 壳的 kind 枚举里没有它，只有受信内部导入面会用）。
+const FILE_KIND_EVIDENCE: &str = "证据";
+
+/// 是否招标包输入件（输入完整性判定的覆盖面：主件/补遗/附件/图纸/
+/// 评分办法/格式模板——一切非证据类导入件）。
+///
+/// 证据源文件不在面：证据的可用性由证据系统自己的生命周期裁决
+/// （状态 Active/Expiring、有效期、换版），把「证据源文件解析失败」
+/// 混进「招标包输入不完整」会让两套阻塞语义打架——前者该报在证据面。
+pub fn is_tender_package_file(f: &bid_domain::TenderFile) -> bool {
+    f.kind != FILE_KIND_EVIDENCE
+}
+
+/// 项目级输入完整性（地图 P0-1——「全部就绪才允许完整起草」的可计算判据）。
+///
+/// 覆盖**所有**招标包输入件（含补遗——受限判定要看全貌）；判据 =
+/// 每件都处 [`AddendumReadiness::Ready`]，或坏件有逐件人工确认。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct InputIntegrity {
+    /// 完整（unready 为空——所有输入件 READY 或经逐件确认放行）。
+    pub complete: bool,
+    /// 不就绪且未确认的件（非空 → 起草闸阻塞：补遗报
+    /// [`Blocker::MissingAddendum`]，其余报 [`Blocker::UnreadyInput`]）。
+    pub unready: Vec<AddendumFileState>,
+    /// 已人工确认**但仍不就绪**的件（放行 ≠ 没问题——受限起草的来源）。
+    pub waived_unready: Vec<AddendumFileState>,
+}
+
+impl InputIntegrity {
+    /// 受限起草判定：完整性是靠人工确认支撐的 → 本次起草基于不完整
+    /// 输入，响应必须显式标注（不得静默当成完整输入）。
+    pub fn restricted(&self) -> bool {
+        !self.waived_unready.is_empty()
+    }
+
+    /// 人类可读回报（受限 warning / draft_note 账面用）。
+    pub fn to_message(&self) -> String {
+        format!(
+            "以下 {} 件输入不就绪但已经人工确认放行（{}）——本次起草基于不完整输入，其中不可见的要求由确认人承担",
+            self.waived_unready.len(),
+            format_not_ready_files(&self.waived_unready)
+        )
+    }
+}
+
+/// 输入完整性总判（项目级——起草闸的判据面 / 受限起草的标注面）。
+///
+/// 纯只读派生，随便调；逐件真相在 `unready`/`waived_unready`，
+/// 与 [`addendum_statuses`]（报告面）同源同口径。
+pub fn input_integrity(store: &DomainStore) -> InputIntegrity {
+    let mut unready = Vec::new();
+    let mut waived_unready = Vec::new();
+    for f in store.files().iter().filter(|f| is_tender_package_file(f)) {
+        if addendum_readiness(f) == AddendumReadiness::Ready {
+            continue;
+        }
+        let state = AddendumFileState {
+            file_id: f.id.clone(),
+            name: f.name.clone(),
+            readiness: addendum_readiness(f),
+            reason: not_ready_reason(f),
+        };
+        if store.addendum_waived(&f.id) {
+            waived_unready.push(state);
+        } else {
+            unready.push(state);
+        }
+    }
+    InputIntegrity { complete: unready.is_empty(), unready, waived_unready }
+}
+
+/// 非补遗输入件的不就绪检查（地图 P0-1——[`Blocker::UnreadyInput`] 的
+/// 判定体）。
+///
+/// 与 [`missing_addendum`] 的分界：那条管补遗/澄清件（kind 或名字命中
+/// [`is_addendum_file`]）；本条管其余——两集合不相交，不会双报。
+fn unready_input_files(store: &DomainStore) -> Option<Blocker> {
+    let files: Vec<AddendumFileState> = store
+        .files()
+        .iter()
+        .filter(|f| is_tender_package_file(f) && !is_addendum_file(&f.kind, &f.name))
+        .filter(|f| addendum_readiness(f) != AddendumReadiness::Ready)
+        .filter(|f| !store.addendum_waived(&f.id))
+        .map(|f| AddendumFileState {
+            file_id: f.id.clone(),
+            name: f.name.clone(),
+            readiness: addendum_readiness(f),
+            reason: not_ready_reason(f),
+        })
+        .collect();
+    if files.is_empty() {
+        None
+    } else {
+        Some(Blocker::UnreadyInput { files })
+    }
 }
 
 // ---------------------------------------------------------------- L3：补遗缺失检测（#184 分级就绪）

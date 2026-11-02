@@ -156,7 +156,10 @@ fn e2e_tender_in_docx_out() {
     }
     let _ = svc.store_mut().build_matrix().unwrap();
     use bid_domain::review::{Decision, Gate};
-    for gate in [Gate::MatrixApproval, Gate::OutlineApproval, Gate::PreExportConfirm] {
+    // #180 审核内容绑定：MatrixApproval/OutlineApproval 批的是矩阵/大纲，
+    // 保持起草前原位；PreExportConfirm 绑定章节正文摘要，挪至全部叶起草
+    // 完成后记审（过门时摘要是空正文态，起草后即失效——人类流程同序）。
+    for gate in [Gate::MatrixApproval, Gate::OutlineApproval] {
         svc.store_mut().record_review(gate, "human:e2e-lead", Decision::Approved, vec![]).unwrap();
     }
     let n_blocking_after = svc.store().matrix().iter().filter(|r| r.blocking).count();
@@ -196,6 +199,12 @@ fn e2e_tender_in_docx_out() {
     }
     assert_eq!(r["counts"]["blocker"], json!(0));
     assert_eq!(r["project_status"], "VALIDATING");
+
+    // ⑦' PreExportConfirm 记审（#180：定稿内容过门——全部叶起草完成后、
+    //     导出前记审，绑定的才是将进产物的正文摘要）
+    svc.store_mut()
+        .record_review(Gate::PreExportConfirm, "human:e2e-lead", Decision::Approved, vec![])
+        .unwrap();
 
     // ⑧ 导出（MCP §8——成品 docx）
     let r = ok_result(call(&mut svc, "export_bid_document", json!({

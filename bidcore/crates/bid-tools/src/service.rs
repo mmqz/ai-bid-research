@@ -241,7 +241,9 @@ fn content_fingerprint(text: &str) -> String {
 /// 与 runner.rs 场景运行器（files_dir 受信内部目录）。外部输入必须先过
 /// 围栏（见 [`crate::fs_fence`]），不要直接把 MCP 调用者的路径喂进本函数。
 ///
-/// 逐件：sha256 幂等（已存在 → no-op 返回原 file_id，`deduplicated:true`）→
+/// 逐件：sha256 幂等（已存在 → no-op 返回原 file_id，`deduplicated:true`；
+/// #188：同内容**异身份**（kind/文件名不同）导入不吞角色——登记
+/// `FileRole` + metadata_conflict 告警，完全相同的重放保持纯 no-op）→
 /// `parse_file` → `upsert_file` 落库；成功件的解析产物累积进 `parsed`
 /// （M1-b `extract_requirements` 的输入面）。单件失败 → `Failed` 显式登记 +
 /// 继续（R-01），绝不整批中止。
@@ -278,7 +280,11 @@ pub fn import_files(
                 continue;
             }
         };
-        // 幂等：sha256 已存在 → no-op 返回原 file_id（契约 §2）
+        // 幂等：sha256 已存在 → no-op 返回原 file_id（契约 §2）。
+        // #188：去重不吞业务角色——同 SHA 异身份（kind/文件名不同）导入
+        // 登记 FileRole（追加不覆盖）+ metadata_conflict 告警（告警不失败，
+        // 验收 C）；完全相同的重放（同 SHA 同 kind 同名）纯 no-op 无告警
+        //（验收 B）；补遗/正本判定从此看任一角色（readiness.rs，验收 A）。
         if let Some(f) = store.files().iter().find(|f| f.sha256 == sha).cloned() {
             let mut errors = Vec::new();
             if f.parse_status == ParseStatus::Failed {
@@ -288,6 +294,23 @@ pub fn import_files(
                     "sha256 已登记为解析失败件（{}）——产物禁引；修复后以新内容重传",
                     f.parse_summary
                 ));
+            }
+            // #188 角色对账：本次 (kind, filename) 是否已在已知身份里。
+            // 初始身份 = 首次导入的 TenderFile.kind/name（upsert_file 落档）；
+            // 后续身份 = FileRole 登记。命中任一 → 幂等 no-op。
+            let identity_known = (f.kind == spec.kind && f.name == spec.filename)
+                || store.file_roles(&f.id).iter().any(|r| {
+                    r.kind == spec.kind && r.declared_name == spec.filename
+                });
+            let mut warnings = Vec::new();
+            if !identity_known {
+                match store.register_file_role(&f.id, &spec.kind, &spec.filename, now_secs()) {
+                    Ok(_) => warnings.push(format!(
+                        "METADATA_CONFLICT: 同 SHA 文件以不同身份再次导入（原 {}「{}」，本次 {}「{}」）——已登记新业务角色（追加不覆盖），补遗/正本判定按任一角色",
+                        f.kind, f.name, spec.kind, spec.filename
+                    )),
+                    Err(e) => errors.push(format!("业务角色登记失败: {e:?}")),
+                }
             }
             report.item_failures += usize::from(!errors.is_empty());
             report.per_file.push(PerFileOutcome {
@@ -302,7 +325,7 @@ pub fn import_files(
                 parse_status: f.parse_status,
                 deduplicated: true,
                 errors,
-                warnings: vec![],
+                warnings,
             });
             continue;
         }
@@ -1626,6 +1649,15 @@ fn convert_to_pdf_lo(docx: &std::path::Path, out_pdf: &std::path::Path) -> Resul
     // 产物一起删掉，「成功但产物缺失」的实测根因；rename 返回后产物已安全）
     let _ = std::fs::remove_dir_all(&profile);
     Ok(())
+}
+
+/// 当前时刻（unix epoch 秒——#188 FileRole 登记时刻；时钟不可用时 0，
+/// 角色的时刻面是审计信息，不参与判定）。
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 /// 文件 sha256（hex 小写——导出报告的产物指纹口径）。

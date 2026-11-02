@@ -629,10 +629,11 @@ fn veto_covered(store: &DomainStore, req_id: &str) -> bool {
 ///    信息面缺口：澄清里常有对条款的实质性修改）。
 pub fn tender_gaps(store: &DomainStore) -> Vec<String> {
     let mut out = Vec::new();
+    // #188：正本判定看任一角色（同内容先附件后招标文件导入也算正本在场）
     let tenders: Vec<&str> = store
         .files()
         .iter()
-        .filter(|f| f.kind == FILE_KIND_TENDER)
+        .filter(|f| file_has_kind(store, f, FILE_KIND_TENDER))
         .map(|f| f.name.as_str())
         .collect();
     if tenders.is_empty() {
@@ -689,6 +690,44 @@ const FILE_KIND_TENDER_L3: &str = "招标文件";
 pub fn is_addendum_file(kind: &str, name: &str) -> bool {
     ADDENDUM_KIND_WORDS.iter().any(|w| kind.contains(w))
         || ADDENDUM_NAME_WORDS.iter().any(|w| name.contains(w))
+}
+
+/// #188：文件的全部业务身份（初始 = 导入台账的 kind/name；后续 = FileRole
+/// 登记——同 SHA 异身份二次导入不吞角色）。判定面（补遗/正本）看任一身份。
+fn file_identities<'a>(
+    store: &'a DomainStore,
+    f: &'a bid_domain::TenderFile,
+) -> Vec<(&'a str, &'a str)> {
+    let mut v = vec![(f.kind.as_str(), f.name.as_str())];
+    v.extend(
+        store
+            .file_roles(&f.id)
+            .into_iter()
+            .map(|r| (r.kind.as_str(), r.declared_name.as_str())),
+    );
+    v
+}
+
+/// 是否补遗/澄清类文件（#188 扩面：任一身份命中即算——先「附件」后「补遗」
+/// 导入的同一份内容，补遗判定看得到它）。
+fn file_is_addendum(store: &DomainStore, f: &bid_domain::TenderFile) -> bool {
+    file_identities(store, f)
+        .iter()
+        .any(|(k, n)| is_addendum_file(k, n))
+}
+
+/// 首个命中补遗判定的身份名（报告面用——与判定依据一致；无 → None）。
+fn addendum_identity_name(store: &DomainStore, f: &bid_domain::TenderFile) -> Option<String> {
+    file_identities(store, f)
+        .into_iter()
+        .find(|(k, n)| is_addendum_file(k, n))
+        .map(|(_, n)| n.to_string())
+}
+
+/// 文件是否具有某类别身份（#188：任一角色命中即算——正本/证据等类别
+/// 判定与补遗判定同扩面，不再只看首次导入的 kind）。
+fn file_has_kind(store: &DomainStore, f: &bid_domain::TenderFile, kind: &str) -> bool {
+    f.kind == kind || store.file_roles(&f.id).iter().any(|r| r.kind == kind)
 }
 
 /// 单件补遗的就绪度分级（#184 判定矩阵的基元，详见 [`AddendumReadiness`]）。
@@ -749,10 +788,13 @@ pub fn addendum_statuses(store: &DomainStore) -> Vec<AddendumStatus> {
     store
         .files()
         .iter()
-        .filter(|f| is_addendum_file(&f.kind, &f.name))
+        // #188：任一身份命中即算补遗（去重不再吞角色）
+        .filter(|f| file_is_addendum(store, f))
         .map(|f| AddendumStatus {
             file_id: f.id.clone(),
-            name: f.name.clone(),
+            // 名字面用「触发补遗判定的那个身份」（同内容多角色时，报告名
+            // 与判定依据一致——如第二次以「补遗-03.pdf」导入的角色名）
+            name: addendum_identity_name(store, f).unwrap_or_else(|| f.name.clone()),
             readiness: addendum_readiness(f),
             reason: not_ready_reason(f),
             waived: store.addendum_waived(&f.id),
@@ -784,7 +826,11 @@ pub fn addendum_statuses(store: &DomainStore) -> Vec<AddendumStatus> {
 ///    导入可解析版本后阻塞自然消失，确认记录无害残留）。
 fn missing_addendum(store: &DomainStore) -> Option<Blocker> {
     // ① 没有招标文件本体 → 交回 tender_gaps（空包告警），不在本函数报
-    let has_tender = store.files().iter().any(|f| f.kind == FILE_KIND_TENDER_L3);
+    //（#188：正本身份看任一角色——先附件后招标文件的二次导入也算）
+    let has_tender = store
+        .files()
+        .iter()
+        .any(|f| file_has_kind(store, f, FILE_KIND_TENDER_L3));
     if !has_tender {
         return None;
     }

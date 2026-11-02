@@ -285,6 +285,21 @@ pub struct TenderFile {
     pub parse_summary: String,
 }
 
+/// 文件的业务角色（#188——内容身份与业务角色分离）。
+///
+/// 同一内容（sha256 幂等键）可在不同批次以不同身份进包：先「附件」后
+/// 「补遗」——第二次导入不再被 SHA 去重静默吞掉角色。角色**追加不覆盖**
+///（审计面：每次导入的身份都留底）；补遗/正本判定看任一角色
+///（readiness.rs——初始身份 = 首次导入的 `TenderFile.kind/name`，后续身份
+/// = 本表登记）。幂等：完全相同的 (kind, declared_name) 重放 → no-op。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FileRole {
+    pub file_id: String, // TF-xxxx（锚定 files——孤儿角色在 restore 拒载）
+    pub kind: String, // 招标文件|附件|图纸|补遗|证据…（导入时声明）
+    pub declared_name: String, // 导入时提供的文件名（调用方口径，保留原文）
+    pub at: u64,                  // 角色登记时刻（unix epoch 秒）
+}
+
 /// 补遗逐件人工确认记录（#184）。
 ///
 /// 分级就绪的伴生闸：任一补遗不处 Ready 时起草闸阻塞，人工继续必须**逐件**
@@ -364,6 +379,9 @@ pub struct DomainStore {
     revision_tasks: Vec<review::RevisionTask>,
     /// #184 补遗逐件人工确认（非 Ready 件的人工放行账——追加式审计日志）
     addendum_waivers: Vec<AddendumWaiverRecord>,
+    /// #188 文件业务角色（内容身份 sha256 唯一，角色可多——追加不覆盖；
+    /// 登记见 [`DomainStore::register_file_role`]，不碰 content_version）
+    file_roles: Vec<FileRole>,
     /// 幂等键 → 首次结果 JSON（同 key 重放返回首次结果，不重复执行）
     idempotency: HashMap<String, serde_json::Value>,
     id_seq: u64,
@@ -386,6 +404,7 @@ impl DomainStore {
             reviews: vec![],
             revision_tasks: vec![],
             addendum_waivers: vec![],
+            file_roles: vec![],
             idempotency: HashMap::new(),
             id_seq: 0,
         }
@@ -405,6 +424,48 @@ impl DomainStore {
 
     pub fn files(&self) -> &[TenderFile] {
         &self.files
+    }
+
+    /// #188：某文件的全部业务角色（登记序；空 = 只有初始身份——首次导入
+    /// 的 TenderFile.kind/name，直接 upsert_file 造出的文件也属此类）。
+    pub fn file_roles(&self, file_id: &str) -> Vec<&FileRole> {
+        self.file_roles
+            .iter()
+            .filter(|r| r.file_id == file_id)
+            .collect()
+    }
+
+    /// #188：登记一条业务角色（导入去重命中且身份不同时由服务层调）。
+    ///
+    /// 裁决序：① file_id 必须存在于 files（孤儿角色 = 凭空身份，拒）；
+    /// ② 完全相同的 (kind, declared_name) 已在 → 幂等 no-op（返回既有角色，
+    /// 不重复登记）。登记**不碰 content_version**（角色是文件的元数据面，
+    /// 不是新内容；下游判定面如补遗就绪度是活算的，无脏可标）。
+    pub fn register_file_role(
+        &mut self,
+        file_id: &str,
+        kind: &str,
+        declared_name: &str,
+        at: u64,
+    ) -> Result<FileRole, ToolError> {
+        if !self.files.iter().any(|f| f.id == file_id) {
+            return Err(ToolError::ENotFound {
+                what: format!("file_id {file_id} 不存在（孤儿角色——凭空身份，拒登记）"),
+            });
+        }
+        if let Some(r) = self.file_roles.iter().find(|r| {
+            r.file_id == file_id && r.kind == kind && r.declared_name == declared_name
+        }) {
+            return Ok(r.clone()); // 幂等 no-op
+        }
+        let role = FileRole {
+            file_id: file_id.into(),
+            kind: kind.into(),
+            declared_name: declared_name.into(),
+            at,
+        };
+        self.file_roles.push(role.clone());
+        Ok(role)
     }
 
     pub fn requirements(&self) -> &[Requirement] {
@@ -779,6 +840,10 @@ pub struct StoreSnapshot {
     /// schema_version 不 bump，见 StoreSnapshot 头注释的加性演进纪律）
     #[serde(default)]
     pub addendum_waivers: Vec<AddendumWaiverRecord>,
+    /// #188 文件业务角色（加性迁移——旧快照无此字段 → 空集合加载：
+    /// 角色为空时初始身份回退到 TenderFile.kind/name，行为与旧版一致）
+    #[serde(default)]
+    pub file_roles: Vec<FileRole>,
     #[serde(default)]
     pub idempotency: BTreeMap<String, serde_json::Value>,
     #[serde(default)]
@@ -804,6 +869,7 @@ impl DomainStore {
             reviews: self.reviews.clone(),
             revision_tasks: self.revision_tasks.clone(),
             addendum_waivers: self.addendum_waivers.clone(),
+            file_roles: self.file_roles.clone(),
             // HashMap → BTreeMap：持久化 DTO 要求跨进程字节一致（HashMap 迭代序不确定）
             idempotency: self.idempotency.clone().into_iter().collect(),
             id_seq: self.id_seq,
@@ -962,6 +1028,18 @@ impl DomainStore {
                 w.file_id
             )));
         }
+        // #188 角色引用完整：角色的 file_id 必须存在于 files（孤儿角色 =
+        // 对不存在的件声明身份——半个账本，拒载）。
+        if let Some(r) = snap
+            .file_roles
+            .iter()
+            .find(|r| !file_ids.contains(r.file_id.as_str()))
+        {
+            return Err(un(format!(
+                "file_role 引用了不存在的文件 {}（孤儿角色——拒载）",
+                r.file_id
+            )));
+        }
         // 孤儿数据（有集合无项目 = 半个库）
         if snap.project.is_none()
             && (!snap.files.is_empty()
@@ -972,7 +1050,8 @@ impl DomainStore {
                 || !snap.findings.is_empty()
                 || !snap.reviews.is_empty()
                 || !snap.revision_tasks.is_empty()
-                || !snap.addendum_waivers.is_empty())
+                || !snap.addendum_waivers.is_empty()
+                || !snap.file_roles.is_empty())
         {
             return Err(un("快照有数据但无项目（孤儿集合——拒绝加载半个库）".into()));
         }
@@ -991,6 +1070,7 @@ impl DomainStore {
             reviews: snap.reviews,
             revision_tasks: snap.revision_tasks,
             addendum_waivers: snap.addendum_waivers,
+            file_roles: snap.file_roles,
             idempotency: snap.idempotency.into_iter().collect(),
             id_seq: snap.id_seq,
         })

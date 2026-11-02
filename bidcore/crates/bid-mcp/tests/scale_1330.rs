@@ -163,10 +163,12 @@ fn scale_500k_chars_full_pipeline_under_redlines() {
     }
     let _ = svc.store_mut().build_matrix().unwrap();
     use bid_domain::review::{Decision, Gate};
-    for gate in [Gate::MatrixApproval, Gate::OutlineApproval, Gate::PreExportConfirm] {
+    // #180 审核内容绑定：矩阵/大纲批的是响应面与结构面，保持起草前原位；
+    // PreExportConfirm 绑定章节正文摘要，挑至全部叶起草完成后记审（见 ⑤'）
+    for gate in [Gate::MatrixApproval, Gate::OutlineApproval] {
         svc.store_mut().record_review(gate, "human:scale-lead", Decision::Approved, vec![]).unwrap();
     }
-    println!("[规模] ③绑定（{} 条）+三门: {}ms", must.len(), t.elapsed().as_millis());
+    println!("[规模] ③绑定（{} 条）+两门: {}ms", must.len(), t.elapsed().as_millis());
 
     // ④ 逐章起草（~250 叶 mock 生成 + S-2 逐章落盘——导出前的最大耗时面）
     let t = Instant::now();
@@ -198,6 +200,12 @@ fn scale_500k_chars_full_pipeline_under_redlines() {
     assert_eq!(r["ok"], json!(true), "规模面校验必须过（BLOCKER 清零）: {}", r["errors"]);
     println!("[规模] ⑤校验: {}ms（findings: {}）", t.elapsed().as_millis(),
         r["findings"].as_array().unwrap().len());
+
+    // ⑤' PreExportConfirm 记审（#180：定稿内容过门——全部叶起草完成后、
+    //     导出前，绑定的才是将进产物的正文摘要）
+    svc.store_mut()
+        .record_review(Gate::PreExportConfirm, "human:scale-lead", Decision::Approved, vec![])
+        .unwrap();
 
     // ⑥ 导出（Lead 红线：< 120s）——含内存峰值断言（< 2GB）
     let t = Instant::now();

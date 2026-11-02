@@ -285,11 +285,10 @@ fn ensure_prepared(svc: &mut BidService, ws: &Path) -> (String, String) {
     }
     let _ = svc.store_mut().build_matrix().unwrap();
     use bid_domain::review::{Decision, Gate};
-    for gate in [
-        Gate::MatrixApproval,
-        Gate::OutlineApproval,
-        Gate::PreExportConfirm,
-    ] {
+    // #180 审核内容绑定：矩阵/大纲批的是响应面与结构面，保持起草前原位；
+    // PreExportConfirm 绑定章节正文摘要，挑至全部叶起草完成后记审（见 serve
+    // 相位导出前——与人类流程同序：审核定稿内容）
+    for gate in [Gate::MatrixApproval, Gate::OutlineApproval] {
         svc.store_mut()
             .record_review(gate, "human:real-path-lead", Decision::Approved, vec![])
             .unwrap();
@@ -514,6 +513,17 @@ fn real_llm_human_relay_path() {
     );
     assert_eq!(reply_data(&v)["ok"], json!(true), "校验未过: {v}");
     assert_eq!(reply_data(&v)["counts"]["blocker"], json!(0));
+
+    // ---- PreExportConfirm 记审（#180：定稿内容过门——全部叶起草（开发者
+    //      正文 + mock 补齐）完成后、导出前，绑定的才是将进产物的摘要）
+    let g = proc.call(
+        "record_review_gate",
+        json!({
+            "project_id": svc.store().project().unwrap().id, "gate": "pre_export_confirm",
+            "decision": "APPROVED", "reviewer": "human:real-path-lead",
+        }),
+    );
+    assert_eq!(g["ok"], json!(true), "pre_export_confirm 记审: {g}");
 
     // ---- 导出（MCP §8——真实章节进成品 docx）
     let e = proc.call(

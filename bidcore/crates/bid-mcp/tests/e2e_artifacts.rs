@@ -475,16 +475,14 @@ fn e2e_artifacts_synth_tender() {
     ]);
     tim.mark("05.5_表格数据面", &t55);
     use bid_domain::review::{Decision, Gate};
-    for gate in [
-        Gate::MatrixApproval,
-        Gate::OutlineApproval,
-        Gate::PreExportConfirm,
-    ] {
+    // #180 审核内容绑定：矩阵/大纲批的是响应面与结构面，保持起草前原位；
+    // PreExportConfirm 绑定章节正文摘要，挑至全部叶起草完成后记审（见 ⑧'）
+    for gate in [Gate::MatrixApproval, Gate::OutlineApproval] {
         svc.store_mut()
             .record_review(gate, "human:e2e-artifacts-lead", Decision::Approved, vec![])
             .unwrap();
     }
-    tim.mark("05_证据绑定三门", &t);
+    tim.mark("05_证据绑定两门", &t);
 
     let t = Instant::now();
     let leaves: Vec<String> = {
@@ -597,6 +595,12 @@ fn e2e_artifacts_synth_tender() {
     );
     assert_eq!(validation["counts"]["blocker"], json!(0));
     tim.mark("08_校验", &t);
+
+    // ---- ⑧' PreExportConfirm 记审（#180：定稿内容过门——全部叶起草完成后、
+    //      导出前，绑定的才是将进产物的正文摘要；docx/pdf 两导出间无正文写入）
+    svc.store_mut()
+        .record_review(Gate::PreExportConfirm, "human:e2e-artifacts-lead", Decision::Approved, vec![])
+        .unwrap();
 
     // ---- ⑨ 导出 docx + pdf（MCP §8——pdf 软门）
     //      #117 任务 1：报价决策随导出传入（bid_amount + 分项）——六表自动接线

@@ -385,7 +385,9 @@ fn synth_tender_eval() {
     }
     let _ = svc.store_mut().build_matrix().unwrap();
     use bid_domain::review::{Decision, Gate};
-    for gate in [Gate::MatrixApproval, Gate::OutlineApproval, Gate::PreExportConfirm] {
+    // #180 审核内容绑定：矩阵/大纲批的是响应面与结构面，保持起草前原位；
+    // PreExportConfirm 绑定章节正文摘要，挑至全部叶起草完成后记审（见 ⑦'）
+    for gate in [Gate::MatrixApproval, Gate::OutlineApproval] {
         svc.store_mut().record_review(gate, "human:synth-lead", Decision::Approved, vec![]).unwrap();
     }
     let n_blocking = svc.store().matrix().iter().filter(|r| r.blocking).count();
@@ -413,6 +415,12 @@ fn synth_tender_eval() {
     })));
     assert_eq!(validation["ok"], json!(true), "⑦ 校验未过: {}", validation["errors"]);
     assert_eq!(validation["counts"]["blocker"], json!(0));
+
+    // ---- ⑦' PreExportConfirm 记审（#180：定稿内容过门——全部叶起草完成后、
+    //      导出前，绑定的才是将进产物的正文摘要）
+    svc.store_mut()
+        .record_review(Gate::PreExportConfirm, "human:synth-lead", Decision::Approved, vec![])
+        .unwrap();
 
     // ---- ⑧ 导出 ----
     let export = ok_result(call(&mut svc, "export_bid_document", json!({

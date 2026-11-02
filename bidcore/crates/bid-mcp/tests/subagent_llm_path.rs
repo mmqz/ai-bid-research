@@ -399,8 +399,10 @@ fn ensure_prepared(svc: &mut BidService, ws: &Path) -> (String, Vec<String>) {
         "绑定后 blocking 清零（G2 工具面）: {bind:?}"
     );
 
-    // ---- 三门审批（MCP §12——G3 工具面；门序：矩阵 → 大纲 → 导出前）
-    for gate in ["matrix_approval", "outline_approval", "pre_export_confirm"] {
+    // ---- 两门审批（MCP §12——G3 工具面；门序：矩阵 → 大纲）
+    // #180 审核内容绑定：pre_export_confirm 绑定章节正文摘要，挑至全部叶
+    // 起草完成后记审（见 serve 相位导出前——与人类流程同序：审核定稿内容）
+    for gate in ["matrix_approval", "outline_approval"] {
         let g = ok_result(call(
             svc,
             "record_review_gate",
@@ -763,6 +765,17 @@ fn subagent_llm_multi_chapter_path() {
     );
     assert_eq!(reply_data(&v)["ok"], json!(true), "校验未过: {v}");
     assert_eq!(reply_data(&v)["counts"]["blocker"], json!(0));
+
+    // ---- PreExportConfirm 记审（#180：定稿内容过门——全部叶起草（子代理
+    //      真实正文 + mock 补齐）完成后、导出前，绑定的才是将进产物的摘要）
+    let g = proc.call(
+        "record_review_gate",
+        json!({
+            "project_id": &pid, "gate": "pre_export_confirm", "decision": "APPROVED",
+            "reviewer": "human:subagent-path-lead",
+        }),
+    );
+    assert_eq!(g["ok"], json!(true), "pre_export_confirm 记审: {g}");
 
     // ---- 导出（MCP §8——全部子代理真实内容进成品 docx）
     let e = proc.call(

@@ -240,12 +240,24 @@ fn main() {
         CliOutcome::Run(c) => c,
     };
 
-    // 工作区
-    let ws_path = cli
-        .workspace
-        .clone()
-        .or_else(|| std::env::current_dir().ok())
-        .unwrap_or_else(|| PathBuf::from("."));
+    // 工作区（#194 解析序：CLI 显式参数 > 上次工作区记忆 > cwd）。
+    // 无参双击启动时 cwd 往往是无意义的 exe 目录/系统目录，「停在
+    // 上次的工作区」才是用户期望；显式参数仍然最高优先。
+    let mut ws_from_last = false;
+    let ws_path = match cli.workspace.clone() {
+        Some(p) => p,
+        None => match recent::last_workspace() {
+            Some(p) => {
+                ws_from_last = true;
+                p
+            }
+            None => std::env::current_dir().ok().unwrap_or_else(|| PathBuf::from(".")),
+        },
+    };
+    if ws_from_last {
+        // 证据行：启动源说明（记忆命中时才印；脚本/CI 可 grep）。
+        println!("[mang] workspace ← 上次工作区（last-workspace.json）");
+    }
     let ws_path = if ws_path.is_absolute() {
         ws_path
     } else {
@@ -400,13 +412,16 @@ fn run_window(
     {
         use tao::platform::windows::WindowExtWindows;
         let hwnd = window.hwnd();
-        let ws_root = workspace.root_canonical().to_path_buf();
+        // #194：drop 事件按**当前**工作区算 insideWorkspace/rel——
+        // 切换工作区后不拿启动时的旧根（快照每次落盘时现取）。
+        let ctx_for_dnd = Arc::clone(&ctx);
         let drop_proxy = {
             // WM_DROPFILES 回调在 UI 线程里，只需把"落下了哪些文件"排进队列，
             // 由事件循环统一注入 JS（避免在消息处理中重入 WebView）。
             let outer = event_loop.create_proxy();
             move |paths: Vec<String>| {
-                let ev = dnd::drop_event(paths, Some(&ws_root));
+                let root = ctx_for_dnd.workspace_snapshot();
+                let ev = dnd::drop_event(paths, Some(root.root_canonical()));
                 drop_queue_push(ev);
                 let _ = outer.send_event(UserEvent::Wake);
             }
@@ -433,11 +448,13 @@ fn run_window(
     // --inject-drop：启动 1.5s 后把给定的文件当成一次"拖放"推给页面（自测用，绕开真实鼠标）
     if let Some(files) = inject_drop {
         let paths: Vec<String> = files.iter().map(|p| p.to_string_lossy().into_owned()).collect();
-        let ws_root = workspace.root_canonical().to_path_buf();
+        // #194：与真实 DnD 同口径——落盘时取当前工作区快照（不是启动时的旧根）。
+        let ctx_for_inject = Arc::clone(&ctx);
         let tx = event_loop.create_proxy();
         std::thread::spawn(move || {
             std::thread::sleep(std::time::Duration::from_millis(1500));
-            let ev = dnd::drop_event(paths, Some(&ws_root));
+            let root = ctx_for_inject.workspace_snapshot();
+            let ev = dnd::drop_event(paths, Some(root.root_canonical()));
             println!("[mang] inject-drop → {}", ev);
             drop_queue_push(ev);
             let _ = tx.send_event(UserEvent::Wake);
@@ -530,7 +547,9 @@ fn handle_ipc(
         //（WebView 的 IPC handler 就在事件循环上——阻塞它等于冻住整个窗口）。
         // 立即回执「已启动」，真实结果以后台线程的 llm.test 事件送达。
         "llm.test" => {
-            let ws = ctx.workspace.clone();
+            // #194：工作区可切换——取快照而不是引用（后台线程期间用户
+            // 可能又切了工作区；测试用的配置随发起时刻的快照走）。
+            let ws = ctx.workspace_snapshot();
             let bg_proxy = proxy.clone();
             std::thread::spawn(move || {
                 let ev = run_llm_test(&ws);

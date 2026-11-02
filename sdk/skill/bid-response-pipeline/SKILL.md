@@ -38,16 +38,15 @@ sections 只列可起草叶）、`score_price` / `score_section` / `score_docume
 （自评面：该报多少价、这份标书能得几分）、`record_review_gate`（人工复审门，
 见下）。
 
-> **自评面口径（#126 后校正 · 见 issue #170）**：
+> **自评面口径（#170 方案 A 落地后 · 2026-11-02）**：
 >
 > | 工具 | 对评分项 | 说明 |
 > |---|---|---|
 > | `score_document` | ✅ 正常 | 整本自评，按 requirements 全量派生，不依赖 section 映射 |
-> | `score_section` | ❌ 恒空 | 评分项**不进正文**，不属任何叶 → section 映射取不到 → 该节返回 max=0 / item_scores=[] |
+> | `score_section` | ✅ 有章引用时恢复 | 评审表行带「第X章」引用（详见/按第X章…）→ 章号归一挂到被引用章的正文叶 → 该节返回含评分项的 max/item_scores |
 >
-> 所以 `score_section` 只能用来评估**正文类目节**（否决项 / 技术参数等有实际正文的节）。
-> 想知道「这份标书整体能得几分」，用 `score_document`，不要用 `score_section` 逐节加总。
-> 需要「评分项按章节自评」的能力 → 见 issue #170（待裁决 A/B）。
+> 「这一节能得几分」看 `score_section`（评分项挂载依赖招标文件评审表里的章节引用——
+> 引用缺失时该节对评分项恒空，属数据如实）；「这份标书整体能得几分」用 `score_document`。
 
 人工门（`record_review_gate`，reviewer 必须以 `human:` 前缀——AI 操作者不得
 自审自过）：矩阵门 `matrix_approval` → 大纲门 `outline_approval` → 导出确认门

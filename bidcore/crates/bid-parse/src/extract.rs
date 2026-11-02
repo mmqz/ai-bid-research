@@ -619,6 +619,21 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
             .first()
             .and_then(|&bi| f.blocks.get(bi).map(|b| b.locator.clone()))
             .unwrap_or_else(|| it.locator.clone());
+        // #170 方案 A（抽取侧输入）：评审表行文本的「第X章」引用
+        // （详见/按/响应 第X章…——真实件实测形态）登记为
+        // params.section_title，联结侧（bid-mcp build_scorer）按章号
+        // 归一匹配大纲节点——「评分项按章节自评」由此恢复。无引用不
+        // 登记（映射缺省与现状一致，不虚构）。
+        let joined_ref = format!(
+            "{} {} {}",
+            it.item,
+            it.criteria,
+            it.score_rules.as_deref().unwrap_or("")
+        );
+        let mut params = HashMap::new();
+        if let Some(title) = crate::review_table::chapter_ref_of(&joined_ref) {
+            params.insert("section_title".into(), serde_json::json!(title));
+        }
         push_req(
             reqs, seq, cat,
             Some(format!("{}-{}", it.table_name, it.row)),
@@ -628,7 +643,7 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
                 locator,
                 excerpt: it.item.clone(),
             }],
-            HashMap::new(), &f.name,
+            params, &f.name,
         );
     }
 }

@@ -141,3 +141,142 @@ fn garbled_cid_text_still_fails_loud() {
     );
     let _ = std::fs::remove_dir_all(p.parent().unwrap());
 }
+
+// ---------------------------------------------------------------- #200 剩余能力边界（原因定位面）
+
+/// hint 纯函数：非 UCS2 CMap / ObjStm / CID 注册序号 / 无标记四态。
+#[test]
+fn reason_hint_names_boundary_families() {
+    // GBK-EUC-H 声明 → 点名该族 + 给出绕过
+    let h = pdf_text::cjk_garble_reason_hint(b"/Encoding /GBK-EUC-H").expect("GBK-EUC 必须点名");
+    assert!(h.contains("GBK-EUC-H/V"), "族名点名：{h}");
+    assert!(h.contains("非 Unicode 码位"), "根因说明：{h}");
+    assert!(h.contains("绕过"), "绕过指引：{h}");
+
+    // ObjStm → 点名对象流边界
+    let h = pdf_text::cjk_garble_reason_hint(b"5 0 obj << /Type /ObjStm >>").expect("ObjStm 必须点名");
+    assert!(h.contains("/ObjStm"), "对象流点名：{h}");
+    assert!(h.contains("pdfium"), "绕过首选路：{h}");
+
+    // 双边界并存 → 两段都在（疑因线索全列）
+    let both = b"/Encoding /GBK-EUC-H /Ordering (GB1) + /ObjStm";
+    let h = pdf_text::cjk_garble_reason_hint(both).expect("双边界必须点名");
+    assert!(h.contains("GBK-EUC-H/V") && h.contains("/ObjStm"), "两族并列：{h}");
+
+    // B5pc 繁体族
+    let h = pdf_text::cjk_garble_reason_hint(b"/Encoding /B5pc-H").expect("B5pc 必须点名");
+    assert!(h.contains("B5pc-H/V"), "繁体族点名：{h}");
+
+    // 无任何边界标记 → None（泛化乱码保持原报错文案）
+    assert!(pdf_text::cjk_garble_reason_hint(b"%PDF-1.4 plain english").is_none());
+}
+
+/// GBK-EUC-H 整链（真 GBK 码值）：环境可移植双态断言——
+/// 有完整 CMap 资源的 poppler → 首选路 Ok 解出中文；否则 fail-loud 拒收
+/// 且错误信息**点名 GBK-EUC 边界 + 绕过路径**（#200 验收：遇到边界文件
+/// 时用户能看到「这是什么原因、有没有办法绕过」）。
+#[test]
+fn gbk_euc_h_pdf_rejection_names_reason_and_workaround() {
+    // 36 字句子的 GBK 码值（逐字 Tj——每串 2 字节；≥32 非空白字符，
+    // 过 CJK 探测的样本门槛——短文本 NoSignal 是 #169 防线既有的
+    // 短样本权衡，这里测的是完整防线路径）
+    let gbk_words: [(&str, [u8; 2]); 36] = [
+        ("市", [0xCA, 0xD0]),
+        ("政", [0xD5, 0xFE]),
+        ("基", [0xBB, 0xF9]),
+        ("础", [0xB4, 0xA1]),
+        ("设", [0xC9, 0xE8]),
+        ("施", [0xCA, 0xA9]),
+        ("建", [0xBD, 0xA8]),
+        ("设", [0xC9, 0xE8]),
+        ("项", [0xCF, 0xEE]),
+        ("目", [0xC4, 0xBF]),
+        ("主", [0xD6, 0xF7]),
+        ("要", [0xD2, 0xAA]),
+        ("建", [0xBD, 0xA8]),
+        ("设", [0xC9, 0xE8]),
+        ("内", [0xC4, 0xDA]),
+        ("容", [0xC8, 0xDD]),
+        ("包", [0xB0, 0xFC]),
+        ("括", [0xC0, 0xA8]),
+        ("道", [0xB5, 0xC0]),
+        ("路", [0xC2, 0xB7]),
+        ("敷", [0xB7, 0xF3]),
+        ("设", [0xC9, 0xE8]),
+        ("闸", [0xD5, 0xA2]),
+        ("门", [0xC3, 0xC5]),
+        ("安", [0xB0, 0xB2]),
+        ("装", [0xD7, 0xB0]),
+        ("与", [0xD3, 0xEB]),
+        ("泵", [0xB1, 0xC3]),
+        ("站", [0xD5, 0xBE]),
+        ("改", [0xB8, 0xC4]),
+        ("造", [0xD4, 0xEC]),
+        ("三", [0xC8, 0xFD]),
+        ("部", [0xB2, 0xBF]),
+        ("分", [0xB7, 0xD6]),
+        ("工", [0xB9, 0xA4]),
+        ("程", [0xB3, 0xCC]),
+    ];
+    let mut content = Vec::new();
+    content.extend_from_slice(b"BT /F2 12 Tf\n");
+    let mut x = 20u32;
+    let mut y = 800u32;
+    for (i, (_, gbk)) in gbk_words.iter().enumerate() {
+        if i > 0 && i % 18 == 0 {
+            y -= 20; // 两行排版（18 字/行）
+            x = 20;
+        }
+        content.extend_from_slice(format!("1 0 0 1 {x} {y} Tm (").as_bytes());
+        content.extend_from_slice(gbk);
+        content.extend_from_slice(b") Tj\n");
+        x += 14;
+    }
+    content.extend_from_slice(b"ET\n");
+
+    // GBK-EUC-H 字体字典：在 UC2 夹具的字体字典上替换编码声明
+    // （/Encoding /UniGB-UCS2-H → /GBK-EUC-H——长度一致，xref 偏移不漂移）
+    let pdf = uc2_pdf(&content);
+    let from = b"/Encoding /UniGB-UCS2-H";
+    let to = b"/Encoding /GBK-EUC-H  ";
+    let mut out = Vec::with_capacity(pdf.len());
+    let mut i = 0usize;
+    while i < pdf.len() {
+        if pdf[i..].starts_with(from) {
+            out.extend_from_slice(to);
+            i += from.len();
+        } else {
+            out.push(pdf[i]);
+            i += 1;
+        }
+    }
+    assert!(
+        out.windows(9).any(|w| w == b"GBK-EUC-H"),
+        "夹具必须声明 GBK-EUC-H"
+    );
+    let p = temp_pdf(&out, "gbk-euc");
+
+    match bid_parse::parse_file(&p, "gbk.pdf") {
+        Ok(pf) => {
+            // 环境有带 CMap 资源包的外部工具——首选路正确解码
+            let text = pdf_text::parsed_text_of(&pf);
+            assert!(text.contains("市"), "完整环境下应解出中文：{text:?}");
+        }
+        Err(err) => {
+            // 无外部工具 / 缺 CMap——fail-loud 拒收且点名原因与绕过
+            assert!(
+                err.contains("GBK-EUC"),
+                "错误信息必须点名 GBK-EUC 边界（#200 验收），实际：{err}"
+            );
+            assert!(
+                err.contains("绕过"),
+                "错误信息必须给出绕过路径（#200 验收），实际：{err}"
+            );
+            assert!(
+                err.contains("疑似 CJK 乱码"),
+                "fail-loud 主防线文案不退化，实际：{err}"
+            );
+        }
+    }
+    let _ = std::fs::remove_dir_all(p.parent().unwrap());
+}

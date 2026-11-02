@@ -17,11 +17,19 @@
 //! Tm/CTM 定位行合成（逐字 Tj 能拼回成行）；文本层字面串
 //! 与十六进制串；Tj / TJ / ''' / " 四种显示运算符；字符串编码
 //! UTF-16BE（带 BOM 或高字节 0x00 特征）与 WinAnsi/PDFDocEncoding（字节直取）。
-//! 不覆盖：加密 PDF、LZW/ASCIIHex/RunLength 等其他滤链、编码表自定义的 CID 字体、
-//! **GBK-EUC-H/B5pc 等非 UCS2 预定义 CMap 与无 ToUnicode 的真 Adobe-GB1 CID
-//! 序号（码值不是 Unicode，需内置映射大表——能力边界，fail-loud 不硬解）**、
-//! 跨页复杂排版重组。这些情形一律明说失败（返回 Err），绝不输出半截乱码——
-//! 因为静默的错误文本比明说读不出来危险得多。
+//! #200 剩余能力边界（如实登记——遇到时错误信息会点名原因，见
+//! [`cjk_garble_reason_hint`]；不硬解，因为硬解会产出垃圾文本，比失败更危险）：
+//!
+//! | 边界形态 | 根因 | 为什么不硬解 | 绕过 |
+//! |---|---|---|---|
+//! | GBK-EUC-H/V、GB-EUC、GBpc-EUC（简体） | 预定义 CMap 的 2 字节码是 GBK/GB2312 码值，**不是 Unicode 码位** | 恒等解码（2 字节码=UCS-2 值）只对 UniXX-UCS2 系列成立；正确解码需内置 GBK↔Unicode 映射大表（数万条目） | ① 装 pdfium ② 装 poppler+poppler-data ③ Word/WPS 另存为 DOCX 导入 |
+//! | B5pc-H/V、ETen-B5、CNS-EUC（繁体） | 同上，Big5 码值非 Unicode | 同上（需 Big5↔Unicode 大表） | 同上 |
+//! | 真 Adobe-GB1/CNS1/Japan1/Korea1 CID 序号（如 Identity-H + CIDSystemInfo (Adobe)(GB1)，无 ToUnicode） | 码值是 Adobe 注册表**序号**（字形集内编号），与 Unicode 无恒等关系 | 需 Adobe-GB1↔Unicode 映射大表（分 Supplement 版本，数万条目） | 同上 |
+//! | PDF 1.5+ 对象流（/ObjStm） | 字体字典被压缩进对象流，本模块的字典层字节扫描**扫不到**编码声明 → UniXX-UCS2 恒等解码资格判定失效，可解形态也退回启发式 | 解压 ObjStm 需完整 xref 流解析（超出最小提取器定位） | 同上（首选路 pdfium/poppler 不受影响） |
+//!
+//! 不覆盖（其他）：加密 PDF、LZW 滤链、编码表自定义的 CID 字体、跨页复杂
+//! 排版重组。这些情形一律明说失败（返回 Err / 触发 CJK 乱码探测 fail-loud），
+//! 绝不输出半截乱码——因为静默的错误文本比明说读不出来危险得多。
 //!
 //! 定位：这是输入层的兜底——只负责把字节变成行文本，不做条款分类
 //! （那是 extract.rs 的职责）。上游一旦有 pdfium 或 poppler，就不应走到这里。
@@ -1395,6 +1403,97 @@ pub fn probe_cjk_garble(pdf_bytes: &[u8], text: &str) -> CjkGarbleProbe {
 /// 拼一条路的全部文本（探测输入）。
 pub fn parsed_text_of(pf: &crate::ParsedFile) -> String {
     pf.blocks.iter().map(|b| b.text.as_str()).collect()
+}
+
+
+// ---------------------------------------------------------------- CJK 乱码拒收的原因定位（issue #200 剩余能力边界登记面）
+
+/// 非 UCS2 预定义 CMap 痕迹（#200 剩余边界的核心族）。
+///
+/// 这些 CMap 的 2 字节码是 GBK/Big5 等本地码值——**不是 Unicode 码位**，
+/// UniXX-UCS2 恒等解码对它们不成立（恒等会把 GBK 码值读成无关汉字，
+/// 即「硬解产出垃圾文本」）。正确解码需内置映射大表，本模块不做
+/// （fail-loud 纪律）。字节可在字体字典层直接搜到（字典不进压缩流）。
+const NON_UCS2_CMAP_MARKERS: &[(&[u8], &str)] = &[
+    (b"GBK-EUC", "GBK-EUC-H/V（简体中文，GBK 码值——非 Unicode 码位）"),
+    (b"GB-EUC", "GB-EUC-H/V（简体中文 EUC 码值——非 Unicode 码位）"),
+    (b"GBpc-EUC", "GBpc-EUC（简体中文——非 Unicode 码位）"),
+    (b"B5pc-", "B5pc-H/V（繁体中文 Big5 码值——非 Unicode 码位）"),
+    (b"ETen-B5", "ETen-B5（繁体中文——非 Unicode 码位）"),
+    (b"CNS-EUC", "CNS-EUC（繁体中文——非 Unicode 码位）"),
+];
+
+/// Adobe CID 注册序号痕迹——码值是注册表内的**字形编号**（分 Supplement
+/// 版本），与 Unicode 无恒等关系，需 Adobe-GB1↔Unicode 映射大表。
+///
+/// 两种书写形态都探：连字注册名（`/Adobe-GB1-0`、CMap 名等）与
+/// CIDSystemInfo 分离书写（`/Registry (Adobe) /Ordering (GB1)`）。
+/// 注：UniGB-UCS2-H 可解形态的 CIDSystemInfo 同样含 `(GB1)`——但可解
+/// 文件探测为 Clean 不会走到本 hint，命中即「确实解不出且存在该族字体」。
+const CID_REGISTRY_MARKERS: &[(&[u8], &str)] = &[
+    (b"Adobe-GB1", "Adobe-GB1"),
+    (b"Adobe-CNS1", "Adobe-CNS1"),
+    (b"Adobe-Japan1", "Adobe-Japan1"),
+    (b"Adobe-Korea1", "Adobe-Korea1"),
+    (b"Ordering (GB1)", "Adobe-GB1"),
+    (b"Ordering (CNS1)", "Adobe-CNS1"),
+    (b"Ordering (Japan1)", "Adobe-Japan1"),
+    (b"Ordering (Korea1)", "Adobe-Korea1"),
+];
+
+/// CJK 乱码拒收时的「原因 + 绕过」定位文案（#200 剩余边界的用户可见面）。
+///
+/// 消费方：`lib.rs` 两处 fail-loud 报错（首选路乱码兜底失败 / 双路皆乱）。
+/// 纪律：**只在探测已判 Garbled（确认解不出）后调用**——这是原因线索
+/// 不是唯一断言（一个 PDF 可同时声明多种字体）。返回 `None` = 无可点名
+/// 边界（泛化乱码，调用方保持原报错文案）。
+pub fn cjk_garble_reason_hint(bytes: &[u8]) -> Option<String> {
+    let mut parts: Vec<String> = Vec::new();
+
+    // 族 1：非 UCS2 预定义 CMap（GBK/Big5 码值族）
+    let non_ucs2: Vec<&str> = NON_UCS2_CMAP_MARKERS
+        .iter()
+        .filter(|(m, _)| contains(bytes, m))
+        .map(|(_, name)| *name)
+        .collect();
+    if !non_ucs2.is_empty() {
+        parts.push(format!(
+            "声明了 {}——这些预定义 CMap 的码值不是 Unicode 码位，恒等解码不可用，正确解码需内置映射大表（本兜底不硬解）",
+            non_ucs2.join("、")
+        ));
+    }
+
+    // 族 2：Adobe CID 注册序号（同族多形态去重）
+    let mut cid: Vec<&str> = CID_REGISTRY_MARKERS
+        .iter()
+        .filter(|(m, _)| contains(bytes, m))
+        .map(|(_, name)| *name)
+        .collect();
+    cid.sort_unstable();
+    cid.dedup();
+    if !cid.is_empty() {
+        parts.push(format!(
+            "存在 {} CID 注册序号字体（无 ToUnicode）——码值是 Adobe 注册表字形编号，与 Unicode 无恒等关系，需映射大表（本兜底不硬解）",
+            cid.join("/")
+        ));
+    }
+
+    // 族 3：PDF 1.5+ 对象流——字体字典可能在压缩对象流内（扫描不到）
+    if contains(bytes, b"/ObjStm") {
+        parts.push(
+            "检测到 /ObjStm（PDF 1.5+ 对象流）——字体字典可能被压缩在对象流内，\
+             字典层扫描拿不到编码声明（UniXX-UCS2 恒等解码资格判定失效）"
+                .to_string(),
+        );
+    }
+
+    if parts.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "原因定位（#200 能力边界——疑因线索，非唯一断言）：{}。绕过：① 安装 pdfium（首选路自带 CMap）② 安装带 poppler-data（CMap 资源包）的 poppler ③ 用 Word/WPS 打开该 PDF 另存为 DOCX 后导入。",
+        parts.join("；")
+    ))
 }
 
 #[cfg(test)]

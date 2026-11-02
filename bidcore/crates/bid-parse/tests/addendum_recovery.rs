@@ -158,12 +158,13 @@ fn cjk_garble_probe_three_states() {
         bid_parse::pdf_text::CjkGarbleProbe::NoSignal);
 }
 
-/// 最小 PDF：字典声明 SimSun，内容流是不压缩的英文 literal string。
-/// pdftotext 对它输出正常英文（cjk_ratio=0）→ 命中 Garbled 判据 →
-/// 降级兜底 → 兜底输出同样无中文 → **双路皆乱 fail-loud**。
-/// 这是 #169 影响面的最终防线：宁可失败，不静默产出垃圾。
+/// #200 R1 重写（owner 裁决）：字典声明 SimSun（**Type1 简单字体**）、内容
+/// 纯英文的模板件——**不得误判乱码**。旧断言「双路皆无 CJK 必须 fail-loud」
+/// 把这类件判死是误伤：Type1 文本不经 CMap 映射，无从「映射失败」成残渣；
+/// 探测收窄（cid_cjk_font_in_use：CMap 标记 + Tf 在用）后永不激活。
+/// 任何环境（有/无 poppler）都应正常解析。
 #[test]
-fn both_paths_garbled_fails_loudly() {
+fn declared_simsun_type1_english_template_parses_ok() {
     let content = b"BT /F1 12 Tf 72 720 Td (This PDF declares a CJK font but contains only English text) Tj ET";
     let pdf = format!(
         "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n\
@@ -181,17 +182,30 @@ fn both_paths_garbled_fails_loudly() {
     let p = dir.join("cjk-marker-english.pdf");
     std::fs::write(&p, pdf.as_bytes()).unwrap();
 
-    let r = bid_parse::parse_file(&p, "cjk-marker-english.pdf");
-    match r {
-        Ok(pf) => panic!(
-            "声明 CJK 字体而双路文本均无 CJK 应显式失败（fail-loud），实际 Ok：{}",
-            pf.parse_summary
-        ),
-        Err(e) => assert!(
-            e.contains("乱码") && e.contains("#169"),
-            "失败原因要点明乱码防线（实际：{e}）"
-        ),
-    }
+    let parsed = bid_parse::parse_file(&p, "cjk-marker-english.pdf")
+        .expect("#200 R1：Type1-SimSun 声明 + 英文内容 = 模板件，不得误判乱码（owner 裁决）");
+    let all: String = parsed.blocks.iter().map(|b| b.text.as_str()).collect::<Vec<_>>().join("\n");
+    assert!(
+        all.contains("contains only English text"),
+        "英文内容应原样保留，实际：{all}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// fail-loud 防线仍在（#169 零退化）：**非 PDF** 双路皆败必须显式失败——
+/// 绑定 [pdf-both-failed] 稳定标签（#200 R1：测试绑标签而非散文匹配）。
+#[test]
+fn both_paths_hard_failure_fails_loud_with_tag() {
+    let dir = std::env::temp_dir().join(format!("bidparse-hardfail-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let p = dir.join("broken.pdf");
+    std::fs::write(&p, b"%PDF-1.4 garbage not a real structure at all").unwrap();
+    let err = bid_parse::parse_file(&p, "broken.pdf")
+        .expect_err("双路皆败必须显式失败");
+    assert!(
+        err.contains("[pdf-both-failed]") || err.contains("[pdf-fallback-only-garbled]"),
+        "失败必须带稳定标签供测试/下游绑定（实际：{err}）"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 

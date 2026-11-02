@@ -2981,6 +2981,39 @@ fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
 
 // ---------------------------------------------------------------- §7 validate_bid_document（#59 阶段 3）
 
+/// findings 元素的统一 JSON 形状（平面 findings 清单与 #187 categories 桶
+/// 共用——单一真源，防两处形状漂移）。
+fn validation_finding_json(f: &bid_tools::validate::ValidationFinding) -> Value {
+    json!({
+        "rule_code": f.rule_code,
+        "kind": if f.rule_code.starts_with("M_") { "MODEL" } else { "DETERMINISTIC" },
+        "severity": f.severity,
+        "section_id": f.section_id,
+        "requirement_id": f.requirement_id,
+        "message": f.message,
+    })
+}
+
+/// #187 categories 桶的 JSON 形状（四桶各自独立状态——「没做」显式报
+/// not_performed，不因零发现伪装 passed）：
+/// - `{"status": "passed"}`（零发现——无 findings 键，形状稳定）；
+/// - `{"status": "failed", "findings": [...]}`（该类有发现，含 MINOR）；
+/// - `{"status": "not_performed", "reason": "..."}`（该类未执行）。
+fn validation_category_json(cr: &bid_tools::validate::CheckResult) -> Value {
+    use bid_tools::validate::CheckResult;
+    match cr {
+        CheckResult::Passed => json!({ "status": "passed" }),
+        CheckResult::Failed(fs) => json!({
+            "status": "failed",
+            "findings": fs.iter().map(validation_finding_json).collect::<Vec<_>>(),
+        }),
+        CheckResult::NotPerformed { reason } => json!({
+            "status": "not_performed",
+            "reason": reason,
+        }),
+    }
+}
+
 /// `validate_bid_document` —— 双层校验（契约 §7 + Lead #59 阶段 3 指令）。
 ///
 /// 壳层职责：参数校验 → 路由 → guard（Drafting+）→ 乐观并发 → 转发 →
@@ -2991,6 +3024,10 @@ fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
 /// - `errors` = BLOCKER + MAJOR 面（废标级 + 重大缺陷——必须处理）；
 /// - `warnings` = MINOR 面（告知性）；
 /// - `findings`（契约原字段）= 全量清单（调用方按 rule_code 分支）。
+/// - `categories`（#187 分类返回）= structural / semantic / evidence /
+///   compliance 四桶各自独立状态——`ok: true` 只意味着「已执行的检查中
+///   BLOCKER == 0」，**不是**「整本标书已通过审核」（semantic 未配置模型时
+///   显式 not_performed，#9 口径：没做 ≠ 做对了）。
 fn validate_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
     const TOOL: &str = "validate_bid_document";
     // ---- 参数校验（契约 §7 in）
@@ -3079,20 +3116,21 @@ fn validate_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
         "ok": report.ok,
         "errors": errors,
         "warnings": warnings,
-        "findings": report.findings.iter().map(|f| json!({
-            "rule_code": f.rule_code,
-            "kind": if f.rule_code.starts_with("M_") { "MODEL" } else { "DETERMINISTIC" },
-            "severity": f.severity,
-            "section_id": f.section_id,
-            "requirement_id": f.requirement_id,
-            "message": f.message,
-        })).collect::<Vec<_>>(),
+        "findings": report.findings.iter().map(validation_finding_json).collect::<Vec<_>>(),
         "counts": {
             "blocker": report.counts.blocker,
             "major": report.counts.major,
             "minor": report.counts.minor,
             "deterministic": report.counts.deterministic,
             "model": report.counts.model,
+        },
+        // #187 分类返回（纯加法）：四桶各自独立状态。not_performed 不影响
+        // ok——它描述「该类检查没做」（如未配置模型），不是缺陷。
+        "categories": {
+            "structural": validation_category_json(&report.structural),
+            "semantic": validation_category_json(&report.semantic),
+            "evidence": validation_category_json(&report.evidence),
+            "compliance": validation_category_json(&report.compliance),
         },
         "sections_checked": report.sections_checked,
         "project_status": svc.store().project().map(|p| p.status.as_str()).unwrap_or("UNKNOWN"),

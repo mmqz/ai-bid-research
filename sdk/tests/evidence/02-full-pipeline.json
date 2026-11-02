@@ -2,11 +2,11 @@
  "case": "02-full-pipeline",
  "transport": "mcp",
  "server_bin": "/tmp/shared-target/debug/bid-mcp-server",
- "server_sha256": "742c95a83c0ebbe07640b19d3577c8c791da0ff598ab6b664b3b3c35a415bd67",
+ "server_sha256": "b5d8092aae1699ec05a3889b1542be6a7a1b49ac0c2eae7d4c85691eb32d9b4b",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-01T15:27:06+00:00",
+ "started_at": "2026-11-02T04:39:09+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 5.096110000067711
+   "elapsed_ms": 6.208995000633877
   },
   {
    "stage": "P1 import_tender_files",
@@ -149,7 +149,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 242.33680900010768
+   "elapsed_ms": 246.63838100059365
   },
   {
    "stage": "P2 extract_requirements",
@@ -188,7 +188,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 63.455495000198425
+   "elapsed_ms": 67.46826400012651
   },
   {
    "stage": "P3 build_outline",
@@ -221,7 +221,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.3813710000649735
+   "elapsed_ms": 7.629088000612683
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -329,7 +329,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 19.170928999983516,
+   "elapsed_ms": 19.490987000608584,
    "extra": {
     "sections": {
      "SEC-0007": [
@@ -526,7 +526,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.709553000064261
+   "elapsed_ms": 6.7598679997900035
   },
   {
    "stage": "P4 bind_evidence",
@@ -558,7 +558,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.321186000126545
+   "elapsed_ms": 7.452711999576422
   },
   {
    "stage": "G3 record_review_gate ×3",
@@ -594,7 +594,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 20.11354699993717
+   "elapsed_ms": 20.784353000635747
   },
   {
    "stage": "P5 draft(external) SEC-0007",
@@ -608,6 +608,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 120,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 68,
+     "remaining": 156,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 344
+    },
     "request_id": "req-000012",
     "section_id": "SEC-0007",
     "section_status": "DRAFTED",
@@ -672,6 +680,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 124,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 51,
+     "remaining": 244,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 256
+    },
     "request_id": "req-000013",
     "section_id": "SEC-0012",
     "section_status": "DRAFTED",
@@ -734,6 +750,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 128,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 68,
+     "remaining": 156,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 344
+    },
     "request_id": "req-000014",
     "section_id": "SEC-0008",
     "section_status": "DRAFTED",
@@ -798,6 +822,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 132,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 51,
+     "remaining": 244,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 256
+    },
     "request_id": "req-000015",
     "section_id": "SEC-0016",
     "section_status": "DRAFTED",
@@ -860,6 +892,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 136,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 68,
+     "remaining": 156,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 344
+    },
     "request_id": "req-000016",
     "section_id": "SEC-0009",
     "section_status": "DRAFTED",
@@ -924,6 +964,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 140,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 68,
+     "remaining": 156,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 344
+    },
     "request_id": "req-000017",
     "section_id": "SEC-0018",
     "section_status": "DRAFTED",
@@ -988,6 +1036,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 144,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 68,
+     "remaining": 156,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 344
+    },
     "request_id": "req-000018",
     "section_id": "SEC-0019",
     "section_status": "DRAFTED",
@@ -1052,6 +1108,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 148,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 68,
+     "remaining": 156,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 344
+    },
     "request_id": "req-000019",
     "section_id": "SEC-0020",
     "section_status": "DRAFTED",
@@ -1116,6 +1180,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 152,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 33,
+     "remaining": 334,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 166
+    },
     "request_id": "req-000020",
     "section_id": "SEC-0033",
     "section_status": "DRAFTED",
@@ -1176,6 +1248,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 156,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 33,
+     "remaining": 334,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 166
+    },
     "request_id": "req-000021",
     "section_id": "SEC-0014",
     "section_status": "DRAFTED",
@@ -1236,6 +1316,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 160,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 68,
+     "remaining": 156,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 344
+    },
     "request_id": "req-000022",
     "section_id": "SEC-0021",
     "section_status": "DRAFTED",
@@ -1300,6 +1388,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 164,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 68,
+     "remaining": 156,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 344
+    },
     "request_id": "req-000023",
     "section_id": "SEC-0022",
     "section_status": "DRAFTED",
@@ -1364,6 +1460,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 168,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 68,
+     "remaining": 156,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 344
+    },
     "request_id": "req-000024",
     "section_id": "SEC-0023",
     "section_status": "DRAFTED",
@@ -1428,6 +1532,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 172,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 68,
+     "remaining": 156,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 344
+    },
     "request_id": "req-000025",
     "section_id": "SEC-0024",
     "section_status": "DRAFTED",
@@ -1492,6 +1604,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 176,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 68,
+     "remaining": 156,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 344
+    },
     "request_id": "req-000026",
     "section_id": "SEC-0025",
     "section_status": "DRAFTED",
@@ -1556,6 +1676,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 180,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 68,
+     "remaining": 156,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 344
+    },
     "request_id": "req-000027",
     "section_id": "SEC-0026",
     "section_status": "DRAFTED",
@@ -1620,6 +1748,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 184,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 68,
+     "remaining": 156,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 344
+    },
     "request_id": "req-000028",
     "section_id": "SEC-0027",
     "section_status": "DRAFTED",
@@ -1684,6 +1820,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 188,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 68,
+     "remaining": 156,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 344
+    },
     "request_id": "req-000029",
     "section_id": "SEC-0028",
     "section_status": "DRAFTED",
@@ -1748,6 +1892,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 192,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 68,
+     "remaining": 156,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 344
+    },
     "request_id": "req-000030",
     "section_id": "SEC-0029",
     "section_status": "DRAFTED",
@@ -1812,6 +1964,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 196,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 68,
+     "remaining": 156,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 344
+    },
     "request_id": "req-000031",
     "section_id": "SEC-0030",
     "section_status": "DRAFTED",
@@ -1876,6 +2036,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 200,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 50,
+     "remaining": 246,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 254
+    },
     "request_id": "req-000032",
     "section_id": "SEC-0031",
     "section_status": "DRAFTED",
@@ -1938,6 +2106,14 @@
     "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
     "project_status": "DRAFTING",
     "project_version": 204,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 23,
+     "remaining": 381,
+     "remaining_segments": 1,
+     "target_chars": 500,
+     "written_chars": 119
+    },
     "request_id": "req-000033",
     "section_id": "SEC-0010",
     "section_status": "DRAFTED",
@@ -2376,27 +2552,7 @@
         "count": 21,
         "head": [
          [
-          "SEC-0018",
-          0.6667
-         ],
-         [
-          "SEC-0022",
-          0.6667
-         ],
-         [
-          "SEC-0025",
-          0.6667
-         ],
-         [
-          "SEC-0028",
-          0.6667
-         ],
-         [
-          "SEC-0027",
-          0.6667
-         ],
-         [
-          "SEC-0026",
+          "SEC-0007",
           0.6667
          ],
          [
@@ -2404,11 +2560,11 @@
           0.6667
          ],
          [
-          "SEC-0019",
+          "SEC-0024",
           0.6667
          ],
          [
-          "SEC-0007",
+          "SEC-0026",
           0.6667
          ],
          [
@@ -2416,11 +2572,31 @@
           0.6667
          ],
          [
+          "SEC-0019",
+          0.6667
+         ],
+         [
           "SEC-0023",
           0.6667
          ],
          [
+          "SEC-0027",
+          0.6667
+         ],
+         [
           "SEC-0031",
+          0.6667
+         ],
+         [
+          "SEC-0028",
+          0.6667
+         ],
+         [
+          "SEC-0025",
+          0.6667
+         ],
+         [
+          "SEC-0009",
           0.6667
          ]
         ]
@@ -2957,7 +3133,12 @@
      ]
     },
     "summary": {
+     "char_deviation_pct": -38.9,
+     "char_target": 11000,
+     "char_total": 6721,
      "drafted": 22,
+     "dup_max_similarity": 0.6667,
+     "dup_pairs": 0,
      "failed": 0,
      "out_of_band": 22,
      "pending": 0,
@@ -2973,7 +3154,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 182.51180100014608
+   "elapsed_ms": 186.3875029994233
   },
   {
    "stage": "P7 validate_bid_document",
@@ -2982,6 +3163,132 @@
     "scope": "all"
    },
    "result": {
+    "categories": {
+     "compliance": {
+      "findings": [
+       {
+        "kind": "DETERMINISTIC",
+        "message": "招标文件存在格式候选条款但未提取到字号/字体/行距/边距参数——导出将按工程基线（仿宋_GB2312/12pt/1.5 倍行距）执行，请人工确认形式评审要求",
+        "requirement_id": null,
+        "rule_code": "W_FORMAT_BASELINE",
+        "section_id": null,
+        "severity": "MINOR"
+       }
+      ],
+      "status": "failed"
+     },
+     "evidence": {
+      "status": "passed"
+     },
+     "semantic": {
+      "reason": "no model configured",
+      "status": "not_performed"
+     },
+     "structural": {
+      "findings": {
+       "count": 22,
+       "head": [
+        {
+         "kind": "DETERMINISTIC",
+         "message": "章节「资格与响应（第1块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+         "requirement_id": null,
+         "rule_code": "W_CHARS_OFF_TARGET",
+         "section_id": "SEC-0007",
+         "severity": "MINOR"
+        },
+        {
+         "kind": "DETERMINISTIC",
+         "message": "章节「资格与响应（第2块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+         "requirement_id": null,
+         "rule_code": "W_CHARS_OFF_TARGET",
+         "section_id": "SEC-0008",
+         "severity": "MINOR"
+        },
+        {
+         "kind": "DETERMINISTIC",
+         "message": "章节「资格与响应（第3块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+         "requirement_id": null,
+         "rule_code": "W_CHARS_OFF_TARGET",
+         "section_id": "SEC-0009",
+         "severity": "MINOR"
+        },
+        {
+         "kind": "DETERMINISTIC",
+         "message": "章节「资格与响应（第4块）」字数 119 偏离配额 500（±20% 带外：[400, 600]）",
+         "requirement_id": null,
+         "rule_code": "W_CHARS_OFF_TARGET",
+         "section_id": "SEC-0010",
+         "severity": "MINOR"
+        },
+        {
+         "kind": "DETERMINISTIC",
+         "message": "章节「第三章 投标人须知」字数 256 偏离配额 500（±20% 带外：[400, 600]）",
+         "requirement_id": null,
+         "rule_code": "W_CHARS_OFF_TARGET",
+         "section_id": "SEC-0012",
+         "severity": "MINOR"
+        },
+        {
+         "kind": "DETERMINISTIC",
+         "message": "章节「第八章 合同主要条款（摘要）」字数 166 偏离配额 500（±20% 带外：[400, 600]）",
+         "requirement_id": null,
+         "rule_code": "W_CHARS_OFF_TARGET",
+         "section_id": "SEC-0014",
+         "severity": "MINOR"
+        },
+        {
+         "kind": "DETERMINISTIC",
+         "message": "章节「格式要求」字数 256 偏离配额 500（±20% 带外：[400, 600]）",
+         "requirement_id": null,
+         "rule_code": "W_CHARS_OFF_TARGET",
+         "section_id": "SEC-0016",
+         "severity": "MINOR"
+        },
+        {
+         "kind": "DETERMINISTIC",
+         "message": "章节「技术参数（第1块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+         "requirement_id": null,
+         "rule_code": "W_CHARS_OFF_TARGET",
+         "section_id": "SEC-0018",
+         "severity": "MINOR"
+        },
+        {
+         "kind": "DETERMINISTIC",
+         "message": "章节「技术参数（第2块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+         "requirement_id": null,
+         "rule_code": "W_CHARS_OFF_TARGET",
+         "section_id": "SEC-0019",
+         "severity": "MINOR"
+        },
+        {
+         "kind": "DETERMINISTIC",
+         "message": "章节「技术参数（第3块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+         "requirement_id": null,
+         "rule_code": "W_CHARS_OFF_TARGET",
+         "section_id": "SEC-0020",
+         "severity": "MINOR"
+        },
+        {
+         "kind": "DETERMINISTIC",
+         "message": "章节「技术参数（第4块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+         "requirement_id": null,
+         "rule_code": "W_CHARS_OFF_TARGET",
+         "section_id": "SEC-0021",
+         "severity": "MINOR"
+        },
+        {
+         "kind": "DETERMINISTIC",
+         "message": "章节「技术参数（第5块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
+         "requirement_id": null,
+         "rule_code": "W_CHARS_OFF_TARGET",
+         "section_id": "SEC-0022",
+         "severity": "MINOR"
+        }
+       ]
+      },
+      "status": "failed"
+     }
+    },
     "counts": {
      "blocker": 0,
      "deterministic": 23,
@@ -3126,9 +3433,13 @@
     {
      "desc": "P7: findings 面存在",
      "pass": true
+    },
+    {
+     "desc": "P7: categories.semantic.status == not_performed（#187 诚实断言）",
+     "pass": true
     }
    ],
-   "elapsed_ms": 76.49295900000652
+   "elapsed_ms": 78.59895499859704
   },
   {
    "stage": "P8 export_bid_document",
@@ -3208,7 +3519,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 41.52239500012911
+   "elapsed_ms": 41.194464998625335
   },
   {
    "stage": "产物深检 docx",
@@ -3326,5 +3637,5 @@
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/full-pipeline/ws",
- "finished_at": "2026-11-01T15:27:07+00:00"
+ "finished_at": "2026-11-02T04:39:10+00:00"
 }

@@ -565,3 +565,110 @@ fn format_baseline_warns_with_accurate_text_when_params_not_detected() {
     assert!(msg.contains("未提取到"), "文案如实（存在候选但参数未提取）: {msg}");
     assert!(!msg.contains("未发现格式条款"), "不得误报零候选: {msg}");
 }
+
+// ---------------------------------------------------------------- #187 分类返回（四桶各自独立状态）
+
+/// #187 验收 A：无模型（NoModel）时 semantic 必须 NotPerformed
+/// {reason: "no model configured"}——「没做」不得因「没发现错误」伪装成
+/// Passed（#9 口径：没做 ≠ 做对了）；NotPerformed 也不把 ok 翻 false。
+#[test]
+fn semantic_not_performed_without_model() {
+    let (mut svc, pid) = svc_base("sem-np");
+    bind_evidence_for(&mut svc, &["REQ-0001", "REQ-0002", "REQ-0003"]);
+    for sid in leaf_ids(&svc) {
+        svc.draft_section(&sid, None, None, None, &mut bid_tools::draft::MockGenerator).unwrap();
+    }
+    let r = validate(&mut svc, &pid);
+    // 语义面显式未执行（NoModel——counts.model 恒 0 的诚实形态）
+    assert_eq!(r["categories"]["semantic"]["status"], json!("not_performed"),
+        "无模型时 semantic 必须显式 not_performed: {}", r["categories"]);
+    assert_eq!(r["categories"]["semantic"]["reason"], json!("no model configured"));
+    // 红线：NotPerformed 不把 ok 翻 false（本夹具绑定齐全零 BLOCKER）
+    assert_eq!(r["ok"], json!(true), "能力缺席不是缺陷——ok 不因 not_performed 翻 false");
+    assert_eq!(r["counts"]["model"], json!(0));
+    // 其余三桶照常执行（不因语义面缺席而停摆）
+    for cat in ["structural", "evidence", "compliance"] {
+        assert_ne!(r["categories"][cat]["status"], json!("not_performed"),
+            "{cat} 桶已实现，必须真实执行（passed/failed 而非 not_performed）");
+    }
+}
+
+/// #187 验收 B：structural 有问题 → structural=Failed，其余桶不受牵连
+/// （semantic 仍 not_performed；ok=false 来自 BLOCKER 本身）。
+#[test]
+fn structural_failed_others_unchanged() {
+    let (mut svc, pid) = svc_base("struct-fail");
+    bind_evidence_for(&mut svc, &["REQ-0001", "REQ-0002", "REQ-0003"]);
+    let sids = leaf_ids(&svc);
+    for sid in &sids {
+        svc.draft_section(sid, None, None, None, &mut bid_tools::draft::MockGenerator).unwrap();
+    }
+    // 清空第一章（规则 3 的 E_SECTION_EMPTY——structural 桶）
+    svc.store_mut().set_section_content(&sids[0], String::new()).unwrap();
+    let r = validate(&mut svc, &pid);
+    assert_eq!(r["categories"]["structural"]["status"], json!("failed"));
+    let sfs = r["categories"]["structural"]["findings"].as_array().unwrap();
+    assert!(sfs.iter().any(|f| f["rule_code"] == "E_SECTION_EMPTY"),
+        "structural 桶必须承载 E_SECTION_EMPTY: {sfs:?}");
+    // 语义面不受牵连：仍显式未执行
+    assert_eq!(r["categories"]["semantic"]["status"], json!("not_performed"));
+    // ok=false 来自 BLOCKER 本身（structural 的 E_SECTION_EMPTY 是 BLOCKER）
+    assert_eq!(r["ok"], json!(false));
+    // 桶内发现与平面 findings 一致（四桶串接——同码同数）
+    let flat = r["findings"].as_array().unwrap();
+    let flat_empty = flat.iter().filter(|f| f["rule_code"] == "E_SECTION_EMPTY").count();
+    assert_eq!(sfs.iter().filter(|f| f["rule_code"] == "E_SECTION_EMPTY").count(), flat_empty,
+        "categories 与平面 findings 的同码计数必须一致（串接面）");
+}
+
+/// #187 验收 C：经注入缝（validate_document_with_reviewer）塞返回
+/// Some(vec![M_ 前缀 BLOCKER]) 的 stub reviewer → semantic=Failed 且
+/// counts.model 计数——未来配置真实模型后的形态（本 PR 用注入缝模拟）。
+#[test]
+fn semantic_failed_with_stub_reviewer() {
+    struct StubReviewer;
+    impl bid_tools::validate::ModelReviewer for StubReviewer {
+        fn review_section(&mut self, section_id: &str, _content: &str)
+            -> Option<Vec<bid_tools::validate::ValidationFinding>> {
+            Some(vec![bid_tools::validate::ValidationFinding {
+                rule_code: "M_QUALITY_VAGUE".into(),
+                severity: "BLOCKER",
+                section_id: Some(section_id.to_string()),
+                requirement_id: None,
+                message: "stub 复核：表述空泛（#187 验收 C 注入缝模拟）".into(),
+            }])
+        }
+    }
+    let (mut svc, _pid) = svc_base("sem-stub");
+    bind_evidence_for(&mut svc, &["REQ-0001", "REQ-0002", "REQ-0003"]);
+    for sid in leaf_ids(&svc) {
+        svc.draft_section(&sid, None, None, None, &mut bid_tools::draft::MockGenerator).unwrap();
+    }
+    let mut stub = StubReviewer;
+    let report = svc.validate_document_with_reviewer(None, &mut stub).unwrap();
+    // semantic 已执行且有发现（Failed——不再是 not_performed）
+    match &report.semantic {
+        bid_tools::validate::CheckResult::Failed(fs) => {
+            assert_eq!(fs.len(), 1, "svc_base 单叶——stub 每章一条 M_ 发现");
+            assert_eq!(fs[0].rule_code, "M_QUALITY_VAGUE");
+            assert_eq!(fs[0].severity, "BLOCKER");
+        }
+        other => panic!("semantic 应为 Failed，实际 {other:?}"),
+    }
+    // 分账面：模型发现计入 counts.model（且 BLOCKER 计入 blocker → ok=false）
+    assert_eq!(report.counts.model, 1);
+    assert_eq!(report.counts.blocker, 1, "模型 BLOCKER 计入 blocker（已执行桶的 BLOCKER）");
+    assert!(!report.ok, "已执行语义面的 BLOCKER 必须翻 ok");
+    // findings 承载模型发现（kind=MODEL 分账口径不变）
+    assert!(report.findings.iter().any(|f| f.rule_code == "M_QUALITY_VAGUE"));
+    // 对照：NoModel 注入（现网面）下同夹具 semantic=NotPerformed
+    let mut no_model = bid_tools::validate::NoModel;
+    let report2 = svc.validate_document_with_reviewer(None, &mut no_model).unwrap();
+    assert_eq!(
+        report2.semantic,
+        bid_tools::validate::CheckResult::NotPerformed { reason: "no model configured".into() },
+        "NoModel 注入必须得到 not_performed（注入缝与现网面同轨）"
+    );
+    assert_eq!(report2.counts.model, 0);
+    assert!(report2.ok, "not_performed 不贡献 BLOCKER——ok 回到 true");
+}

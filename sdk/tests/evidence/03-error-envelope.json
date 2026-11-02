@@ -2,11 +2,11 @@
  "case": "03-error-envelope",
  "transport": "mcp",
  "server_bin": "/tmp/shared-target/debug/bid-mcp-server",
- "server_sha256": "742c95a83c0ebbe07640b19d3577c8c791da0ff598ab6b664b3b3c35a415bd67",
+ "server_sha256": "b5d8092aae1699ec05a3889b1542be6a7a1b49ac0c2eae7d4c85691eb32d9b4b",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-01T15:27:07+00:00",
+ "started_at": "2026-11-02T04:39:10+00:00",
  "stages": [
   {
    "stage": "错误信封（E_* 归类）",
@@ -57,7 +57,7 @@
      "pass": true
     },
     {
-     "desc": "E_UNPROCESSABLE 面（{'建项缺参', 'content×generator 互斥', 'external 缺 content', 'mode 非法'}）",
+     "desc": "E_UNPROCESSABLE 面（{'content×generator 互斥', '建项缺参', 'mode 非法', 'external 缺 content'}）",
      "pass": true
     },
     {
@@ -82,5 +82,5 @@
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/error-envelope/ws",
- "finished_at": "2026-11-01T15:27:07+00:00"
+ "finished_at": "2026-11-02T04:39:10+00:00"
 }

@@ -909,7 +909,7 @@ fn which_software(name: &str) -> Option<std::path::PathBuf> {
 /// - ⚠️ 未必有 LibreOffice（开源替代，装机率低）
 ///
 /// 实测差异（本机 有 Word 无 LO）：
-/// ```
+/// ```text
 /// Word COM:       2-5 秒，保真度最高（Word 自己渲染）
 /// LibreOffice:   5-15 秒（首次更慢，要起 profile）
 /// ```

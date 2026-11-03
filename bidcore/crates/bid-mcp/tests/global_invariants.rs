@@ -459,6 +459,9 @@ fn gi_five_global_invariants() {
             amount_wan: None,
             completed_on: None,
             fields: Default::default(),
+            excerpt: None,
+            excerpt_locator: None,
+            verification_tier: None,
         })
         .unwrap();
     // 资格/否决/技术参数全绑（#110 缺失回报闸：技术参数类也须证据佐证，否则

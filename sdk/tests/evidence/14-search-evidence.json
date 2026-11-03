@@ -1,12 +1,12 @@
 {
  "case": "14-search-evidence",
  "transport": "mcp",
- "server_bin": "/tmp/shared-target/debug/bid-mcp-server",
- "server_sha256": "35dfc803e35e752d4b2e246a58714124c5d4a7ee60ed3a0fcebda13af0f0b54a",
+ "server_bin": "/home/z/my-project/bid-research-rw/bidcore/target/debug/bid-mcp-server",
+ "server_sha256": "3d2bf987583c614756200de1991b82cd93c95510b2fd2dcdbfbbaf69b10384c2",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-02T15:12:58+00:00",
+ "started_at": "2026-11-03T01:53:42+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.329396000386623
+   "elapsed_ms": 5.214474000240443
   },
   {
    "stage": "P1 import_tender_files",
@@ -83,6 +83,12 @@
      "TF-0004",
      "TF-0005"
     ],
+    "input_integrity": {
+     "complete": true,
+     "restricted": false,
+     "unready": [],
+     "waived_unready": []
+    },
     "per_file": [
      {
       "chunks": 182,
@@ -158,7 +164,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 295.2652140002101
+   "elapsed_ms": 223.70125199995528
   },
   {
    "stage": "P2 extract_requirements",
@@ -197,7 +203,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 70.33855999998195
+   "elapsed_ms": 61.51712100017903
   },
   {
    "stage": "P3 build_outline",
@@ -230,7 +236,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 9.823246999985713
+   "elapsed_ms": 6.6811019996748655
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -338,7 +344,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 28.32258200032811,
+   "elapsed_ms": 18.323819000215735,
    "extra": {
     "sections": {
      "SEC-0007": [
@@ -515,11 +521,14 @@
    "result": {
     "deduplicated": false,
     "ev_id": "EV-0034",
+    "excerpt": null,
+    "excerpt_locator": null,
     "hint": "新 EV 已签发（若为同 key 换版，旧记录已单向降级 SUPERSEDED；全新登记则无旧记录）",
     "kind": "qualification",
     "project_version": 9,
     "request_id": "req-000007",
-    "status": "ACTIVE"
+    "status": "ACTIVE",
+    "verification_tier": "FILE_EXISTS"
    },
    "checks": [
     {
@@ -535,7 +544,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 10.12727199940855
+   "elapsed_ms": 6.081227999857219
   },
   {
    "stage": "P4 bind_evidence",
@@ -567,7 +576,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 9.191017000375723
+   "elapsed_ms": 6.860014000267256
   },
   {
    "stage": "G3 record_review_gate ×2",
@@ -627,7 +636,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 14.597018999666034
+   "elapsed_ms": 14.308868000625807
   },
   {
    "stage": "S0 register_evidence ×4",
@@ -653,7 +662,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 40.351870999984385
+   "elapsed_ms": 25.419105999390013
   },
   {
    "stage": "① exact cert=ISO9001",
@@ -670,6 +679,8 @@
       "chunk_id": "EV-0037#whole",
       "content": "ISO9001 质量管理体系认证证书；质量管理体系；投标人",
       "ev_id": "EV-0037",
+      "excerpt": null,
+      "excerpt_locator": null,
       "kind": "certificate",
       "match_type": "exact",
       "score": 1.0,
@@ -679,7 +690,8 @@
       },
       "status": "ACTIVE",
       "title": "ISO9001 质量管理体系认证证书",
-      "valid_until": "2027-06-30"
+      "valid_until": "2027-06-30",
+      "verification_tier": "FILE_EXISTS"
      }
     ],
     "project_version": 117,
@@ -687,6 +699,7 @@
     "top_k": 20,
     "total": 1,
     "trace": {
+     "content_face": "title+scope+subject+client+excerpt（#217：正文摘录进检索面）",
      "engine": "naive-token-v1（pre-M2-b：子串/整 token——真向量库见 M2-b）",
      "exact_k": 1,
      "merged_by": "ev_id",
@@ -732,7 +745,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 1.6170439994311891
+   "elapsed_ms": 1.0760069999378175
   },
   {
    "stage": "①b exact amount/date",
@@ -763,7 +776,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 2.476229000421881
+   "elapsed_ms": 1.3880659998903866
   },
   {
    "stage": "② semantic 营业执照/部分覆盖",
@@ -779,6 +792,8 @@
        "chunk_id": "EV-0038#whole",
        "content": "营业执照；中华人民共和国境内注册的法人；投标人",
        "ev_id": "EV-0038",
+       "excerpt": null,
+       "excerpt_locator": null,
        "kind": "qualification",
        "match_type": "semantic",
        "score": 1.0,
@@ -788,7 +803,8 @@
        },
        "status": "ACTIVE",
        "title": "营业执照",
-       "valid_until": null
+       "valid_until": null,
+       "verification_tier": "FILE_EXISTS"
       }
      ],
      "project_version": 117,
@@ -796,6 +812,7 @@
      "top_k": 20,
      "total": 1,
      "trace": {
+      "content_face": "title+scope+subject+client+excerpt（#217：正文摘录进检索面）",
       "engine": "naive-token-v1（pre-M2-b：子串/整 token——真向量库见 M2-b）",
       "exact_k": 0,
       "merged_by": "ev_id",
@@ -809,6 +826,8 @@
        "chunk_id": "EV-0039#whole",
        "content": "智慧园区弱电工程合同；弱电工程；投标人；某某工业园区管委会",
        "ev_id": "EV-0039",
+       "excerpt": null,
+       "excerpt_locator": null,
        "kind": "performance",
        "match_type": "semantic",
        "score": 0.5,
@@ -818,7 +837,8 @@
        },
        "status": "ACTIVE",
        "title": "智慧园区弱电工程合同",
-       "valid_until": null
+       "valid_until": null,
+       "verification_tier": "FILE_EXISTS"
       }
      ],
      "project_version": 117,
@@ -826,6 +846,7 @@
      "top_k": 20,
      "total": 1,
      "trace": {
+      "content_face": "title+scope+subject+client+excerpt（#217：正文摘录进检索面）",
       "engine": "naive-token-v1（pre-M2-b：子串/整 token——真向量库见 M2-b）",
       "exact_k": 0,
       "merged_by": "ev_id",
@@ -856,7 +877,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 1.5382760002466966
+   "elapsed_ms": 0.999677999971027
   },
   {
    "stage": "③ hybrid 合并去重",
@@ -874,6 +895,8 @@
       "chunk_id": "EV-0037#whole",
       "content": "ISO9001 质量管理体系认证证书；质量管理体系；投标人",
       "ev_id": "EV-0037",
+      "excerpt": null,
+      "excerpt_locator": null,
       "kind": "certificate",
       "match_type": "both",
       "score": 1.0,
@@ -883,7 +906,8 @@
       },
       "status": "ACTIVE",
       "title": "ISO9001 质量管理体系认证证书",
-      "valid_until": "2027-06-30"
+      "valid_until": "2027-06-30",
+      "verification_tier": "FILE_EXISTS"
      }
     ],
     "project_version": 117,
@@ -891,6 +915,7 @@
     "top_k": 20,
     "total": 1,
     "trace": {
+     "content_face": "title+scope+subject+client+excerpt（#217：正文摘录进检索面）",
      "engine": "naive-token-v1（pre-M2-b：子串/整 token——真向量库见 M2-b）",
      "exact_k": 1,
      "merged_by": "ev_id",
@@ -924,7 +949,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 0.7806000003256486
+   "elapsed_ms": 0.5094879998068791
   },
   {
    "stage": "④ 过期降权+warning",
@@ -970,7 +995,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 1.0007159999076976
+   "elapsed_ms": 0.7500689998778398
   },
   {
    "stage": "⑤ 排序确定性",
@@ -998,7 +1023,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 3.336273000059009
+   "elapsed_ms": 2.302748000147403
   },
   {
    "stage": "⑤b 错误信封（E_* 归类）",
@@ -1062,10 +1087,10 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 3.102874999967753
+   "elapsed_ms": 2.470721000463527
   }
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/search-evidence/ws",
- "finished_at": "2026-11-02T15:12:58+00:00"
+ "finished_at": "2026-11-03T01:53:42+00:00"
 }

@@ -361,6 +361,9 @@ mod tests {
             amount_wan: None,
             completed_on: None,
             fields: Default::default(), // #147 结构化字段（本测试不消费）
+            excerpt: None, // #217 正文摘录（本测试不消费）
+            excerpt_locator: None,
+            verification_tier: None,
             version: 1,
             status: EvidenceStatus::Active,
         });

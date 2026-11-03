@@ -89,6 +89,9 @@ fn svc_drafted(tag: &str, ws: Option<&std::path::Path>) -> (BidService, String, 
         amount_wan: None,
         completed_on: None,
         fields: Default::default(), // #147
+        excerpt: None,
+        excerpt_locator: None,
+        verification_tier: None,
     }).unwrap();
     for rid in ["REQ-0001", "REQ-0002"] {
         svc.store_mut().bind_evidence(&eid, rid, "2026-12-31").unwrap();

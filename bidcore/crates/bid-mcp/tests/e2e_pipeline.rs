@@ -146,6 +146,9 @@ fn e2e_tender_in_docx_out() {
         amount_wan: None,
         completed_on: None,
         fields: Default::default(), // #147
+        excerpt: None,
+        excerpt_locator: None,
+        verification_tier: None,
     }).unwrap();
     // 资格类 REQ 全绑（覆盖否决/资格的必选面——阻断清零；技术参数类也须
     // 佐证——#110 任务 1 缺失回报闸，否则 draft 拒生成）

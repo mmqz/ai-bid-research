@@ -454,7 +454,23 @@ fn user_material(input: &SectionDraftInput) -> String {
         v.push("证据材料（可援引佐证，引用其编号）：".to_string());
         for e in &input.evidences {
             let scope = if e.scope.trim().is_empty() { "见证据原件" } else { &e.scope };
-            v.push(format!("- [{}]（{}：{}，适用范围：{scope}）", e.id, e.kind, e.title));
+            let mut line = format!("- [{}]（{}：{}，适用范围：{scope}）", e.id, e.kind, e.title);
+            // #217（#185 缺口 2）：正文摘录随行——引用金额/日期/范围等实料
+            // 只准来自这段逐字截取的原文；无摘录（文件级锚）则显式告知不得编造细节。
+            if !e.excerpt.trim().is_empty() {
+                let loc = if e.excerpt_locator.trim().is_empty() {
+                    "原文".to_string()
+                } else {
+                    e.excerpt_locator.clone()
+                };
+                line.push_str(&format!(
+                    "。{loc}摘录（实料引用以此为准，不得超出摘录编造）：「{}」",
+                    e.excerpt
+                ));
+            } else {
+                line.push_str("。（正文未定位摘录——不得编造该证据的金额/日期/范围等细节）");
+            }
+            v.push(line);
         }
     }
     v.join("\n")

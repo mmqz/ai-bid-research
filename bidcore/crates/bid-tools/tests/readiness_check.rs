@@ -87,6 +87,9 @@ fn register_ev(s: &mut DomainStore, kind: EvidenceKind, title: &str, valid_until
             amount_wan: None,
             completed_on: None,
             fields: Default::default(),
+            excerpt: None,
+            excerpt_locator: None,
+            verification_tier: None,
         })
         .unwrap();
     eid

@@ -56,6 +56,9 @@ fn evidence_spec() -> EvidenceSpec {
         amount_wan: None,
         completed_on: None,
         fields: Default::default(),
+        excerpt: None,
+        excerpt_locator: None,
+        verification_tier: None,
     }
 }
 
@@ -122,6 +125,9 @@ fn restart_resumes_full_service_state() {
             amount_wan: None,
             completed_on: None,
             fields: Default::default(),
+            excerpt: None,
+            excerpt_locator: None,
+            verification_tier: None,
         }).unwrap().0;
         assert_ne!(ev2, ev_id, "重启后新 id 不与既有证据碰撞");
 

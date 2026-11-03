@@ -450,6 +450,8 @@ mod tests {
                 client: None, amount_wan: None, completed_on: None,
                 // #147 结构化字段（本测试只验时序过滤——空结构即可）
                 fields: Default::default(),
+                // #217 正文摘录 + 验证态（本测试只验时序过滤——None 即可）
+                excerpt: None, excerpt_locator: None, verification_tier: None,
             });
         }
         s.evidence_bindings.push(EvidenceBinding { evidence_id: "EV-A".into(), requirement_id: "REQ-0003".into() });

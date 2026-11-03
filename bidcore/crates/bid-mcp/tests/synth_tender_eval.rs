@@ -414,6 +414,9 @@ fn synth_tender_eval() {
         amount_wan: None,
         completed_on: None,
         fields: Default::default(), // #147
+        excerpt: None,
+        excerpt_locator: None,
+        verification_tier: None,
     }).unwrap();
     let qual_ids: Vec<String> = svc.store().requirements().iter()
         // #110 任务 1 缺失回报闸：技术参数类也须证据佐证（否则 draft 拒生成）

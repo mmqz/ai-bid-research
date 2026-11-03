@@ -72,6 +72,9 @@ fn register_ev(svc: &mut BidService, title: &str, valid_until: Option<&str>) -> 
         amount_wan: None,
         completed_on: None,
         fields: Default::default(),
+        excerpt: None,
+        excerpt_locator: None,
+        verification_tier: None,
     }).unwrap();
     eid
 }
@@ -164,6 +167,44 @@ fn mock_covers_all_requirement_ids() {
     }
 }
 
+/// #217（#185 缺口 2·验收 F）：mock 输出携带正文摘录与定位——
+/// 「依据 [EV] …」之外追加原文摘录段，评标人可按定位回查原件。
+#[test]
+fn mock_output_carries_evidence_excerpt_and_locator() {
+    let input = sample_input(1_000);
+    let content = generate_mock(&input);
+    // 摘录段模板要素齐备：定位 + 摘录正文 + 对账声明
+    assert!(
+        content.contains("其原始凭据 《EV-01-水利水电资质证书.pdf》第 1 页 原文摘录如下"),
+        "摘录段含人话定位: {content}"
+    );
+    assert!(
+        content.contains("资质等级：贰级；承包范围：水利水电工程施工总承包"),
+        "摘录正文逐字呈现: {content}"
+    );
+    assert!(
+        content.contains("不得超出摘录范围编造"),
+        "摘录纪律声明在场: {content}"
+    );
+}
+
+/// #217 负向：文件级锚（无摘录）→ 不出现摘录段（不编造「读过」的假象）。
+#[test]
+fn mock_output_omits_excerpt_when_unlocated() {
+    let mut input = sample_input(1_000);
+    input.evidences[0].excerpt = String::new();
+    input.evidences[0].excerpt_locator = String::new();
+    let content = generate_mock(&input);
+    assert!(
+        !content.contains("其原始凭据"),
+        "无摘录不得渲染摘录段: {content}"
+    );
+    assert!(
+        content.contains("依据 [EV-0001]"),
+        "台账面佐证段仍在（不因无摘录丢佐证）"
+    );
+}
+
 fn sample_input(target: u32) -> SectionDraftInput {
     SectionDraftInput {
         section_id: "SEC-0002".into(),
@@ -186,6 +227,8 @@ fn sample_input(target: u32) -> SectionDraftInput {
             kind: "资质".into(),
             title: "水利水电工程施工总承包贰级资质证书".into(),
             scope: "全国".into(),
+            excerpt: "资质等级：贰级；承包范围：水利水电工程施工总承包，可承担各类水利水电工程".into(),
+            excerpt_locator: "《EV-01-水利水电资质证书.pdf》第 1 页".into(),
         }],
         instructions: Some("按资格条件逐项响应".into()),
     }
@@ -200,6 +243,48 @@ fn scan_citations_finds_both_forms() {
         scan_citations(text),
         vec!["REQ-0001".to_string(), "EV-0002".to_string(), "EV-0003".to_string()]
     );
+}
+
+/// #217 判别力：裸形态必须是独立 token——来源文件名（`EV-03-xx.pdf`）/
+/// 更长 token（`REQ-0001x`）里的 id 前缀不算引用；CJK 紧邻仍算。
+#[test]
+fn scan_citations_ignores_filename_prefixes_but_keeps_cjk_adjacent() {
+    // 文件名前缀：`EV-03-类似业绩合同.pdf` 里的 `EV-03` 不是引用
+    let text = "其原始凭据 《EV-03-类似业绩合同-智慧园区弱电工程.pdf》第 1 页 原文摘录如下。";
+    assert!(
+        scan_citations(text).is_empty(),
+        "文件名前缀不算引用: {:?}",
+        scan_citations(text)
+    );
+    // 更长 token 的前缀/后缀
+    assert!(scan_citations("版本 REQ-0001x 已发布").is_empty(), "REQ-0001x 不是 REQ-0001");
+    assert!(scan_citations("扩展名 EV-0002.pdf 见附件").is_empty(), "EV-0002.pdf 视为文件名");
+    // CJK 紧邻（中文无空格分词）仍是真引用
+    assert_eq!(
+        scan_citations("依据EV-0002作答"),
+        vec!["EV-0002".to_string()],
+        "CJK 紧邻的裸 id 仍是引用"
+    );
+    // 括号/标点紧邻仍是真引用
+    assert_eq!(
+        scan_citations("（EV-0003）与、EV-0004、均有效"),
+        vec!["EV-0003".to_string(), "EV-0004".to_string()]
+    );
+}
+
+/// #217 剥除面：剥 `EV-03` 不得误伤 `[EV-034]`（子串）与 `EV-03-xx.pdf`（文件名）。
+#[test]
+fn strip_unknown_citations_spares_longer_tokens_and_filenames() {
+    let cleaned = strip_unknown_citations(
+        "依据 [EV-034] 与《EV-03-类似业绩合同.pdf》第 1 页作答，另见 [EV-9999]。",
+        &["EV-03".to_string(), "EV-9999".to_string()],
+    );
+    assert!(cleaned.contains("[EV-034]"), "已知更长 id 不被误伤: {cleaned}");
+    assert!(
+        cleaned.contains("《EV-03-类似业绩合同.pdf》"),
+        "文件名完整保留: {cleaned}"
+    );
+    assert!(!cleaned.contains("EV-9999"), "未知引用仍被剥除: {cleaned}");
 }
 
 #[test]

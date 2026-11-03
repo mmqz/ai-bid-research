@@ -1,12 +1,12 @@
 {
  "case": "12-external-unanchored",
  "transport": "mcp",
- "server_bin": "/tmp/shared-target/debug/bid-mcp-server",
- "server_sha256": "35dfc803e35e752d4b2e246a58714124c5d4a7ee60ed3a0fcebda13af0f0b54a",
+ "server_bin": "/home/z/my-project/bid-research-rw/bidcore/target/debug/bid-mcp-server",
+ "server_sha256": "3d2bf987583c614756200de1991b82cd93c95510b2fd2dcdbfbbaf69b10384c2",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-02T15:12:57+00:00",
+ "started_at": "2026-11-03T01:53:41+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.381653999596892
+   "elapsed_ms": 4.911386999992828
   },
   {
    "stage": "P1 import_tender_files",
@@ -83,6 +83,12 @@
      "TF-0004",
      "TF-0005"
     ],
+    "input_integrity": {
+     "complete": true,
+     "restricted": false,
+     "unready": [],
+     "waived_unready": []
+    },
     "per_file": [
      {
       "chunks": 182,
@@ -158,7 +164,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 229.80215299958218
+   "elapsed_ms": 222.56266299973504
   },
   {
    "stage": "P2 extract_requirements",
@@ -197,7 +203,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 63.135141000202566
+   "elapsed_ms": 64.86517499979527
   },
   {
    "stage": "P3 build_outline",
@@ -230,7 +236,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.842566000159422
+   "elapsed_ms": 6.9614410003850935
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -338,7 +344,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 18.577847000415204,
+   "elapsed_ms": 18.382915000074718,
    "extra": {
     "sections": {
      "SEC-0007": [
@@ -515,11 +521,14 @@
    "result": {
     "deduplicated": false,
     "ev_id": "EV-0034",
+    "excerpt": null,
+    "excerpt_locator": null,
     "hint": "新 EV 已签发（若为同 key 换版，旧记录已单向降级 SUPERSEDED；全新登记则无旧记录）",
     "kind": "qualification",
     "project_version": 9,
     "request_id": "req-000007",
-    "status": "ACTIVE"
+    "status": "ACTIVE",
+    "verification_tier": "FILE_EXISTS"
    },
    "checks": [
     {
@@ -535,7 +544,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.129945000793668
+   "elapsed_ms": 6.067711000468989
   },
   {
    "stage": "P4 bind_evidence",
@@ -567,7 +576,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.682248000288382
+   "elapsed_ms": 6.929909000064072
   },
   {
    "stage": "G3 record_review_gate ×2",
@@ -627,7 +636,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 14.368869999998424
+   "elapsed_ms": 13.880968000194116
   },
   {
    "stage": "③ draft(external) 无锚承诺 [SEC-0007]",
@@ -639,6 +648,10 @@
    "result": {
     "content_ref": "DOC-SEC-0007-v1",
     "draft_note": "起草指令：外部手稿——含无锚承诺句",
+    "input_integrity": {
+     "status": "COMPLETE",
+     "waived_files": []
+    },
     "project_status": "DRAFTING",
     "project_version": 119,
     "quota": {
@@ -702,5 +715,5 @@
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/external-unanchored/ws",
- "finished_at": "2026-11-02T15:12:57+00:00"
+ "finished_at": "2026-11-03T01:53:41+00:00"
 }

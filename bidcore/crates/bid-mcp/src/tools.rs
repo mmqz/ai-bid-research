@@ -1023,6 +1023,8 @@ fn list_evidence(svc: &mut BidService, args: Value) -> ToolResult {
                 "status": e.status.as_str(),
                 "subject_name": e.subject_name,
                 "valid_until": e.valid_until,
+                // #217：内容验证四态（台账清单可见「正文是否已被读取」）
+                "verification_tier": e.verification_tier.map(|t| t.as_str()),
             })
         })
         .collect();
@@ -1263,15 +1265,28 @@ fn exact_hit(ev: &bid_domain::evidence::Evidence, spec: &ExactSpec) -> bool {
     }
 }
 
-/// 朴素 chunk 文案（pre-M2-b：整件为一块——title/scope/subject/client 直通拼接；
-/// M2-b chunk 化后由真实分块文本承载）。
+/// 朴素 chunk 文案（pre-M2-b：整件为一块——title/scope/subject/client +
+/// #217 正文摘录直通拼接；M2-b chunk 化后由真实分块文本承载）。
 fn evidence_content(ev: &bid_domain::evidence::Evidence) -> String {
-    [Some(ev.title.as_str()), Some(ev.scope.as_str()), Some(ev.subject_name.as_str()), ev.client.as_deref()]
-        .into_iter()
-        .flatten()
+    let mut parts: Vec<&str> = [
+        Some(ev.title.as_str()),
+        Some(ev.scope.as_str()),
+        Some(ev.subject_name.as_str()),
+        ev.client.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    .filter(|s| !s.trim().is_empty())
+    .collect();
+    // #217：正文摘录进检索面（搜「正文含词但标题不含」的证据能命中）
+    if let Some(ex) = ev
+        .excerpt
+        .as_deref()
         .filter(|s| !s.trim().is_empty())
-        .collect::<Vec<_>>()
-        .join("；")
+    {
+        parts.push(ex);
+    }
+    parts.join("；")
 }
 
 /// exact 子句解析（形态校验 + 与 mode 的互斥/前置约束，fail-closed）。
@@ -1621,6 +1636,10 @@ fn search_evidence(svc: &mut BidService, args: Value) -> ToolResult {
                 },
                 "score": score,
                 "match_type": match mt { 1 => "exact", 2 => "semantic", _ => "both" },
+                // #217：正文摘录面（检索命中可直接看实料——非标题转写）
+                "excerpt": e.excerpt,
+                "excerpt_locator": e.excerpt_locator,
+                "verification_tier": e.verification_tier.map(|t| t.as_str()),
                 // 台账直通附加面（pre-M2-b：调用方选证/续绑决策需要；chunk 化后由 chunk 元数据承载）
                 "kind": kind_machine(e.kind),
                 "title": e.title,
@@ -1639,6 +1658,7 @@ fn search_evidence(svc: &mut BidService, args: Value) -> ToolResult {
             "exact_k": exact_k,
             "merged_by": "ev_id",
             "engine": "naive-token-v1（pre-M2-b：子串/整 token——真向量库见 M2-b）",
+            "content_face": "title+scope+subject+client+excerpt（#217：正文摘录进检索面）",
         },
         "warnings": warnings,
         "project_version": svc.store().content_version(),
@@ -3519,17 +3539,31 @@ fn register_evidence(svc: &mut BidService, args: Value) -> ToolResult {
         fields,
     };
     let (ev_id, deduplicated) = svc.register_evidence_verified(reg).map_err(ToolError::from)?;
-    let status = svc
-        .store()
-        .evidence(&ev_id)
+    let ev = svc.store().evidence(&ev_id).ok().cloned();
+    let status = ev
+        .as_ref()
         .map(|e| e.status.as_str().to_string())
         .unwrap_or_default();
+    // #217（#185 缺口 2）：四态验证面 + 正文摘录随回执返回——调用方当场
+    // 可见「正文是否已被读取」（CONTENT_MATCHES + excerpt）或
+    // 「只验了文件在场」（FILE_EXISTS，摘录为 null——升级路径：带 locator 重登）。
+    let (verification_tier, excerpt, excerpt_locator) = match &ev {
+        Some(e) => (
+            e.verification_tier.map(|t| t.as_str()),
+            e.excerpt.clone(),
+            e.excerpt_locator.clone(),
+        ),
+        None => (None, None, None),
+    };
 
     Ok(json!({
         "ev_id": ev_id,
         "deduplicated": deduplicated,
         "kind": kind_machine(kind),
         "status": status,
+        "verification_tier": verification_tier,
+        "excerpt": excerpt,
+        "excerpt_locator": excerpt_locator,
         "hint": if deduplicated {
             "语义位查重命中：同 key 同指纹 → 幂等重放（原 EV-id 直返，不换版）"
         } else {

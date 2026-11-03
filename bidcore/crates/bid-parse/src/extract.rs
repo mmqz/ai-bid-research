@@ -521,7 +521,13 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
             fill_params(&para, &re_model, &re_amount, &re_date, &re_date, &mut params);
             // 编号行归类优先级（R3-S3-5）：强否决短语 > 资格面 > 章节上下文——
             // 编号否决条款（如"3.4.2 …将被否决"）不得落"其他"（漏否决=废标风险）
-            let cat = if veto_hit(&para) && !is_template_shape(&para) {
+            // #226 层 2：否决信号若其实是「招标人规则陈述」（本次招标/招标人/
+            // 逾期不予受理…），不判否决项——它没有可请求的响应正文，判了就是
+            // 永久 blocking 的死锁。安全网在 veto_rule::is_rule_statement 内部
+            // （投标人义务词/资格材料诉求一律不算规则说明）。
+            let veto_signal = veto_hit(&para) && !is_template_shape(&para);
+            let is_rule = veto_signal && crate::veto_rule::is_rule_statement(&para);
+            let cat = if veto_signal && !is_rule {
                 "否决项"
             } else if re_qual.is_match(&para) {
                 "资格条件"
@@ -544,7 +550,11 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
                 review_ctx = true;
                 review_strong = re_review_strong.is_match(&para);
             }
-        } else if veto_hit(&para) && !is_template_shape(&para) {
+        } else if veto_hit(&para) && !is_template_shape(&para)
+            && !crate::veto_rule::is_rule_statement(&para)
+        {
+            // #226 层 2：同上——规则陈述段（无编号面的「招标人不予受理…」）
+            // 不产否决项，改由下面的分类链决定归属。
             // 强否决段落（无编号面——前附表/正文流条款；段落重组后跨行
             // 条款「…招标人」+「拒收投标文件。」还原为整段判定；
             // 分值结构行排除——「N分」≥2 处的评分语义不判否决）

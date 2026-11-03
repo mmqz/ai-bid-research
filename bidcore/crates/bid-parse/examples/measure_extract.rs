@@ -41,6 +41,22 @@ fn measure_parsed(pf: &bid_parse::ParsedFile, preview: usize) -> Measured {
     }
 }
 
+/// REQ 明细行（id / 分类 / 条款号 / 锚文本拼接——diff 面用稳定键）。
+fn req_lines(pf: &bid_parse::ParsedFile) -> Vec<String> {
+    extract_requirements(std::slice::from_ref(pf))
+        .iter()
+        .map(|r| {
+            format!(
+                "{}\t{}\t{}\t{}",
+                r.id,
+                r.category,
+                r.clause_no.clone().unwrap_or_default(),
+                r.anchors.iter().map(|a| a.excerpt.as_str()).collect::<String>()
+            )
+        })
+        .collect()
+}
+
 /// 取 JSON 路对象里 first_blocks 的第 i 条（42 字符截断预览；越界 → "-"）。
 fn preview_of(route: Option<&serde_json::Value>, i: usize) -> String {
     route
@@ -59,6 +75,7 @@ fn main() {
     let mut dir = PathBuf::from("../real-corpus");
     let mut preview = 3usize;
     let mut dump: Option<String> = None;
+    let mut dump_reqs = false; // --dump 时同时逐文件落 REQ 明细（改前后 diff 面）
     let mut i = 0usize;
     while i < args.len() {
         match args[i].as_str() {
@@ -69,6 +86,10 @@ fn main() {
             "--dump" => {
                 dump = Some(args[i + 1].clone());
                 i += 2;
+            }
+            "--reqs" => {
+                dump_reqs = true;
+                i += 1;
             }
             a if !a.starts_with("--") => {
                 dir = PathBuf::from(a);
@@ -103,6 +124,10 @@ fn main() {
                     let body: String =
                         pf.blocks.iter().map(|b| b.text.as_str()).collect::<Vec<_>>().join("\n");
                     std::fs::write(path, body).ok();
+                    if dump_reqs {
+                        let path = format!("{}/{}.fallback.reqs.tsv", out, name);
+                        std::fs::write(path, req_lines(&pf).join("\n")).ok();
+                    }
                 }
                 let text = pdf_text::parsed_text_of(&pf);
                 let ratio = pdf_text::cjk_ratio(&text);

@@ -149,7 +149,12 @@ fn pend_head_form(
 }
 
 fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize) {
-    let re_clause = Regex::new(r"^(\d+(?:\.\d+)+)\s*").unwrap();
+    // #218 任务 3：条款号双形态——多级点分（4.2/2.3.4）+ 中文顿号（1、）。
+    // 顿号是 level-1 列举编号（numbering.rs ArabicDot——「1、提供上行带宽30M/s
+    // 光纤链路295条。」式技术/商务列举，实机测试漏抽面）；1-3 位对齐
+    // numbering 面（「2026、」年份形不入）。
+    let re_clause = Regex::new(r"^(\d+(?:\.\d+)+|\d{1,3}、)\s*").unwrap();
+    let re_dunhao_list = Regex::new(r"^\d{1,3}、").unwrap();
     // 真实文件驱动修正（P2）：真实水利招标文件用阿拉伯数字章节（"第2章 投标人
     // 须知"）——与合成夹具/政采范本的中文数字（"第三章"）并存，双通道容忍空格
     let re_chapter = Regex::new(r"^第\s*([0-9一二三四五六七八九十百]+)\s*章").unwrap();
@@ -493,8 +498,19 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
             seen_para.insert(i);
         }
         let para = para_text(i, pend);
-        // 编号行：条款号取首行；判定文本用整段（跨行词还原）
-        if let Some(m) = re_clause.captures(t) {
+        // 编号行：条款号取首行；判定文本用整段（跨行词还原）。
+        // 顿号列举（N、）双守卫（#218 任务 3）——命中则让本行落入下方既有
+        // 分支链（等价于改前行为），不进编号分支：
+        // ① 开放传播语境（veto_ctx/review_ctx）：总括句/审查表的列举条目按
+        //    传播语义继承否决面（顿号编号化会丢语境继承——P 红线面）；
+        // ② 格式章模板（投标函「1、我方承诺…」是投标人侧范本非要求面）
+        //    ——与传播分支的格式章节守卫同口径。
+        // 点分条款号（4.2）不在守卫面：编号面窄、模板密度低，保持既有编号
+        // 捕获（#68 J：编号条款终结语境的语义不变）。
+        let dunhao_defer = re_dunhao_list.is_match(t)
+            && ((veto_ctx || review_ctx)
+                || (chapter.contains("格式") && !review_strong));
+        if let Some(m) = re_clause.captures(t).filter(|_| !dunhao_defer) {
             // #68 阶段 4（J）：编号条款行同时终结审查语境——原实现 review_ctx
             // 只被章节头终结，「1.5 …见评标表」类提及会在百页须知章内长开，
             // 其后全部列举条目误传播（r3 实测 FP 618 的根因）。审查表头
@@ -512,7 +528,10 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
             } else {
                 category_for(&chapter, &subsection)
             };
-            push_req(reqs, seq, cat, Some(m[1].to_string()),
+            // 顿号形态的条款号取纯数字（「1、」→「1」——顿号是分隔符，
+            // 与点分形态「4.2」同语义：编号本体入 clause_no）
+            let cno = m[1].trim_end_matches('、').to_string();
+            push_req(reqs, seq, cat, Some(cno),
                      para_anchors(i, pend), params, &f.name);
             if re_ctx_open.is_match(&para) && !re_ctx_no_veto.is_match(&para) {
                 veto_ctx = true;
@@ -718,7 +737,9 @@ fn category_for(chapter: &str, subsection: &str) -> &'static str {
 fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize) {
     use crate::veto_lexicon as vl;
     let mut last_numbered_head: Option<String> = None; // 表格行收养最近的编号段（5.x 参数表上下文）
-    let re_clause = Regex::new(r"^(\d+(?:\.\d+)+)\s*").unwrap();
+    // #218 任务 3：与 PDF 侧同口径——多级点分 + 中文顿号（1、）双形态
+    let re_clause = Regex::new(r"^(\d+(?:\.\d+)+|\d{1,3}、)\s*").unwrap();
+    let re_dunhao_list = Regex::new(r"^\d{1,3}、").unwrap();
     let re_model = model_regex();
     let re_amount = Regex::new(r"(\d+(?:\.\d+)?)\s*万\s*元").unwrap();
     let re_date = Regex::new(r"\d{4}-\d{2}-\d{2}").unwrap();
@@ -756,10 +777,18 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                 review_ctx = false;
                 cur_table = None;
                 let t = b.text.trim();
-                if let Some(m) = re_clause.captures(t) {
+                // 顿号列举双守卫（与 PDF 侧同口径，见 extract_main_pdf）：
+                // veto_ctx 开放 → 传播分支（「否决总括句后的列举条目」语义）
+                // 继承否决面；格式章（locator 派生章名）模板不进编号分支。
+                let (loc_chapter, _) = split_locator(&b.locator);
+                let dunhao_defer = re_dunhao_list.is_match(t)
+                    && (veto_ctx || loc_chapter.contains("格式"));
+                if let Some(m) = re_clause.captures(t).filter(|_| !dunhao_defer) {
                     // 新编号条款：语境终止（本条自身若再开启则重启）
                     veto_ctx = false;
-                    last_numbered_head = Some(m[1].to_string());
+                    // 顿号形态条款号取纯数字（「1、」→「1」——与 PDF 侧同口径）
+                    let cno = m[1].trim_end_matches('、').to_string();
+                    last_numbered_head = Some(cno.clone());
                     let (chapter, subsection) = split_locator(&b.locator);
                     // B6·G1 跨行合并（#123 任务 1）：吸收后续无编号续行——
                     // docx 解析按段产出，分页符/软换行把一条条款切成多段
@@ -827,7 +856,7 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                     } else {
                         ctx_cat
                     };
-                    push_req(reqs, seq, cat, Some(m[1].to_string()),
+                    push_req(reqs, seq, cat, Some(cno),
                              grp_anchors, params, &f.name);
                     if vl::opens_veto_context(&grp_text) {
                         veto_ctx = true;

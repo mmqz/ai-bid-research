@@ -24,7 +24,9 @@ fn tool_names_are_the_contract_twenty() {
     // = 20（B1 价格分 + B2 自评的 MCP 接线——「能得几分、该报多少价」）；
     // #184 增 1（record_addendum_waiver——补遗分级阻塞的逐件人工确认）
     // = 21
-    assert_eq!(TOOL_NAMES.len(), 21, "工具面必须恰为 21 个（20 + #184 补遗逐件确认）");
+    // #219 增 3（get_document_chunks / submit_block_marks /
+    // get_coverage_report——全块覆盖：Agent 区间标记 + 引擎覆盖检查）= 24
+    assert_eq!(TOOL_NAMES.len(), 24, "工具面必须恰为 24 个（21 + #219 全块覆盖三工具）");
     for name in TOOL_NAMES {
         assert!(!name.is_empty());
     }
@@ -100,7 +102,7 @@ fn json_roundtrip_failure_is_typed() {
 fn tools_schema_lists_all_twenty() {
     let v = bid_mcp::tools_schema();
     let arr = v["tools"].as_array().unwrap();
-    assert_eq!(arr.len(), 21);
+    assert_eq!(arr.len(), 24);
     let implemented: Vec<&str> = arr
         .iter()
         .filter(|t| t["implemented"] == true)

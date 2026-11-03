@@ -283,7 +283,7 @@ fn tool_face_remains_twenty_with_draft_implemented() {
     let arr = v["tools"].as_array().unwrap();
     // #145 时点 20；#184 增 record_addendum_waiver（补遗分级阻塞的逐件
     // 人工确认）→ 21
-    assert_eq!(arr.len(), 21, "工具面保持 21 个（20 + #184 补遗逐件确认）");
+    assert_eq!(arr.len(), 24, "工具面保持 24 个（21 + #219 全块覆盖三工具）");
     let draft = arr.iter().find(|t| t["name"] == "draft_response_section").unwrap();
     assert_eq!(draft["implemented"], json!(true));
     // #145 任务 1：search_evidence 已接线——原「不得提前标实现」守卫随之撤销

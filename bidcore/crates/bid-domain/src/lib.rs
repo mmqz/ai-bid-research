@@ -219,6 +219,7 @@ impl ProjectStatus {
             ],
             Validating | Reviewing | ReadyToExport => &[
                 "get_compliance_matrix",
+                "get_coverage_report",
                 "search_evidence",
                 "get_bid_project_state",
                 "validate_bid_document",

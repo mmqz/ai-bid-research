@@ -24,7 +24,7 @@ const ALL_STATES: [ProjectStatus; 10] = [
     ProjectStatus::Exported,
 ];
 
-/// 全部 21 个工具（TOOL_NAMES 的真源在 bid-mcp——这里钉死字面量，
+/// 全部 22 个工具（TOOL_NAMES 的真源在 bid-mcp——这里钉死字面量，
 /// 目的是「工具面变更必须显式改测试」，而不是静默跟随）。
 /// #184 增 `record_addendum_waiver`（尾插——放行窗口与 record_review_gate
 /// 同族但更宽：FILES_IMPORTED+，含 Exported——与 Gate::AddendumWaiver

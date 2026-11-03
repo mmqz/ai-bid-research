@@ -60,10 +60,14 @@ fn para_reassembly_cross_line_veto() {
 
 /// 段落重组：短行碎片（「拒收。」独立成行）——段落 REQ 覆盖全行
 /// anchors；超短尾行（<6 字）保留独立碎片 REQ（GT 单行条款锚定面）。
+///
+/// #226 层 2 后文本改版：原文本「逾期送达…招标人将拒收」是规则说明形
+/// （issue REQ-0007 同款），段落 REQ 不再落否决项——重组行为面改用非
+/// 规则语境的否决句验证（意图不变：跨行否决词还原为整段判定）。
 #[test]
 fn para_reassembly_short_fragment() {
     let f = pf(vec![
-        line(0, "第10页 行9", "逾期送达的投标文件的，招标人将"),
+        line(0, "第10页 行9", "未按要求密封的投标文件，评标委员会将"),
         line(1, "第10页 行10", "拒收。"),
     ]);
     let reqs = extract_requirements(&[f]);
@@ -74,6 +78,17 @@ fn para_reassembly_short_fragment() {
     // 超短尾行独立碎片 REQ（「拒收。」）
     assert!(reqs.iter().any(|r| r.anchors.len() == 1
         && r.anchors[0].excerpt == "拒收。"));
+
+    // #226 集成面登记：规则说明形（逾期送达 + 招标人拒收）不再产否决 REQ
+    let f2 = pf(vec![
+        line(0, "第10页 行9", "逾期送达的投标文件的，招标人将"),
+        line(1, "第10页 行10", "拒收。"),
+    ]);
+    let reqs2 = extract_requirements(&[f2]);
+    assert!(
+        reqs2.iter().all(|r| r.anchors.len() != 2 || r.category != "否决项"),
+        "#226 规则说明形段落不落否决项: {reqs2:?}"
+    );
 }
 
 /// 断段：行尾有终结标点 + 下一行是编号新条款 → 各自成段。
@@ -87,14 +102,24 @@ fn para_break_on_new_clause() {
     assert_eq!(cats(&reqs), vec!["否决项".to_string(), "资格条件".to_string()]);
 }
 
-/// 词表扩展：不予受理 / 否决条件 / 不接受联合体。
+/// 词表扩展：拒收/否决条件面（#226 层 2 后，「招标人不予受理」形程序
+/// 后果条款不再落否决项——见 veto_rule.rs；这里验证词表在非规则语境下
+/// 仍命中，并集成面登记规则说明形的降级）。
 #[test]
 fn expanded_veto_lexicon() {
+    // 评委处置形（非「招标人/逾期」规则语境）——词面命中且保留否决
     let f = pf(vec![
-        line(0, "第14页 行37", "未按本章第 4.1.1 项要求密封的投标文件，招标人不予受理。"),
+        line(0, "第14页 行37", "未按本章第 4.1.1 项要求密封的，评标委员会将予以拒收。"),
     ]);
     let reqs = extract_requirements(&[f]);
-    assert_eq!(veto_excerpts(&reqs).len(), 1);
+    assert_eq!(veto_excerpts(&reqs).len(), 1, "评委拒收形仍否决: {reqs:?}");
+
+    // #226 集成面登记：程序后果条款（招标人不予受理）不产否决 REQ
+    let f2 = pf(vec![
+        line(0, "第14页 行38", "未按本章第 4.1.1 项要求密封的投标文件，招标人不予受理。"),
+    ]);
+    let reqs2 = extract_requirements(&[f2]);
+    assert!(veto_excerpts(&reqs2).is_empty(), "#226 规则说明形不落否决: {reqs2:?}");
 }
 
 /// 例外从句排除：除…外 不算否决。

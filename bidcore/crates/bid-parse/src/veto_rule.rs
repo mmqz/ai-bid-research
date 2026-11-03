@@ -35,6 +35,18 @@
 /// 调用方只在 `veto_hit()` 已命中的段落上调用——本函数不负责任何否决判定，
 /// 只回答「这条否决信号是不是规则说明」。
 ///
+/// # 复核工具
+///
+/// 判据对不对不能看计数——用 `examples/dump_rule_statements.rs` 逐条看：
+///
+/// ```text
+/// cargo run --release -p bid-parse --example dump_rule_statements -- ../../real-corpus
+/// ```
+///
+/// 它打印每条被判为规则说明的条款原文 + 最终分类，供人工逐条审阅。
+/// **每加一条分类判据都应该跑一遍并逐条看**（本模块的两轮收紧都是
+/// 这么来的）；分类计数改前/改后对照用同目录 `count_categories.rs`。
+///
 /// # 收紧过程（真实语料复核驱动，如实登记）
 ///
 /// 第一版只用「规则主语 + 无投标人义务」两条，跑真实语料判出 86 条，
@@ -56,6 +68,15 @@
 ///    这些是「谁做了会怎样」的处置/禁止条款，GT 一律标否决。
 /// 5. **过短文本**（去空白后 < 8 字）→ 不是规则说明：真实规则陈述是完整句子，
 ///    短句多是抽取碎片（「1.1.2招标人」「1.5招标方式」），判定无意义。
+///
+/// # 第三轮收紧（PR #230 审核：dump 复核 [35] 误判）
+///
+/// 复核面 56 条里审出 1 条误判：「1.4 到货要求：★卖方承诺收到招标人
+/// 通知后20工作日内到货。」——主句主语是「卖方」（我方），「招标人」
+/// 只出现在从句（收到谁的通知），全串搜索把它误判成规则说明，★ 实质
+/// 性要求被豁免 = 漏响应风险。共同形态：**规则主语在从句/定语里，
+/// 主句主语是投标人侧**（「承包人应在接到招标人开工通知后 7 日内进场」）。
+/// 修法：网 0.5（投标人侧主语守卫）+ 规则主语句首位置判定（见下）。
 pub fn is_rule_statement(text: &str) -> bool {
     let t = text.trim();
     if t.is_empty() {
@@ -79,6 +100,14 @@ pub fn is_rule_statement(text: &str) -> bool {
     if is_list_item(t) {
         return false;
     }
+    // ── 安全网 0.5：主句主语是投标人侧 → 不是规则说明（#230 审核追修）──
+    // 「★卖方承诺收到招标人通知后…到货」：「招标人」在从句，主语是
+    // 「卖方」。与网 1 的分工：网 1 查「投标人侧 + 义务词」同分句，
+    // 本网查「投标人侧主语在句首」——「承包人负责…」没有义务词时
+    // 网 1 不响，这里仍拦得住。
+    if has_bidder_side_subject(t) {
+        return false;
+    }
     // ── 安全网 1：投标人响应义务词在场 → 不是规则说明 ──
     if has_bidder_obligation(t) {
         return false;
@@ -100,7 +129,7 @@ pub fn is_rule_statement(text: &str) -> bool {
 /// 这是**最终安全网**：只要句子里出现否决处置后果，无论主语是谁、句式
 /// 多像流程说明，都不能当规则说明豁免——漏判一条否决的代价是废标。
 fn has_self_veto_consequence(t: &str) -> bool {
-    const CONSEQUENCE: [&str; 8] = [
+    const CONSEQUENCE: [&str; 9] = [
         "将被否决",
         "否决其投标",
         "否决该投标",
@@ -109,6 +138,9 @@ fn has_self_veto_consequence(t: &str) -> bool {
         "无效投标",
         "作废标",
         "予以否决",
+        // CI 红线（extract_pdf_l2gap）：「投标人拒绝延长的，其投标失效」
+        // 是处置结果（GT 标否决）——与「无效标」同族，永不豁免。
+        "投标失效",
     ];
     CONSEQUENCE.iter().any(|k| t.contains(k))
 }
@@ -239,7 +271,81 @@ fn has_qualification_demand(t: &str) -> bool {
     DEMANDS.iter().any(|d| t.contains(d))
 }
 
+/// 投标人侧主语词表（两句口径，勿混用）：
+/// - [`BIDDER_SUBJECTS`]（网 0.5，硬守卫）：不含「投标人」——「招标人
+///   将对投标人进行资格审查」「招标人收到投标文件后…」这类真规则句
+///   里「投标人」常在句首段，含它会大量误杀规则说明；
+/// - [`EXTENDED_GUARD_SUBJECTS`]（扩展窗守卫）：含「投标人」——只用于
+///   「规则主语在 12-24 字位」的低置信分支，主句头出现「投标人撤回…」
+///   时该句主语是投标人（我方义务），扩展窗不适用。
+const BIDDER_SUBJECTS: [&str; 8] =
+    ["卖方", "供方", "供应商", "承包人", "施工方", "中标人应", "乙方", "我方"];
+const EXTENDED_GUARD_SUBJECTS: [&str; 9] = [
+    "卖方", "供方", "供应商", "承包人", "施工方", "中标人应", "乙方", "我方", "投标人",
+];
+
+/// 主句头：剥条款号；句首是短标签（「到货要求：」「处理规则：」——
+/// 首个 ： 前 ≤ 12 字、无分句标点、冒号后有正文）时从冒号后起算。
+/// 标签不是主语：「1.4 到货要求：★卖方承诺…」的主句从「★卖方」起。
+fn main_clause(t: &str) -> &str {
+    let body = strip_clause_no(t).trim_start();
+    if let Some(pos) = body.find('：') {
+        let label = &body[..pos];
+        let label_ok = label.chars().count() <= 12
+            && !label.contains('，')
+            && !label.contains('。')
+            && !label.contains('；');
+        let after = body[pos + '：'.len_utf8()..].trim_start();
+        if label_ok && !after.is_empty() {
+            return after;
+        }
+    }
+    body
+}
+
+/// 头部分句里是否有 `subjects` 中的投标人侧主语（前 20 字）。
+fn bidder_subject_in_head(main: &str, subjects: &[&str]) -> bool {
+    let head: String = main
+        .split(['，', '。', '；', '：'])
+        .next()
+        .unwrap_or(main)
+        .chars()
+        .take(20)
+        .collect();
+    subjects.iter().any(|s| head.contains(s))
+}
+
+/// 投标人侧主语守卫（PR #230 审核追修——dump [35] 误判的通用形态）。
+///
+/// 「卖方承诺收到招标人通知后20工作日内到货」「承包人应在接到招标人
+/// 开工通知后 7 日内进场」——规则主语（招标人/采购人）只出现在从句里，
+/// 主句主语是投标人侧（卖方/承包人/供应商…）。这类句子是我方义务，
+/// 不是规则说明。
+///
+/// 主语判定：**主句头分句**（第一个 ，。；： 前的片段）的前 20 字——
+/// 主语通常在句首；「招标人」出现在「收到/接到/按…要求」从属结构里
+/// 时不算主句主语。「中标人应」带义务词：裸「中标人」常出现在规则句
+/// 里（「招标人将要求中标人签订合同」），不带「应」不算投标人侧主语。
+fn has_bidder_side_subject(t: &str) -> bool {
+    bidder_subject_in_head(main_clause(t), &BIDDER_SUBJECTS)
+}
+
 /// 规则句式（主语是招标人侧，或程序后果条款）。
+///
+/// 规则主语用**主句头位置判定**（PR #230 审核追修），两级窗口：
+///
+/// - 快窗（前 12 字）：主语在句首——高置信，直接判规则说明；
+/// - 扩展窗（前 32 字）：主语在句中（「在投标截止时间15天前，招标人
+///   可以修改招标文件」「依法必须进行招标的通信工程建设项目，采用
+///   公开招标方式的，招标人在收到评标报告…」）——只有主句头**无
+///   投标人侧主语**时才认：「投标人撤回…应当书面通知招标人」的主语
+///   是投标人，扩展窗一开就会把 [35] 类义务句放回来，所以必须带守卫。
+///   两级窗口都只是原全串搜索的收窄——判规则说明的面只会变少不会
+///   变多（恢复项也全部来自 v0 已判面），无新增误放行。
+///
+/// 「招标人」出现在从句（「收到招标人通知后…到货」）两级都不命中——
+/// 那是投标人侧义务（dump [35]）。程序后果词保持全串搜索：它们描述
+/// 投标文件本身的命运（逾期送达/不予受理），不依赖主语位置。
 fn has_rule_pattern(t: &str) -> bool {
     const RULE_SUBJECTS: [&str; 8] = [
         "本次招标",
@@ -251,7 +357,15 @@ fn has_rule_pattern(t: &str) -> bool {
         "招标方",
         "本工程",
     ];
-    if RULE_SUBJECTS.iter().any(|s| t.contains(s)) {
+    let main = main_clause(t);
+    let head12: String = main.chars().take(12).collect();
+    if RULE_SUBJECTS.iter().any(|s| head12.contains(s)) {
+        return true;
+    }
+    let head32: String = main.chars().take(32).collect();
+    if RULE_SUBJECTS.iter().any(|s| head32.contains(s))
+        && !bidder_subject_in_head(main, &EXTENDED_GUARD_SUBJECTS)
+    {
         return true;
     }
     // 程序后果条款（主语省略但语义是「会发生什么」，不是「你要做什么」）
@@ -418,6 +532,69 @@ mod tests {
         ));
         assert!(!is_rule_statement(
             "招标人不接受低于成本的报价，否则按无效标处理。"
+        ));
+    }
+
+    // ── 第三轮收紧（PR #230 审核：dump [35] + 从句形态四例）────────
+
+    #[test]
+    fn seller_delivery_promise_is_not_rule() {
+        // dump 复核 [35]（Lead 审核抓出）：★ 实质性要求，主语是「卖方」，
+        // 「招标人」只在从句（收到谁的通知）——句首位置判定后不再误判。
+        assert!(!is_rule_statement(
+            "1.4 到货要求：★卖方承诺收到招标人通知后20工作日内到货。"
+        ));
+    }
+
+    #[test]
+    fn contractor_mobilization_after_notice_is_not_rule() {
+        // 审核给的从句形态：规则主语出现在「接到…通知后」从属结构里。
+        assert!(!is_rule_statement(
+            "承包人应在接到招标人开工通知后7日内进场。"
+        ));
+        // 无义务词形态（网 1 不响，网 0.5 主语守卫拦）：
+        assert!(!is_rule_statement(
+            "承包人负责在接到招标人开工通知后7日内进场。"
+        ));
+    }
+
+    #[test]
+    fn supplier_shipping_after_order_is_not_rule() {
+        assert!(!is_rule_statement("供应商须在采购人下单后3日内发货。"));
+        assert!(!is_rule_statement("供方应在收到采购人订单后48小时内发货。"));
+    }
+
+    #[test]
+    fn bidder_sample_per_tenderer_request_is_not_rule() {
+        assert!(!is_rule_statement("投标人应按招标人要求提供样品。"));
+    }
+
+    #[test]
+    fn rule_subject_at_sentence_head_still_rule() {
+        // 主语在句首（含条款号剥离后 12 字窗口内）仍是规则说明——
+        // 收紧只针对从句位置，不伤句首真规则。
+        assert!(is_rule_statement(
+            "1.7.4 采用资格后审的，招标人必须在投标截止时间前完成审查。"
+        ));
+        assert!(is_rule_statement("招标人不接受低于成本报价的不正当竞争行为。"));
+        assert!(is_rule_statement("1.2 资金来源招标人自筹。"));
+    }
+
+    #[test]
+    fn procedure_word_deep_in_sentence_still_rule() {
+        // 程序后果词保持全串搜索（不依赖主语位置）：
+        // 「不予受理」在句中后段仍判规则说明。
+        assert!(is_rule_statement(
+            "投标截止时间后送达的投标文件，招标人不予受理。"
+        ));
+    }
+
+    #[test]
+    fn bid_validity_disposal_is_never_rule() {
+        // CI 红线（extract_pdf_l2gap）：「其投标失效」是处置结果——
+        // 主语是招标人也不能豁免（闸 0 补「投标失效」）。
+        assert!(!is_rule_statement(
+            "3.3.2 出现特殊情况需要延长投标有效期的，招标人以书面形式通知所有投标人延长投标有效期。投标人拒绝延长的，其投标失效，但投标人有权收回投标保证金。"
         ));
     }
 

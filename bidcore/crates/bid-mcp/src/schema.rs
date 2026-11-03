@@ -173,6 +173,63 @@ fn input_schema(name: &str) -> Value {
             },
             "required": ["project_id"]
         }),
+        // ---- #219 全块覆盖三工具 ----
+        "get_document_chunks" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid,
+                "file_id": {"type": "string", "description": "文件 ID（import_tender_files 回执 per_file[].file_id）"},
+                "from": {"type": "integer", "description": "起始块 idx（缺省 0）"},
+                "size": {"type": "integer", "description": "窗口大小 1..=200（缺省 50）——一次取全量会吃爆上下文"}
+            },
+            "required": ["project_id", "file_id"]
+        }),
+        "submit_block_marks" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid,
+                "file_id": {"type": "string"},
+                "marks": {
+                    "type": "array",
+                    "description": "区间标记：每块必须恰好被一个区间覆盖；区间不得重叠",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "from": {"type": "integer", "description": "起始块 idx（含）"},
+                            "to": {"type": "integer", "description": "结束块 idx（含）"},
+                            "verdict": {"type": "string", "enum": ["requirement", "noise", "rule", "review_table"],
+                                        "description": "requirement=需响应；noise=无关；rule=招标人规则说明（我方遵守但不写响应）；review_table=审查表"},
+                            "reason": {"type": "string", "description": "判断理由（可审计）"}
+                        },
+                        "required": ["from", "to", "verdict"]
+                    }
+                },
+                "requirements": {
+                    "type": "array",
+                    "description": "从 requirement 区间提取的关键点（block_idx 必须落在 requirement 区间内）",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "block_idx": {"type": "integer"},
+                            "statement": {"type": "string", "description": "关键点陈述（不得为空）"},
+                            "category": {"type": "string", "enum": ["资格条件", "否决项", "评分项", "技术参数", "商务要求", "格式要求", "其他"],
+                                         "description": "分类由 Agent 判断（引擎只校验枚举）"},
+                            "mandatory": {"type": "boolean", "description": "漏响应会废标 → true"}
+                        },
+                        "required": ["block_idx", "statement"]
+                    }
+                },
+                "project_version": pv
+            },
+            "required": ["project_id", "file_id", "marks"]
+        }),
+        "get_coverage_report" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid
+            },
+            "required": ["project_id"]
+        }),
         "get_compliance_matrix" => json!({
             "type": "object",
             "properties": {

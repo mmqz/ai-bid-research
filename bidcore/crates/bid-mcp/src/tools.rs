@@ -59,6 +59,10 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         // score_price 是纯计算器（无 project 路由/状态门——报价推演面）；
         // score_section / score_document 走既有 route_guard（只读诊断）。
         "score_price" => score_price(svc, args),
+        // ---- #219 全块覆盖：引擎切块 + Agent 标区间（替代正则猜边界） ----
+        "get_document_chunks" => crate::coverage_tools::get_document_chunks(svc, args),
+        "submit_block_marks" => crate::coverage_tools::submit_block_marks(svc, args),
+        "get_coverage_report" => crate::coverage_tools::get_coverage_report(svc, args),
         "score_section" => score_section(svc, args),
         "score_document" => score_document(svc, args),
         // ---- #145 任务 1：双通道证据检索（契约 §5——朴素实现，真向量库见 M2-b）----
@@ -83,7 +87,7 @@ const TENDER_FILE_KINDS: [&str; 7] = [
     "格式模板",
 ];
 
-fn req_str(v: &Value, key: &str, at: &str) -> Result<String, ToolError> {
+pub(crate) fn req_str(v: &Value, key: &str, at: &str) -> Result<String, ToolError> {
     let s = v
         .get(key)
         .and_then(Value::as_str)
@@ -98,7 +102,7 @@ fn req_str(v: &Value, key: &str, at: &str) -> Result<String, ToolError> {
     Ok(s.to_string())
 }
 
-fn opt_str(v: &Value, key: &str, at: &str) -> Result<Option<String>, ToolError> {
+pub(crate) fn opt_str(v: &Value, key: &str, at: &str) -> Result<Option<String>, ToolError> {
     match v.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::String(s)) => Ok(Some(s.clone())),
@@ -108,7 +112,7 @@ fn opt_str(v: &Value, key: &str, at: &str) -> Result<Option<String>, ToolError> 
     }
 }
 
-fn opt_u64(v: &Value, key: &str, at: &str) -> Result<Option<u64>, ToolError> {
+pub(crate) fn opt_u64(v: &Value, key: &str, at: &str) -> Result<Option<u64>, ToolError> {
     match v.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Number(n)) => n
@@ -185,7 +189,7 @@ fn filter_str(filters: Option<&Value>, key: &str, tool: &str) -> Result<Option<S
 
 /// 项目路由（§4 族只读列表工具共用）：project_id 与服务态项目不符 →
 /// E_NOTFOUND（只读工具无状态机裁决——任何阶段可调）。
-fn route_project(svc: &BidService, project_id: &str, tool: &str) -> Result<(), ToolError> {
+pub(crate) fn route_project(svc: &BidService, project_id: &str, tool: &str) -> Result<(), ToolError> {
     let proj = svc.store().project().map_err(ToolError::from)?;
     if proj.id != project_id {
         return Err(ToolError::ENotFound {
@@ -2787,7 +2791,7 @@ fn opt_generator(v: &Value, key: &str, at: &str) -> Result<Option<String>, ToolE
 }
 
 /// 可选字符串数组参数（缺省/null → None；非数组或含非字符串 → 拒）。
-fn opt_str_array(v: &Value, key: &str, at: &str) -> Result<Option<Vec<String>>, ToolError> {
+pub(crate) fn opt_str_array(v: &Value, key: &str, at: &str) -> Result<Option<Vec<String>>, ToolError> {
     match v.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Array(a)) => {
@@ -3289,7 +3293,7 @@ fn validate_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
 // ================================================================ #80 第三批 MCP 补齐（G1/G2/G3——契约 §10/§11/§12）
 
 /// 项目路由 + 状态机裁决 + 乐观并发（三件套——四个新工具共用面）。
-fn route_guard(
+pub(crate) fn route_guard(
     svc: &BidService,
     project_id: &str,
     tool: &str,

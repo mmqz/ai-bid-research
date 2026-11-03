@@ -46,9 +46,11 @@ use serde_json::Value;
 /// `record_review_gate`（G1/G2/G3——外部 Agent 纯 MCP 驱动全链的缺口面）；
 /// #100 任务 3 增 3 个：`score_price` / `score_section` / `score_document`
 /// （B1 价格分 + B2 自评的 MCP 接线——「能得几分、该报多少价」）；
-/// #184 增 1 个：`record_addendum_waiver`（补遗分级阻塞的逐件人工确认）
-/// = 21。
-pub const TOOL_NAMES: [&str; 24] = [
+/// #184 增 1 个：`record_addendum_waiver`（补遗分级阻塞的逐件人工确认）；
+/// #219 增 3 个：全块覆盖三工具（get_document_chunks/submit_block_marks/
+/// get_coverage_report）；#226 增 1 个：`set_matrix_override`（否决项
+/// 死锁的人工出口）= 25。
+pub const TOOL_NAMES: [&str; 25] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -74,6 +76,8 @@ pub const TOOL_NAMES: [&str; 24] = [
     "get_document_chunks",
     "submit_block_marks",
     "get_coverage_report",
+    // #226 层 1：否决项死锁的人工出口
+    "set_matrix_override",
 ];
 
 /// 工具解析与分发入口（进程级全局服务态——stdio 默认传输面）。

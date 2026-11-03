@@ -200,6 +200,8 @@ impl ProjectStatus {
                 // #100 任务 3：B2 自评接线（只读诊断——与 check_bid_quality 同窗口）
                 "score_section",
                 "score_document",
+                // #226：人工覆写条款响应（否决项死锁出口——矩阵已建才有可覆写对象）
+                "set_matrix_override",
             ],
             Drafting => &[
                 "get_coverage_report",
@@ -216,6 +218,8 @@ impl ProjectStatus {
                 "record_addendum_waiver",
                 "score_section",
                 "score_document",
+                // #226：起草期照样要能翻案（发现某条是规则说明 → 标不适用）
+                "set_matrix_override",
             ],
             Validating | Reviewing | ReadyToExport => &[
                 "get_compliance_matrix",
@@ -230,6 +234,8 @@ impl ProjectStatus {
                 "record_addendum_waiver",
                 "score_section",
                 "score_document",
+                // #226：导出前复核期同样可翻案（这里是 blocking 最后能解的地方）
+                "set_matrix_override",
             ],
             Exported => &[
                 "get_coverage_report",
@@ -243,6 +249,8 @@ impl ProjectStatus {
                 "record_addendum_waiver",
                 "score_section",
                 "score_document",
+                // #226：已导出仍可改判（再导出走幂等重导）
+                "set_matrix_override",
             ],
         }
     }

@@ -209,6 +209,19 @@ impl DomainStore {
         Ok((self.matrix.len(), blocking))
     }
 
+    /// #226：覆写后重算矩阵（把「人工裁决」立刻反映到 blocking 面）。
+    ///
+    /// 为什么单独一个入口：`set_matrix_override` 只往 overrides 表写一行，
+    /// `matrix` 是派生面、不会自动跟着变。调用方如果只调 set 不重算，
+    /// `export_blockers()` 看到的仍是旧 blocking——那是 #226 死锁真正
+    /// 卡住的地方（不只是「没有工具」，而是「就算有工具也不会生效」）。
+    ///
+    /// 语义 = `build_matrix`（幂等派生），单独命名是为了让调用点读得出
+    /// 「这次重算是被人工裁决触发的」。
+    pub fn rebuild_matrix_for_override(&mut self) -> Result<(usize, usize), ToolError> {
+        self.build_matrix()
+    }
+
     /// 人工覆写（不适用/偏离——NOT_APPLICABLE 必须给理由，诚实状态）。
     pub fn set_matrix_override(&mut self, requirement_id: String,
                                status: ResponseStatus, deviation: Option<String>)

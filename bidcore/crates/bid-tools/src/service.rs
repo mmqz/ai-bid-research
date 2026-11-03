@@ -685,6 +685,30 @@ impl BidService {
         &mut self.store
     }
 
+    /// `set_matrix_override` 服务半边（#226 层 1：否决项死锁的人工出口）。
+    ///
+    /// **域层 `DomainStore::set_matrix_override` 只写 overrides 表，不重算矩阵**
+    /// ——所以单独调它之后 `export_blockers()` 仍看旧行，死锁根本没解。
+    /// 本方法把「写覆写 → 重建矩阵 → 落盘」串成一次语义动作，调用方看到的
+    /// `matrix` 与 `export_blockers()` 才是同一个真源。
+    ///
+    /// 返回 (矩阵行数, blocking 行数)——供工具面直接回显。
+    ///
+    /// 前置：矩阵必须已构建（`build_matrix` 过）。未构建时先建再覆写没有
+    /// 意义——覆写的对象就是矩阵行。
+    pub fn set_matrix_override(
+        &mut self,
+        requirement_id: String,
+        status: bid_domain::matrix::ResponseStatus,
+        deviation: Option<String>,
+    ) -> Result<(usize, usize), ToolError> {
+        self.store
+            .set_matrix_override(requirement_id, status, deviation)?;
+        let r = self.store.rebuild_matrix_for_override()?;
+        self.auto_checkpoint()?;
+        Ok(r)
+    }
+
     /// 持久化工作区目录（persist 在场时——章节内容/导出产物的落盘锚点；
     /// 纯内存态返回 None，调用方自行降级）。#59 阶段 1：draft_section 的
     /// S-2 落盘面用。

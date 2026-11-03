@@ -1027,6 +1027,13 @@ fn extract_text_lines(content: &[u8], fcmaps: &FontCMaps, fonts: &FontEncodings)
     // #200：字体上下文——`/F2 12 Tf` 的资源名 + 当前字体（决定恒等解码资格）。
     let mut last_name: Option<String> = None;
     let mut cur_font: Option<String> = None;
+    // #218 后续：文本窗口（PDF 规范：显示运算符 Tj/TJ/'/" 必须在 BT…ET 内）。
+    // 窗口外的字串一律不产出——实测缺口：ToUnicode CMap 流解压后全是
+    // `<hex> <hex>` 映射对，无任何运算符上下文，全部堆进 pending、在流尾
+    // 被 flush 成巨型垃圾行（目标件 9 个 CMap 共 ~90 万字符，把 CJK 占比
+    // 从 0.69 稀释到 0.08——乱码探测的判据被垃圾污染）。字体文件/图像流
+    // 里的偶发 `Tj`/`BT` 字节序列同理被窗口挡住。
+    let mut in_text = false;
     let mut i = 0usize;
     let n = content.len();
 
@@ -1060,6 +1067,25 @@ fn extract_text_lines(content: &[u8], fcmaps: &FontCMaps, fonts: &FontEncodings)
                 }
                 i = j;
             }
+            // BT：进入文本窗口。窗口开启前堆积的 pending 是垃圾
+            // （CMap 映射对/二进制噪声）——丢弃，绝不冒充正文。
+            b'B' => {
+                let (op, next) = read_name(content, i);
+                if op == "BT" {
+                    in_text = true;
+                    pending.clear();
+                }
+                i = next;
+            }
+            // ET：退出文本窗口（parts 保留——同一视觉行常被拆成多个
+            // BT/ET 块，逐字 Tj 形态每字一块，断行仍靠 Tm 的 y 跳变）。
+            b'E' => {
+                let (op, next) = read_name(content, i);
+                if op == "ET" {
+                    in_text = false;
+                }
+                i = next;
+            }
             // q：保存 CTM
             b'q' => {
                 ctm_stack.push(ctm);
@@ -1084,7 +1110,7 @@ fn extract_text_lines(content: &[u8], fcmaps: &FontCMaps, fonts: &FontEncodings)
                 let (op, next) = read_name(content, i);
                 match op.as_str() {
                     "Tj" | "TJ" | "'" | "\"" => {
-                        if !pending.is_empty() {
+                        if in_text && !pending.is_empty() {
                             let joined: Vec<u8> = pending.concat();
                             let txt = decode_text_string(
                                 &joined,
@@ -1170,7 +1196,7 @@ fn extract_text_lines(content: &[u8], fcmaps: &FontCMaps, fonts: &FontEncodings)
             _ => i += 1,
         }
     }
-    if !pending.is_empty() {
+    if in_text && !pending.is_empty() {
         let joined: Vec<u8> = pending.concat();
         let txt = decode_text_string(
             &joined,
@@ -2195,6 +2221,75 @@ mod tests {
         assert!(
             !all.contains("4B2") || !all.contains("BBBB"),
             "目录点线/条款号不得再被跨字体覆盖成 B 串"
+        );
+    }
+
+    /// #218 后续：BT…ET 文本窗口——CMap 流（无显示运算符上下文）的字串
+    /// 不许被当正文产出。
+    ///
+    /// 实测缺口形态：ToUnicode CMap 流解压后全是 `<hex> <hex>` 映射对，没有
+    /// 任何 BT/ET——旧逻辑把映射对逐个 push 进 pending，在流尾 flush 成巨型
+    /// 垃圾行。本用例同时验证「窗口前 pending 丢弃」（BT 开启时清仓）与
+    /// 「窗口外不产出」（无 BT 的流零行）。
+    #[test]
+    fn bt_et_window_blocks_cmap_stream_garbage() {
+        let content = b"BT /F1 12 Tf (Hi) Tj ET";
+        let mut v = font_pdf("F1", LATIN_FONT_DICT, content);
+        // 追加一个不被任何字典引用的裸 CMap 流对象——纯垃圾源。
+        // 旧逻辑：流尾 flush 产出 `<0003>` 的解码残渣行；新逻辑：无 BT 窗口 → 零行。
+        v.extend_from_slice(
+            b"99 0 obj\n<< /Length 40 >>\nstream\nbeginbfchar\n<0003> <4E2D>\n<0004> <6587>\nendbfchar\nendstream\nendobj\n",
+        );
+        let t = extract(&v).expect("应能提取");
+        assert_eq!(
+            t.lines(),
+            vec!["Hi".to_string()],
+            "CMap 流的映射对不许混进正文：{:?}",
+            t.lines()
+        );
+    }
+
+    /// #218 后续真件断言：BT…ET 窗口后，目标件 CJK 占比必须回到真实水平。
+    ///
+    /// main 基线（#220 修复后仍缺窗口）：9 个 CMap 流的垃圾产出把 CJK 占比
+    /// 稀释到 0.067（真实值 0.690，poppler 同口径 0.689）——垃圾不仅污染
+    /// chunk/检索面，还**污染乱码探测判据**（见下一个 C-zjyd 用例）。
+    #[test]
+    fn bt_et_window_restores_true_cjk_ratio() {
+        let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../real-corpus/water/files/A-某水利施工标段招标文件.pdf");
+        assert!(p.exists(), "缺少真件夹具 {}（不能静默通过）", p.display());
+        let pf = parse_via_fallback(&p, "A-某水利施工标段招标文件.pdf").expect("真件应能提取");
+        let all = parsed_text_of(&pf);
+        assert!(
+            cjk_ratio(&all) > 0.5,
+            "CJK 占比应回到真实水平（poppler 同口径 0.689；被 CMap 垃圾流稀释时为 0.067），实际 {:.3}",
+            cjk_ratio(&all)
+        );
+    }
+
+    /// #218 后续真件断言：垃圾稀释曾把**正确解码**的文件误判成乱码——
+    /// C-zjyd 变更公告在 main 基线上 probe=Garbled（cjk 0.014 < 0.02 阈值，
+    /// 被垃圾字符稀释），窗口后回到 0.809/Clean。乱码探测的灵敏度
+    /// 依赖文本面干净。
+    #[test]
+    fn bt_et_window_unpoisons_garble_probe() {
+        let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../real-corpus/telecom/parse-input/C-zjyd-20260500552-数据库服务器-变更公告.pdf");
+        assert!(p.exists(), "缺少真件夹具 {}（不能静默通过）", p.display());
+        let bytes = std::fs::read(&p).expect("读真件");
+        let pf = parse_via_fallback(&p, "C-zjyd-20260500552-数据库服务器-变更公告.pdf")
+            .expect("变更公告应能提取（文本层完整）");
+        let all = parsed_text_of(&pf);
+        assert!(
+            cjk_ratio(&all) > 0.5,
+            "正确解码的中文公告 CJK 占比应过半（垃圾稀释时 0.014 会被误判乱码），实际 {:.3}",
+            cjk_ratio(&all)
+        );
+        assert_ne!(
+            probe_cjk_garble(&bytes, &all),
+            CjkGarbleProbe::Garbled,
+            "正确解码的文件不得再被误判乱码"
         );
     }
 

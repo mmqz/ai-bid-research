@@ -123,6 +123,9 @@ pub fn extract(bytes: &[u8]) -> Result<PdfText, PdfTextError> {
     let cmap = collect_cmaps(bytes);
     // #200：UniXX-UCS2 字体上下文——按字体决定恒等解码资格（见 FontEncodings）。
     let fonts = collect_font_encodings(bytes);
+    // #218：按字体路由的专属 CMap（多字体 CID 重叠时全局合并会错字；
+    // 未能路由的字体回退 merged——行为与旧版一致）。
+    let fcmaps = FontCMaps { maps: collect_font_cmaps(bytes), merged: cmap };
 
     let mut pages: Vec<Vec<String>> = Vec::new();
     let mut streams_decoded = 0usize;
@@ -140,7 +143,7 @@ pub fn extract(bytes: &[u8]) -> Result<PdfText, PdfTextError> {
                 continue;
             }
         };
-        let lines = extract_text_lines(&decoded, &cmap, &fonts);
+        let lines = extract_text_lines(&decoded, &fcmaps, &fonts);
         if lines.is_empty() {
             // 解压成功但无字串（比如字体/图形流——正常）：不计跳过。
             streams_decoded += 1;
@@ -323,26 +326,212 @@ fn collect_font_encodings(bytes: &[u8]) -> FontEncodings {
     fonts
 }
 
+// ---------------------------------------------------------------- 按字体路由的 ToUnicode CMap（#218）
+
+/// 资源名（Tf 操作数）→ 字体专属 ToUnicode CMap + 全局合并表（回退）。
+///
+/// #218 背景：全局合并所有字体的 CMap 在 **CID 空间重叠**时错字——实测
+/// 水利施工标段（9 个 Identity-H 字体）：/ToUnicode 出现序 Calibri 先于
+/// SimSun，合并表 or_insert 先到先得 → Calibri 的 CID 0x0011→'B' 抢占，
+/// SimSun 的 '.'（同 CID 0x0011）全部错成 'B'——'4.2' 变 '4B2'、目录
+/// 点线成 'BBB…'。Identity-H 的 CID 是**字体各自的字形索引**，同号
+/// 不同字是常态——解码必须按 Tf 当前字体查各自的表。
+#[derive(Debug, Default)]
+struct FontCMaps {
+    /// 资源名（如 FT14）→ 该字体的 CMap。
+    maps: std::collections::HashMap<String, CMap>,
+    /// 全局合并表：字体未登记（无 ToUnicode / ObjStm 扫不到 / 资源名
+    /// 缺失）时的回退——保持 #218 之前的行为。
+    merged: CMap,
+}
+
+impl FontCMaps {
+    /// 当前字体的解码表（未登记 → merged 回退）。
+    fn of(&self, font: Option<&str>) -> &CMap {
+        match font.and_then(|f| self.maps.get(f)) {
+            Some(cm) => cm,
+            None => &self.merged,
+        }
+    }
+}
+
+/// 收集「资源名 → 字体专属 ToUnicode CMap」映射。
+///
+/// 三步扫描（与 collect_font_encodings 同款「字典层字节扫描」；ObjStm
+/// 压缩字体字典扫不到 → 该字体不登记 → 运行时回退全局合并表，不劣化）：
+///   1. 全部 `N 0 obj` 对象头（位置有序）；
+///   2. 每个 `/ToUnicode N 0 R` 向前找最近对象头 M（= 所在字典的对象号，
+///      即字体对象）→ 解压对象 N → CMap::parse 得字体 M 的表；
+///   3. 扫全部 `/资源名 M 0 R` 间接引用，M 在字体集合 → 记资源名 → 表。
+fn collect_font_cmaps(bytes: &[u8]) -> std::collections::HashMap<String, CMap> {
+    // 步骤 1：对象头（collect_font_encodings 同款——" 0 obj" 前扫完整数字串）。
+    let mut heads: Vec<(usize, u64)> = Vec::new();
+    let mut k = 0usize;
+    while let Some(p) = find_from(bytes, k, b" 0 obj") {
+        let mut j = p;
+        while j > 0 && bytes[j - 1].is_ascii_digit() {
+            j -= 1;
+        }
+        if j < p {
+            let num = std::str::from_utf8(&bytes[j..p]).unwrap_or("");
+            if let Ok(n) = num.parse::<u64>() {
+                heads.push((p, n));
+            }
+        }
+        k = p + 6;
+    }
+
+    // 步骤 2：/ToUnicode → 就近对象头 = 字体对象；ToUnicode 对象解压成表。
+    let mut obj_cmap: std::collections::HashMap<u64, CMap> = std::collections::HashMap::new();
+    let mut k = 0usize;
+    while let Some(p) = find_from(bytes, k, b"/ToUnicode") {
+        let mut j = p + b"/ToUnicode".len();
+        while j < bytes.len() && bytes[j].is_ascii_whitespace() {
+            j += 1;
+        }
+        let mut num = String::new();
+        while j < bytes.len() && bytes[j].is_ascii_digit() {
+            num.push(bytes[j] as char);
+            j += 1;
+        }
+        if let (Ok(tu_num), Some(&(_, font_obj))) = (
+            num.parse::<u64>(),
+            heads.iter().rev().find(|(pos, _)| *pos < p),
+        ) {
+            // 同一字体对象的重复 /ToUnicode 只认首个。
+            if !obj_cmap.contains_key(&font_obj) {
+                if let Some(body) = object_stream_bytes(bytes, tu_num) {
+                    let text = String::from_utf8_lossy(&body).to_string();
+                    let cm = CMap::parse(&text);
+                    if !cm.is_empty() {
+                        obj_cmap.insert(font_obj, cm);
+                    }
+                }
+            }
+        }
+        k = p + b"/ToUnicode".len();
+    }
+    if obj_cmap.is_empty() {
+        return std::collections::HashMap::new();
+    }
+
+    // 步骤 3：`/资源名 M 0 R` 引用 → M 有表 → 记资源名（首个赢）。
+    let mut maps: std::collections::HashMap<String, CMap> = std::collections::HashMap::new();
+    let mut k = 0usize;
+    while let Some(p) = find_from(bytes, k, b" 0 R") {
+        let mut j = p;
+        while j > 0 && bytes[j - 1].is_ascii_digit() {
+            j -= 1;
+        }
+        if j < p {
+            let num = std::str::from_utf8(&bytes[j..p]).unwrap_or("");
+            if let Ok(n) = num.parse::<u64>() {
+                if obj_cmap.contains_key(&n) {
+                    // 再往前跳空白，应见到 `/资源名`（同款词法）。
+                    let mut m = j;
+                    while m > 0 && bytes[m - 1].is_ascii_whitespace() {
+                        m -= 1;
+                    }
+                    let mut s = m;
+                    while s > 0
+                        && (bytes[s - 1].is_ascii_alphanumeric()
+                            || bytes[s - 1] == b'-'
+                            || bytes[s - 1] == b'+'
+                            || bytes[s - 1] == b'_')
+                    {
+                        s -= 1;
+                    }
+                    if s < m && s > 0 && bytes[s - 1] == b'/' {
+                        let name = std::str::from_utf8(&bytes[s..m]).unwrap_or("");
+                        if !name.is_empty() && !maps.contains_key(name) {
+                            if let Some(cm) = obj_cmap.get(&n) {
+                                maps.insert(name.to_string(), cm.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        k = p + 4;
+    }
+    maps
+}
+
 /// 取 `N 0 obj` 对象流的字节（若有 Filter 则先解压）。
+///
+/// #218 修复——对象定位三重防护（此前「单匹配 + 无界 stream 搜索」两处踩坑）：
+/// 1. **对象头边界**：`N 0 obj` 前一字节不能是数字——否则 "9 0 obj" 会命中
+///    "79 0 obj" 的尾部拿错对象。实测事故（水利施工标段 PDF）：ToUnicode
+///    引用的对象 9/15/25/30/400 全部被替换成文档前部的同尾号对象（Link
+///    注释/页字典），FlateDecode 解压出错误数据 → CMap 解析为空 →
+///    Identity-H 码值直出 → 全文乱码、抽取 0 条；
+/// 2. **本对象定界**：stream 关键字必须在本对象的 endobj 之前——对象 N 若
+///    是非流对象（字典/注释），不能跨对象去拿别人的流；
+/// 3. **stream 词边界**：匹配处前一字符不能是字母——"endstream" 的尾部
+///    子串不是 stream 关键字（iter_streams 同款防护）。
+/// 同号多处匹配（增量更新）按序尝试，取第一个能解开流数据的。
 fn object_stream_bytes(bytes: &[u8], num: u64) -> Option<Vec<u8>> {
     let head = format!("{num} 0 obj");
-    let start = find_from(bytes, 0, head.as_bytes())?;
-    let st = find_from(bytes, start, b"stream")?;
-    let mut data_start = st + 6;
-    if data_start < bytes.len() && bytes[data_start] == b'\r' {
-        data_start += 1;
+    let mut k = 0usize;
+    while let Some(p) = find_from(bytes, k, head.as_bytes()) {
+        // 防护 1：对象头前一字节非数字（"9 0 obj" ≠ "79 0 obj" 的尾部）。
+        if p > 0 && bytes[p - 1].is_ascii_digit() {
+            k = p + head.len();
+            continue;
+        }
+        // 防护 2：本对象的 endobj（找不到时按文件尾处理——容忍损坏文件）。
+        let endobj = find_from(bytes, p, b"endobj").unwrap_or(bytes.len());
+        // 防护 2+3：本对象范围内找 stream 关键字（前一字符非字母——排除
+        // "endstream" 尾部子串）。
+        let st = {
+            let mut j = p + head.len();
+            let mut hit = None;
+            while let Some(q) = find_from(bytes, j, b"stream") {
+                if q >= endobj {
+                    break; // 本对象内无 stream → 非流对象
+                }
+                let prev = if q > 0 { bytes[q - 1] } else { b'\n' };
+                if !prev.is_ascii_alphabetic() {
+                    hit = Some(q);
+                    break;
+                }
+                j = q + 6;
+            }
+            hit
+        };
+        let Some(st) = st else {
+            // 该匹配不是流对象（Link 注释/页字典等）→ 试下一个同号匹配。
+            k = p + head.len();
+            continue;
+        };
+        // 数据段：stream 后 EOL 到 endstream 前 EOL。
+        let mut data_start = st + 6;
+        if data_start < bytes.len() && bytes[data_start] == b'\r' {
+            data_start += 1;
+        }
+        if data_start < bytes.len() && bytes[data_start] == b'\n' {
+            data_start += 1;
+        }
+        let Some(end) = find_from(bytes, data_start, b"endstream") else {
+            k = p + head.len();
+            continue;
+        };
+        let mut data_end = end;
+        while data_end > data_start
+            && (bytes[data_end - 1] == b'\n' || bytes[data_end - 1] == b'\r')
+        {
+            data_end -= 1;
+        }
+        let dict_lo = find_dict_start(bytes, st);
+        let filt = parse_filters(&bytes[dict_lo..st]);
+        if let Some(d) = decode_stream(&bytes[data_start..data_end], &filt) {
+            return Some(d);
+        }
+        // 解压失败（Filter 不认识/数据损坏）→ 试下一个同号匹配（增量更新
+        // 场景：旧版对象坏了，新版对象可能是好的）。
+        k = p + head.len();
     }
-    if data_start < bytes.len() && bytes[data_start] == b'\n' {
-        data_start += 1;
-    }
-    let end = find_from(bytes, data_start, b"endstream")?;
-    let mut data_end = end;
-    while data_end > data_start && (bytes[data_end - 1] == b'\n' || bytes[data_end - 1] == b'\r') {
-        data_end -= 1;
-    }
-    let dict_lo = find_dict_start(bytes, st);
-    let filt = parse_filters(&bytes[dict_lo..st]);
-    decode_stream(&bytes[data_start..data_end], &filt)
+    None
 }
 
 // ---------------------------------------------------------------- 字节层小工具
@@ -817,11 +1006,18 @@ fn codepoint_to_string(cp: u32) -> String {
 ///
 /// 两种模式共存：合成时如果当前行已经很长且新字符序列又出现大块\u7a7a白，
 /// 说明是连续 Tj 模式的新行，也要断开。
-fn extract_text_lines(content: &[u8], cmap: &CMap, fonts: &FontEncodings) -> Vec<String> {
+fn extract_text_lines(content: &[u8], fcmaps: &FontCMaps, fonts: &FontEncodings) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     let mut parts: Vec<(f64, f64, String)> = Vec::new();
     let mut cur_y: Option<f64> = None;
     let mut cur_x = 0.0f64;
+    // #218：Tm 矩阵缩放（文本空间→页面空间）。WPS 等生成器把大字号放进 Tf
+    // （如 319），再用 0.05 缩放的 Tm 落位——Td/TD 的推进量是文本空间单位，
+    // 必须乘缩放系数才是页面坐标（实测水利标段文件：不乘则行内 x 序错乱，
+    // 中西文段按错误 x 排序 → 一字一码交错混排）。默认 1.0 = 无缩放的常规
+    // 文档，行为与旧版一致。
+    let mut tm_scale_x = 1.0f64;
+    let mut tm_scale_y = 1.0f64;
     let mut seq = 0.0f64;
     let mut pending: Vec<Vec<u8>> = Vec::new();
     let mut nums: Vec<f64> = Vec::new();
@@ -892,7 +1088,8 @@ fn extract_text_lines(content: &[u8], cmap: &CMap, fonts: &FontEncodings) -> Vec
                             let joined: Vec<u8> = pending.concat();
                             let txt = decode_text_string(
                                 &joined,
-                                cmap,
+                                fcmaps,
+                                    cur_font.as_deref(),
                                 cur_font.as_deref().is_some_and(|f| fonts.is_uc2(f)),
                             );
                             if !txt.trim().is_empty() {
@@ -914,6 +1111,18 @@ fn extract_text_lines(content: &[u8], cmap: &CMap, fonts: &FontEncodings) -> Vec
                             let e = nums[nums.len() - 2];
                             let f = nums[nums.len() - 1];
                             // 绝对坐标 = Tm 平移 加上当前 CTM 平移
+        // #218：记录 Tm 的水平/垂直缩放分量（a/d 绝对值——d 常为负的
+        // y 翻转矩阵）。退化矩阵（0）保持原值，防除零式异常。
+        if nums.len() >= 6 {
+            let a = nums[nums.len() - 6].abs();
+            let d = nums[nums.len() - 3].abs();
+            if a > f64::EPSILON {
+                tm_scale_x = a;
+            }
+            if d > f64::EPSILON {
+                tm_scale_y = d;
+            }
+        }
                             on_tm2(&mut parts, &mut cur_y, &mut cur_x, ctm.0 + e, ctm.1 + f, &mut lines);
                         }
                         nums.clear();
@@ -923,8 +1132,8 @@ fn extract_text_lines(content: &[u8], cmap: &CMap, fonts: &FontEncodings) -> Vec
                         if nums.len() >= 2 {
                             let tx = nums[nums.len() - 2];
                             let ty = nums[nums.len() - 1];
-                            cur_x += tx;
-                            let new_y = cur_y.map(|y| y + ty);
+                            cur_x += tx * tm_scale_x;   // #218：文本空间→页面空间
+                            let new_y = cur_y.map(|y| y + ty * tm_scale_y); // #218：同上（垂直分量）
                             if let Some(ny) = new_y {
                                 if let Some(prev) = cur_y {
                                     if (ny - prev).abs() > 1.5 {
@@ -965,7 +1174,8 @@ fn extract_text_lines(content: &[u8], cmap: &CMap, fonts: &FontEncodings) -> Vec
         let joined: Vec<u8> = pending.concat();
         let txt = decode_text_string(
             &joined,
-            cmap,
+            fcmaps,
+                cur_font.as_deref(),
             cur_font.as_deref().is_some_and(|f| fonts.is_uc2(f)),
         );
         if !txt.trim().is_empty() {
@@ -1181,11 +1391,23 @@ fn decode_via_cmap(bytes: &[u8], cmap: &CMap) -> Option<String> {
     }
 }
 
-fn decode_text_string(bytes: &[u8], cmap: &CMap, uc2_identity: bool) -> String {
+fn decode_text_string(bytes: &[u8], fcmaps: &FontCMaps, font: Option<&str>, uc2_identity: bool) -> String {
     // Identity-H 类字体：字节是 2 字节的 CID，必须走 CMap 查 Unicode。
-    if !cmap.is_empty() && bytes.len() % 2 == 0 {
-        if let Some(mapped) = decode_via_cmap(bytes, cmap) {
-            return mapped;
+    // #218 两级查表：先当前字体的**专属表**（多字体 CID 重叠——全局
+    // 合并会错字，见 FontCMaps）；未全命中再降级**全局合并表**（小表
+    // 字体的跨字体借字——#218 之前全局合并路径的既有行为面，保留
+    // 以不劣化：实测 cqyd 文件 6 字体中 3 个表只有 4~13 条，专属表
+    // 不全命中的串靠并集表碰巧命中）；仍未命中回退常规编码判定。
+    if !bytes.is_empty() && bytes.len() % 2 == 0 {
+        if let Some(own) = font.and_then(|f| fcmaps.maps.get(f)) {
+            if let Some(mapped) = decode_via_cmap(bytes, own) {
+                return mapped;
+            }
+        }
+        if !fcmaps.merged.is_empty() {
+            if let Some(mapped) = decode_via_cmap(bytes, &fcmaps.merged) {
+                return mapped;
+            }
         }
     }
     if bytes.len() >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF {
@@ -1287,7 +1509,22 @@ pub fn parse_via_fallback(path: &std::path::Path, name: &str) -> Result<crate::P
     }
 
     let pages = t.pages.iter().filter(|p| p.iter().any(|l| !l.trim().is_empty())).count();
-    let summary = format!("{} [{}]", t.summary(), name);
+    // #218 乱码可见性：兜底产物自报 CJK 占比；声明中文字体而占比异常低
+    //（<2%，与 probe_cjk_garble 的 Garbled 同阈）→ summary 显式标注
+    // 「疑似乱码」——Agent 在导入回执即知文本层可能不可用，不用等
+    // 抽取 0 条再回头排查（半乱码形态 probe 阈值会漏，summary 兜底可见；
+    // probe 的拒收面在 lib.rs fail-loud——两条互补）。
+    let all_text: String = blocks.iter().map(|b| b.text.as_str()).collect();
+    let ratio = cjk_ratio(&all_text);
+    let mut summary = format!("{} [{}]", t.summary(), name);
+    if bytes_declare_cjk_font(&bytes) && ratio < 0.02 {
+        summary.push_str(&format!(
+            "；【疑似乱码】声明中文字体而文本 CJK 占比仅 {:.1}%——文本层可能不可用（条款抽取可能为 0），建议提供可解析版本（DOCX）或安装 pdfium/poppler 后重新导入",
+            ratio * 100.0
+        ));
+    } else {
+        summary.push_str(&format!("；CJK 占比 {:.1}%", ratio * 100.0));
+    }
     Ok(crate::ParsedFile {
         name: name.to_string(),
         sha256: String::new(), // 由 parse_file 统一回填
@@ -1498,6 +1735,12 @@ pub fn cjk_garble_reason_hint(bytes: &[u8]) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    /// #218 测试辅助：merged=EMPTY 的 FontCMaps（保持旧测试语义）。
+    fn decode_text_string_fc(bytes: &[u8], _cm: &CMap, uc2: bool) -> String {
+        let fc = FontCMaps::default();
+        decode_text_string(bytes, &fc, None, uc2)
+    }
+
     use super::*;
 
     /// 空 CMap —— 不做任何字体映射时的基准。
@@ -1615,14 +1858,14 @@ mod tests {
     fn utf16be_strings_are_decoded() {
         // 带 BOM
         let with_bom = [0xFE, 0xFF, 0x4E, 0x2D, 0x65, 0x87];
-        assert_eq!(decode_text_string(&with_bom, &EMPTY, false), "中文");
+        assert_eq!(decode_text_string_fc(&with_bom, &EMPTY, false), "中文");
 
         // 无 BOM 但高字节全 0（UTF-16BE 的 ASCII 区域）
         let no_bom = [0x00, 0x41, 0x00, 0x42];
-        assert_eq!(decode_text_string(&no_bom, &EMPTY, false), "AB");
+        assert_eq!(decode_text_string_fc(&no_bom, &EMPTY, false), "AB");
 
         // 单字节编码：直取
-        assert_eq!(decode_text_string(b"Hello", &EMPTY, false), "Hello");
+        assert_eq!(decode_text_string_fc(b"Hello", &EMPTY, false), "Hello");
     }
 
     #[test]
@@ -1653,7 +1896,7 @@ mod tests {
         let content = b"BT /F1 12 Tf 72 700 Td (line1) Tj ET \
                        BT /F1 12 Tf 72 680 Td [(seg-) 20 (two)] TJ ET \
                        BT /F1 12 Tf 72 660 Td (third) Tj T* ET";
-        let lines = extract_text_lines(content, &EMPTY, &FontEncodings::default());
+        let lines = extract_text_lines(content, &FontCMaps::default(), &FontEncodings::default());
         // 连续 Tj 且中间没有 Tm 定位 → 它们就是同一行的延续（这是正确行为）。
         // 要断行必须靠 Tm 的 y 变化，见 per_char_tm_positioning_joins_into_one_line。
         assert_eq!(lines, vec!["line1seg-twothird"], "TJ 数组与同行的连续 Tj 应拼接");
@@ -1759,9 +2002,226 @@ mod tests {
                        BT /F1 12 Tf 1 0 0 -1 90 50 Tm (A) Tj ET \
                        BT /F1 12 Tf 1 0 0 -1 110 50 Tm (C) Tj ET \
                        BT /F1 12 Tf 1 0 0 -1 80 70 Tm (N) Tj ET";
-        let lines = extract_text_lines(content, &EMPTY, &FontEncodings::default());
+        let lines = extract_text_lines(content, &FontCMaps::default(), &FontEncodings::default());
         assert_eq!(lines, vec!["ABC", "N"], "同 y 应按 x 拼行；不同 y 应断行；实际 {lines:?}");
     }
+    // ---------------------------------------------------------------- #218：ToUnicode / 字体路由 / Tm 缩放
+
+    /// #218 事故形态（水利施工标段实测）：对象头尾号撞车——字体字典声明
+    /// `/ToUnicode 9 0 R`，而文件前部存在 `79 0 obj`（其字节含 "9 0 obj"
+    /// 尾部子串）。旧实现的 find 无数字边界 → 命中 79 的尾部 → 拿错对象
+    /// → CMap 空 → Identity-H 码值直出乱码。新实现三重防护必须拿对 9 号。
+    #[test]
+    fn tounicode_object_head_digit_boundary() {
+        // CMap：CID 0x0001→'中'、0x0002→'文'（未压缩流——零 Filter 依赖）。
+        let cmap_stream = b"begincmap\n2 beginbfchar\n<0001> <4E2D>\n<0002> <6587>\nendbfchar\nendcmap";
+        let content = b"BT /F1 12 Tf 1 0 0 -1 100 50 Tm <00010002> Tj ET";
+        let mut v = Vec::new();
+        v.extend_from_slice(b"%PDF-1.4\n");
+        // 干扰对象 79（在 9 之前）：无 ToUnicode 语义的垃圾流——
+        // 旧实现会把它当 9 号的流（"79 0 obj" 尾部子串命中 "9 0 obj"）。
+        v.extend_from_slice(b"79 0 obj\n<< /Length 8 >>\nstream\nJUNKJUNK\nendstream\nendobj\n");
+        // 字体 4：Type0 + Identity-H + ToUnicode 9。
+        v.extend_from_slice(
+            b"4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /SimSun /Encoding /Identity-H \
+              /DescendantFonts [6 0 R] /ToUnicode 9 0 R >>\nendobj\n",
+        );
+        v.extend_from_slice(
+            b"6 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /SimSun \
+              /CIDSystemInfo << /Registry (Adobe) /Ordering (GB1) /Supplement 4 >> >>\nendobj\n",
+        );
+        // 真 CMap 对象 9（在 79 之后——旧实现的首次搜索必然先撞上 79）。
+        v.extend_from_slice(format!("9 0 obj\n<< /Length {} >>\nstream\n", cmap_stream.len()).as_bytes());
+        v.extend_from_slice(cmap_stream);
+        v.extend_from_slice(b"\nendstream\nendobj\n");
+        v.extend_from_slice(
+            b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] \
+              /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n",
+        );
+        v.extend_from_slice(format!("5 0 obj\n<< /Length {} >>\nstream\n", content.len()).as_bytes());
+        v.extend_from_slice(content);
+        v.extend_from_slice(b"\nendstream\nendobj\n%%EOF\n");
+
+        let t = extract(&v).expect("应能提取");
+        let all: String = t.lines().join("");
+        assert!(all.contains("中文"), "CMap 必须从 9 号对象读到（对象头数字边界）——实际：{all:?}");
+    }
+
+    /// #218：非流对象不跨对象取流——`/ToUnicode N 0 R` 指向的对象 N 若是
+    /// 字典/注释（无自己的 stream），旧实现会拿 N 之后**别人的**流当 N 的。
+    #[test]
+    fn tounicode_non_stream_object_not_borrowing_foreign_stream() {
+        let cmap_stream = b"begincmap\n1 beginbfchar\n<0001> <4E2D>\nendbfchar\nendcmap";
+        let content = b"BT /F1 12 Tf 1 0 0 -1 100 50 Tm <0001> Tj ET";
+        let mut v = Vec::new();
+        v.extend_from_slice(b"%PDF-1.4\n");
+        // 对象 9：**非流**字典对象（只有 endobj，无 stream）——但后面 12 号有流。
+        v.extend_from_slice(b"9 0 obj\n<< /Type /XObj /Subtype /PSXObject >>\nendobj\n");
+        v.extend_from_slice(b"12 0 obj\n<< /Length 4 >>\nstream\nJUNK\nendstream\nendobj\n");
+        v.extend_from_slice(
+            b"4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /SimSun /Encoding /Identity-H \
+              /DescendantFonts [6 0 R] /ToUnicode 9 0 R >>\nendobj\n",
+        );
+        v.extend_from_slice(
+            b"6 0 obj\n<< /Type /Font /Subtype /CIDFontType2 >>\nendobj\n",
+        );
+        v.extend_from_slice(
+            b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] \
+              /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n",
+        );
+        v.extend_from_slice(format!("5 0 obj\n<< /Length {} >>\nstream\n", content.len()).as_bytes());
+        v.extend_from_slice(content);
+        v.extend_from_slice(b"\nendstream\nendobj\n%%EOF\n");
+
+        // 9 号是字典对象：绝不能把 12 号的 JUNK 流当它的 CMap。
+        // 期望行为：读不到 CMap → 不解出「中」（宁可缺字不错字）。
+        let t = extract(&v).expect("应能提取");
+        let all: String = t.lines().join("");
+        assert!(!all.contains("中"), "非流对象不得借别人的流当 CMap——实际：{all:?}");
+    }
+
+    /// #218：按字体路由 CMap——多字体 CID 空间重叠时，全局合并 or_insert
+    /// 先到先得会错字（实测：Calibri 的 CID 0x0011→'B' 先占，SimSun 的
+    /// '.'（同 CID）全变 'B'，'4.2'→'4B2'）。各字体必须查各自的表。
+    #[test]
+    fn per_font_cmap_routing_no_cross_font_override() {
+        // 字体 FT1（SimSun 形态）：CID 0x0011→'.'；字体 FT2（Calibri 形态）：
+        // CID 0x0011→'B'。/ToUnicode 出现序 FT2 在前（模拟事故的先占序）。
+        let cm1 = b"begincmap\n1 beginbfchar\n<0011> <002E>\nendbfchar\nendcmap";
+        let cm2 = b"begincmap\n1 beginbfchar\n<0011> <0042>\nendbfchar\nendcmap";
+        // 内容流：FT1 在左（x=100）出 '.'，FT2 在右（x=200）出 'B'。
+        let content = b"BT /FT1 12 Tf 1 0 0 -1 100 50 Tm <0011> Tj ET \
+                        BT /FT2 12 Tf 1 0 0 -1 200 50 Tm <0011> Tj ET";
+        let mut v = Vec::new();
+        v.extend_from_slice(b"%PDF-1.4\n");
+        // FT2 的字体字典 + CMap 先出现（对象 21/22）——先占序。
+        v.extend_from_slice(
+            b"21 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /Calibri /Encoding /Identity-H \
+              /DescendantFonts [26 0 R] /ToUnicode 22 0 R >>\nendobj\n",
+        );
+        v.extend_from_slice(format!("22 0 obj\n<< /Length {} >>\nstream\n", cm2.len()).as_bytes());
+        v.extend_from_slice(cm2);
+        v.extend_from_slice(b"\nendstream\nendobj\n");
+        // FT1 的字体字典 + CMap（对象 11/12）。
+        v.extend_from_slice(
+            b"11 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /SimSun /Encoding /Identity-H \
+              /DescendantFonts [16 0 R] /ToUnicode 12 0 R >>\nendobj\n",
+        );
+        v.extend_from_slice(format!("12 0 obj\n<< /Length {} >>\nstream\n", cm1.len()).as_bytes());
+        v.extend_from_slice(cm1);
+        v.extend_from_slice(b"\nendstream\nendobj\n");
+        v.extend_from_slice(b"16 0 obj\n<< /Type /Font /Subtype /CIDFontType2 >>\nendobj\n");
+        v.extend_from_slice(b"26 0 obj\n<< /Type /Font /Subtype /CIDFontType2 >>\nendobj\n");
+        v.extend_from_slice(
+            b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] \
+              /Resources << /Font << /FT1 11 0 R /FT2 21 0 R >> >> /Contents 5 0 R >>\nendobj\n",
+        );
+        v.extend_from_slice(format!("5 0 obj\n<< /Length {} >>\nstream\n", content.len()).as_bytes());
+        v.extend_from_slice(content);
+        v.extend_from_slice(b"\nendstream\nendobj\n%%EOF\n");
+
+        let t = extract(&v).expect("应能提取");
+        let all: String = t.lines().join("");
+        assert!(
+            all.contains('.') && all.contains('B'),
+            "按字体路由：FT1 出 '.'、FT2 出 'B'（同 CID 0x0011 不得互相覆盖）——实际：{all:?}"
+        );
+    }
+
+    /// #218：Tm 缩放系数——WPS 形态把大字号放进 Tf（如 319）、用 0.05 的
+    /// Tm 落位，Td/TD 推进量是文本空间单位。不乘缩放系数则行内 x 序错乱
+    /// （实测：'标段编号：E6532…' 被排成 '标E6段53编20号03…' 交错混排）。
+    #[test]
+    fn tm_scaled_td_advances_keep_line_order() {
+        // FT1（中文）：Tm 起点 x=110，逐字 TD 319.188（×0.05 = 15.96pt 全角步进）。
+        // FT2（西文）：Tm 起点 x=190，逐字 TD 160.797（×0.05 = 8.04pt 半角步进）。
+        // 旧实现不乘系数：FT1 第二字 x=110+319.19=429 > FT2 两字（190/350.8）
+        //   → 行序「甲 丙 丁 乙」（错——视觉序应为 甲 乙 丙 丁）。
+        // 新实现乘系数：110, 125.96 | 190, 198.04 → 「甲 乙 丙 丁」✓。
+        let content = b"BT /F1 319 Tf 0.05 0 0 -0.05 110 100 Tm <0001> Tj 319.188 -0 TD <0002> Tj ET \
+                        BT /F2 319 Tf 0.05 0 0 -0.05 190 100 Tm <0001> Tj 160.797 -0 TD <0002> Tj ET";
+        let cm1 = b"begincmap\n2 beginbfchar\n<0001> <7532>\n<0002> <4E59>\nendbfchar\nendcmap"; // 甲乙
+        let cm2 = b"begincmap\n2 beginbfchar\n<0001> <4E19>\n<0002> <4E01>\nendbfchar\nendcmap"; // 丙丁
+        let mut v = Vec::new();
+        v.extend_from_slice(b"%PDF-1.4\n");
+        v.extend_from_slice(
+            b"11 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /SimSun /Encoding /Identity-H \
+              /DescendantFonts [16 0 R] /ToUnicode 12 0 R >>\nendobj\n",
+        );
+        v.extend_from_slice(format!("12 0 obj\n<< /Length {} >>\nstream\n", cm1.len()).as_bytes());
+        v.extend_from_slice(cm1);
+        v.extend_from_slice(b"\nendstream\nendobj\n");
+        v.extend_from_slice(b"16 0 obj\n<< /Type /Font /Subtype /CIDFontType2 >>\nendobj\n");
+        v.extend_from_slice(
+            b"21 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /Calibri /Encoding /Identity-H \
+              /DescendantFonts [26 0 R] /ToUnicode 22 0 R >>\nendobj\n",
+        );
+        v.extend_from_slice(format!("22 0 obj\n<< /Length {} >>\nstream\n", cm2.len()).as_bytes());
+        v.extend_from_slice(cm2);
+        v.extend_from_slice(b"\nendstream\nendobj\n");
+        v.extend_from_slice(b"26 0 obj\n<< /Type /Font /Subtype /CIDFontType2 >>\nendobj\n");
+        v.extend_from_slice(
+            b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] \
+              /Resources << /Font << /F1 11 0 R /F2 21 0 R >> >> /Contents 5 0 R >>\nendobj\n",
+        );
+        v.extend_from_slice(format!("5 0 obj\n<< /Length {} >>\nstream\n", content.len()).as_bytes());
+        v.extend_from_slice(content);
+        v.extend_from_slice(b"\nendstream\nendobj\n%%EOF\n");
+
+        let t = extract(&v).expect("应能提取");
+        let lines = t.lines();
+        assert!(
+            lines.iter().any(|l| l.contains("甲乙丙丁")),
+            "Tm 缩放系数必须作用于 TD 推进（视觉序 甲乙丙丁）——实际：{lines:?}"
+        );
+    }
+
+    /// #218 真件回归：仓内水利施工标段 PDF（事故文件）——ToUnicode CMap
+    /// 三重修复后首页关键行必须精确还原（旧实现：全文乱码、条款 0 条）。
+    #[test]
+    fn real_water_tender_tounicode_decodes_header_lines() {
+        let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../real-corpus/water/files/A-某水利施工标段招标文件.pdf");
+        assert!(p.exists(), "缺少真件夹具 {}（不能静默通过）", p.display());
+        let pf = parse_via_fallback(&p, "A-某水利施工标段招标文件.pdf")
+            .expect("水利真件兜底应成功（ToUnicode 修复后）");
+        let all = parsed_text_of(&pf);
+        assert!(
+            all.contains("标段编号：E6532003923001526001003"),
+            "封面关键行必须精确还原——前 200 字符：{}",
+            all.chars().take(200).collect::<String>()
+        );
+        assert!(all.contains("标段名称"), "标段名称行应可读");
+        assert!(
+            !all.contains("4B2") || !all.contains("BBBB"),
+            "目录点线/条款号不得再被跨字体覆盖成 B 串"
+        );
+    }
+
+    /// #218 乱码可见性：声明中文字体而兜底文本 CJK 占比 <2% → parse_summary
+    /// 必须显式标注「疑似乱码」（Agent 在导入回执即知文本层不可用）。
+    #[test]
+    fn fallback_summary_flags_suspected_garble() {
+        // 声明 SimSun（CJK 字体 marker 命中）+ 无 ToUnicode + CID 直出
+        // （0x0001/0x0002 按 UTF-16BE 落非 CJK 区）→ 占比 0 → 必须标注。
+        let content = b"BT /F1 12 Tf 1 0 0 -1 100 50 Tm <0001000200030004> Tj ET";
+        let v = font_pdf(
+            "F1",
+            "<< /Type /Font /Subtype /Type0 /BaseFont /SimSun /Encoding /Identity-H \
+               /DescendantFonts [6 0 R] >>",
+            content,
+        );
+        let dir = std::env::temp_dir().join("bid_parse_218_garble_probe.pdf");
+        std::fs::write(&dir, &v).expect("写临时 PDF");
+        let pf = parse_via_fallback(&dir, "garble-probe.pdf").expect("应能提取（乱码不拒收）");
+        assert!(
+            pf.parse_summary.contains("疑似乱码"),
+            "summary 必须标注疑似乱码——实际：{}",
+            pf.parse_summary
+        );
+        let _ = std::fs::remove_file(&dir);
+    }
+
     // ---------------------------------------------------------------- #200：UniXX-UCS2 恒等解码
 
     /// Type0 CID 字体字典（UniGB-UCS2-H 预定义 CMap，无 ToUnicode——#200 形态）。
@@ -1890,10 +2350,10 @@ mod tests {
     #[test]
     fn decode_text_string_identity_gated_by_font_context() {
         // 本 = U+672C：uc2 字体串 → 恒等还原；非 uc2 字体串 → 旧行为（Latin-1）
-        assert_eq!(decode_text_string(b"\x67\x2c", &EMPTY, true), "本");
-        assert_eq!(decode_text_string(b"\x67\x2c", &EMPTY, false), "g,");
+        assert_eq!(decode_text_string_fc(b"\x67\x2c", &EMPTY, true), "本");
+        assert_eq!(decode_text_string_fc(b"\x67\x2c", &EMPTY, false), "g,");
         // 奇数长度不进恒等路（fail-safe）
-        assert_eq!(decode_text_string(b"\x67\x2c\x01", &EMPTY, true), "g,\u{1}");
+        assert_eq!(decode_text_string_fc(b"\x67\x2c\x01", &EMPTY, true), "g,\u{1}");
     }
 
 }

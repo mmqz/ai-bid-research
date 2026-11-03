@@ -466,6 +466,14 @@ fn import_tender_files(svc: &mut BidService, args: Value) -> ToolResult {
                 "parse_status": parse_status_str(o.parse_status),
                 "deduplicated": o.deduplicated,
             });
+            // #218 乱码可见性：解析产物自报透出回执（兜底路的 parse_summary
+            // 含 CJK 占比与「疑似乱码」标注——文本层质量差的文件 Agent 一眼
+            // 可见，不用等条款抽取 0 条再回头排查根因）。
+            if let Some(tf) = svc.store().files().iter().find(|f| f.id == *fid) {
+                if !tf.parse_summary.is_empty() {
+                    entry["parse_summary"] = json!(tf.parse_summary);
+                }
+            }
             if !o.errors.is_empty() {
                 entry["errors"] = json!(o.errors);
             }

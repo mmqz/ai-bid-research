@@ -229,10 +229,16 @@ fn synth_tender_eval() {
             !failed.contains(&"C-补遗文件.pdf"),
             "② 含补遗在内的文本层 PDF 必须靠纯 Rust 兜底解决，不可失败（目前失败件: {failed:?}）"
         );
-        assert!(
-            err1.is_none(),
-            "② 文本层件（A/B/C）都应成功，不应报 E_PARTIAL；实际 {err1:?} / {totals:?}"
-        );
+        // 无 OCR 环境下 E-扫描件（无文本层）显式失败是预期（fail-loud——
+        // BT/ET 窗口后兜底不再用垃圾伪行伪装成功）；文本层件 A/B/C 仍必须
+        // 全成功。失败面只允许是 E 件：err1 为 None（OCR 可用，E 件走通），
+        // 或失败件仅 E-扫描件（无 OCR，显式拒绝——比产出垃圾 chunks 诚实）。
+        if err1.is_some() {
+            assert!(
+                failed.iter().all(|f| f.contains("E-原招标公告盖章页-扫描件")),
+                "② 无 OCR 环境下唯一允许失败的件是 E-扫描件（fail-loud），实际失败件: {failed:?} / {totals:?}"
+            );
+        }
     }
     let (import_d, err2) = import_batch(&mut svc, &pid, &files[4..]); // D 单独
     assert_eq!(err2.as_deref(), Some("E_PARTIAL"), "② D 件应 E_PARTIAL（fail-closed 拒绝非办公扩展名）");

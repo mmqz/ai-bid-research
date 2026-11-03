@@ -581,5 +581,8 @@ fn forms_do_not_disturb_table_pipeline() {
         amount_wan: None,
         completed_on: None,
         fields: Default::default(),
+        excerpt: None,
+        excerpt_locator: None,
+        verification_tier: None,
     };
 }

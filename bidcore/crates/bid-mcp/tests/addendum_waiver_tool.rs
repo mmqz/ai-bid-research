@@ -121,6 +121,9 @@ fn svc_with_partial_bad_addendum(tag: &str) -> (BidService, String, String, Stri
         amount_wan: None,
         completed_on: None,
         fields: Default::default(),
+        excerpt: None,
+        excerpt_locator: None,
+        verification_tier: None,
     }).unwrap();
     svc.store_mut().bind_evidence(&eid, "REQ-0001", "2026-12-31").unwrap();
     let _ = svc.store_mut().build_matrix().unwrap();

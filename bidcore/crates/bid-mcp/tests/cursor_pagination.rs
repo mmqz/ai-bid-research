@@ -143,6 +143,9 @@ fn evidence_store(n: usize) -> (BidService, String) {
                 amount_wan: None,
                 completed_on: None,
                 fields: Default::default(), // #147
+                excerpt: None,
+                excerpt_locator: None,
+                verification_tier: None,
             })
             .unwrap();
         }
@@ -170,6 +173,9 @@ fn evidence_store(n: usize) -> (BidService, String) {
                 amount_wan: None,
                 completed_on: None,
                 fields: Default::default(), // #147
+                excerpt: None,
+                excerpt_locator: None,
+                verification_tier: None,
             })
             .unwrap();
     }

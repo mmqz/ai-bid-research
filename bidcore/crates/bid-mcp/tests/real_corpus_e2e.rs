@@ -413,6 +413,9 @@ fn real_corpus_full_chain() {
                 amount_wan: None,
                 completed_on: None,
                 fields: Default::default(), // #147
+                excerpt: None,
+                excerpt_locator: None,
+                verification_tier: None,
             })
             .unwrap();
         let qual_ids: Vec<String> = svc
@@ -453,6 +456,9 @@ fn real_corpus_full_chain() {
                     amount_wan: Some([920.0, 1150.0, 2380.0][i]),
                     completed_on: Some(["2022-11-30", "2023-08-15", "2024-06-20"][i].into()),
                     fields: Default::default(), // #147
+                    excerpt: None,
+                    excerpt_locator: None,
+                    verification_tier: None,
                 })
                 .unwrap();
         }

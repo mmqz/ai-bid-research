@@ -68,12 +68,21 @@ pub struct ReqBrief {
 }
 
 /// EV 摘要。
+///
+/// #217（#185 缺口 2）：新增 `excerpt` / `excerpt_locator`——生成器
+/// 拿到的不只是「证据标题」还有**正文实料**（金额/时间/范围来自逐字截取的
+/// 定位文本，非标题转写）。空串 = 文件级锚未定位正文——生成器只能引
+/// 台账面，不得编造细节。
 #[derive(Debug, Clone, PartialEq)]
 pub struct EvBrief {
     pub id: String,
     pub kind: String,
     pub title: String,
     pub scope: String,
+    /// 正文摘录（#217——来自解析产物逐字截取；空串 = 未定位）。
+    pub excerpt: String,
+    /// 摘录定位（人话：`《文件》第 N 页` / `《文件》正文段 N`；空串 = 未定位）。
+    pub excerpt_locator: String,
 }
 
 /// 生成产物（正文 + 生成器声称的引用清单）。
@@ -167,6 +176,8 @@ pub fn build_section_input(
             kind: ev.kind.as_str().to_string(),
             title: ev.title.clone(),
             scope: ev.scope.clone(),
+            excerpt: ev.excerpt.clone().unwrap_or_default(),
+            excerpt_locator: ev.excerpt_locator.clone().unwrap_or_default(),
         });
     }
 
@@ -275,6 +286,10 @@ const REQ_RESPONSE_TEMPLATE: &str = "针对 [REQ_ID]（CATEGORY 类条款）「E
 /// EV 佐证模板。
 const EV_SUPPORT_TEMPLATE: &str = "依据 [EV_ID]（KIND：TITLE，适用范围：SCOPE），本章节相关承诺具备可核验的证据支撑，评标委员会可按证据台账索引回查原件。";
 
+/// EV 正文摘录段（#217）：CONTENT_MATCHES 态追加——生成器引用实料
+/// （金额/日期/范围）只准来自这段逐字截取的原文，不得越出摘录编造。
+const EV_EXCERPT_TEMPLATE: &str = "其原始凭据 EXCERPT_LOCATOR 原文摘录如下：「EXCERPT」（摘录与解析产物逐字对账一致，引用实料以此为准，不得超出摘录范围编造）。";
+
 /// mock 生成（纯函数——同输入字节级同输出）。
 ///
 /// #127 P0-2：正文不再嵌「起草指令：…」——指令是给起草人的备注，落
@@ -303,7 +318,7 @@ pub fn generate_mock(input: &SectionDraftInput) -> String {
         paras.push(s);
     }
 
-    // ③ 逐 EV 佐证段
+    // ③ 逐 EV 佐证段（#217：正文摘录随行——文件级锚无摘录则只引台账面）
     for e in &input.evidences {
         paras.push(
             EV_SUPPORT_TEMPLATE
@@ -312,6 +327,18 @@ pub fn generate_mock(input: &SectionDraftInput) -> String {
                 .replace("TITLE", &truncate_chars(&e.title, 50))
                 .replace("SCOPE", if e.scope.trim().is_empty() { "见证据原件" } else { &e.scope }),
         );
+        if !e.excerpt.trim().is_empty() {
+            let loc = if e.excerpt_locator.trim().is_empty() {
+                "（定位未记录）"
+            } else {
+                &e.excerpt_locator
+            };
+            paras.push(
+                EV_EXCERPT_TEMPLATE
+                    .replace("EXCERPT_LOCATOR", loc)
+                    .replace("EXCERPT", &truncate_chars(&e.excerpt, 120)),
+            );
+        }
     }
 
     // ④ 符合性收束
@@ -364,19 +391,53 @@ fn truncate_chars(s: &str, max: usize) -> String {
 // ---------------------------------------------------------------- 引用回查
 
 /// REQ/EV id 的引用模式（[REQ-0001] / REQ-0001 两种形态都认——方括号是
-/// 生成器的规范形态，裸 id 是真实 AI 常见形态）。
+/// 生成器的规范形态，裸 id 是真实 AI 常见形态）。独立 token 判定见
+/// [`is_standalone_id`]（regex crate 无环视，边界检查在代码层做）。
 fn citation_pattern() -> regex::Regex {
-    regex::Regex::new(r"(?:\[)?((?:REQ|EV)-\d{1,6})(?:\])?").unwrap()
+    regex::Regex::new(r"(?:REQ|EV)-\d{1,6}").unwrap()
 }
 
-/// 扫描正文里的全部引用 id（保序去重）。
+/// id 是否为**独立 token**（#217 判别力修正）。
+///
+/// 背景：摘录定位把来源文件名带进正文后，盲正则曾把文件名前缀当未知
+/// 引用剥掉（`《EV-03-xx.pdf》` → 《-xx.pdf》）。判别规则：
+/// - 前后紧邻 ASCII 字母/数字/`_`/`-` → 非独立（`EV-03-xx.pdf` 里的
+///   `EV-03`、`REQ-0001x`）；
+/// - 后邻 `.` + ASCII 字母/数字（文件扩展名形态 `EV-0002.pdf`）→ 非独立；
+/// - CJK 紧邻仍算引用（中文无空格分词——「依据EV-0002作答」是真引用：
+///   UTF-8 多字节序列的字节恒 >= 0x80，不会误判为 ASCII 词字符）。
+fn is_standalone_id(content: &str, m: &regex::Match) -> bool {
+    let bytes = content.as_bytes();
+    let ascii_word = |b: u8| b.is_ascii_alphanumeric() || b == b'_' || b == b'-';
+    if m.start() > 0 && ascii_word(bytes[m.start() - 1]) {
+        return false;
+    }
+    if m.end() < bytes.len() {
+        let b = bytes[m.end()];
+        if ascii_word(b) {
+            return false;
+        }
+        if b == b'.'
+            && m.end() + 1 < bytes.len()
+            && bytes[m.end() + 1].is_ascii_alphanumeric()
+        {
+            return false; // 扩展名形态：EV-0002.pdf
+        }
+    }
+    true
+}
+
+/// 扫描正文里的全部引用 id（保序去重；仅独立 token）。
 pub fn scan_citations(content: &str) -> Vec<String> {
+    let re = citation_pattern();
     let mut seen = HashSet::new();
     let mut out = Vec::new();
-    for cap in citation_pattern().captures_iter(content) {
-        let id = cap[1].to_string();
-        if seen.insert(id.clone()) {
-            out.push(id);
+    for m in re.find_iter(content) {
+        if !is_standalone_id(content, &m) {
+            continue;
+        }
+        if seen.insert(m.as_str().to_string()) {
+            out.push(m.as_str().to_string());
         }
     }
     out
@@ -400,11 +461,26 @@ pub fn verify_citations(content: &str, known: &HashSet<String>) -> (Vec<String>,
 
 /// 剔除未知引用（防幻觉面——把编造的引用从正文里移除，留下痕迹给 warning）。
 ///
-/// 方括号形态与裸形态一并清理（连续分隔符「、」「，」收敛为单「、」）。
+/// 方括号形态与裸形态一并清理（连续分隔符「、」「，」收敛为单「、」）；
+/// #217：裸形态按独立 token 剔除（盲 replace 会误伤更长 token 的子串——
+/// 剥 `EV-03` 不能把 `[EV-034]` 拗成 `[4]`，也不能碰 `EV-03-xx.pdf`）。
 pub fn strip_unknown_citations(content: &str, unknown: &[String]) -> String {
     let mut out = content.to_string();
     for id in unknown {
-        out = out.replace(&format!("[{id}]"), "").replace(id.as_str(), "");
+        out = out.replace(&format!("[{id}]"), "");
+        // 裸形态：仅剔独立 token（id 形如 REQ-/EV-+数字，escape 双保险）
+        if let Ok(bare) = regex::Regex::new(&regex::escape(id)) {
+            let mut filtered = String::new();
+            let mut last = 0usize;
+            for m in bare.find_iter(&out) {
+                if is_standalone_id(&out, &m) {
+                    filtered.push_str(&out[last..m.start()]);
+                    last = m.end();
+                }
+            }
+            filtered.push_str(&out[last..]);
+            out = filtered;
+        }
         out = out.replace("、、", "、").replace("，，", "，");
     }
     out

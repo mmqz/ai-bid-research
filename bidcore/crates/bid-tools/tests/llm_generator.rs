@@ -64,6 +64,8 @@ fn input() -> SectionDraftInput {
             kind: "资质证书".into(),
             title: "施工总承包贰级资质证书".into(),
             scope: "本标段全部施工内容".into(),
+            excerpt: "证书编号：D235002247；资质等级：施工总承包贰级；有效期至 2028-03-15".into(),
+            excerpt_locator: "《EV-01-施工总承包资质证书.pdf》第 1 页".into(),
         }],
         instructions: Some("突出同类水库工程的施工业绩".into()),
     }
@@ -238,8 +240,42 @@ fn request_body_carries_all_material_fields() {
     assert!(user.contains("投标人须具备水利水电工程施工总承包贰级及以上资质"), "REQ 摘录");
     assert!(user.contains("[EV-0001]"), "EV 编号");
     assert!(user.contains("施工总承包贰级资质证书"), "EV 标题");
+    // #217（#185 缺口 2）：正文摘录进素材面——生成器引用实料只准来自摘录
+    assert!(
+        user.contains("证书编号：D235002247"),
+        "EV 正文摘录入 prompt（金额/证书号等实料）"
+    );
+    assert!(
+        user.contains("《EV-01-施工总承包资质证书.pdf》第 1 页"),
+        "EV 摘录定位入 prompt（可回查原文）"
+    );
+    assert!(
+        user.contains("不得超出摘录编造"),
+        "摘录纪律指令在场（防编造）"
+    );
     // 凭据纪律：请求体绝不含 api_key（只进 HTTP 头）
     assert!(!req.to_string().contains("sk-test-never-real"));
+}
+
+#[test]
+fn request_body_marks_unlocated_evidence_no_fabrication() {
+    // #217：文件级锚（无摘录）→ 素材面显式告知「不得编造细节」——
+    // 不给生成器留「猜金额/日期」的口子。
+    let mut inp = input();
+    inp.evidences[0].excerpt = String::new();
+    inp.evidences[0].excerpt_locator = String::new();
+    let (ft, log) = FakeTransport::scripted(vec![Ok(envelope("# t", 1, 1))]);
+    let (r, reqs) = generate_logged(ft, log, None, &inp);
+    r.unwrap();
+    let user = reqs[0]["messages"][1]["content"].as_str().unwrap();
+    assert!(
+        user.contains("正文未定位摘录"),
+        "文件级锚标注未定位: {user}"
+    );
+    assert!(
+        user.contains("不得编造该证据"),
+        "禁编造指令在场: {user}"
+    );
 }
 
 #[test]

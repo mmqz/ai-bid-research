@@ -72,6 +72,9 @@ fn register_bound(s: &mut DomainStore, i: usize, source_file: &str,
         amount_wan: None,
         completed_on: None,
         fields: Default::default(),
+        excerpt: None,
+        excerpt_locator: None,
+        verification_tier: None,
     }).unwrap();
     s.bind_evidence(&id, "REQ-0003", "2026-03-11").unwrap();
     id

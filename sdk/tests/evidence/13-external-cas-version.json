@@ -1,12 +1,12 @@
 {
  "case": "13-external-cas-version",
  "transport": "mcp",
- "server_bin": "/tmp/shared-target/debug/bid-mcp-server",
- "server_sha256": "35dfc803e35e752d4b2e246a58714124c5d4a7ee60ed3a0fcebda13af0f0b54a",
+ "server_bin": "/home/z/my-project/bid-research-rw/bidcore/target/debug/bid-mcp-server",
+ "server_sha256": "3d2bf987583c614756200de1991b82cd93c95510b2fd2dcdbfbbaf69b10384c2",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-02T15:12:57+00:00",
+ "started_at": "2026-11-03T01:53:41+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 5.897408999771869
+   "elapsed_ms": 5.462393000016164
   },
   {
    "stage": "P1 import_tender_files",
@@ -83,6 +83,12 @@
      "TF-0004",
      "TF-0005"
     ],
+    "input_integrity": {
+     "complete": true,
+     "restricted": false,
+     "unready": [],
+     "waived_unready": []
+    },
     "per_file": [
      {
       "chunks": 182,
@@ -158,7 +164,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 269.74524700017355
+   "elapsed_ms": 223.56620200025645
   },
   {
    "stage": "P2 extract_requirements",
@@ -197,7 +203,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 64.3346710003243
+   "elapsed_ms": 61.093059000086214
   },
   {
    "stage": "P3 build_outline",
@@ -230,7 +236,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.49871100015298
+   "elapsed_ms": 6.705800999952771
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -338,7 +344,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 18.68461899994145,
+   "elapsed_ms": 18.08393699957378,
    "extra": {
     "sections": {
      "SEC-0007": [
@@ -515,11 +521,14 @@
    "result": {
     "deduplicated": false,
     "ev_id": "EV-0034",
+    "excerpt": null,
+    "excerpt_locator": null,
     "hint": "新 EV 已签发（若为同 key 换版，旧记录已单向降级 SUPERSEDED；全新登记则无旧记录）",
     "kind": "qualification",
     "project_version": 9,
     "request_id": "req-000007",
-    "status": "ACTIVE"
+    "status": "ACTIVE",
+    "verification_tier": "FILE_EXISTS"
    },
    "checks": [
     {
@@ -535,7 +544,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.319106999399082
+   "elapsed_ms": 6.255139000131749
   },
   {
    "stage": "P4 bind_evidence",
@@ -567,7 +576,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 12.894855000013195
+   "elapsed_ms": 6.936130999747547
   },
   {
    "stage": "G3 record_review_gate ×2",
@@ -627,7 +636,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 26.67339300023741
+   "elapsed_ms": 14.133890000266547
   },
   {
    "stage": "④ draft #1（内容 A）",
@@ -639,6 +648,10 @@
    "result": {
     "content_ref": "DOC-SEC-0007-v1",
     "draft_note": "起草指令：外部手稿——CAS 版本递增验证",
+    "input_integrity": {
+     "status": "COMPLETE",
+     "waived_files": []
+    },
     "project_status": "DRAFTING",
     "project_version": 119,
     "quota": {
@@ -703,6 +716,10 @@
    "result": {
     "content_ref": "DOC-SEC-0007-v2",
     "draft_note": "起草指令：外部手稿——CAS 版本递增验证",
+    "input_integrity": {
+     "status": "COMPLETE",
+     "waived_files": []
+    },
     "project_status": "DRAFTING",
     "project_version": 120,
     "quota": {
@@ -764,6 +781,10 @@
     "content_ref": "DOC-SEC-0007-v2",
     "deduplicated": true,
     "draft_note": "起草指令：外部手稿——CAS 版本递增验证",
+    "input_integrity": {
+     "status": "COMPLETE",
+     "waived_files": []
+    },
     "project_status": "DRAFTING",
     "project_version": 120,
     "quota": {
@@ -837,5 +858,5 @@
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/external-cas-version/ws",
- "finished_at": "2026-11-02T15:12:58+00:00"
+ "finished_at": "2026-11-03T01:53:42+00:00"
 }

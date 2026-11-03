@@ -292,6 +292,9 @@ fn e2e_artifacts_synth_tender() {
             amount_wan: None,
             completed_on: None,
             fields: Default::default(), // #147
+            excerpt: None,
+            excerpt_locator: None,
+            verification_tier: None,
         })
         .unwrap();
     let qual_ids: Vec<String> = svc
@@ -358,6 +361,9 @@ fn e2e_artifacts_synth_tender() {
                 amount_wan: Some(*amount),
                 completed_on: Some(completed.to_string()),
                 fields: Default::default(), // #147
+                excerpt: None,
+                excerpt_locator: None,
+                verification_tier: None,
             })
             .unwrap();
     }

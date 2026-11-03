@@ -201,6 +201,9 @@ fn fixture(tag: &str, target_chars: u32) -> Fixture {
             amount_wan: None,
             completed_on: None,
             fields: Default::default(),
+            excerpt: None,
+            excerpt_locator: None,
+            verification_tier: None,
         })
         .unwrap();
     // #117 任务 1：业绩证据台账（3 条——MIN_PERFORMANCE_COUNT 门槛；
@@ -233,6 +236,9 @@ fn fixture(tag: &str, target_chars: u32) -> Fixture {
                 amount_wan: Some(*amount),
                 completed_on: Some("2025-02-28".into()),
                 fields: Default::default(),
+                excerpt: None,
+                excerpt_locator: None,
+                verification_tier: None,
             })
             .unwrap();
     }

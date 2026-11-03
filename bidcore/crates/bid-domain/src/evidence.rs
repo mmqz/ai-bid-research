@@ -198,6 +198,52 @@ impl EvidenceFields {
     }
 }
 
+/// 证据内容验证四态（#217 / #185 缺口 2——「找到证据」≠「读过证据」的区分面）。
+///
+/// | 态 | 含义 | 达成路径 |
+/// |---|---|---|
+/// | [`FileExists`] | 来源文件在库且非失败件，但**正文未被定位读取** | `register_evidence` 无 locator（文件级锚） |
+/// | [`ContentMatches`] | 定位文本与解析产物**逐字对账通过** + 摘录入账 | 带 locator 且指纹一致（服务端 `bid_tools::BidService::register_evidence_verified` 裁决） |
+/// | [`SemanticSupport`] | 摘录与登记语义（标题/范围）经语义比对互证 | **预留**（M2-b 语义服务落地前不可达——枚举先立面，防第三态悄悄冒充第四态） |
+/// | [`HumanConfirmed`] | 人工确认摘录与原件一致 | **预留**（接 #182 TrustedPrincipal receipt 链路；当前不可经登记面设置） |
+///
+/// 裁决纪律：tier 由**服务端**在登记时刻写入（域层纯透传），调用方无从自报——
+/// 与 #185 缺口 1 的 sha256/指纹同款「不信调用方」纪律。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum VerificationTier {
+    /// 文件级锚：来源在库、未失败，但正文未定位（无摘录）。
+    FileExists,
+    /// 内容级锚：定位文本与解析产物逐字一致，摘录（excerpt）入账。
+    ContentMatches,
+    /// 语义互证（预留——M2-b）。
+    SemanticSupport,
+    /// 人工确认（预留——#182 receipt 链路）。
+    HumanConfirmed,
+}
+
+impl VerificationTier {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            VerificationTier::FileExists => "FILE_EXISTS",
+            VerificationTier::ContentMatches => "CONTENT_MATCHES",
+            VerificationTier::SemanticSupport => "SEMANTIC_SUPPORT",
+            VerificationTier::HumanConfirmed => "HUMAN_CONFIRMED",
+        }
+    }
+
+    /// 正文是否已实际读取（CONTENT_MATCHES 及以上——SEMANTIC_SUPPORT/
+    /// HUMAN_CONFIRMED 是其严格超集：语义/人工确认必先有逐字摘录）。
+    pub fn content_read(&self) -> bool {
+        matches!(
+            self,
+            VerificationTier::ContentMatches
+                | VerificationTier::SemanticSupport
+                | VerificationTier::HumanConfirmed
+        )
+    }
+}
+
 /// 证据台账记录（T-1 规格 struct 的 Rust 落地——字段对齐 issue #11 批次 v3）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Evidence {
@@ -233,6 +279,21 @@ pub struct Evidence {
     /// 结构化字段（合同/证书/人员三族的金额、证书号、日期等）。
     #[serde(default, skip_serializing_if = "EvidenceFields::is_empty")]
     pub fields: EvidenceFields,
+
+    // ---- #217（#185 缺口 2）：证据正文链路（四态验证 + 正文摘录）。
+    //      serde default + skip_serializing_if —— 旧快照零影响。
+    /// 证据正文摘录：定位时刻从解析产物（ParsedFile.blocks）**逐字截取**的
+    /// 实际内容——不是文件名/标题转写。`None` = 文件级锚未定位正文。
+    /// 生成器据此引用金额/时间/范围等实料（不读正文的「佐证」是编造温床）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub excerpt: Option<String>,
+    /// 摘录定位（人话面：`《文件名》正文段 3` / `《文件名》第 2 页`——
+    /// 机器面是 `locator`，本字段给生成器/导出做可读引用）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub excerpt_locator: Option<String>,
+    /// 内容验证四态（见 [`VerificationTier`]——服务端登记时裁决，非调用方自报）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verification_tier: Option<VerificationTier>,
 }
 
 /// 证据 ↔ 条款绑定（最小面——T-2 MatrixRow 落地后由矩阵行消费）。
@@ -261,6 +322,10 @@ pub struct EvidenceSpec {
     pub completed_on: Option<String>,
     // ---- #147：结构化字段（search_evidence exact 通道的精确查询面）
     pub fields: EvidenceFields,
+    // ---- #217（#185 缺口 2）：正文摘录 + 验证态（服务端裁决后经此入账）
+    pub excerpt: Option<String>,
+    pub excerpt_locator: Option<String>,
+    pub verification_tier: Option<VerificationTier>,
 }
 
 // ---------------------------------------------------------------- 纯逻辑面
@@ -331,6 +396,25 @@ fn validate_spec(spec: &EvidenceSpec) -> Result<(), ToolError> {
     }
     // #147：结构化字段校验（非法日期/负金额/超大年限一律拒，零入库）
     spec.fields.validate().map_err(un)?;
+    // #217：四态不变量——声称「内容一致」就必须携带该内容的逐字摘录
+    // （CONTENT_MATCHES 的凭证就是 excerpt；空摘录的 CONTENT_MATCHES 是
+    // 无凭据的强声明，域层拒绝——调用方无从绕过服务端自己标四级态）。
+    if let Some(VerificationTier::ContentMatches) = spec.verification_tier {
+        if spec.excerpt.as_deref().map_or(true, |s| s.trim().is_empty()) {
+            return Err(un(
+                "verification_tier=CONTENT_MATCHES 必须携带非空 excerpt（正文摘录是内容验证的凭证——无摘录请降级 FILE_EXISTS）"
+                    .into(),
+            ));
+        }
+    }
+    // 携带摘录但态缺省 → 不猜：摘录只在 CONTENT_MATCHES+ 有意义，其余态
+    // 带 excerpt 属于口径漂移（文件级锚哪来的正文？），显式拒。
+    if spec.excerpt.is_some() && spec.verification_tier.is_none() {
+        return Err(un(
+            "携带 excerpt 必须同时声明 verification_tier（CONTENT_MATCHES——摘录与验证态不可拆）"
+                .into(),
+        ));
+    }
     Ok(())
 }
 
@@ -442,6 +526,9 @@ impl DomainStore {
                 amount_wan: spec.amount_wan,
                 completed_on: spec.completed_on,
                 fields: spec.fields,
+                excerpt: spec.excerpt,
+                excerpt_locator: spec.excerpt_locator,
+                verification_tier: spec.verification_tier,
                 version: old_version + 1,
                 status: EvidenceStatus::Active,
             });
@@ -468,6 +555,9 @@ impl DomainStore {
             amount_wan: spec.amount_wan,
             completed_on: spec.completed_on,
             fields: spec.fields,
+            excerpt: spec.excerpt,
+            excerpt_locator: spec.excerpt_locator,
+            verification_tier: spec.verification_tier,
             version: 1,
             status: EvidenceStatus::Active,
         });
@@ -651,6 +741,9 @@ mod tests {
             amount_wan: None,
             completed_on: None,
             fields: EvidenceFields::default(),
+            excerpt: None,
+            excerpt_locator: None,
+            verification_tier: None,
         }
     }
 
@@ -674,6 +767,9 @@ mod tests {
             amount_wan: None,
             completed_on: None,
             fields: EvidenceFields::default(),
+            excerpt: None,
+            excerpt_locator: None,
+            verification_tier: None,
         }
     }
 
@@ -840,6 +936,9 @@ mod tests {
             amount_wan: None,
             completed_on: None,
             fields: EvidenceFields::default(),
+            excerpt: None,
+            excerpt_locator: None,
+            verification_tier: None,
         };
         let (id, _) = s.register_evidence(spec).unwrap();
         assert!(
@@ -1062,5 +1161,109 @@ mod tests {
             "E_UNPROCESSABLE",
             "负金额字段拒登记"
         );
+    }
+
+    // ============================ #217（#185 缺口 2）：四态验证 + 正文摘录 ============================
+
+    /// 四态不变量①：CONTENT_MATCHES 必须携带非空 excerpt——空摘录的
+    /// 「内容一致」是无凭据的强声明，域层拒绝（调用方无从绕过服务端自标态）。
+    #[test]
+    fn content_matches_tier_requires_excerpt() {
+        let mut s = store_with_reqs();
+        let mut sp = gt13_spec();
+        sp.verification_tier = Some(VerificationTier::ContentMatches);
+        sp.excerpt = None;
+        let err = s.register_evidence(sp).unwrap_err();
+        assert_eq!(err.code(), "E_UNPROCESSABLE", "CONTENT_MATCHES 无摘录拒");
+        assert!(
+            format!("{err:?}").contains("excerpt"),
+            "错误文案指向 excerpt 面: {err:?}"
+        );
+        // 空白摘录同拒（trim 口径——纯空白不是凭证）
+        let mut sp2 = gt13_spec();
+        sp2.verification_tier = Some(VerificationTier::ContentMatches);
+        sp2.excerpt = Some("   ".into());
+        assert_eq!(
+            s.register_evidence(sp2).unwrap_err().code(),
+            "E_UNPROCESSABLE",
+            "空白摘录同拒"
+        );
+        assert!(s.evidences().is_empty(), "拒绝路径零入库");
+    }
+
+    /// 四态不变量②：excerpt 与 verification_tier 不可拆——带摘录不声明态
+    /// 属口径漂移（文件级锚哪来的正文？），显式拒。
+    #[test]
+    fn excerpt_without_tier_rejected() {
+        let mut s = store_with_reqs();
+        let mut sp = gt02_spec();
+        sp.excerpt = Some("承包范围：电子与智能化工程施工总承包".into());
+        sp.excerpt_locator = Some("《EV-02-资质证书.pdf》第 1 页".into());
+        sp.verification_tier = None;
+        let err = s.register_evidence(sp).unwrap_err();
+        assert_eq!(err.code(), "E_UNPROCESSABLE", "摘录与态不可拆");
+        assert!(
+            format!("{err:?}").contains("verification_tier"),
+            "错误文案指路声明态: {err:?}"
+        );
+    }
+
+    /// 正向：CONTENT_MATCHES + 摘录入账透传 + serde 往返保留（旧快照兼容面：
+    /// 三新字段 default+skip——旧 JSON 反序列化为 None）。
+    #[test]
+    fn tier_and_excerpt_passthrough_with_serde_roundtrip() {
+        let mut s = store_with_reqs();
+        let mut sp = gt02_spec();
+        sp.verification_tier = Some(VerificationTier::ContentMatches);
+        sp.excerpt = Some("资质等级：二级；承包范围：电子与智能化工程".into());
+        sp.excerpt_locator = Some("《EV-02-电子与智能化工程专业承包二级资质证书.pdf》第 1 页".into());
+        let (id, _) = s.register_evidence(sp).unwrap();
+        let ev = s.evidence(&id).unwrap();
+        assert_eq!(
+            ev.verification_tier,
+            Some(VerificationTier::ContentMatches),
+            "态透传入账"
+        );
+        assert!(
+            ev.excerpt.as_deref().unwrap().contains("资质等级"),
+            "摘录透传"
+        );
+        assert!(
+            ev.excerpt_locator.as_deref().unwrap().contains("第 1 页"),
+            "摘录定位透传"
+        );
+        // serde 往返（store 快照面——json 序列化再反序列化，新字段保留）
+        let json_str = serde_json::to_string(ev).unwrap();
+        let back: Evidence = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(back.verification_tier, Some(VerificationTier::ContentMatches));
+        assert_eq!(back.excerpt, ev.excerpt);
+        // 旧快照（无三新字段的 JSON）→ 反序列化为 None（default 兜底，零破坏）
+        let legacy = serde_json::json!({
+            "id": "EV-0001", "kind": "certificate", "title": "旧证据",
+            "source_file": "a.pdf", "source_sha256": "aa", "locator": {
+                "kind": "pdf_page_text", "page": 1, "text_fingerprint": "fnv64:x" },
+            "fingerprint": "fnv64:x", "valid_from": null, "valid_until": null,
+            "subject_name": "甲", "scope": "", "version": 1, "status": "ACTIVE"
+        });
+        let old: Evidence = serde_json::from_value(legacy).unwrap();
+        assert_eq!(old.verification_tier, None, "旧快照无态（登记于 #217 前）");
+        assert_eq!(old.excerpt, None, "旧快照无摘录");
+    }
+
+    /// 四态门面：FILE_EXISTS（文件级锚诚实态）+ content_read 判定 +
+    /// 预留态的序列化面（SEMANTIC_SUPPORT / HUMAN_CONFIRMED 枚举先立面）。
+    #[test]
+    fn verification_tier_str_and_content_read_faces() {
+        assert_eq!(VerificationTier::FileExists.as_str(), "FILE_EXISTS");
+        assert_eq!(VerificationTier::ContentMatches.as_str(), "CONTENT_MATCHES");
+        assert_eq!(VerificationTier::SemanticSupport.as_str(), "SEMANTIC_SUPPORT");
+        assert_eq!(VerificationTier::HumanConfirmed.as_str(), "HUMAN_CONFIRMED");
+        assert!(!VerificationTier::FileExists.content_read(), "文件级锚正文未读");
+        assert!(VerificationTier::ContentMatches.content_read());
+        assert!(VerificationTier::SemanticSupport.content_read(), "语义互证必先有摘录");
+        assert!(VerificationTier::HumanConfirmed.content_read());
+        // serde SCREAMING_SNAKE_CASE（MCP 出参口径直接对齐）
+        let j = serde_json::to_string(&VerificationTier::HumanConfirmed).unwrap();
+        assert_eq!(j, "\"HUMAN_CONFIRMED\"");
     }
 }

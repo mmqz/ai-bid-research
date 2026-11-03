@@ -93,7 +93,9 @@ in : { project_id, filters:{kind?, status?}, cursor?, limit? }
      kind    : qualification|performance|personnel|certificate|product_doc|solution_module|contract
                （或对应中文展示名——与矩阵 category 双形态口径一致）；
      status  : ACTIVE|EXPIRING|EXPIRED|SUPERSEDED（T-1 台账状态）
-out: { items:[{id:EV-*, kind(snake_case 机器形态), title, status, subject_name, valid_until}],
+out: { items:[{id:EV-*, kind(snake_case 机器形态), title, status, subject_name, valid_until,
+            verification_tier(FILE_EXISTS|CONTENT_MATCHES|null——#217 四态可见：
+            null = 旧记录登记于四态面之前)}],
        total(过滤后总数), limit, cursor(本次生效), next_cursor: string|null }
 无状态副作用；任何阶段可调。行序 = id 字典序（确定全序）；先过滤后分页。
 错误: E_UNPROCESSABLE（非法 kind/status、游标与过滤器不匹配、limit 越界）；E_NOTFOUND（项目路由）
@@ -110,14 +112,20 @@ out: { items:[{target_id:SEC-*|REQ-*, owner, deadline, status}],
 错误: E_UNPROCESSABLE（非法 status、游标与过滤器不匹配、limit 越界）；E_NOTFOUND（项目路由）
 ```
 
-## 5. search_evidence（知识库检索——双通道）
+## 5. search_evidence（知识库检索——双通道；#217 正文摘录面）
 ```
 in : { project_id, query, mode:"hybrid"|"semantic"|"exact", exact?:{field:"model|amount|date|clause_no|cert", value},
        filters:{source_type?, tags?, valid_at?:开标日, min_valid_until?}, top_k, threshold? }
-out: { hits:[{ev_id, chunk_id, content, source:{file, position}, score, match_type:"semantic|exact|both"}],
-       trace:{semantic_k, exact_k, merged_by} }
+out: { hits:[{ev_id, chunk_id, content, source:{file, position}, score, match_type:"semantic|exact|both",
+            excerpt(正文摘录——#217；null = 文件级锚未定位),
+            excerpt_locator(《文件》第 N 页 / 《文件》正文段 N),
+            verification_tier(FILE_EXISTS|CONTENT_MATCHES|null)}],
+       trace:{semantic_k, exact_k, merged_by, content_face:"title+scope+subject+client+excerpt"} }
 硬规则: 资格类查询默认 exact 优先；valid_until < 开标日 的证据自动降权并附 warning=EVIDENCE_EXPIRING/EXPIRED；
       排序带确定性 tie-breaker（score, evidence_id）保证可重放（R-15）；
+      **semantic 通道检索面含正文摘录（#217）——正文含词但标题不含的词
+      （如合同页文本里的「水利工程」）可命中；命中质量受摘录上取 500 字
+      限制（页级截取——全文检索/分块是 M2-b 面）**；
       **M2-b 落地时必须走 bid-mcp cursor.rs 游标模块（S-4）——hits 面同属大结果列表，
       分页信封/游标绑定/fail-closed 语义与 §0 大结果分页约定统一，不得自带第二套分页口径**。
 错误: E_STATE（项目无企业资料库绑定）
@@ -384,7 +392,7 @@ out: { counts:{ sections, leaves, requirements, total_target_chars, matrix_rows,
 幂等: 推导确定性（同输入同树）；状态机面不重入（见上）
 ```
 
-## 11-A. register_evidence（#80 第三批 · G2；#185 缺口 1 来源验证）
+## 11-A. register_evidence（#80 第三批 · G2；#185 缺口 1 来源验证；#217 四态 + 正文摘录）
 
 ```
 in : { project_id, kind(qualification|performance|personnel|certificate|product_doc|
@@ -397,7 +405,11 @@ in : { project_id, kind(qualification|performance|personnel|certificate|product_
                text_fingerprint 与实际内容一致；缺省 = 文件级锚),
        client?, amount_wan?, completed_on?, fields?(#147 结构化字段),
        project_version }
-out: { ev_id: "EV-*", deduplicated, kind(snake_case), status, hint, project_version }
+out: { ev_id: "EV-*", deduplicated, kind(snake_case), status,
+       verification_tier(FILE_EXISTS|CONTENT_MATCHES——#217 四态面),
+       excerpt(正文摘录——CONTENT_MATCHES 时非空；FILE_EXISTS 为 null),
+       excerpt_locator(人话定位：《文件》第 N 页 / 《文件》正文段 N),
+       hint, project_version }
 语义: **来源身份由服务端验证（#185）**：source_file_id 查 TenderFile
       （不存在 → E_NOTFOUND；解析失败件 → E_UNPROCESSABLE 禁引）→ 解析
       产物按库内 sha 对账 → locator 验证 → sha256 与指纹**由系统生成**
@@ -407,6 +419,16 @@ out: { ev_id: "EV-*", deduplicated, kind(snake_case), status, hint, project_vers
       旧记录单向降级 SUPERSEDED + 签发新 EV）。locator 缺省 =
       MarkdownBlock{ block_id: "mcp-registered:<文件名>" }——诚实标记
       「经登记面、无引擎定位器」（审计可辨识，不冒充引擎抽取）。
+
+      **#217 验证四态（缺口 2——「找到证据」≠「读过证据」的区分面）**：
+      · FILE_EXISTS：无 locator 的文件级锚——来源在库且非失败件，但正文
+        未定位（excerpt = null，生成器不得编造该证据的实料细节）；
+      · CONTENT_MATCHES：带 locator 且对账通过——定位文本与解析产物逐字
+        一致，服务端截取入账（excerpt，上取 500 字，「……」标记截断；
+        excerpt_locator 人话定位），draft/search/导出面直接消费；
+      · SEMANTIC_SUPPORT / HUMAN_CONFIRMED：**预留态**（枚举先立面）——
+        达成路径分别为 M2-b 语义比对服务与 #182 TrustedPrincipal receipt
+        人工确认链路，当前不可经登记面设置（服务端只裁决前两态）。
 状态: MATRIX_READY+（P4 面——矩阵就绪后登记）
 错误: E_NOTFOUND（source_file_id 不存在）；E_UNPROCESSABLE（kind/日期/fields
       非法；**旧参数 source_file / source_sha256 / fingerprint 已废除——传入
@@ -419,6 +441,9 @@ out: { ev_id: "EV-*", deduplicated, kind(snake_case), status, hint, project_vers
 > 方式**不再被接受**——那正是「登记不存在的合同.pdf + 任意 hex sha 骗过
 > 格式校验成为可信证据」的来源身份漏洞。适配：先 import_tender_files
 > （回执 `per_file[].file_id`），再以 `source_file_id` 登记。
+>
+> #217 域层不变量：`CONTENT_MATCHES 必须携带非空 excerpt`（空摘录的内容
+> 一致声明是无凭据强声明）；`excerpt 与 verification_tier 不可拆`。
 
 ## 11-B. bind_evidence（#80 第三批 · G2）
 

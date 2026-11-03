@@ -1,12 +1,12 @@
 {
  "case": "01-initialize-and-tools",
  "transport": "mcp",
- "server_bin": "/tmp/shared-target/debug/bid-mcp-server",
- "server_sha256": "35dfc803e35e752d4b2e246a58714124c5d4a7ee60ed3a0fcebda13af0f0b54a",
+ "server_bin": "/home/z/my-project/bid-research-rw/bidcore/target/debug/bid-mcp-server",
+ "server_sha256": "3d2bf987583c614756200de1991b82cd93c95510b2fd2dcdbfbbaf69b10384c2",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-02T15:12:55+00:00",
+ "started_at": "2026-11-03T01:53:39+00:00",
  "stages": [
   {
    "stage": "MCP 握手 + 工具清单",
@@ -64,5 +64,5 @@
  ],
  "payload_shapes": {},
  "ws": null,
- "finished_at": "2026-11-02T15:12:55+00:00"
+ "finished_at": "2026-11-03T01:53:39+00:00"
 }

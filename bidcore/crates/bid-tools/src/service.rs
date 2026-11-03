@@ -130,7 +130,7 @@ fn ocr_tier_of(status: ParseStatus, ocr_blocks: usize) -> &'static str {
     }
 }
 
-/// locator 按解析产物对账（#185 缺口 1 的核心验证面）。
+/// 定位内容（#185 缺口 1 对账 + #217 缺口 2 抽取一体）。
 ///
 /// 验证基准 = 本仓解析产物（`ParsedFile.blocks`——服务态唯一的内容真源）：
 /// - `DocxParagraph { paragraph_index, text_fingerprint }`：`paragraph_index`
@@ -144,12 +144,17 @@ fn ocr_tier_of(status: ParseStatus, ocr_blocks: usize) -> &'static str {
 ///   canvas_object）在标书解析产物无对应对账面 → **明确报错**（fail-closed，
 ///   不静默跳过——静默跳过 = 回到「未验证来源」的老润洞）。
 ///
-/// 返回系统从实际内容生成的指纹（`fnv64:<hex>`——定位文本归一化后
-/// FNV-1a 64，与既有 text_fingerprint 同族）。
-fn verify_locator_against(
-    parsed: &ParsedFile,
-    loc: &EngineLocator,
-) -> Result<String, ToolError> {
+/// 返回定位结果：系统从实际内容生成的指纹（`fnv64:<hex>`——定位文本归一化后
+/// FNV-1a 64，与既有 text_fingerprint 同族）+ **定位文本本身**（#217 摘录
+/// 入账的素材——从解析产物逐字截取，非文件名/标题转写）+ 人话定位
+/// （excerpt_locator——生成器/导出的可读引用面）。
+struct LocatedContent {
+    fingerprint: String,
+    text: String,
+    locator_display: String,
+}
+
+fn locate_content(parsed: &ParsedFile, loc: &EngineLocator) -> Result<LocatedContent, ToolError> {
     let un = |reason: String| ToolError::EUnprocessable { reason };
     match loc {
         EngineLocator::DocxParagraph {
@@ -176,7 +181,11 @@ fn verify_locator_against(
                     "locator 指纹不匹配：paragraph_index={idx} 实际内容指纹 {actual}，登记值 {text_fingerprint}（内容已变更或未按实际内容登记）"
                 )));
             }
-            Ok(actual)
+            Ok(LocatedContent {
+                fingerprint: actual,
+                text: (*text).to_string(),
+                locator_display: format!("《{}》正文段 {}（0 起）", parsed.name, idx),
+            })
         }
         EngineLocator::PdfPageText {
             page,
@@ -206,7 +215,11 @@ fn verify_locator_against(
                     "locator 指纹不匹配：第 {page} 页实际内容指纹 {actual}，登记值 {text_fingerprint}（内容已变更或未按实际内容登记）"
                 )));
             }
-            Ok(actual)
+            Ok(LocatedContent {
+                fingerprint: actual,
+                text: page_text,
+                locator_display: format!("《{}》第 {page} 页", parsed.name),
+            })
         }
         other => Err(un(format!(
             "locator 形态 {} 暂不支持来源验证（当前支持 docx_paragraph / pdf_page_text——按解析产物对账；不带 locator 登记则为文件级锚）",
@@ -233,6 +246,19 @@ fn locator_kind_name(loc: &EngineLocator) -> &'static str {
 /// text_fingerprint 同族；算法前缀纪律见 `fingerprint_algorithm`）。
 fn content_fingerprint(text: &str) -> String {
     format!("fnv64:{}", bid_domain::linkage::text_fingerprint(text))
+}
+
+/// 摘录入账长度上界（#217）：定位文本可能整页上千字，台账/prompt 面截到
+/// 500 字——金额/日期/范围等实料通常在前部；截断以「……」标记（诚实面：
+/// 可辨识这不是全文，全文回查走 locator）。
+const EXCERPT_MAX_CHARS: usize = 500;
+
+fn truncate_excerpt(text: &str) -> String {
+    if text.chars().count() <= EXCERPT_MAX_CHARS {
+        return text.to_string();
+    }
+    let cut: String = text.chars().take(EXCERPT_MAX_CHARS).collect();
+    format!("{cut}……")
 }
 
 /// 导入管线（契约 §2 业务半边）——**受信内部 API**（#183：无围栏）。
@@ -781,23 +807,34 @@ impl BidService {
                     tf.id
                 ),
             })?;
-        // ---- 4/5. locator 对账 + 系统生成指纹
-        let (locator, fingerprint) = match &reg.locator {
-            None => {
-                // 文件级锚：诚实标记「经登记面、无引擎定位器」（审计可辨识）
-                let fp = format!("sha256:{}", tf.sha256);
-                (
-                    EngineLocator::MarkdownBlock {
-                        block_id: format!("mcp-registered:{}", tf.name),
-                        text_fingerprint: fp.clone(),
-                    },
-                    fp,
-                )
-            }
-            Some(loc) => {
-                let fp = verify_locator_against(parsed, loc)?;
-                (loc.clone(), fp)
-            }
+        // ---- 4/5. locator 对账 + 系统生成指纹 + 摘录捕获（#217 四态裁决）
+        //      文件级锚（无 locator）→ FILE_EXISTS：来源在库且非失败件，但正文
+        //      未定位——摘录面为空（不编造「读过了」的假象）；带 locator 且对账
+        //      通过 → CONTENT_MATCHES：定位文本逐字入账为 excerpt。
+        let located: Option<LocatedContent> = match &reg.locator {
+            None => None,
+            Some(loc) => Some(locate_content(parsed, loc)?),
+        };
+        let locator = match (&reg.locator, &located) {
+            (None, _) => EngineLocator::MarkdownBlock {
+                block_id: format!("mcp-registered:{}", tf.name),
+                text_fingerprint: format!("sha256:{}", tf.sha256),
+            },
+            (Some(loc), _) => loc.clone(),
+        };
+        let (fingerprint, excerpt, excerpt_locator, verification_tier) = match &located {
+            Some(lc) => (
+                lc.fingerprint.clone(),
+                Some(truncate_excerpt(&lc.text)),
+                Some(lc.locator_display.clone()),
+                Some(bid_domain::evidence::VerificationTier::ContentMatches),
+            ),
+            None => (
+                format!("sha256:{}", tf.sha256),
+                None,
+                None,
+                Some(bid_domain::evidence::VerificationTier::FileExists),
+            ),
         };
         let spec = EvidenceSpec {
             kind: reg.kind,
@@ -814,6 +851,9 @@ impl BidService {
             amount_wan: reg.amount_wan,
             completed_on: reg.completed_on,
             fields: reg.fields,
+            excerpt,
+            excerpt_locator,
+            verification_tier,
         };
         let out = self.store.register_evidence(spec)?;
         self.auto_checkpoint()?;

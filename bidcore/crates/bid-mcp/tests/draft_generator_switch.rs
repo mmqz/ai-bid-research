@@ -67,6 +67,9 @@ fn svc_ready(tag: &str) -> (BidService, String, String) {
         amount_wan: None,
         completed_on: None,
         fields: Default::default(), // #147
+        excerpt: None,
+        excerpt_locator: None,
+        verification_tier: None,
     }).unwrap();
     svc.set_requirements(vec![
         mk_req("REQ-0001", "资格条件", "投标人须具备水利水电工程施工总承包贰级及以上资质"),

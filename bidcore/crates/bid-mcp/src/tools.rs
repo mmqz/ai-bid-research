@@ -2428,6 +2428,8 @@ fn score_section(svc: &mut BidService, args: Value) -> ToolResult {
     })?;
     let (scorer, _items) = build_scorer(svc.store());
     let s = scorer.score_section(&section_id, &content);
+    // #224：文档级未映射告警（单章自评时也可见——Agent 需知道全局缺口）
+    let unmapped = scorer.unmapped_items();
     Ok(json!({
         "project_id": project_id,
         // #186 语义降级标记：规则诊断非评标模拟（对外承诺必须准确——
@@ -2443,6 +2445,8 @@ fn score_section(svc: &mut BidService, args: Value) -> ToolResult {
         "missing_items": s.missing_items,
         "rationale": s.rationale,
         "item_scores": s.item_scores,
+        // #224：未映射评分项（非空 = 总分可能偏低——响亮告警）
+        "unmapped_scoring_items": unmapped,
         "request_id": next_request_id(),
     }))
 }
@@ -2523,6 +2527,75 @@ fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
         .iter()
         .filter_map(|i| i.parent_id.as_deref())
         .collect();
+    // #224 映射报告（验收 1/4：每评分项 → 哪些章节 → 权重多少 → 依据原文哪里；
+    // 双向追溯的桥接面——RuleParsed 派生映射锚回 REQ 首锚，账本映射带
+    // source_anchor 原文锚 + 来源 + 证据引用）
+    let req_anchors: std::collections::HashMap<&str, &bid_domain::Anchor> = svc
+        .store()
+        .requirements()
+        .iter()
+        .filter_map(|r| r.anchors.first().map(|a| (r.id.as_str(), a)))
+        .collect();
+    let ledger: std::collections::HashMap<(&str, &str), &bid_domain::scoring::ScoringMapping> =
+        svc.store()
+            .scoring_mappings()
+            .iter()
+            .map(|m| ((m.scoring_req_id.as_str(), m.section_id.as_str()), m))
+            .collect();
+    let section_title: std::collections::HashMap<&str, &str> = svc
+        .store()
+        .sections()
+        .iter()
+        .map(|n| (n.id.as_str(), n.title.as_str()))
+        .collect();
+    let anchor_json = |a: &bid_domain::Anchor| {
+        json!({
+            "file": a.file,
+            "kind": a.kind,
+            "locator": a.locator,
+            "excerpt": truncate(&a.excerpt, 80),
+        })
+    };
+    let mut mappings_report: Vec<Value> = Vec::new();
+    for it in items.iter().filter(|i| !i.is_hard_gate) {
+        if it.mappings.is_empty() {
+            continue;
+        }
+        let mut secs: Vec<Value> = Vec::new();
+        for m in &it.mappings {
+            let ledger_m = ledger.get(&(it.requirement_id.as_str(), m.section_id.as_str()));
+            let (source, anchor, evidence_refs) = match ledger_m {
+                Some(lm) => (
+                    serde_json::to_value(lm.created_from).unwrap_or(Value::Null),
+                    anchor_json(&lm.source_anchor),
+                    json!(lm.evidence_refs),
+                ),
+                // RuleParsed 派生映射：锚回 REQ 首锚（规则原文的真源）
+                None => (
+                    json!("RULE_PARSED"),
+                    req_anchors
+                        .get(it.requirement_id.as_str())
+                        .map(|a| anchor_json(a))
+                        .unwrap_or(Value::Null),
+                    json!([]),
+                ),
+            };
+            secs.push(json!({
+                "section_id": m.section_id,
+                "section_title": section_title.get(m.section_id.as_str()).copied().unwrap_or(""),
+                "weight_share": m.weight_share,
+                "source": source,
+                "source_anchor": anchor,
+                "evidence_refs": evidence_refs,
+            }));
+        }
+        mappings_report.push(json!({
+            "item_id": it.requirement_id,
+            "criteria": it.criteria,
+            "weight": it.weight,
+            "sections": secs,
+        }));
+    }
     let mut by_item: Vec<Value> = Vec::new();
     let mut target = 0.0f64;
     for it in items
@@ -2531,6 +2604,9 @@ fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
     {
         let max = it.max_score.unwrap_or(0.0);
         target += max;
+        // #224：section_id = 首映射（契约 §15 旧键保留）；mapping_ids = 全部
+        // 映射章节（多对多新面）；weight_share = 首映射摊分比
+        let primary = it.mappings.first();
         if is_price_item_mirror(it) {
             // 价格类叶：内容自评无意义（价格分 = f(报价)）——estimated 取 B1 实算值
             by_item.push(json!({
@@ -2540,7 +2616,9 @@ fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
                 "estimated": doc.price,
                 "tier": "价格分（f(报价)——score_price/B1 计算）",
                 "coverage": Value::Null,
-                "section_id": it.section_id,
+                "section_id": primary.map(|m| m.section_id.clone()),
+                "mapping_ids": it.mappings.iter().map(|m| m.section_id.clone()).collect::<Vec<_>>(),
+                "weight_share": primary.map(|m| m.weight_share),
                 "score_rules": it.score_rules,
             }));
             continue;
@@ -2557,7 +2635,11 @@ fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
             "estimated": est.map(|e| e.estimated).unwrap_or(0.0),
             "tier": est.map(|e| e.tier.label()).unwrap_or("未覆盖"),
             "coverage": est.map(|e| e.coverage).unwrap_or(0.0),
-            "section_id": it.section_id,
+            "section_id": primary.map(|m| m.section_id.clone()),
+            // #224 多对多面：全部映射章节 + 首映射摊分比（estimated 取 breakdown
+            // 首现——多章分摊明细见 mappings 报告与 breakdown 逐章行）
+            "mapping_ids": it.mappings.iter().map(|m| m.section_id.clone()).collect::<Vec<_>>(),
+            "weight_share": primary.map(|m| m.weight_share),
             // #186 预留面：细则原文透出（判档不消费——rule_heuristic）
             "score_rules": it.score_rules,
         }));
@@ -2578,6 +2660,10 @@ fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
         "gap": gap,
         "by_item": by_item,
         "breakdown": doc.breakdown,
+        // #224：映射报告（每评分项 → 章节/权重/来源/原文锚——双向追溯面）
+        "mappings": mappings_report,
+        // #224：未映射评分项（非空 = 总分可能偏低——响亮告警）
+        "unmapped_scoring_items": doc.unmapped_scoring_items,
         "notes": doc.notes,
         "price_input": spec_echo,
         "sections_scored": sections.len(),
@@ -2772,8 +2858,42 @@ fn build_scorer(
     }
     // 项目专名锚（B3 ProjectContext 同源——具体性判定的锚词面）
     let terms = bid_tools::quality::ProjectContext::from_store(store).scorer_terms();
-    let items = bid_domain::scoring::derive_scoring_items(&reqs);
-    let tree = bid_domain::scoring::derive_scoring_tree(&reqs);
+    let mut items = bid_domain::scoring::derive_scoring_items(&reqs);
+    let mut tree = bid_domain::scoring::derive_scoring_tree(&reqs);
+    // #224 多对多：并入持久化映射（AgentSubmitted/Manual——账本在
+    // store.scoring_mappings()，联结进 items/tree.index 两份视图）。
+    // 同 (req, section) 键与 params.section 重合时跳过（params 单值 share
+    // 恒 1.0——同章重合以账本 share 为准的语义留给后续显式覆写面，本步
+    // 保守去重防双重计入）。
+    let persistent: Vec<(String, bid_domain::scoring::SectionMapping)> = store
+        .scoring_mappings()
+        .iter()
+        .map(|m| {
+            (
+                m.scoring_req_id.clone(),
+                bid_domain::scoring::SectionMapping {
+                    section_id: m.section_id.clone(),
+                    weight_share: m.weight_share,
+                },
+            )
+        })
+        .collect();
+    let apply = |item: &mut bid_domain::scoring::ScoringItem,
+                 persistent: &[(String, bid_domain::scoring::SectionMapping)]| {
+        for (req_id, m) in persistent {
+            if *req_id == item.requirement_id
+                && !item.mappings.iter().any(|x| x.section_id == m.section_id)
+            {
+                item.mappings.push(m.clone());
+            }
+        }
+    };
+    for it in &mut items {
+        apply(it, &persistent);
+    }
+    for (_, item) in tree.index.iter_mut() {
+        apply(item, &persistent);
+    }
     (bid_domain::scoring::SectionScorer::new(tree, terms), items)
 }
 

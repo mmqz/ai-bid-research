@@ -446,3 +446,162 @@ fn score_document_state_gate_and_undrafted_honesty() {
     })));
     assert_eq!(code, "E_STATE", "FILES_IMPORTED 无章节树——状态门拦");
 }
+
+// ---------------------------------------------------------------- #224 多对多 + UNMAPPED
+
+/// #224 验收 1/2/4（MCP 面）：账本多对多映射（域层直写——MCP 写面后续
+/// issue）→ score_document 出参的 mappings 报告（章节/权重/来源/原文锚）
+/// + by_item.mapping_ids + unmapped_scoring_items 结构化告警；score_section
+/// 对两章都能查到同一评分项；#209 语义降级标记保留。
+#[test]
+fn score_document_reports_mappings_unmapped_and_multi_mapping() {
+    let (mut svc, pid) = svc_drafted("score-map-224", true, None);
+    let leaves = leaf_ids(&svc);
+    assert!(leaves.len() >= 2, "需要 ≥2 叶验证多对多（实际 {}）", leaves.len());
+    let (sec_a, sec_b) = (&leaves[0], &leaves[1]);
+
+    // 账本：REQ-0002（技术分 20）跨两章 0.6/0.4（AgentSubmitted + 原文锚）
+    svc.store_mut()
+        .upsert_scoring_mapping(
+            "REQ-0002".into(),
+            sec_a.clone(),
+            0.6,
+            vec![],
+            bid_domain::Anchor {
+                file: "A-招标文件.docx".into(),
+                kind: "table".into(),
+                locator: "第四章 评标办法 > 表 4-2 第 3 行".into(),
+                excerpt: "技术方案完整性 20 分，详见评审细则".into(),
+            },
+            bid_domain::scoring::MappingSource::AgentSubmitted,
+        )
+        .unwrap();
+    svc.store_mut()
+        .upsert_scoring_mapping(
+            "REQ-0002".into(),
+            sec_b.clone(),
+            0.4,
+            vec![],
+            bid_domain::Anchor {
+                file: "A-招标文件.docx".into(),
+                kind: "table".into(),
+                locator: "第四章 评标办法 > 表 4-2 第 3 行".into(),
+                excerpt: "技术方案完整性 20 分，详见评审细则".into(),
+            },
+            bid_domain::scoring::MappingSource::AgentSubmitted,
+        )
+        .unwrap();
+
+    // —— score_section：两章都查得到 REQ-0002（多对多验收 2）
+    let ra = ok_result(call(&mut svc, "score_section", json!({
+        "project_id": &pid, "section_id": sec_a,
+    })));
+    let rb = ok_result(call(&mut svc, "score_section", json!({
+        "project_id": &pid, "section_id": sec_b,
+    })));
+    assert!(
+        ra["item_scores"].as_array().unwrap().iter().any(|i| i["item_id"] == "REQ-0002"),
+        "章 A 含跨章评分项"
+    );
+    assert!(
+        rb["item_scores"].as_array().unwrap().iter().any(|i| i["item_id"] == "REQ-0002"),
+        "章 B 含同一评分项（多对多）"
+    );
+    // 摊分：章 A 该项 max = 20×0.6 = 12；章 B = 8
+    let max_in = |r: &Value| -> f64 {
+        r["item_scores"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|i| i["item_id"] == "REQ-0002")
+            .map(|i| i["max"].as_f64().unwrap())
+            .unwrap()
+    };
+    assert!((max_in(&ra) - 12.0).abs() < 1e-9, "章 A 满分 = 20×0.6（实际 {}）", max_in(&ra));
+    assert!((max_in(&rb) - 8.0).abs() < 1e-9, "章 B 满分 = 20×0.4（实际 {}）", max_in(&rb));
+    // 单章自评也带文档级 unmapped 告警面
+    assert!(ra["unmapped_scoring_items"].is_array(), "score_section 带 unmapped 面");
+
+    // —— score_document：映射报告 + by_item + unmapped（验收 1/4）
+    let r = ok_result(call(&mut svc, "score_document", json!({
+        "project_id": &pid,
+        "method": "average", "coefficient": 0.95, "max_score": 30, "deviation": "ratio",
+        "bid_price": 1_550_000.0, "others": [1_600_000.0, 1_580_000.0],
+    })));
+    // #209 语义降级标记保留（不可丢）
+    assert_eq!(r["diagnostic_only"], json!(true));
+    assert_eq!(r["result_kind"], json!("rule_heuristic"));
+
+    // mappings 报告：REQ-0002 → 两章 + 权重 + 来源 + 原文锚（追溯验收 4）
+    let maps = r["mappings"].as_array().unwrap();
+    let m2 = maps
+        .iter()
+        .find(|m| m["item_id"] == "REQ-0002")
+        .expect("映射报告含 REQ-0002");
+    let secs = m2["sections"].as_array().unwrap();
+    assert_eq!(secs.len(), 2, "多对多：两章映射");
+    let shares: Vec<f64> = secs.iter().map(|s| s["weight_share"].as_f64().unwrap()).collect();
+    assert!((shares.iter().sum::<f64>() - 1.0).abs() < 1e-9, "share 和 = 1.0");
+    for s in secs {
+        assert_eq!(s["source"], json!("AGENT_SUBMITTED"), "来源 = 账本登记值");
+        assert!(
+            s["source_anchor"]["locator"].as_str().unwrap().contains("表 4-2"),
+            "原始规则锚可追溯（locator）"
+        );
+        assert!(!s["source_anchor"]["excerpt"].as_str().unwrap().is_empty());
+    }
+
+    // by_item：REQ-0002 带 mapping_ids（2 章）+ weight_share（首映射）
+    let bi = r["by_item"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["item_id"] == "REQ-0002")
+        .unwrap();
+    assert_eq!(bi["mapping_ids"].as_array().unwrap().len(), 2);
+    assert!((bi["weight_share"].as_f64().unwrap() - 0.6).abs() < 1e-9, "首映射 share");
+    assert!(bi["section_id"].is_string(), "契约 §15 旧键 section_id 保留（首映射）");
+
+    // unmapped：无映射项结构化（synth 形态 REQ-0001 价格项不入——价格分
+    // 不依赖章节映射；REQ-0002 已映射 → unmapped 为空）
+    let unmapped = r["unmapped_scoring_items"].as_array().unwrap();
+    assert!(
+        unmapped.iter().all(|u| u["req_id"] != "REQ-0002"),
+        "已映射项不入 unmapped"
+    );
+    assert!(
+        unmapped.iter().all(|u| u["req_id"] != "REQ-0001"),
+        "价格项不入 unmapped（价格分 = f(报价)）"
+    );
+
+    // 双章分摊不虚高：technical 含两章摊分份额（≤ 20×share 之和 = 20）
+    assert!(
+        r["technical"].as_f64().unwrap() <= 20.0 + 1e-9,
+        "同一项跨两章不重复计入总分（technical ≤ 20，实际 {}）",
+        r["technical"].as_f64().unwrap()
+    );
+}
+
+/// #224 UNMAPPED 结构化（MCP 面）：synth 基座（REQ-0002 无映射、非价格）→
+/// score_document 出参 unmapped_scoring_items 含 req_id/criteria/weight +
+/// notes 响亮告警。
+#[test]
+fn score_document_unmapped_structured() {
+    let (mut svc, pid) = svc_drafted("score-unmapped-224", true, None);
+    let r = ok_result(call(&mut svc, "score_document", json!({
+        "project_id": &pid,
+    })));
+    let unmapped = r["unmapped_scoring_items"].as_array().unwrap();
+    let u2 = unmapped
+        .iter()
+        .find(|u| u["req_id"] == "REQ-0002")
+        .expect("REQ-0002（无 params.section、无账本）入 unmapped");
+    assert!(!u2["criteria"].as_str().unwrap().is_empty(), "criteria 摘要");
+    assert!((u2["weight"].as_f64().unwrap() - 20.0).abs() < 1e-9, "weight 在场");
+    // notes 字符串面保留（scoring_b2 同款断言）
+    let notes = r["notes"].as_array().unwrap();
+    assert!(
+        notes.iter().any(|n| n.as_str().unwrap().contains("UNMAPPED")),
+        "notes 保留 UNMAPPED 告警"
+    );
+}

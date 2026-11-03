@@ -1,0 +1,456 @@
+//! #224 第 1 步 · ScoringMapping 多对多映射 + UNMAPPED 域层验收。
+//!
+//! 覆盖面（issue #224 验收 2/3/4 + 快照面）：
+//! - **多对多**：一个评分项跨 2 章节（weight_share 0.6/0.4）→ 两章
+//!   score_section 都查得到它，满分按 share 摊分（12/8）——同一项跨章
+//!   各算一次导致总分虚高的主防；
+//! - **一章节承载多评分项**：item_scores 逐项呈现；
+//! - **UNMAPPED 结构化**：unmapped_scoring_items（req_id/criteria/weight）
+//!   + notes 响亮告警；SectionScore/ItemScore 的 share 摊分回归；
+//! - **账本**：upsert 幂等 + 越界/孤儿/幽灵证据 fail-loud 拒；
+//! - **快照**：往返保真 + 旧快照（无 scoring_mappings 键）空集合加载 +
+//!   孤儿映射/复合键重复拒载；
+//! - **派生联结**：store.scoring_items() 并入持久化映射（与 params.section
+//!   去重）。
+
+use bid_domain::outline::{OutlineNode, SectionStatus};
+use bid_domain::scoring::{derive_scoring_items, MappingSource, ScoringMapping, SectionScorer};
+use bid_domain::{Anchor, DomainStore, Requirement, StoreSnapshot, ToolError};
+use std::collections::HashMap;
+
+fn anchor(excerpt: &str) -> Anchor {
+    Anchor {
+        file: "A-招标文件.docx".into(),
+        kind: "para".into(),
+        locator: "第四章 评标办法".into(),
+        excerpt: excerpt.into(),
+    }
+}
+
+fn score_req(id: &str, excerpt: &str, score: f64, section: Option<&str>) -> Requirement {
+    let mut params = HashMap::new();
+    params.insert("score".to_string(), serde_json::json!(score));
+    if let Some(s) = section {
+        params.insert("section".to_string(), serde_json::json!(s));
+    }
+    Requirement {
+        id: id.into(),
+        category: "评分项".into(),
+        clause_no: None,
+        anchors: vec![anchor(excerpt)],
+        params,
+        source_file: "A-招标文件.docx".into(),
+    }
+}
+
+/// 正文类 REQ（叶节点树不变量：每叶 ≥1 REQ——评分项不进正文 #126，
+/// 用技术参数承担叶子绑定职责）。
+fn body_req(id: &str, excerpt: &str) -> Requirement {
+    Requirement {
+        id: id.into(),
+        category: "技术参数".into(),
+        clause_no: None,
+        anchors: vec![anchor(excerpt)],
+        params: HashMap::new(),
+        source_file: "A-招标文件.docx".into(),
+    }
+}
+
+fn leaf(id: &str, order: u32, title: &str, reqs: &[&str]) -> OutlineNode {
+    OutlineNode {
+        id: id.into(),
+        parent_id: None,
+        title: title.into(),
+        level: 1,
+        order,
+        requirement_ids: reqs.iter().map(|s| s.to_string()).collect(),
+        target_chars: 2_000,
+        status: SectionStatus::Pending,
+        dirty: false,
+        content: None,
+        content_attempt: 0,
+    }
+}
+
+/// 基座 store：项目 + 文件 + 评分项 + 两叶章节（SEC-01 / SEC-02）。
+fn store_base() -> DomainStore {
+    let mut s = DomainStore::new();
+    s.create_project("映射测试", "C-M", "明标", "m-key")
+        .unwrap();
+    s.upsert_file(
+        "A-招标文件.docx",
+        "招标文件",
+        "sha-map",
+        10,
+        1,
+        50,
+        0,
+        bid_domain::ParseStatus::Ok,
+        "",
+    )
+    .unwrap();
+    s.set_requirements(vec![
+        score_req(
+            "REQ-0001",
+            "4.1 技术方案完整性与针对性 20 分（方案须覆盖架构与选型）",
+            20.0,
+            None,
+        ),
+        score_req(
+            "REQ-0002",
+            "4.2 售后服务方案 10 分（含响应时限承诺）",
+            10.0,
+            None,
+        ),
+        body_req("REQ-0003", "5.1 核心交换机须支持 48 口千兆光接口"),
+        body_req("REQ-0004", "5.2 售后响应时限 ≤ 2 小时"),
+    ])
+    .unwrap();
+    s.set_outline(vec![
+        leaf("SEC-01", 1, "技术方案", &["REQ-0003"]),
+        leaf("SEC-02", 2, "售后服务", &["REQ-0004"]),
+    ])
+    .unwrap();
+    s
+}
+
+fn upsert(s: &mut DomainStore, req: &str, sec: &str, share: f64) -> ScoringMapping {
+    s.upsert_scoring_mapping(
+        req.to_string(),
+        sec.to_string(),
+        share,
+        vec![],
+        anchor("4.1 技术方案完整性……（规则原文锚）"),
+        MappingSource::AgentSubmitted,
+    )
+    .unwrap()
+}
+
+// ---------------------------------------------------------------- 多对多（验收 2）
+
+/// 一个评分项跨 2 章节（0.6/0.4）→ 两章都查得到；满分按 share 摊分（12/8）。
+#[test]
+fn one_item_across_two_sections_shares_max() {
+    let mut s = store_base();
+    upsert(&mut s, "REQ-0001", "SEC-01", 0.6);
+    upsert(&mut s, "REQ-0001", "SEC-02", 0.4);
+
+    let mut tree_nodes = bid_domain::scoring::derive_scoring_tree(&s.requirements().to_vec());
+    // 联结（build_scorer 的域层等价面）
+    for (_, item) in tree_nodes.index.iter_mut() {
+        for m in s.scoring_mappings() {
+            if m.scoring_req_id == item.requirement_id
+                && !item.mappings.iter().any(|x| x.section_id == m.section_id)
+            {
+                item.mappings.push(bid_domain::scoring::SectionMapping {
+                    section_id: m.section_id.clone(),
+                    weight_share: m.weight_share,
+                });
+            }
+        }
+    }
+    let scorer = SectionScorer::new(tree_nodes, vec![]);
+    let content =
+        "技术方案：系统架构采用三层设计，设备选型经过充分比选论证，方案完整且针对本项目特点。";
+
+    let a = scorer.score_section("SEC-01", content);
+    let b = scorer.score_section("SEC-02", content);
+    assert_eq!(a.item_scores.len(), 1, "SEC-01 含跨章评分项");
+    assert_eq!(b.item_scores.len(), 1, "SEC-02 也含同一评分项（多对多）");
+    assert_eq!(a.item_scores[0].item_id, "REQ-0001");
+    assert_eq!(b.item_scores[0].item_id, "REQ-0001");
+    // 满分摊分：20 × 0.6 = 12；20 × 0.4 = 8
+    assert!(
+        (a.item_scores[0].max - 12.0).abs() < 1e-9,
+        "SEC-01 满分 = 20×0.6"
+    );
+    assert!(
+        (b.item_scores[0].max - 8.0).abs() < 1e-9,
+        "SEC-02 满分 = 20×0.4"
+    );
+    assert!((a.item_scores[0].weight_share - 0.6).abs() < 1e-9);
+    assert!((b.item_scores[0].weight_share - 0.4).abs() < 1e-9);
+    // estimated 同比摊分（同内容同档位 → 12r / 8r）
+    let ra = a.item_scores[0].estimated;
+    let rb = b.item_scores[0].estimated;
+    assert!(
+        (ra * 0.4 - rb * 0.6).abs() < 0.02,
+        "estimated 按 share 同比摊分：{ra}×0.4 ≈ {rb}×0.6"
+    );
+    // 章满分聚合也是摊分后的
+    assert!((a.max - 12.0).abs() < 1e-9);
+    assert!((b.max - 8.0).abs() < 1e-9);
+    // rationale 摊分说明在场（非 1.0 share 才注明）
+    assert!(
+        a.item_scores[0].rationale.contains("摊分"),
+        "rationale 带摊分说明"
+    );
+}
+
+/// 一章节承载 2 评分项 → item_scores = 2。
+#[test]
+fn one_section_carries_two_items() {
+    let mut s = store_base();
+    upsert(&mut s, "REQ-0001", "SEC-01", 1.0);
+    upsert(&mut s, "REQ-0002", "SEC-01", 1.0);
+    let mut tree_nodes = bid_domain::scoring::derive_scoring_tree(&s.requirements().to_vec());
+    for (_, item) in tree_nodes.index.iter_mut() {
+        for m in s.scoring_mappings() {
+            if m.scoring_req_id == item.requirement_id
+                && !item.mappings.iter().any(|x| x.section_id == m.section_id)
+            {
+                item.mappings.push(bid_domain::scoring::SectionMapping {
+                    section_id: m.section_id.clone(),
+                    weight_share: m.weight_share,
+                });
+            }
+        }
+    }
+    let scorer = SectionScorer::new(tree_nodes, vec![]);
+    let r = scorer.score_section("SEC-01", "技术方案与售后服务均完整覆盖。");
+    assert_eq!(r.item_scores.len(), 2, "一章节承载 2 评分项");
+    assert!(r.max > 0.0);
+}
+
+/// 单映射（params.section / share=1.0）与历史行为逐位一致（零回归锚）。
+#[test]
+fn single_mapping_share_one_matches_history() {
+    let reqs = vec![score_req(
+        "REQ-0009",
+        "4.9 项目经理业绩 5 分（近三年类似项目）",
+        5.0,
+        Some("SEC-07"),
+    )];
+    let items = derive_scoring_items(&reqs);
+    assert_eq!(items[0].mappings.len(), 1);
+    assert_eq!(items[0].mappings[0].section_id, "SEC-07");
+    assert!((items[0].mappings[0].weight_share - 1.0).abs() < 1e-9);
+}
+
+// ---------------------------------------------------------------- UNMAPPED（验收 2 附带）
+
+/// 无映射评分项 → unmapped_scoring_items 结构化（req_id/criteria/weight）
+/// + notes 响亮告警。
+#[test]
+fn unmapped_items_structured_and_loud() {
+    let mut s = store_base(); // REQ-0001/0002 均无 params.section、无账本映射
+    let tree_nodes = bid_domain::scoring::derive_scoring_tree(&s.requirements().to_vec());
+    let scorer = SectionScorer::new(tree_nodes, vec![]);
+    let doc = scorer.score_document(&[("SEC-01".into(), "写了一点技术方案内容。".into())], None);
+    assert_eq!(doc.unmapped_scoring_items.len(), 2, "两个评分项均未映射");
+    let u = &doc.unmapped_scoring_items[0];
+    assert_eq!(u.req_id, "REQ-0001");
+    assert!(!u.criteria.is_empty(), "criteria 摘要在场");
+    assert!((u.weight.unwrap() - 20.0).abs() < 1e-9, "weight 在场");
+    let joined = doc.notes.join("\n");
+    assert!(joined.contains("UNMAPPED"), "notes 保留字符串告警面");
+    assert!(joined.contains("总分可能偏低"), "响亮告警语义");
+    // 单章自评也可见文档级缺口
+    let sec = scorer.score_section("SEC-01", "内容");
+    let _ = sec; // （unmapped 在 MCP 层出参——域层 SectionScore 不带，文档级才带）
+}
+
+// ---------------------------------------------------------------- 账本（upsert 校验）
+
+/// upsert 幂等：同 (req, section) 重提 = 更新；weight_share 越界拒。
+#[test]
+fn upsert_idempotent_and_validates() {
+    let mut s = store_base();
+    let m1 = upsert(&mut s, "REQ-0001", "SEC-01", 0.6);
+    assert!(m1.id.starts_with("SM-"), "SM-xxxx 签发");
+    let m2 = upsert(&mut s, "REQ-0001", "SEC-01", 1.0); // 同键 → 更新非身份字段
+    assert_eq!(m1.id, m2.id, "幂等键命中不重签 id");
+    assert_eq!(s.scoring_mappings().len(), 1);
+    assert!((s.scoring_mappings()[0].weight_share - 1.0).abs() < 1e-9);
+    upsert(&mut s, "REQ-0001", "SEC-02", 0.4); // 新键 → 追加
+    assert_eq!(s.scoring_mappings().len(), 2);
+
+    // weight_share 越界（0 / >1）拒
+    for bad in [0.0_f64, 1.5, -0.1] {
+        let e = s
+            .upsert_scoring_mapping(
+                "REQ-0002".into(),
+                "SEC-01".into(),
+                bad,
+                vec![],
+                anchor("x"),
+                MappingSource::Manual,
+            )
+            .unwrap_err();
+        assert!(
+            matches!(e, ToolError::EUnprocessable { .. }),
+            "share={bad} 应拒"
+        );
+    }
+    // 评分项不存在拒
+    let e = s
+        .upsert_scoring_mapping(
+            "REQ-9999".into(),
+            "SEC-01".into(),
+            1.0,
+            vec![],
+            anchor("x"),
+            MappingSource::Manual,
+        )
+        .unwrap_err();
+    assert!(matches!(e, ToolError::ENotFound { .. }));
+    // 非评分面类别拒（映射对其他类别无意义）——全新 REQ id，
+    // 避开 set_requirements 的幂等合并（同锚旧记录不覆盖类别）
+    let mut s2 = store_base();
+    s2.set_requirements(vec![body_req("REQ-0500", "6.1 质保期三年（全新锚）")])
+        .unwrap();
+    let e = s2
+        .upsert_scoring_mapping(
+            "REQ-0500".into(),
+            "SEC-01".into(),
+            1.0,
+            vec![],
+            anchor("x"),
+            MappingSource::Manual,
+        )
+        .unwrap_err();
+    assert!(matches!(e, ToolError::EUnprocessable { .. }));
+    // 章节不存在拒
+    let e = s
+        .upsert_scoring_mapping(
+            "REQ-0001".into(),
+            "SEC-9999".into(),
+            1.0,
+            vec![],
+            anchor("x"),
+            MappingSource::Manual,
+        )
+        .unwrap_err();
+    assert!(matches!(e, ToolError::ENotFound { .. }));
+    // 幽灵证据拒
+    let e = s
+        .upsert_scoring_mapping(
+            "REQ-0001".into(),
+            "SEC-01".into(),
+            1.0,
+            vec!["EV-9999".into()],
+            anchor("x"),
+            MappingSource::Manual,
+        )
+        .unwrap_err();
+    assert!(matches!(e, ToolError::ENotFound { .. }));
+}
+
+/// 派生联结：store.scoring_items() 并入持久化映射（与 params.section 去重）。
+#[test]
+fn persistent_mappings_join_derived_items() {
+    let mut s = store_base();
+    // REQ-0002 有 params.section（RuleParsed 单值）；REQ-0001 无
+    let mut reqs = s.requirements().to_vec();
+    reqs[1]
+        .params
+        .insert("section".into(), serde_json::json!("SEC-02"));
+    s.set_requirements(reqs).unwrap();
+    upsert(&mut s, "REQ-0001", "SEC-01", 0.6);
+    upsert(&mut s, "REQ-0001", "SEC-02", 0.4); // 多对多：账本两条
+    let items = s.scoring_items();
+    let it1 = items
+        .iter()
+        .find(|i| i.requirement_id == "REQ-0001")
+        .unwrap();
+    assert_eq!(it1.mappings.len(), 2, "账本两条映射并入");
+    assert_eq!(it1.mappings[0].section_id, "SEC-01");
+    assert_eq!(it1.mappings[1].section_id, "SEC-02");
+    let it2 = items
+        .iter()
+        .find(|i| i.requirement_id == "REQ-0002")
+        .unwrap();
+    assert_eq!(it2.mappings.len(), 1, "params.section 派生映射保留");
+    assert_eq!(it2.mappings[0].section_id, "SEC-02");
+    // 去重：对 REQ-0002 的 (REQ-0002, SEC-02) 再登记 → 派生联结不双计
+    upsert(&mut s, "REQ-0002", "SEC-02", 1.0);
+    let items = s.scoring_items();
+    let it2 = items
+        .iter()
+        .find(|i| i.requirement_id == "REQ-0002")
+        .unwrap();
+    assert_eq!(
+        it2.mappings.len(),
+        1,
+        "同 (req, section) 键不重复入 mappings"
+    );
+}
+
+// ---------------------------------------------------------------- serde / 快照
+
+/// MappingSource 三值 SCREAMING_SNAKE_CASE 往返。
+#[test]
+fn mapping_source_serde_roundtrip() {
+    for (v, lit) in [
+        (MappingSource::RuleParsed, "RULE_PARSED"),
+        (MappingSource::AgentSubmitted, "AGENT_SUBMITTED"),
+        (MappingSource::Manual, "MANUAL"),
+    ] {
+        let j = serde_json::to_string(&v).unwrap();
+        assert_eq!(j, format!("\"{lit}\""));
+        let back: MappingSource = serde_json::from_str(&j).unwrap();
+        assert_eq!(back, v);
+    }
+}
+
+/// 快照往返 + 旧快照（无 scoring_mappings 键）空集合加载 + 孤儿/复合键重复拒载。
+#[test]
+fn mapping_snapshot_roundtrip_and_old_snapshot_loads() {
+    let mut s = store_base();
+    upsert(&mut s, "REQ-0001", "SEC-01", 0.6);
+    upsert(&mut s, "REQ-0001", "SEC-02", 0.4);
+
+    // 往返保真
+    let snap = s.to_snapshot();
+    assert_eq!(snap.scoring_mappings.len(), 2);
+    let restored = DomainStore::restore(snap).unwrap();
+    assert_eq!(restored.scoring_mappings(), s.scoring_mappings());
+
+    // 旧快照（无 scoring_mappings 字段）→ serde(default) 空集合加载
+    let mut json = serde_json::to_value(s.to_snapshot()).unwrap();
+    json.as_object_mut().unwrap().remove("scoring_mappings");
+    let old_snap: StoreSnapshot = serde_json::from_value(json).unwrap();
+    assert!(old_snap.scoring_mappings.is_empty());
+    let old_store = DomainStore::restore(old_snap).unwrap();
+    assert!(old_store.scoring_mappings().is_empty());
+
+    // 孤儿映射（章节不存在）拒载
+    let mut bad = s.to_snapshot();
+    bad.scoring_mappings.push(ScoringMapping {
+        id: "SM-9999".into(),
+        scoring_req_id: "REQ-0001".into(),
+        section_id: "SEC-9999".into(),
+        weight_share: 1.0,
+        evidence_refs: vec![],
+        source_anchor: anchor("x"),
+        created_from: MappingSource::Manual,
+    });
+    assert!(matches!(
+        DomainStore::restore(bad),
+        Err(ToolError::EUnprocessable { .. })
+    ));
+
+    // 复合键 (req, section) 重复拒载（幂等面破坏）
+    let mut dup = s.to_snapshot();
+    dup.scoring_mappings.push(ScoringMapping {
+        id: "SM-8888".into(),
+        scoring_req_id: "REQ-0001".into(),
+        section_id: "SEC-01".into(),
+        weight_share: 0.1,
+        evidence_refs: vec![],
+        source_anchor: anchor("x"),
+        created_from: MappingSource::Manual,
+    });
+    assert!(matches!(
+        DomainStore::restore(dup),
+        Err(ToolError::EUnprocessable { .. })
+    ));
+
+    // SM id 序列入水位：快照 id_seq 低水位拒载
+    let mut low = s.to_snapshot();
+    low.id_seq = 0;
+    assert!(matches!(
+        DomainStore::restore(low),
+        Err(ToolError::EUnprocessable { .. })
+    ));
+}

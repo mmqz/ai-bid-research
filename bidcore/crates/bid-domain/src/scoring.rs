@@ -20,7 +20,7 @@
 //! - 子项满分和 ≠ 父项声明值、parent 指向不存在节点、环、根合计 ≠ 100——
 //!   一律 [`ScoringTree::validate_sums`] 显式登记（如实报告，不硬套不阻断）。
 
-use crate::{DomainStore, Requirement};
+use crate::{DomainStore, Requirement, ToolError};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -85,12 +85,68 @@ pub struct ScoringItem {
     /// 客观分（可精确计算：证书/业绩个数/价格）true；主观分（评委打分）false
     #[serde(default)]
     pub is_objective: bool,
-    /// 映射章节（SEC-xxx / 章号）；未映射 → None
+    /// #224 多对多章节映射（SEC-xxx × weight_share——派生联结面：
+    /// `params.section`（RuleParsed，share=1.0）∪ store 持久化映射。
+    /// issue 原文的 `mapping_ids: Vec<String>` 落地为本形态——share 是
+    /// 跨章节摊分的必需信息（同项多章各算一次 → 总分虚高的主防）；
+    /// SM-id 实体面在 [`DomainStore::scoring_mappings`]，经
+    /// `(scoring_req_id, section_id)` 复合键与本字段联结）。空 = 未映射。
     #[serde(default)]
-    pub section_id: Option<String>,
+    pub mappings: Vec<SectionMapping>,
     /// 我方自评预计得分（派生恒 None——[`SectionScorer`] 运行时填充）
     #[serde(default)]
     pub our_estimate: Option<f64>,
+}
+
+/// #224 评分项 → 章节的单条映射联结（多对多的元素形态）。
+///
+/// `weight_share` ∈ (0,1]：该章节承载的权重占比——「技术方案 20 分」跨
+/// 2 章节（0.6/0.4）时，两章的该项满分分别为 12/8（[`SectionScorer::score_section`]
+/// 按 share 摊分，防同一项重复计入总分）。RuleParsed 单值映射恒 1.0
+/// （与历史行为逐位一致）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SectionMapping {
+    /// 被评章节（SEC-xxx / 章号——与历史 params.section 同域）
+    pub section_id: String,
+    /// 该章节承载的权重占比（多章节分摊；单映射恒 1.0）
+    pub weight_share: f64,
+}
+
+/// #224 映射来源（业务事实的审计面——谁建立的映射）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum MappingSource {
+    /// 解析层从评分表/评审表行派生（params.section——确定性回放）
+    RuleParsed,
+    /// Agent 提交（区间标记/推导——MCP 写面后续接入，本步先立面）
+    AgentSubmitted,
+    /// 人工登记（#182 可信身份面后续接入）
+    Manual,
+}
+
+/// #224 评分项 ↔ 章节多对多映射（持久化业务事实——独立身份可追溯可审计）。
+///
+/// 与 [`SectionMapping`]（派生联结面）的分工：本实体是**账本**（含证据引用/
+/// 原文锚/来源——AgentSubmitted 与 Manual 的落点，快照持久化）；派生面是
+/// **消费视图**（RuleParsed 的 params.section 不进本账本——每次确定性重放，
+/// 入账反而制造快照噪声）。幂等键 = `(scoring_req_id, section_id)`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ScoringMapping {
+    /// SM-xxxx（store 签发）
+    pub id: String,
+    /// 评分项 REQ id（必须存在于 requirements——孤儿映射拒载）
+    pub scoring_req_id: String,
+    /// 被评章节 SEC-xxx（必须存在于 sections——孤儿映射拒载）
+    pub section_id: String,
+    /// 该章节承载的权重占比 ∈ (0,1]（多章节分摊；重复计分检测见 validate_sums 扩展——第 2 步）
+    pub weight_share: f64,
+    /// 支撑该映射的证据（EV-id——映射依据的可追溯面）
+    #[serde(default)]
+    pub evidence_refs: Vec<String>,
+    /// 原始评分规则原文锚（追溯：分数 → 评分项 → 规则原文页/行）
+    pub source_anchor: crate::Anchor,
+    /// 谁建立的映射（RuleParsed 不入账；本集合只见 AgentSubmitted/Manual）
+    pub created_from: MappingSource,
 }
 
 // ---------------------------------------------------------------- 档位解析（纯函数辅面）
@@ -348,11 +404,9 @@ pub fn derive_scoring_items(reqs: &[Requirement]) -> Vec<ScoringItem> {
                                 r.anchors.first().map(|a| a.excerpt.as_str()).unwrap_or(""),
                             )
                         }),
-                    section_id: r
-                        .params
-                        .get("section")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
+                    // #224：params.section 单值 → RuleParsed 映射（share 恒 1.0，
+                    // 与历史单映射行为逐位一致；多对多扩面由 store 持久化映射并入）
+                    mappings: mappings_from_params(r.params.get("section")),
                     our_estimate: None, // 派生恒 None——SectionScorer 运行时填充
                 })
             }
@@ -378,16 +432,24 @@ pub fn derive_scoring_items(reqs: &[Requirement]) -> Vec<ScoringItem> {
                     .map(String::from),
                 tiers: tiers_from_params(r.params.get("tiers")),
                 is_objective: false, // 否决项无分值——主客观无意义，恒 false
-                section_id: r
-                    .params
-                    .get("section")
-                    .and_then(|v| v.as_str())
-                    .map(String::from),
+                mappings: mappings_from_params(r.params.get("section")),
                 our_estimate: None,
             }),
             _ => None,
         })
         .collect()
+}
+
+/// #224：`params.section`（RuleParsed 单值）→ 映射列表（share 恒 1.0）。
+fn mappings_from_params(v: Option<&serde_json::Value>) -> Vec<SectionMapping> {
+    v.and_then(|v| v.as_str())
+        .map(|s| {
+            vec![SectionMapping {
+                section_id: s.to_string(),
+                weight_share: 1.0,
+            }]
+        })
+        .unwrap_or_default()
 }
 
 /// 评分面健康度（sanity——分值缺失/总分越界登记，不阻断）：
@@ -713,10 +775,18 @@ pub struct ItemScore {
     pub is_objective: bool,
     /// 判定理由（四维明细——可追溯，非黑盒数字）
     pub rationale: String,
+    /// #224 多对多摊分比（本章承载的权重占比；单映射 1.0——与历史行为一致）
+    #[serde(default = "default_weight_share")]
+    pub weight_share: f64,
     /// 评分细则原文（#186 预留面——ScoringItem.score_rules 透传；**判档
     /// 不消费**，供起草/审校对照细则。None = 无细则）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub score_rules: Option<String>,
+}
+
+/// #224：旧快照/旧调用方的 weight_share 缺省面（单映射口径）。
+fn default_weight_share() -> f64 {
+    1.0
 }
 
 /// 章节自评结果（issue #94 §二 struct + `item_scores` 明细扩展）。
@@ -750,8 +820,21 @@ pub struct DocumentScore {
     pub total: f64,
     /// 各章节明细
     pub breakdown: Vec<SectionScore>,
+    /// #224 未映射评分项（非空 = 总分可能偏低——响亮告警；同步 notes 保留字符串面）
+    #[serde(default)]
+    pub unmapped_scoring_items: Vec<UnmappedItem>,
     /// 诚实登记（未映射评分项 / 章节缺内容 / 未报价 / 价格类跳过——不伪装）
     pub notes: Vec<String>,
+}
+
+/// #224 未映射评分项的结构化登记（UNMAPPED 响亮告警面——旧 notes 字符串保留）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UnmappedItem {
+    pub req_id: String,
+    /// criteria 摘要（截断——完整原文见评分项/规则锚）
+    pub criteria: String,
+    /// 分值（None = 分值也缺失——双重缺陷面，人工核对）
+    pub weight: Option<f64>,
 }
 
 /// 章节自评器（B2 任务 3——**规则判定，非 LLM**：覆盖度/字数/证据/具体性四维
@@ -940,6 +1023,9 @@ impl SectionScorer {
     /// 评分项集合：树中映射到 `section_id` 的**可达叶**（枝 = 容器不判定；
     /// 硬门跳过；价格类叶跳过——价格分由报价计算）。无映射项 → 空结果
     /// （rationale 显式说明，不伪装 0 分）。
+    /// #224 多对多：同一评分项可映射多章节，按 [`SectionMapping::weight_share`]
+    /// 摊分（本章该项满分 = 原满分 × share——同一项跨章各算一次导致总分虚高的
+    /// 主防；单映射 share=1.0 与历史行为逐位一致）。
     pub fn score_section(&self, section_id: &str, content: &str) -> SectionScore {
         let items = self.leaf_items_for_section(section_id);
         let mut item_scores = Vec::new();
@@ -957,7 +1043,7 @@ impl SectionScorer {
                 item_scores: vec![],
             };
         }
-        for item in &items {
+        for (item, share) in &items {
             if is_price_item(item) {
                 rationale_lines.push(format!(
                     "[{}] 价格类评分项——内容自评无意义（价格分 = f(报价)，由 PriceScoreSpec 计算），跳过",
@@ -967,22 +1053,29 @@ impl SectionScorer {
             }
             let d = self.assess(item, content);
             let tier = Self::grade(&d);
-            let max = item.max_score.unwrap_or(0.0);
-            let estimated = (max * tier.ratio() * 100.0).round() / 100.0; // 两位小数（评标惯例）
+            // #224 摊分：本章该项满分 = 原满分 × weight_share（多对多分摊）
+            let max_full = item.max_score.unwrap_or(0.0);
+            let max = (max_full * share * 100.0).round() / 100.0;
+            let estimated = (max_full * share * tier.ratio() * 100.0).round() / 100.0; // 两位小数（评标惯例）
             let obj_note = if item.is_objective {
                 "客观项——精确得分取决于证照/业绩数量，自评为提及性估计"
             } else {
                 "主观项"
             };
+            let share_note = if (*share - 1.0).abs() < 1e-9 {
+                String::new()
+            } else {
+                format!(" 摊分{:.0}%（满分{}×share={}）", share * 100.0, max_full, max)
+            };
             rationale_lines.push(format!(
-                "[{}] 覆盖 {}/{}={:.0}% 字数 {}/{} {} 证据 {} 具体性 {} → {}（{:.1}%）{:.2}×{:.3}={:.2}（{}）",
+                "[{}] 覆盖 {}/{}={:.0}% 字数 {}/{} {} 证据 {} 具体性 {} → {}（{:.1}%）{:.2}×{:.3}={:.2}（{}）{}",
                 short_id(&item.requirement_id),
                 d.hits.0, d.hits.1, d.coverage * 100.0,
                 d.chars.0, d.chars.1 as usize, if d.chars.0 as f64 >= d.chars.1 { "✓" } else { "✗" },
                 if d.evidence { "✓" } else { "✗" },
                 if d.specificity { "✓" } else { "✗" },
                 tier.label(), tier.ratio() * 100.0,
-                max, tier.ratio(), estimated, obj_note
+                max, tier.ratio(), estimated, obj_note, share_note
             ));
             if d.coverage >= 0.6 {
                 covered.push(item.requirement_id.clone());
@@ -997,14 +1090,15 @@ impl SectionScorer {
                 coverage: (d.coverage * 10000.0).round() / 10000.0,
                 is_objective: item.is_objective,
                 rationale: rationale_lines.last().unwrap().clone(),
+                weight_share: *share,
                 score_rules: item.score_rules.clone(),
             });
         }
         let estimated: f64 = item_scores.iter().map(|s| s.estimated).sum();
         let max: f64 = items
             .iter()
-            .filter(|i| !is_price_item(i))
-            .map(|i| i.max_score.unwrap_or(0.0))
+            .filter(|(i, _)| !is_price_item(i))
+            .map(|(i, share)| ((i.max_score.unwrap_or(0.0) * share) * 100.0).round() / 100.0)
             .sum();
         SectionScore {
             section_id: section_id.to_string(),
@@ -1048,21 +1142,31 @@ impl SectionScorer {
             breakdown.push(s);
         }
         // 未映射/缺内容叶登记（诚实状态——不计入不伪装）
+        // #224：UNMAPPED 升结构化面（unmapped_scoring_items）+ 保留 notes 字符串
         let section_ids: Vec<&str> = sections.iter().map(|(s, _)| s.as_str()).collect();
+        let unmapped_scoring_items = self.unmapped_items();
+        if !unmapped_scoring_items.is_empty() {
+            notes.push(format!(
+                "UNMAPPED: {} 个评分项未映射章节（{}）——无法自评，总分可能偏低（section 槽位空，人工核对）",
+                unmapped_scoring_items.len(),
+                unmapped_scoring_items
+                    .iter()
+                    .map(|u| u.req_id.as_str())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ));
+        }
         for item in self.reachable_leaves() {
             if item.is_hard_gate || is_price_item(item) {
                 continue;
             }
-            match &item.section_id {
-                None => notes.push(format!(
-                    "UNMAPPED: {} 未映射章节——无法自评（section 槽位空，人工核对）",
-                    item.requirement_id
-                )),
-                Some(sec) if !section_ids.contains(&sec.as_str()) => notes.push(format!(
-                    "SECTION_MISSING: {} 映射 {sec} 但未提供该章节内容——按未写计",
-                    item.requirement_id
-                )),
-                Some(_) => {}
+            for m in &item.mappings {
+                if !section_ids.contains(&m.section_id.as_str()) {
+                    notes.push(format!(
+                        "SECTION_MISSING: {} 映射 {} 但未提供该章节内容——按未写计",
+                        item.requirement_id, m.section_id
+                    ));
+                }
             }
         }
         // #186 预留面显式化：细则已入树但判档不消费（rule_heuristic）——
@@ -1099,15 +1203,41 @@ impl SectionScorer {
             commercial: commercial.map(|c| (c * 100.0).round() / 100.0),
             total: (total * 100.0).round() / 100.0,
             breakdown,
+            unmapped_scoring_items,
             notes,
         }
     }
 
-    /// 映射到某章节的可达叶（保序；硬门除外）。
-    fn leaf_items_for_section(&self, section_id: &str) -> Vec<&ScoringItem> {
+    /// 映射到某章节的可达叶 + 摊分比（保序；硬门除外）。
+    ///
+    /// #224 多对多：`mappings` 中每个命中本章的条目产出 `(item, weight_share)`；
+    /// 同一 item 理论上只产出一条（同 item 同章重复映射在 store 幂等键下不可
+    /// 能——(req_id, section_id) 唯一；派生面 params.section 单值也不重复）。
+    fn leaf_items_for_section(&self, section_id: &str) -> Vec<(&ScoringItem, f64)> {
         self.reachable_leaves()
             .into_iter()
-            .filter(|i| !i.is_hard_gate && i.section_id.as_deref() == Some(section_id))
+            .filter(|i| !i.is_hard_gate)
+            .filter_map(|i| {
+                i.mappings
+                    .iter()
+                    .find(|m| m.section_id == section_id)
+                    .map(|m| (i, m.weight_share))
+            })
+            .collect()
+    }
+
+    /// #224 未映射评分项（文档级告警面——score_section/score_document 出参共用）。
+    /// 非硬门可达叶中 `mappings` 为空者（req_id + criteria 摘要 + weight）。
+    /// 价格类叶不入（价格分 = f(报价)——不依赖章节映射，与 notes 循环同语义）。
+    pub fn unmapped_items(&self) -> Vec<UnmappedItem> {
+        self.reachable_leaves()
+            .into_iter()
+            .filter(|i| !i.is_hard_gate && !is_price_item(i) && i.mappings.is_empty())
+            .map(|i| UnmappedItem {
+                req_id: i.requirement_id.clone(),
+                criteria: truncate_chars(&i.criteria, 60),
+                weight: i.weight,
+            })
             .collect()
     }
 
@@ -1156,16 +1286,121 @@ fn short_id(id: &str) -> String {
     id.rsplit('-').next().unwrap_or(id).to_string()
 }
 
+/// 字符级截断（超长加省略号——criteria 摘要面；不切 UTF-8 边界）。
+fn truncate_chars(s: &str, n: usize) -> String {
+    if s.chars().count() <= n {
+        return s.to_string();
+    }
+    let cut: String = s.chars().take(n).collect();
+    format!("{cut}……")
+}
+
 // ---------------------------------------------------------------- DomainStore 扩面
 impl DomainStore {
-    /// 评分矩阵（派生态只读——每次从 requirements 重算，幂等无落库）。
+    /// 评分矩阵（派生态只读——每次重算，幂等无落库）。
+    /// #224：并入持久化映射（AgentSubmitted/Manual——多对多；params.section
+    /// 的 RuleParsed 单值已在 derive 内进 mappings）。
     pub fn scoring_items(&self) -> Vec<ScoringItem> {
-        derive_scoring_items(&self.requirements)
+        let mut items = derive_scoring_items(&self.requirements);
+        for m in &self.scoring_mappings {
+            if let Some(it) = items
+                .iter_mut()
+                .find(|i| i.requirement_id == m.scoring_req_id)
+            {
+                if !it.mappings.iter().any(|x| x.section_id == m.section_id) {
+                    it.mappings.push(SectionMapping {
+                        section_id: m.section_id.clone(),
+                        weight_share: m.weight_share,
+                    });
+                }
+            }
+        }
+        items
     }
 
     /// 评分树（B2——层级视图；同评分矩阵同源派生，幂等）。
     pub fn scoring_tree(&self) -> ScoringTree {
         derive_scoring_tree(&self.requirements)
+    }
+
+    /// #224 映射账本（持久化只读——AgentSubmitted/Manual 的落点；
+    /// RuleParsed 派生映射不入账，确定性重放）。
+    pub fn scoring_mappings(&self) -> &[ScoringMapping] {
+        &self.scoring_mappings
+    }
+
+    /// #224 登记评分映射（幂等键 = (scoring_req_id, section_id)——同键重
+    /// 提 = 更新该条的非身份字段；新键 = 追加并签发 SM-xxxx）。
+    ///
+    /// 校验（fail-loud，不猜测）：
+    /// - `scoring_req_id` 必须在 requirements 且是评分面（评分项/否决项
+    ///   ——映射对其他类别无意义）；
+    /// - `section_id` 必须在 sections（孤儿映射 = 半个账本）；
+    /// - `weight_share` ∈ (0,1]（越界 = 权重语义破坏）；
+    /// - `evidence_refs` 中每个 EV-id 必须在 evidences（幽灵引用拒收）。
+    pub fn upsert_scoring_mapping(
+        &mut self,
+        scoring_req_id: String,
+        section_id: String,
+        weight_share: f64,
+        evidence_refs: Vec<String>,
+        source_anchor: crate::Anchor,
+        created_from: MappingSource,
+    ) -> Result<ScoringMapping, ToolError> {
+        let bad = |reason: String| ToolError::EUnprocessable { reason };
+        if !(0.0 < weight_share && weight_share <= 1.0) {
+            return Err(bad(format!(
+                "weight_share={weight_share} 越界（合法域 (0,1]——多章节分摊时各章占比之和 ≤ 1.0）"
+            )));
+        }
+        let req = self
+            .requirements
+            .iter()
+            .find(|r| r.id == scoring_req_id)
+            .ok_or_else(|| ToolError::ENotFound {
+                what: format!("评分项 {scoring_req_id} 不存在（先 extract_requirements）"),
+            })?;
+        if !matches!(req.category.as_str(), "评分项" | "否决项") {
+            return Err(bad(format!(
+                "REQ {scoring_req_id} 类别为 {}——仅评分项/否决项可建映射（其余类别不进评分面）",
+                req.category
+            )));
+        }
+        if !self.sections.iter().any(|s| s.id == section_id) {
+            return Err(ToolError::ENotFound {
+                what: format!("章节 {section_id} 不存在（先 build_outline）"),
+            });
+        }
+        let ev_ids: std::collections::HashSet<&str> =
+            self.evidences.iter().map(|e| e.id.as_str()).collect();
+        if let Some(ev) = evidence_refs.iter().find(|e| !ev_ids.contains(e.as_str())) {
+            return Err(ToolError::ENotFound {
+                what: format!("证据 {ev} 不存在（先 register_evidence）"),
+            });
+        }
+        // 幂等键命中 → 更新非身份字段；未命中 → 追加签新 id
+        if let Some(existing) = self
+            .scoring_mappings
+            .iter_mut()
+            .find(|m| m.scoring_req_id == scoring_req_id && m.section_id == section_id)
+        {
+            existing.weight_share = weight_share;
+            existing.evidence_refs = evidence_refs;
+            existing.source_anchor = source_anchor;
+            existing.created_from = created_from;
+            return Ok(existing.clone());
+        }
+        let m = ScoringMapping {
+            id: self.next_id("SM"),
+            scoring_req_id,
+            section_id,
+            weight_share,
+            evidence_refs,
+            source_anchor,
+            created_from,
+        };
+        self.scoring_mappings.push(m.clone());
+        Ok(m)
     }
 
     /// 硬门清单（否决项 REQ id——T-3 验收「植入 1 个否决项漏响应 → 阻断导出」的输入面；
@@ -1635,11 +1870,11 @@ mod tests {
         assert!(tree.validate_sums().is_empty(), "健康树零报文");
         assert!((tree.max_score("S-TECH") - 30.0).abs() < 1e-9);
         assert!((tree.max_score("S-PRICE") - 40.0).abs() < 1e-9);
-        // 章节映射随树派生（自评对接面）
-        assert_eq!(
-            tree.index.get("S-TECH-a").unwrap().section_id.as_deref(),
-            Some("SEC-03")
-        );
+        // 章节映射随树派生（自评对接面；#224 多对多形态——RuleParsed share=1.0）
+        let a = tree.index.get("S-TECH-a").unwrap();
+        assert_eq!(a.mappings.len(), 1);
+        assert_eq!(a.mappings[0].section_id, "SEC-03");
+        assert!((a.mappings[0].weight_share - 1.0).abs() < 1e-9);
         // our_estimate 派生恒 None（任务 3 填充）
         assert!(tree.index.values().all(|i| i.our_estimate.is_none()));
     }

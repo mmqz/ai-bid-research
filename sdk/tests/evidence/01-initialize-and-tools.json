@@ -2,11 +2,11 @@
  "case": "01-initialize-and-tools",
  "transport": "mcp",
  "server_bin": "/home/z/my-project/bid-research-rw/bidcore/target/debug/bid-mcp-server",
- "server_sha256": "3d2bf987583c614756200de1991b82cd93c95510b2fd2dcdbfbbaf69b10384c2",
+ "server_sha256": "33d84ab7770b385083339d3c9d17fa2940ea9544a9b984afd4cec5bd88d43127",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-03T01:53:39+00:00",
+ "started_at": "2026-11-03T16:30:19+00:00",
  "stages": [
   {
    "stage": "MCP 握手 + 工具清单",
@@ -18,9 +18,9 @@
      "version": "0.1.0"
     },
     "protocolVersion": "2025-11-25",
-    "n_tools": 21,
+    "n_tools": 24,
     "tool_names": {
-     "count": 21,
+     "count": 24,
      "head": [
       "bind_evidence",
       "build_outline",
@@ -31,9 +31,9 @@
       "extract_requirements",
       "get_bid_project_state",
       "get_compliance_matrix",
-      "import_tender_files",
-      "list_evidence",
-      "list_tasks"
+      "get_coverage_report",
+      "get_document_chunks",
+      "import_tender_files"
      ]
     }
    },
@@ -51,7 +51,7 @@
      "pass": true
     },
     {
-     "desc": "握手: tools/list ≥ 20（实际 21）",
+     "desc": "握手: tools/list ≥ 20（实际 24）",
      "pass": true
     },
     {
@@ -64,5 +64,5 @@
  ],
  "payload_shapes": {},
  "ws": null,
- "finished_at": "2026-11-03T01:53:39+00:00"
+ "finished_at": "2026-11-03T16:30:19+00:00"
 }

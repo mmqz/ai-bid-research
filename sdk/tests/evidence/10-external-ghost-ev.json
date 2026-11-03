@@ -2,11 +2,11 @@
  "case": "10-external-ghost-ev",
  "transport": "mcp",
  "server_bin": "/home/z/my-project/bid-research-rw/bidcore/target/debug/bid-mcp-server",
- "server_sha256": "3d2bf987583c614756200de1991b82cd93c95510b2fd2dcdbfbbaf69b10384c2",
+ "server_sha256": "33d84ab7770b385083339d3c9d17fa2940ea9544a9b984afd4cec5bd88d43127",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-03T01:53:40+00:00",
+ "started_at": "2026-11-03T16:30:20+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 5.439931000182696
+   "elapsed_ms": 6.8984829999862995
   },
   {
    "stage": "P1 import_tender_files",
@@ -98,6 +98,7 @@
       "ocr_tier": "none",
       "pages": 0,
       "parse_status": "ok",
+      "parse_summary": "engine-docx @ aa0c859d956597992c2d93e9055e2f0beca017c3｜警告 0 条｜部件账本 9 面",
       "sha256": "e1a2c6f1665306b26c1d7c846cce74f9af02b7cade5bd548cb73f7448ed0d996",
       "tables": 6
      },
@@ -109,6 +110,7 @@
       "ocr_tier": "none",
       "pages": 0,
       "parse_status": "ok",
+      "parse_summary": "engine-docx @ aa0c859d956597992c2d93e9055e2f0beca017c3｜警告 0 条｜部件账本 9 面",
       "sha256": "c0f0e3da2f3dbb1ac864be3c85c53544cabcab728e1e9854b3b03ec70e04c1f0",
       "tables": 0
      },
@@ -120,6 +122,7 @@
       "ocr_tier": "none",
       "pages": 1,
       "parse_status": "ok",
+      "parse_summary": "pdf 文本层: 1 页 8 行块",
       "sha256": "b1b4811b9c1b96e1bff95a49dcba07434cd391d7939e82b7453d18142b80258c",
       "tables": 0
      },
@@ -131,6 +134,7 @@
       "ocr_tier": "none",
       "pages": 1,
       "parse_status": "ok",
+      "parse_summary": "pdf 文本层: 1 页 7 行块",
       "sha256": "60a2e9ce86ccab9bb8ad89be98bcfd8e802ee8d9ff6e20ce7ea4f2e23964c7b6",
       "tables": 0
      }
@@ -164,7 +168,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 222.27764999934152
+   "elapsed_ms": 284.74899899993034
   },
   {
    "stage": "P2 extract_requirements",
@@ -185,12 +189,20 @@
      },
      "total": 121
     },
+    "merge": {
+     "agent_requirements": 0,
+     "coverage_complete": false,
+     "regex_dropped_covered": 0,
+     "regex_total": 121,
+     "uncovered_blocks": 193
+    },
     "missing_sequence": [],
     "project_version": 6,
     "request_id": "req-000004",
     "status": "REQUIREMENTS_EXTRACTED",
     "warnings": [
-     "ENGINE_PATH: A-招标文件.docx 经引擎路径解析（已知缺口：嵌套表 mdcore#39 / 域边界 mdcore#40——docs/b3-3-acceptance-report.md §6）"
+     "ENGINE_PATH: A-招标文件.docx 经引擎路径解析（已知缺口：嵌套表 mdcore#39 / 域边界 mdcore#40——docs/b3-3-acceptance-report.md §6）",
+     "UNCOVERED_BLOCKS: 193 块未标记（正则已兜底补漏——用 get_coverage_report 查看后 submit_block_marks 补标，重跑 extract 更准）"
     ]
    },
    "checks": [
@@ -203,7 +215,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 64.78821200016682
+   "elapsed_ms": 66.65825699974448
   },
   {
    "stage": "P3 build_outline",
@@ -236,7 +248,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.610763000026054
+   "elapsed_ms": 8.155181999882188
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -344,7 +356,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 18.203076000645524,
+   "elapsed_ms": 21.65712500027439,
    "extra": {
     "sections": {
      "SEC-0007": [
@@ -544,7 +556,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.224727000699204
+   "elapsed_ms": 6.795460999910574
   },
   {
    "stage": "P4 bind_evidence",
@@ -576,7 +588,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.850510999356629
+   "elapsed_ms": 10.45411699988108
   },
   {
    "stage": "G3 record_review_gate ×2",
@@ -636,7 +648,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 14.143547000458057
+   "elapsed_ms": 15.289626000139833
   },
   {
    "stage": "① draft(external) 幽灵 EV [SEC-0007]",
@@ -751,5 +763,5 @@
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/external-ghost-ev/ws",
- "finished_at": "2026-11-03T01:53:41+00:00"
+ "finished_at": "2026-11-03T16:30:21+00:00"
 }

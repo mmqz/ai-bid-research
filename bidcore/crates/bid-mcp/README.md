@@ -10,7 +10,7 @@
 
 它解决三个实际问题：
 
-1. **工具名单一真源** —— 20 个工具名（`TOOL_NAMES`）可被编译器检查，schema 声明
+1. **工具名单一真源** —— 24 个工具名（`TOOL_NAMES`）可被编译器检查，schema 声明
    与分发都从这里取；
 2. **错误包统一** —— `E_STATE` / `E_NOTFOUND` / `E_UNPROCESSABLE` / `UNIMPLEMENTED_INTERNAL`
    走同一条 `ToolError` 通道，调用方拿到的永远是 typed 错误而非字符串；
@@ -25,7 +25,7 @@
 | 方法 | 行为 |
 |---|---|
 | `initialize` | 版本协商（支持 `2024-11-05` / `2025-03-26` / `2025-06-18` / `2025-11-25`，集内回显、集外回最新）+ `capabilities`（只声明 tools）+ `serverInfo` |
-| `tools/list` | 20 个工具全量返回，逐工具 `inputSchema`（合法 JSON Schema，与 tools.rs 实现逐位核对） |
+| `tools/list` | 24 个工具全量返回，逐工具 `inputSchema`（合法 JSON Schema，与 tools.rs 实现逐位核对） |
 | `tools/call` | 参数形状校验后包装既有 `dispatch`，工具语义零变化 |
 
 错误映射（双通道）：
@@ -40,7 +40,7 @@
 initialize + list_tools + call_tool + 错误映射）；协议层传输无关单测在
 `src/protocol.rs`（`tests/mcp_protocol` 系，注入独立 `BidService`）。
 
-## 工具面（20 个）
+## 工具面（24 个）
 
 | 工具 | 状态 |
 |---|---|

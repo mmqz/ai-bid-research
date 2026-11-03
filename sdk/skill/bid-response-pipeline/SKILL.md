@@ -9,7 +9,7 @@ description: >
 # 标书编制管线（bid-response-pipeline）
 
 > 职责分界：**Agent 编排与写正文，引擎裁决与保真**。本 Skill 驱动一个封闭的
-> 确定性后端（bid-mcp，21 个 MCP 工具）——你按阶段表走、守门禁、向用户复述
+> 确定性后端（bid-mcp，24 个 MCP 工具）——你按阶段表走、守门禁、向用户复述
 > 数字；状态机裁决、引用回查、CAS 落盘、校验、导出全部由引擎完成。
 > 工具契约单一真源：`docs/bid-mcp-contract.md`（本文工具名与之逐一对齐，
 > 不新增任何绕过状态机的写路径）。
@@ -20,7 +20,7 @@ description: >
 |---|---|---|---|---|
 | P0 建项 | 建投标项目 | `create_bid_project` | project_id 返回且 deadline 未过 | 幂等 external_key 重入 |
 | P1 导入 | 逐类导入+核对 | `import_tender_files` | totals.parse_failed=0 且部分失败件已重试或经用户确认降级；**补遗件必须全部 READY**（addendum_readiness.not_ready 非空 → 修复重传，或经用户逐件确认 record_addendum_waiver 后放行——见下方「补遗分级门」）；**统计数字必须向用户复述** | sha256 幂等；失败件单补 |
-| P2 抽条款 | 抽取+冲突确认 | `extract_requirements` | missing_sequence 为空（缺号必须解释）；conflicts 逐条向用户确认口径 | dedupe_hash 幂等合并 |
+| P2 抽条款 | Agent 标记优先抽取+冲突确认 | `get_document_chunks` → `submit_block_marks` → `extract_requirements` | merge.coverage_complete=true（或 uncovered 块已由正则兜底且用户知情）；missing_sequence 为空（缺号必须解释）；conflicts 逐条向用户确认口径 | 标记整集替换；重跑 extract 重算合并（Agent 优先） |
 | P3 矩阵 | 建纲+矩阵+资格判断 | `build_outline` → `get_compliance_matrix` | build_outline 返回 MATRIX_READY；资格/否决行 policy 全填；资格三态结论（eligible/conditional/not_eligible）向用户报告；**not_eligible → 停止流程，只产审查报告** | 矩阵只读（get_compliance_matrix），随时重查 |
 | P4 证据 | 登记+绑定证据、补缺清单 | `register_evidence` / `bind_evidence` / `list_evidence` / `search_evidence`* | 每条必选项≥1 条 OK 证据；EXPIRED 禁绑；缺失项形成补料清单交用户；bind 后 matrix.blocking=0 | 缺料→等待用户补充后仅补跑受影响行 |
 | P5 起草 | 逐章节起草（**正文由你写**） | `draft_response_section` / `save_version` | unanchored_claims=0；citations 全部来自已绑定 EV；**每完成一个章节，调用 save_version 存版本**（message 写明章节与完成内容） | per-SEC 重试，不影响其他章节 |

@@ -14,7 +14,7 @@
   `in : { project_id, filters:{...}, cursor?, limit?, page?(仅矩阵兼容) }`；
   `out: { rows|items, total(过滤后总数), limit(生效页宽), cursor(本次生效游标), next_cursor: string|null }`，`next_cursor=null` 即取完，原样回传取下一页。
   游标规则（fail-closed）：opaque base64（内嵌版本字节/偏移/过滤器指纹）；跨过滤器或跨工具复用游标 → `E_UNPROCESSABLE`；limit 合法域 1..=1000、缺省 100，越界/非整数**显式拒**（不静默 clamp）；游标损坏/版本不认识/偏移越界（底层列表已变化）→ `E_UNPROCESSABLE`。行序确定性（矩阵=条款位置序 CMP-0001..N；证据=id 字典序；任务=target_id 字典序）是分页安全前提，不得破坏。
-- **补充建议（第 9 个只读工具）**：`get_bid_project_state`——断点恢复的入口（读项目状态、各阶段完成度、DIRTY 章节、BLOCKER 计数），仿 LingYan `check_pipeline_state`。原 8 工具契约不受影响。V3-5（S-4）另增两个只读列表工具 `list_evidence` / `list_tasks`（§4-A/§4-B，工具面共 11）。issue #42 阶段 10 增第 12 个工具 `save_version`（AI 主动存版本快照，见文末 §SV）。
+- **补充建议（第 9 个只读工具）**：`get_bid_project_state`——断点恢复的入口（读项目状态、各阶段完成度、DIRTY 章节、BLOCKER 计数），仿 LingYan `check_pipeline_state`。原 8 工具契约不受影响。V3-5（S-4）另增两个只读列表工具 `list_evidence` / `list_tasks`（§4-A/§4-B，工具面共 11）。issue #42 阶段 10 增第 12 个工具 `save_version`（AI 主动存版本快照，见文末 §SV）。#80 第三批（G1-G3）后工具面 21；#219 全块覆盖三工具（§17/§18/§19）后工具面 **24**（§3 同步抽取通路合并语义）。
 
 ## 1. create_bid_project
 ```
@@ -63,10 +63,24 @@ out: { file_ids:[TF-*], per_file:[{file_id, sha256, pages, tables, chunks, ocr_t
 in : { project_id, scope:"all"|file_ids[], options:{granularity, include_scoring_table:true}, project_version }
      options.granularity：**保留位，当前未实现**（传入被忽略——#86 摩擦 #6 清偿：
      契约曾提到但无实现，如实标注；未来实现时枚举合法值并在此补记）
-out: { counts:{total, by_category{qualification,veto,scoring,tech_param,commercial,format,other}},
+out: { counts:{total, added(可为负——整集替换语义下的诚实增量), by_category{qualification,veto,scoring,tech_param,commercial,format,other}},
+       merge:{regex_total, regex_dropped_covered, agent_requirements, uncovered_blocks, coverage_complete}（#219 二步合并面），
        conflicts:[{a:REQ-*,b:REQ-*,reason}], missing_sequence:[{file_id,expected_clause_nos,found}], warnings[] }
-执行: 确定性先行（条款编号序列解析、表格结构化槽位抽取）→ 模型补全语义归类与陈述规范化；按 dedupe_hash 幂等合并重跑结果
-硬规则: 条款编号缺号 → missing_sequence 必须报告（完整性校验）；补遗与正文冲突 → 双向登记 conflicts
+执行: 确定性先行（条款编号序列解析、表格结构化槽位抽取）→ #219 二步抽取通路合并
+      （Agent 块标记优先 + 正则兜底）：被任何区间标记覆盖的块，正则产物丢弃
+      （Agent 已看过该块——无论 noise/rule/review_table/requirement）；未覆盖块
+      正则保留（兜底）；Agent 提交的关键点转 REQ-Axxxx 追加（冲突以 Agent 为准；
+      params 携 statement/mandatory/block_idx/marked_by=agent，溯源锚=块原文）。
+      落库改整集替换（replace）——「先 extract → 补标 → 重跑」时被覆盖块上的旧
+      正则 REQ 消失（只增不删的合并语义做不到）；REQ-A 后缀非纯数字，CMP 派生
+      id 走 CMP-0000-REQ-Axxxx 回退分支，与正则 CMP-000N 零碰撞。
+      **无标记时严格 no-op**：与旧正则产物逐位一致（GT 红线零位移）。
+      B3（图纸目录/证据件，无抽取面）不进合并统计。
+      warnings 新增：UNCOVERED_BLOCKS（未覆盖块数——正则已兜底，Agent 补标后
+      重跑更准）；AGENT_MANDATORY_NOT_BLOCKING（Agent 标必选但类别不在阻断面
+      资格条件/否决项——is_mandatory 接线属后续 issue，先亮警告防静默漏洞）。
+硬规则: 条款编号缺号 → missing_sequence 必须报告（完整性校验）；补遗与正文冲突 → 双向登记 conflicts；
+      合并守恒：counts.total = regex_total - regex_dropped_covered + agent_requirements
 错误: E_PARTIAL（某文件抽取失败，其余成功）；E_STATE（未导入文件）
 状态: FILES_IMPORTED → REQUIREMENTS_EXTRACTED
 ```
@@ -652,4 +666,62 @@ out: { recorded:{ file_id, reason, at(unix epoch 秒),
 错误: E_UNPROCESSABLE（principal 缺 human: 前缀 / reason 空白）；E_NOTFOUND
       （file_id 不存在于 files——对不存在的件做确认 = 凭空免责）；E_STATE
       （DRAFT）；拒绝路径零副作用
+```
+
+## 17. get_document_chunks（#219 全块覆盖 · 只读）
+
+> 背景：条款抽取依赖正则匹配字符形态（`1.1`/`一、`/`第X章`），真实招标文件里
+> 技术要求用「1、」编号、大量流程条款被误判必选（#226）、无编号段落/表格内容
+> 完全丢失。架构转变：**引擎切块 + Agent 标区间**——引擎保证块 ID 稳定与区间
+> 校验，语义判断归 Agent（coverage.rs 职责边界）。
+
+```
+in : { project_id, file_id, from?(缺省 0), size?(缺省 50，上限 200) }
+out: { file_id, total_blocks, from, returned, next_from(取完为 null),
+       chunks:[{ block_idx, kind(Para|TableRow|PdfLine|OcrLine|XlsxRow),
+       locator, text, cells, verdict(已标记块的结论回显——未标记 null) }],
+       coverage:{ covered_blocks, complete, uncovered_ranges, by_verdict } }
+语义: 取单文件的块文本窗口（join 键 = sha256——与 #217 locate_content 同口径）。
+      size 上限 200 防上下文吃爆（160 页文件 3600+ 块）；from 越界 → E_UNPROCESSABLE。
+错误: E_NOTFOUND（file_id 不存在）；E_UNPROCESSABLE（size 0/>200、from 越界、
+      无解析产物在服务态——须先 import 成功）；E_STATE（状态机窗口外）
+状态: FILES_IMPORTED / REQUIREMENTS_EXTRACTED
+```
+
+## 18. submit_block_marks（#219 全块覆盖 · 写）
+
+```
+in : { project_id, file_id,
+       marks:[{ from, to, verdict(requirement|noise|rule|review_table), reason? }]（非空，
+       **整集替换该文件的标记集**——多窗口翻页标注时必须带全量，不是增量追加）,
+       requirements?:[{ block_idx, statement(非空), category?(七类合法值——
+       资格条件|否决项|评分项|技术参数|商务要求|格式要求|其他), mandatory? }]，
+       project_version }
+out: { marks_accepted, requirements_accepted, total_blocks,
+       coverage:{ covered_blocks, complete, uncovered_ranges, by_verdict },
+       next(人话指引：全覆盖 → 可继续 build_outline；否则 → 补标) }
+语义: 提交区间标记 + Agent 提取的关键点。#219 二步起两者**原子落库并持久化**
+      （PR #227 只存 marks，reqs 校验后回显即丢——二步修上这一半；经服务层
+      auto_checkpoint，重启不丢）。requirements 是 extract_requirements 合并面
+      （§3）的输入——block_idx 必须落在 verdict=requirement 的区间内。
+      verdict 语义：requirement=需响应；noise=无关；rule=招标人规则说明
+      （#226 防死锁核心——常被误判否决项）；review_table=审查表。
+错误: E_UNPROCESSABLE（marks 空/区间非法/越界/重叠/requirement 越区间/
+      statement 空/category 非法）；E_NOTFOUND（file_id）；E_STATE（窗口外）；
+      拒绝路径零副作用
+状态: FILES_IMPORTED / REQUIREMENTS_EXTRACTED
+```
+
+## 19. get_coverage_report（#219 全块覆盖 · 只读）
+
+```
+in : { project_id }
+out: { complete, total_blocks, covered_blocks, uncovered_range_count,
+       files:[{ file_id, total_blocks, covered_blocks, complete,
+       uncovered_ranges(前 50 段), uncovered_range_count, by_verdict }],
+       next(人话指引) }
+语义: 全部导入文件的覆盖聚合（含 B3 证据件——与 §17 单文件窗口互补的全局面）。
+      uncovered_ranges 为连续未覆盖块的合并区间 [(from, to)…]。
+错误: E_STATE（窗口外——Validating 起全程放行）
+状态: FILES_IMPORTED+（Validating 起含全部状态）
 ```

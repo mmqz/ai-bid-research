@@ -398,6 +398,10 @@ pub struct DomainStore {
     /// #219 全块覆盖标记（文件 ID → 区间标记列表；Agent 判断面，
     /// 引擎只做区间校验与覆盖统计——见 coverage.rs）
     block_marks: HashMap<String, Vec<coverage::BlockMark>>,
+    /// #219 二步：Agent 提交的关键点（文件 ID → 提交序；
+    /// `submit_block_marks` 落库面——`extract_requirements` 合并时消费）。
+    /// PR #227 只存 marks 不存 reqs（回显后丢弃）——本字段补上这一半。
+    submitted_requirements: HashMap<String, Vec<coverage::SubmittedRequirement>>,
     /// 幂等键 → 首次结果 JSON（同 key 重放返回首次结果，不重复执行）
     idempotency: HashMap<String, serde_json::Value>,
     id_seq: u64,
@@ -422,6 +426,7 @@ impl DomainStore {
             addendum_waivers: vec![],
             file_roles: vec![],
             block_marks: HashMap::new(),
+            submitted_requirements: HashMap::new(),
             idempotency: HashMap::new(),
             id_seq: 0,
         }
@@ -777,6 +782,46 @@ impl DomainStore {
         self.block_marks.get(file_id).map(|v| v.as_slice()).unwrap_or(&[])
     }
 
+    /// #219 二步：写入某文件的区间标记 + Agent 关键点（原子——两项同验同写）。
+    ///
+    /// 合并 `set_block_marks` 与 submitted 落库：PR #227 的工具层只调
+    /// `set_block_marks`（reqs 校验后回显即丢，且不经服务层无 checkpoint）。
+    /// 二步起 reqs 是合并面的输入，必须持久化。
+    pub fn set_block_coverage(
+        &mut self,
+        file_id: &str,
+        marks: Vec<coverage::BlockMark>,
+        reqs: Vec<coverage::SubmittedRequirement>,
+        total_blocks: usize,
+    ) -> Result<(), ToolError> {
+        if !self.files.iter().any(|f| f.id == file_id) {
+            return Err(ToolError::ENotFound {
+                what: format!("文件 {file_id} 不存在"),
+            });
+        }
+        coverage::validate_marks(&marks, total_blocks)
+            .map_err(|e| ToolError::EUnprocessable { reason: e.to_message() })?;
+        coverage::validate_submitted(&marks, &reqs)
+            .map_err(|e| ToolError::EUnprocessable { reason: e.to_message() })?;
+        self.block_marks.insert(file_id.to_string(), marks);
+        self.submitted_requirements.insert(file_id.to_string(), reqs);
+        if let Some(p) = self.project.as_mut() {
+            p.content_version += 1;
+        }
+        Ok(())
+    }
+
+    /// #219 二步：读某文件的 Agent 关键点。
+    pub fn submitted_requirements_of(
+        &self,
+        file_id: &str,
+    ) -> &[coverage::SubmittedRequirement] {
+        self.submitted_requirements
+            .get(file_id)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[])
+    }
+
     /// 覆盖报告（纯派生）。
     pub fn coverage_report(&self, file_id: &str, total_blocks: usize) -> coverage::CoverageReport {
         coverage::compute_coverage(self.block_marks_of(file_id), total_blocks)
@@ -833,6 +878,45 @@ impl DomainStore {
         }
         p.content_version += 1;
         Ok((self.requirements.len(), added))
+    }
+
+    /// #219 二步：整集替换条款集（「Agent 优先 + 正则兜底」合并的落库面）。
+    ///
+    /// 与 [`DomainStore::set_requirements`] 的差异：
+    /// - set：dedupe_hash 幂等合并、**只增不删**——重跑覆盖同位、新件追加；
+    /// - replace：整集替换——场景「先 extract（无标记）→ Agent 标 noise →
+    ///   重跑 extract」时，被覆盖块上的旧正则 REQ 必须从库里消失
+    ///   （Agent 优先），只增不删的合并语义做不到。
+    ///
+    /// 抽取窗口内整集替换是安全的：大纲/矩阵/证据绑定/矩阵覆写只存在于
+    /// MATRIX_READY+，而 extract 在该态被 E_STATE 拦死——不存在孤儿引用面。
+    pub fn replace_requirements(&mut self, reqs: Vec<Requirement>) -> Result<usize, ToolError> {
+        let p = self.project.as_ref().ok_or_else(|| ToolError::ENotFound {
+            what: "project 未创建".into(),
+        })?;
+        if p.status != ProjectStatus::FilesImported
+            && p.status != ProjectStatus::RequirementsExtracted
+        {
+            return Err(ToolError::EState {
+                current: p.status,
+                attempted: "extract_requirements",
+            });
+        }
+        // id 唯一性（fail-loud——合并面编号由 merge_extraction 保证唯一，
+        // 这里拦手造件/未来回归）
+        let mut seen = std::collections::HashSet::new();
+        if let Some(dup) = reqs.iter().find(|r| !seen.insert(r.id.as_str())) {
+            return Err(ToolError::EUnprocessable {
+                reason: format!("条款 id 重复：{}（合并面编号必须唯一）", dup.id),
+            });
+        }
+        self.requirements = reqs;
+        let p = self.project.as_mut().unwrap();
+        if p.status == ProjectStatus::FilesImported {
+            p.status = ProjectStatus::RequirementsExtracted;
+        }
+        p.content_version += 1;
+        Ok(self.requirements.len())
     }
 }
 
@@ -899,6 +983,10 @@ pub struct StoreSnapshot {
     /// #219 全块覆盖标记（加性迁移——旧快照无此字段 → 空映射加载）
     #[serde(default)]
     pub block_marks: BTreeMap<String, Vec<coverage::BlockMark>>,
+    /// #219 二步：Agent 提交的关键点（加性迁移——旧快照无此字段 →
+    /// 空映射加载；PR #227 时代的快照无 submitted 面，合并时视为未提交）
+    #[serde(default)]
+    pub submitted_requirements: BTreeMap<String, Vec<coverage::SubmittedRequirement>>,
     #[serde(default)]
     pub idempotency: BTreeMap<String, serde_json::Value>,
     #[serde(default)]
@@ -927,6 +1015,11 @@ impl DomainStore {
             file_roles: self.file_roles.clone(),
             // HashMap → BTreeMap（与 idempotency 同纪律：持久化 DTO 要字节一致）
             block_marks: self.block_marks.clone().into_iter().collect(),
+            submitted_requirements: self
+                .submitted_requirements
+                .clone()
+                .into_iter()
+                .collect(),
             // HashMap → BTreeMap：持久化 DTO 要求跨进程字节一致（HashMap 迭代序不确定）
             idempotency: self.idempotency.clone().into_iter().collect(),
             id_seq: self.id_seq,
@@ -1129,6 +1222,7 @@ impl DomainStore {
             addendum_waivers: snap.addendum_waivers,
             file_roles: snap.file_roles,
             block_marks: snap.block_marks.into_iter().collect(),
+            submitted_requirements: snap.submitted_requirements.into_iter().collect(),
             idempotency: snap.idempotency.into_iter().collect(),
             id_seq: snap.id_seq,
         })

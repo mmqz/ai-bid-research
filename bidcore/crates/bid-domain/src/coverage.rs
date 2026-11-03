@@ -123,6 +123,8 @@ pub enum CoverageError {
     RequirementOutsideRequirementRange { block_idx: usize },
     /// statement 为空。
     EmptyStatement { block_idx: usize },
+    /// category 不在合法值域（#219 二步：Agent 提交面 fail-loud）。
+    InvalidCategory { block_idx: usize, category: String },
 }
 
 impl CoverageError {
@@ -143,6 +145,10 @@ impl CoverageError {
             ),
             CoverageError::EmptyStatement { block_idx } => format!(
                 "块 {block_idx} 的 statement 为空——空关键点不可审计"
+            ),
+            CoverageError::InvalidCategory { block_idx, category } => format!(
+                "块 {block_idx} 的 category 非法：{category}（合法值：{}）",
+                REQUIREMENT_CATEGORIES.join("|")
             ),
         }
     }
@@ -174,7 +180,15 @@ pub fn validate_marks(marks: &[BlockMark], total_blocks: usize) -> Result<(), Co
     Ok(())
 }
 
-/// 校验提交的 requirement（必须落在 requirement 区间内 + statement 非空）。
+/// 合法类别值域（与 `Requirement.category` / 矩阵 blocking 面对齐——
+/// bid-mcp schema.rs `requirements[].category` 的 enum 同源）。
+/// #219 二步：Agent 提交面 fail-loud 校验的单一真源。
+pub const REQUIREMENT_CATEGORIES: [&str; 7] = [
+    "资格条件", "否决项", "评分项", "技术参数", "商务要求", "格式要求", "其他",
+];
+
+/// 校验提交的 requirement（必须落在 requirement 区间内 + statement 非空
+/// + category 在合法值域）。
 pub fn validate_submitted(
     marks: &[BlockMark],
     reqs: &[SubmittedRequirement],
@@ -182,6 +196,14 @@ pub fn validate_submitted(
     for r in reqs {
         if r.statement.trim().is_empty() {
             return Err(CoverageError::EmptyStatement { block_idx: r.block_idx });
+        }
+        if let Some(c) = &r.category {
+            if !REQUIREMENT_CATEGORIES.contains(&c.as_str()) {
+                return Err(CoverageError::InvalidCategory {
+                    block_idx: r.block_idx,
+                    category: c.clone(),
+                });
+            }
         }
         let in_req_range = marks
             .iter()
@@ -352,5 +374,32 @@ mod tests {
         }];
         // rule 区间不允许挂 requirement——规则说明不需要响应
         assert!(validate_submitted(&marks, &reqs).is_err());
+    }
+
+    #[test]
+    fn invalid_category_rejected() {
+        // #219 二步：Agent 提交面 fail-loud——非法 category 在提交时即拒，
+        // 不等 extract 合并时才炸（晚失败 = 半个库状态）
+        let marks = vec![mark(0, 99, BlockVerdict::Requirement)];
+        let reqs = vec![SubmittedRequirement {
+            block_idx: 10,
+            statement: "某要求".into(),
+            category: Some("乱写的类别".into()),
+            mandatory: false,
+        }];
+        assert!(matches!(
+            validate_submitted(&marks, &reqs),
+            Err(CoverageError::InvalidCategory { .. })
+        ));
+        // 合法七值放行
+        for c in REQUIREMENT_CATEGORIES {
+            let reqs = vec![SubmittedRequirement {
+                block_idx: 10,
+                statement: "某要求".into(),
+                category: Some(c.to_string()),
+                mandatory: false,
+            }];
+            assert!(validate_submitted(&marks, &reqs).is_ok(), "合法类别被拒：{c}");
+        }
     }
 }

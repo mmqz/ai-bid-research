@@ -79,14 +79,22 @@ fn require_corpus() -> Option<()> {
     // 编号形态/层级分布全对不上——SKIP 而非假红（issue #9 口径）。
     {
         let probe = "A-塔里木水库除险加固招标文件.pdf";
-        // #169 fail-loud 分流：坏 poppler（缺 CMap 资源包）+ 加密件 →
-        // parse_file 显式 Err（首选路乱码 + 兜底不解密）——环境不可信，
-        // SKIP；非 #169 的解析失败仍是真回归，panic。
+        // #169/#200 fail-loud 分流：环境不可信时 SKIP，而非假红。
+        //
+        // **按错误码前缀判定，不按中文文案**——#204 分档错误码后，
+        // `contains("乱码")` 守卫失效（加密件报 [pdf-both-failed] 无此词），
+        // 环境问题会变成真回归。错误码是契约面，中文文案不是。
+        const ENV_INCAPABLE: &[&str] = &[
+            "[pdf-both-failed]",
+            "[pdf-dual-garbled]",
+            "[pdf-primary-garbled-fallback-failed]",
+            "[pdf-fallback-only-garbled]",
+        ];
         let parsed = match bid_parse::parse_file(&d.join(probe), probe) {
             Ok(p) => p,
-            Err(e) if e.contains("乱码") => {
+            Err(e) if ENV_INCAPABLE.iter().any(|code| e.contains(code)) => {
                 eprintln!(
-                    "【SKIP】{probe} 在本环境解不开（#169 乱码 fail-loud：{e}）——坏 poppler（缺 CMap 资源包）+ 加密件，真实分布验收不伪装通过"
+                    "【SKIP】{probe} 在本环境解不开（环境能力不足：{e}）——缺 pdfium/poppler 或 CMap 资源包，真实分布验收不伪装通过"
                 );
                 return None;
             }

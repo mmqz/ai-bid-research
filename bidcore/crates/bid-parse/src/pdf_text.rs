@@ -2004,7 +2004,6 @@ pub enum CjkGarbleProbe {
 /// CJK 字符）——0.02 距两者都有数量级余量。位于中间的合法形态（声明了中文
 /// 字体但正文以英文为主的模板件）被降级也无损失：降级只是换纯 Rust 兜底
 /// 重解同一文件，summary 诚实自报。
-
 pub fn probe_cjk_garble(pdf_bytes: &[u8], text: &str) -> CjkGarbleProbe {
     // #200 R1 收窄：只对「CID-CJK 编码且内容流实际选用」的字体激活——
     // Type1/TrueType 简单字体（如声明 SimSun 的英文模板件）不存在 CMap
@@ -2016,36 +2015,34 @@ pub fn probe_cjk_garble(pdf_bytes: &[u8], text: &str) -> CjkGarbleProbe {
     if non_ws < 32 {
         return CjkGarbleProbe::NoSignal;
     }
-    // 【#200 R1-C 修复】低 CJK 占比不等于乱码——混排件（1 汉字 + 58 英文词）
-    // 的 CJK 占比约 1.7%，低于 2% 阈值却被误判为乱码拒收（CI 实测）。
+    // 【#200 R1-C 修复 v2】两件事必须分开判：
     //
-    // 判据追加「文本可读性」：Latin-1 化残渣（`SbheNLRQ`、`g,yvîN`）的特征是
-    // 大量非 ASCII 的非字母字符 + 无可识别单词边界；真实混排文本则是
-    // 「结构良好的 ASCII 单词 + 少量 CJK」。
+    // ① 文档声明了 CID-CJK 字体且在选用（上面已过 cid_cjk_font_in_use 门）
+    //    → 正文里必须能解出至少一个 CJK 字符。解不出 = CMap 缺失或错用
+    //    恒等解码 → 确定是乱码（与 CJK 占比无关）。
+    //    实测反例（CI）：合成 UC2 件被兜底错解成 g, Tender document...
+    //    ——「本」变成 g,，而英文字母占比/空格/单词边界全部正常，
+    //    旧判据只看文本形状 → 误判 Clean → 采信了错误解码。
+    //
+    // ② 确实解出了 CJK 但占比低（真混排件：1 汉字 + 58 英文词 ≈ 1.7%）
+    //    → 不是乱码，采信；残渣占比 >=0.3 才继续疑。
+    if cjk_ratio(text) == 0.0 {
+        // 声明了 CJK 字体却一个 CJK 都没解出来——解码失败无疑
+        return CjkGarbleProbe::Garbled;
+    }
     if cjk_ratio(text) < 0.02 {
-        // 残渣占比高（≥0.3）→ 确实是解码失败
         if non_ascii_ratio(text) >= 0.3 {
             return CjkGarbleProbe::Garbled;
         }
-        // 残渣占比低，但文本是否像自然语言？
-        if looks_like_natural_text(text) {
-            return CjkGarbleProbe::Clean;
-        }
-        return CjkGarbleProbe::Garbled;
+        return CjkGarbleProbe::Clean;
     }
     CjkGarbleProbe::Clean
 }
 
-/// 文本是否像自然语言（#200 R1-C）。
+/// 文本是否像自然语言（#200 R1-C）——仅用于已确认含 CJK 的混排件。
 ///
-/// 用于区分「真实低 CJK 占比的混排件」与「Latin-1 化残渣」：
-/// - 混排：`本 Tender document summary covering scope...` ← 有空格分词的字母单词
-/// - 残渣：`SbheNLRQ`、`g~\u{{ee}}Nbyg` ← 无空格、无词边界的杂串
-///
-/// 判据（全部满足才算自然语言）：
-/// 1. ASCII 字母占比 ≥ 0.5（真实英文/混排文本大量字母）
-/// 2. 空格占比 ≥ 0.08（自然语言有词边界；残渣空格极少）
-/// 3. 存在长度 ≥ 3 的纯字母单词（排除 `kV`、`g,` 这类 2 字碎屑）
+/// 不能单独决定「是否乱码」：g, Tender document...（本被错解）形状完全正常。
+/// 乱码主判据在 probe_cjk_garble 的「零 CJK 输出」分支。
 fn looks_like_natural_text(text: &str) -> bool {
     let chars: Vec<char> = text.chars().filter(|c| !c.is_whitespace()).collect();
     if chars.is_empty() {
@@ -2062,10 +2059,10 @@ fn looks_like_natural_text(text: &str) -> bool {
     if space_ratio < 0.08 {
         return false;
     }
-    // 至少一个长度 ≥3 的纯字母 token
     text.split(|c: char| !c.is_alphabetic())
         .any(|w| w.len() >= 3 && w.chars().all(|c| c.is_ascii_alphabetic()))
 }
+
 /// 页级乱码判定结论（#223）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PageGarbleVerdict {
@@ -2132,6 +2129,7 @@ pub fn probe_cjk_garble_pages(pdf_bytes: &[u8], pages: &[String]) -> PageGarbleV
         garbled_pages,
     }
 }
+
 
 /// 拼一条路的全部文本（探测输入）。
 pub fn parsed_text_of(pf: &crate::ParsedFile) -> String {

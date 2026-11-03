@@ -590,6 +590,22 @@ mod tests {
     }
 
     #[test]
+    fn rejection_word_relies_on_subject_window_not_procedure() {
+        // 「拒收」**不在** PROCEDURE 词表（PR #230 审核独立复核确认的边界）：
+        // 它与「不予受理」语义同族（描述投标文件的命运），但入表会把
+        // 「评标委员会将予以拒收」这类无规则主语的形态也扩进规则说明面——
+        // 判面扩宽须重跑 dump 复核（见模块文档「复核工具」节），故保持窄表。
+        // 现状登记：
+        // 1) 主语是招标人（主句头窗口命中）→ 规则说明；
+        assert!(is_rule_statement("未按要求密封的投标文件，招标人有权拒收。"));
+        // 2) 主语是「评标委员会」（不在 RULE_SUBJECTS）→ 保守落在否决项
+        //    （多留 blocking，不漏否决——与 #226 风险不对称原则一致）。
+        assert!(!is_rule_statement(
+            "未按要求密封的投标文件，评标委员会将予以拒收。"
+        ));
+    }
+
+    #[test]
     fn bid_validity_disposal_is_never_rule() {
         // CI 红线（extract_pdf_l2gap）：「其投标失效」是处置结果——
         // 主语是招标人也不能豁免（闸 0 补「投标失效」）。

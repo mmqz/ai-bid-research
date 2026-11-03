@@ -116,7 +116,7 @@ fn tools_schema_lists_all_twenty() {
     // #100 任务 3：score_price / score_section / score_document（B1/B2 接线）；
     // #145 任务 1：search_evidence 接线 + save_version 补登（此前 is_implemented
     // 漏登致 tools/list 误报 false——#145 测试面抓出，如实登记）→ 全部 20 实装；
-    // #184：record_addendum_waiver（补遗分级阻塞的逐件人工确认）→ 21 实装
+    // #184：record_addendum_waiver（补遗分级阻塞的逐件人工确认）→ 21 实装；#219 增 3 覆盖工具 → 24
     assert_eq!(
         implemented,
         vec![
@@ -141,6 +141,10 @@ fn tools_schema_lists_all_twenty() {
             "score_price",
             "score_section",
             "score_document",
+            // #219 全块覆盖三工具
+            "get_document_chunks",
+            "submit_block_marks",
+            "get_coverage_report",
         ]
     );
     // 描述面：新工具不得是 unknown（describe 遗漏即挂）

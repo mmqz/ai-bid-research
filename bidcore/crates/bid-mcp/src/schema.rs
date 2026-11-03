@@ -555,6 +555,9 @@ fn describe(name: &str) -> &'static str {
         "score_price" => "价格分试算 + 最优报价反推（#100 任务 3——纯计算器，B1 五方法只调用不改）",
         "score_section" => "章节自评（#100 任务 3——四维规则判定；大纲联结补 section 映射）",
         "score_document" => "整本自评（#100 任务 3——技术/商务/价格三段 + by_item 逐项；没报价 → price null）",
+        "get_document_chunks" => "只读：按文件取块窗口（#219 全块覆盖——block_idx + locator + text + verdict 回显；size ≤ 200 分页取）",
+        "submit_block_marks" => "提交区间标记 + requirements（#219——verdict: requirement|noise|rule|review_table；校验区间合法/不越界/不重叠/requirement 落在 requirement 区间内）",
+        "get_coverage_report" => "只读：覆盖报告（#219——哪些块没归属 + 未覆盖区间 + 各类 verdict 块数；全覆盖才允许建纲）",
         _ => "unknown",
     }
 }

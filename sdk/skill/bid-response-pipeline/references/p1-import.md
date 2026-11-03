@@ -68,7 +68,8 @@ addendum_readiness: { total, ready, not_ready:[{file_id, name, readiness, waived
 
 1. **修复重传**可解析版本（新 sha256 即新档，阻塞自然消失）；
 2. **用户逐件确认后放行**：`record_addendum_waiver`（file_id + reason +
-   `human:` 前缀 principal——逐件留底审计，非全局布尔；已确认件在
+   宿主签发 receipt——签域 `addendum_waiver:{file_id}` 件级绑定，旧
+   `principal` 参数显式拒（#182）；逐件留底审计，非全局布尔；已确认件在
    not_ready 清单里 waived=true，不再阻塞但仍可查）。
 
 ## 失败降级话术（向用户）

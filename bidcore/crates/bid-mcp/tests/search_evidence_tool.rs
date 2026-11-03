@@ -213,8 +213,8 @@ fn tools_list_declares_search_evidence_implemented() {
     assert_eq!(se["implemented"].as_bool(), Some(true), "implemented 必须 true：{se}");
     // 声明数 = 实装数（#145 时点 20；#184 增 record_addendum_waiver → 21）
     let n_impl = tools.iter().filter(|t| t["implemented"].as_bool() == Some(true)).count();
-    assert_eq!(names.len(), 21, "TOOL_NAMES 声明数应为 21（#184 增确认面）：{names:?}");
-    assert_eq!(n_impl, 21, "实装数应与声明数一致（21）：{names:?}");
+    assert_eq!(names.len(), 24, "TOOL_NAMES 声明数应为 24（21 + #219 全块覆盖三工具）：{names:?}");
+    assert_eq!(n_impl, 24, "实装数应与声明数一致（24）：{names:?}");
 }
 
 /// 验收①：exact 模式 cert=ISO9001（有界短语——不误报 ISO14001）。

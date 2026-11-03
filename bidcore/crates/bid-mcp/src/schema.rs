@@ -585,5 +585,9 @@ fn is_implemented(name: &str) -> bool {
             | "score_price"
             | "score_section"
             | "score_document"
+            // #219 全块覆盖三工具（coverage_tools.rs）
+            | "get_document_chunks"
+            | "submit_block_marks"
+            | "get_coverage_report"
     )
 }

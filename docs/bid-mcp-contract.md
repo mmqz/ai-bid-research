@@ -571,8 +571,17 @@ out: { project_id, diagnostic_only(true), result_kind("rule_heuristic"),
        section_id, section_title, chars, estimated, max,
        covered_items:[REQ-*], missing_items:[REQ-*], rationale（逐项可追溯）,
        item_scores:[{item_id,estimated,max,tier,coverage,is_objective,rationale,
-                     score_rules?（细则原文——判档不消费，无则缺省）}], request_id }
+                     weight_share（#224 摊分比——单映射 1.0）,
+                     score_rules?（细则原文——判档不消费，无则缺省）}],
+       unmapped_scoring_items:[{req_id,criteria,weight}…]（#224 文档级告警——
+       非空 = 有评分项未映射章节，总分可能偏低；价格项不入——价格分不依赖
+       章节映射）, request_id }
 语义: B2 SectionScorer 只调用不改（四维规则判定——覆盖度/字数/证据/具体性）。
+       #224 多对多：同一评分项可映射多章节（ScoringMapping 账本——域层
+       upsert_scoring_mapping 登记，MCP 写面后续 issue）：本章该项满分 =
+       原满分 × weight_share（跨 2 章 0.6/0.4 → 两章该项满分 12/8）——
+       同一项跨章各算一次导致总分虚高的主防；单映射 share=1.0 与历史行为
+       逐位一致；rationale 带「摊分N%」说明（share≠1.0 时）。
        评分项 section 映射：REQ params.section 优先，缺省按大纲绑定关系联结
        （REQ 所在叶——确定性兜底，无 LLM）；价格类叶跳过内容自评（价格分 =
        f(报价)，由 score_price 计算）；结构节点（有子）与未起草叶 → E_UNPROCESSABLE。
@@ -612,9 +621,25 @@ in : { project_id, project_version?,
 out: { project_id, diagnostic_only(true), result_kind("rule_heuristic"),
        technical, price（null | 数值）, commercial（null | 数值）, total,
        target（诚实满分 = 非硬门可达叶 max 合计——含价格项与未映射项，不因没写缩分母）,
-       gap = target − total, by_item:[{item_id,criteria,max,estimated,tier,coverage,section_id,
+       gap = target − total, by_item:[{item_id,criteria,max,estimated,tier,coverage,
+               section_id（首映射——旧键保留）,
+               mapping_ids:[SEC-…]（#224 全部映射章节——多对多面）,
+               weight_share（#224 首映射摊分比）,
+               contributions:[{section_id,estimated,tier,coverage,weight_share}…]
+               （#224 多对多聚合：estimated = 逐章贡献之和——与 total 计入
+               口径同源，多章不取首章；tier 多章同档→该档、异档→多章混合
+               列举；coverage 份额加权均值；价格项 contributions 恒空）,
                score_rules（细则原文 | null——判档不消费，透出供对照）}],
-       breakdown:[SectionScore…（逐章节）], notes[]（UNMAPPED/SECTION_MISSING/NO_PRICE_INPUT
+       mappings:[{item_id,criteria,weight,sections:[{section_id,section_title,
+               weight_share,source(RULE_PARSED|AGENT_SUBMITTED|MANUAL),
+               source_anchor:{file,kind,locator,excerpt},evidence_refs:[EV-…]}]}]
+               （#224 映射报告——每个评分项→哪些章节→权重多少→依据原文哪里；
+               RuleParsed 派生映射锚回 REQ 首锚，账本映射带登记原文锚+来源+证据；
+               只认**生效**映射的来源——同节 inert 账本行（派生赢）不归因）,
+       breakdown:[SectionScore…（逐章节；#224 摊分后的章内满分）],
+       unmapped_scoring_items:[{req_id,criteria,weight}…]（#224 结构化 UNMAPPED——
+       非空 = 响亮告警「有 N 个评分项未映射章节，总分可能偏低」）,
+       notes[]（UNMAPPED/SECTION_MISSING/NO_PRICE_INPUT
        /SCORE_RULES_RESERVED 诚实登记）, price_input（价格口径 echo | null）, sections_scored, request_id }
 语义: B2 score_document 三段聚合（技术 = 主观叶估分和；商务 = 客观叶；价格 = B1
       实算）+ by_item 全量逐项（未覆盖 estimated=0 如实呈现）。e2e 十一件套的

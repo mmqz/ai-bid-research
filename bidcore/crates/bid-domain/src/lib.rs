@@ -410,6 +410,11 @@ pub struct DomainStore {
     /// `submit_block_marks` 落库面——`extract_requirements` 合并时消费）。
     /// PR #227 只存 marks 不存 reqs（回显后丢弃）——本字段补上这一半。
     submitted_requirements: HashMap<String, Vec<coverage::SubmittedRequirement>>,
+    /// #224 评分项 ↔ 章节多对多映射账本（SM-xxxx——AgentSubmitted/Manual
+    /// 的持久化落点；RuleParsed 派生映射不入账。登记见
+    /// [`DomainStore::upsert_scoring_mapping`]，派生联结见
+    /// [`DomainStore::scoring_items`]）
+    scoring_mappings: Vec<scoring::ScoringMapping>,
     /// 幂等键 → 首次结果 JSON（同 key 重放返回首次结果，不重复执行）
     idempotency: HashMap<String, serde_json::Value>,
     id_seq: u64,
@@ -435,6 +440,7 @@ impl DomainStore {
             file_roles: vec![],
             block_marks: HashMap::new(),
             submitted_requirements: HashMap::new(),
+            scoring_mappings: vec![],
             idempotency: HashMap::new(),
             id_seq: 0,
         }
@@ -879,6 +885,27 @@ impl DomainStore {
             }
         }
         let added = merged.len() - before;
+        // #224 引用完整性（Lead 2026-11-04 review blocker 2）：评分映射引用的
+        // 评分项不得随合并消失——同哈希覆盖（重跑换 id）同样会移走被映射的
+        // REQ id。拒绝破坏性写入（fail-loud）：映射账本是审计面，不得静默
+        // 蒸发，也不得留孤儿映射（孤儿态一经 checkpoint 落盘，下一次
+        // restore 拒载——快照卡死）。
+        if !self.scoring_mappings.is_empty() {
+            let known: std::collections::HashSet<&str> =
+                merged.iter().map(|r| r.id.as_str()).collect();
+            if let Some(m) = self
+                .scoring_mappings
+                .iter()
+                .find(|m| !known.contains(m.scoring_req_id.as_str()))
+            {
+                return Err(ToolError::EUnprocessable {
+                    reason: format!(
+                        "评分映射 {} 引用的评分项 {} 将在本次写入后不存在（#224 引用完整性：条款重建不得孤儿化映射账本——先处理该映射再重建）",
+                        m.id, m.scoring_req_id
+                    ),
+                });
+            }
+        }
         self.requirements = merged;
         let p = self.project.as_mut().unwrap();
         if p.status == ProjectStatus::FilesImported {
@@ -898,6 +925,9 @@ impl DomainStore {
     ///
     /// 抽取窗口内整集替换是安全的：大纲/矩阵/证据绑定/矩阵覆写只存在于
     /// MATRIX_READY+，而 extract 在该态被 E_STATE 拦死——不存在孤儿引用面。
+    /// （#224 修订：评分映射无状态门、可在抽取窗口内入账，故下方加映射
+    /// 引用完整性守卫——被映射的 REQ id 将被移走时拒绝替换，Lead
+    /// 2026-11-04 review blocker 2。）
     pub fn replace_requirements(&mut self, reqs: Vec<Requirement>) -> Result<usize, ToolError> {
         let p = self.project.as_ref().ok_or_else(|| ToolError::ENotFound {
             what: "project 未创建".into(),
@@ -917,6 +947,24 @@ impl DomainStore {
             return Err(ToolError::EUnprocessable {
                 reason: format!("条款 id 重复：{}（合并面编号必须唯一）", dup.id),
             });
+        }
+        // #224 引用完整性（Lead 2026-11-04 review blocker 2）：整集替换更
+        // 容易移走被映射的 REQ id——同 set_requirements 守卫，拒破坏性替换。
+        if !self.scoring_mappings.is_empty() {
+            let known: std::collections::HashSet<&str> =
+                reqs.iter().map(|r| r.id.as_str()).collect();
+            if let Some(m) = self
+                .scoring_mappings
+                .iter()
+                .find(|m| !known.contains(m.scoring_req_id.as_str()))
+            {
+                return Err(ToolError::EUnprocessable {
+                    reason: format!(
+                        "评分映射 {} 引用的评分项 {} 将在整集替换后不存在（#224 引用完整性：条款重建不得孤儿化映射账本——先处理该映射再替换）",
+                        m.id, m.scoring_req_id
+                    ),
+                });
+            }
         }
         self.requirements = reqs;
         let p = self.project.as_mut().unwrap();
@@ -995,6 +1043,11 @@ pub struct StoreSnapshot {
     /// 空映射加载；PR #227 时代的快照无 submitted 面，合并时视为未提交）
     #[serde(default)]
     pub submitted_requirements: BTreeMap<String, Vec<coverage::SubmittedRequirement>>,
+    /// #224 评分项 ↔ 章节多对多映射（加性迁移——旧快照无此字段 → 空集合
+    /// 加载：无持久化映射时评分项仅带 params.section 派生映射，行为与
+    /// 旧版一致；schema_version 不 bump，见头注释加性演进纪律）
+    #[serde(default)]
+    pub scoring_mappings: Vec<scoring::ScoringMapping>,
     #[serde(default)]
     pub idempotency: BTreeMap<String, serde_json::Value>,
     #[serde(default)]
@@ -1028,6 +1081,7 @@ impl DomainStore {
                 .clone()
                 .into_iter()
                 .collect(),
+            scoring_mappings: self.scoring_mappings.clone(),
             // HashMap → BTreeMap：持久化 DTO 要求跨进程字节一致（HashMap 迭代序不确定）
             idempotency: self.idempotency.clone().into_iter().collect(),
             id_seq: self.id_seq,
@@ -1097,6 +1151,12 @@ impl DomainStore {
                     "revision_tasks",
                 )
             })
+            .or_else(|| {
+                dup_in(
+                    snap.scoring_mappings.iter().map(|m| m.id.clone()).collect(),
+                    "scoring_mappings",
+                )
+            })
         {
             return Err(un(e));
         }
@@ -1134,6 +1194,8 @@ impl DomainStore {
             max_suffix(snap.findings.iter().map(|f| f.id.clone())),
             max_suffix(snap.reviews.iter().map(|r| r.id.clone())),
             max_suffix(snap.revision_tasks.iter().map(|t| t.id.clone())),
+            // #224 SM-xxxx 入水位（store 签发命名空间）
+            max_suffix(snap.scoring_mappings.iter().map(|m| m.id.clone())),
             snap.project
                 .as_ref()
                 .map(|p| max_suffix([p.id.clone()].into_iter()))
@@ -1198,6 +1260,106 @@ impl DomainStore {
                 r.file_id
             )));
         }
+        // #224 映射引用完整：scoring_req_id 必须在 requirements，section_id
+        // 必须在 sections（孤儿映射 = 半个账本，拒载）；同 (req, section)
+        // 复合键重复 = 幂等面破坏，拒载。
+        let req_ids: std::collections::HashSet<&str> =
+            snap.requirements.iter().map(|r| r.id.as_str()).collect();
+        let sec_ids: std::collections::HashSet<&str> =
+            snap.sections.iter().map(|s| s.id.as_str()).collect();
+        if let Some(m) = snap.scoring_mappings.iter().find(|m| {
+            !req_ids.contains(m.scoring_req_id.as_str())
+                || !sec_ids.contains(m.section_id.as_str())
+        }) {
+            return Err(un(format!(
+                "scoring_mapping {} 引用了不存在的评分项/章节（{} / {}——孤儿映射，拒载）",
+                m.id, m.scoring_req_id, m.section_id
+            )));
+        }
+        {
+            let mut seen: std::collections::HashSet<(String, String)> =
+                std::collections::HashSet::new();
+            if let Some(m) = snap
+                .scoring_mappings
+                .iter()
+                .find(|m| !seen.insert((m.scoring_req_id.clone(), m.section_id.clone())))
+            {
+                return Err(un(format!(
+                    "scoring_mapping 复合键重复：({}, {})——幂等面破坏，拒载",
+                    m.scoring_req_id, m.section_id
+                )));
+            }
+        }
+        // #224 行约束与登记面同源（Lead 2026-11-04 review blocker 2）：
+        // restore 不得比 upsert 宽——份额越界（权重语义破坏）与幽灵证据
+        // 引用（半个账本）在快照面同样拒载。
+        if let Some(m) = snap
+            .scoring_mappings
+            .iter()
+            .find(|m| !(0.0 < m.weight_share && m.weight_share <= 1.0))
+        {
+            return Err(un(format!(
+                "scoring_mapping {} weight_share={} 越界（合法域 (0,1]——与登记面同约束，拒载）",
+                m.id, m.weight_share
+            )));
+        }
+        let ev_ids: std::collections::HashSet<&str> =
+            snap.evidences.iter().map(|e| e.id.as_str()).collect();
+        if let Some((m, ev)) = snap.scoring_mappings.iter().find_map(|m| {
+            m.evidence_refs
+                .iter()
+                .find(|e| !ev_ids.contains(e.as_str()))
+                .map(|ev| (m, ev))
+        }) {
+            return Err(un(format!(
+                "scoring_mapping {} 引用了不存在的证据 {ev}（幽灵证据引用——与登记面同约束，拒载）",
+                m.id
+            )));
+        }
+        // #224 聚合不变量（Lead 2026-11-04 二次阻塞审查）：行约束挡不住
+        // 「每行合法、同一评分项合计 1.4」的快照——restore 是登记面之外的
+        // 第二条写入口（手改/旧版本落盘），恢复即账本态，scoring_items
+        // 随即消费（跨章评分超单项满分）。口径与 upsert 登记面同源：
+        // - 派生 params.section 单值映射（share=1.0）计入；
+        // - 与派生同节的账本行联结去重（派生赢、不生效）→ 不计入；
+        // - epsilon 1e-9 与登记面一致（0.1+0.2+0.7 浮点和放行）。
+        {
+            use std::collections::HashMap;
+            // 被映射的评分项 → 派生 params.section（孤儿检查已保证 REQ 在场；
+            // 无 params.section → None）
+            let mut derived: HashMap<&str, Option<&str>> = HashMap::new();
+            for m in &snap.scoring_mappings {
+                derived
+                    .entry(m.scoring_req_id.as_str())
+                    .or_insert_with(|| {
+                        snap.requirements
+                            .iter()
+                            .find(|r| r.id == m.scoring_req_id)
+                            .and_then(|r| r.params.get("section"))
+                            .and_then(|v| v.as_str())
+                    });
+            }
+            // 联结面有效份额：异节账本行求和（与派生同节 = 去重不计）
+            let mut sums: HashMap<&str, f64> = HashMap::new();
+            for m in &snap.scoring_mappings {
+                let ds = derived.get(m.scoring_req_id.as_str()).copied().flatten();
+                if Some(m.section_id.as_str()) == ds {
+                    continue;
+                }
+                *sums.entry(m.scoring_req_id.as_str()).or_insert(0.0) += m.weight_share;
+            }
+            for (rid, ds) in &derived {
+                let mut total = *sums.get(*rid).unwrap_or(&0.0);
+                if ds.is_some() {
+                    total += 1.0;
+                }
+                if total > 1.0 + 1e-9 {
+                    return Err(un(format!(
+                        "评分项 {rid} 的映射份额合计 {total:.3} 超过 1.0（#224 聚合不变量——与登记面同约束，拒载；派生 params.section 单值映射 share=1.0 计入，与派生同节的账本行联结去重不计入）"
+                    )));
+                }
+            }
+        }
         // 孤儿数据（有集合无项目 = 半个库）
         if snap.project.is_none()
             && (!snap.files.is_empty()
@@ -1209,7 +1371,8 @@ impl DomainStore {
                 || !snap.reviews.is_empty()
                 || !snap.revision_tasks.is_empty()
                 || !snap.addendum_waivers.is_empty()
-                || !snap.file_roles.is_empty())
+                || !snap.file_roles.is_empty()
+                || !snap.scoring_mappings.is_empty())
         {
             return Err(un("快照有数据但无项目（孤儿集合——拒绝加载半个库）".into()));
         }
@@ -1231,6 +1394,7 @@ impl DomainStore {
             file_roles: snap.file_roles,
             block_marks: snap.block_marks.into_iter().collect(),
             submitted_requirements: snap.submitted_requirements.into_iter().collect(),
+            scoring_mappings: snap.scoring_mappings,
             idempotency: snap.idempotency.into_iter().collect(),
             id_seq: snap.id_seq,
         })

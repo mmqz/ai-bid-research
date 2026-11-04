@@ -2426,8 +2426,10 @@ fn score_section(svc: &mut BidService, args: Value) -> ToolResult {
             },
         }
     })?;
-    let (scorer, _items) = build_scorer(svc.store());
+    let (scorer, _items, _ledger_effective) = build_scorer(svc.store());
     let s = scorer.score_section(&section_id, &content);
+    // #224：文档级未映射告警（单章自评时也可见——Agent 需知道全局缺口）
+    let unmapped = scorer.unmapped_items();
     Ok(json!({
         "project_id": project_id,
         // #186 语义降级标记：规则诊断非评标模拟（对外承诺必须准确——
@@ -2443,6 +2445,8 @@ fn score_section(svc: &mut BidService, args: Value) -> ToolResult {
         "missing_items": s.missing_items,
         "rationale": s.rationale,
         "item_scores": s.item_scores,
+        // #224：未映射评分项（非空 = 总分可能偏低——响亮告警）
+        "unmapped_scoring_items": unmapped,
         "request_id": next_request_id(),
     }))
 }
@@ -2516,13 +2520,93 @@ fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
             bid_price: bid_price.unwrap_or(0.0),
             others,
         });
-    let (scorer, items) = build_scorer(svc.store());
+    let (scorer, items, ledger_effective) = build_scorer(svc.store());
     let doc = scorer.score_document(&sections, price_input);
     // ---- by_item + target：全量非硬门可达叶（叶 = 未被任何项引用为 parent）
     let parent_ids: std::collections::HashSet<&str> = items
         .iter()
         .filter_map(|i| i.parent_id.as_deref())
         .collect();
+    // #224 映射报告（验收 1/4：每评分项 → 哪些章节 → 权重多少 → 依据原文哪里；
+    // 双向追溯的桥接面——RuleParsed 派生映射锚回 REQ 首锚，账本映射带
+    // source_anchor 原文锚 + 来源 + 证据引用）
+    let req_anchors: std::collections::HashMap<&str, &bid_domain::Anchor> = svc
+        .store()
+        .requirements()
+        .iter()
+        .filter_map(|r| r.anchors.first().map(|a| (r.id.as_str(), a)))
+        .collect();
+    let ledger: std::collections::HashMap<(&str, &str), &bid_domain::scoring::ScoringMapping> =
+        svc.store()
+            .scoring_mappings()
+            .iter()
+            .map(|m| ((m.scoring_req_id.as_str(), m.section_id.as_str()), m))
+            .collect();
+    let section_title: std::collections::HashMap<&str, &str> = svc
+        .store()
+        .sections()
+        .iter()
+        .map(|n| (n.id.as_str(), n.title.as_str()))
+        .collect();
+    let anchor_json = |a: &bid_domain::Anchor| {
+        json!({
+            "file": a.file,
+            "kind": a.kind,
+            "locator": a.locator,
+            "excerpt": truncate(&a.excerpt, 80),
+        })
+    };
+    let mut mappings_report: Vec<Value> = Vec::new();
+    for it in items.iter().filter(|i| !i.is_hard_gate) {
+        if it.mappings.is_empty() {
+            continue;
+        }
+        let mut secs: Vec<Value> = Vec::new();
+        for m in &it.mappings {
+            // #224 归因（Lead 审查 2）：只认**生效**映射的来源——账本行与派生
+            // params.section 同节时被 build_scorer 去重（派生赢、账本行
+            // inert），此处若仍按 (req, section) 回查账本，会把 inert 行的
+            // source/anchor/evidence 误归因给派生映射。生效键集
+            // （ledger_effective）在联结时同步登记，与去重规则同源。
+            let ledger_m = if ledger_effective
+                .contains(&(it.requirement_id.clone(), m.section_id.clone()))
+            {
+                ledger.get(&(it.requirement_id.as_str(), m.section_id.as_str()))
+            } else {
+                None // 派生映射（或防御分支：inert 账本行不归因）
+            };
+            let (source, anchor, evidence_refs) = match ledger_m {
+                Some(lm) => (
+                    serde_json::to_value(lm.created_from).unwrap_or(Value::Null),
+                    anchor_json(&lm.source_anchor),
+                    json!(lm.evidence_refs),
+                ),
+                // RuleParsed 派生映射：锚回 REQ 首锚（规则原文的真源）
+                None => (
+                    json!("RULE_PARSED"),
+                    req_anchors
+                        .get(it.requirement_id.as_str())
+                        .map(|a| anchor_json(a))
+                        .unwrap_or(Value::Null),
+                    json!([]),
+                ),
+            };
+            secs.push(json!({
+                "section_id": m.section_id,
+                "section_title": section_title.get(m.section_id.as_str()).copied().unwrap_or(""),
+                "weight_share": m.weight_share,
+                "source": source,
+                "source_anchor": anchor,
+                "evidence_refs": evidence_refs,
+            }));
+        }
+        mappings_report.push(json!({
+            "item_id": it.requirement_id,
+            "criteria": it.criteria,
+            "weight": it.weight,
+            "sections": secs,
+        }));
+    }
     let mut by_item: Vec<Value> = Vec::new();
     let mut target = 0.0f64;
     for it in items
@@ -2531,6 +2615,9 @@ fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
     {
         let max = it.max_score.unwrap_or(0.0);
         target += max;
+        // #224：section_id = 首映射（契约 §15 旧键保留）；mapping_ids = 全部
+        // 映射章节（多对多新面）；weight_share = 首映射摊分比
+        let primary = it.mappings.first();
         if is_price_item_mirror(it) {
             // 价格类叶：内容自评无意义（价格分 = f(报价)）——estimated 取 B1 实算值
             by_item.push(json!({
@@ -2540,24 +2627,82 @@ fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
                 "estimated": doc.price,
                 "tier": "价格分（f(报价)——score_price/B1 计算）",
                 "coverage": Value::Null,
-                "section_id": it.section_id,
+                "section_id": primary.map(|m| m.section_id.clone()),
+                "mapping_ids": it.mappings.iter().map(|m| m.section_id.clone()).collect::<Vec<_>>(),
+                "weight_share": primary.map(|m| m.weight_share),
+                // 价格分不逐章摊分（f(报价)）——行形状与非价格行保持一致
+                "contributions": [],
                 "score_rules": it.score_rules,
             }));
             continue;
         }
-        let est = doc
+        // #224 多对多聚合（Lead 审查 1）：estimated = 该评分项在**全部映射
+        // 章节**的份额贡献之和（与 total 的计入口径同源——此前 .find 只取
+        // 首章贡献，多映射时 by_item 低估且与 total 不一致）。
+        // tier：单贡献照旧；多贡献同档 → 该档；异档 → 「多章混合」+ 逐档
+        // 列举（诚实聚合——档位是逐章判档的产物，跨章不虚构统一档）。
+        // coverage：份额加权均值（各章覆盖度按其承载份额加权——单映射
+        // 退化为原值）。逐章明细新开 contributions 键（章节/估分/档/覆盖/
+        // 摊分比），by_item 自包含、不必回翻 breakdown。
+        let contribs: Vec<(String, &bid_domain::scoring::ItemScore)> = doc
             .breakdown
             .iter()
-            .flat_map(|s| s.item_scores.iter())
-            .find(|isc| isc.item_id == it.requirement_id);
+            .flat_map(|s| {
+                s.item_scores
+                    .iter()
+                    .map(move |isc| (s.section_id.clone(), isc))
+            })
+            .filter(|(_, isc)| isc.item_id == it.requirement_id)
+            .collect();
+        let estimated =
+            (contribs.iter().map(|(_, e)| e.estimated).sum::<f64>() * 100.0).round() / 100.0;
+        let tier_label = if contribs.is_empty() {
+            "未覆盖".to_string()
+        } else {
+            let first = contribs[0].1.tier.label();
+            if contribs.iter().all(|(_, e)| e.tier.label() == first) {
+                first.to_string()
+            } else {
+                format!(
+                    "多章混合（{}）",
+                    contribs
+                        .iter()
+                        .map(|(_, e)| e.tier.label())
+                        .collect::<Vec<_>>()
+                        .join("+")
+                )
+            }
+        };
+        let coverage = {
+            let w: f64 = contribs.iter().map(|(_, e)| e.weight_share).sum();
+            if w > 1e-9 {
+                (contribs.iter().map(|(_, e)| e.coverage * e.weight_share).sum::<f64>() / w
+                    * 10000.0)
+                    .round()
+                    / 10000.0
+            } else {
+                0.0
+            }
+        };
         by_item.push(json!({
             "item_id": it.requirement_id,
             "criteria": it.criteria,
             "max": max,
-            "estimated": est.map(|e| e.estimated).unwrap_or(0.0),
-            "tier": est.map(|e| e.tier.label()).unwrap_or("未覆盖"),
-            "coverage": est.map(|e| e.coverage).unwrap_or(0.0),
-            "section_id": it.section_id,
+            "estimated": estimated,
+            "tier": tier_label,
+            "coverage": coverage,
+            "section_id": primary.map(|m| m.section_id.clone()),
+            // #224 多对多面：全部映射章节 + 首映射摊分比；estimated 为逐章
+            // 贡献之和（contributions 逐章明细——多章不取首章）
+            "mapping_ids": it.mappings.iter().map(|m| m.section_id.clone()).collect::<Vec<_>>(),
+            "weight_share": primary.map(|m| m.weight_share),
+            "contributions": contribs.iter().map(|(sec, e)| json!({
+                "section_id": sec,
+                "estimated": e.estimated,
+                "tier": e.tier.label(),
+                "coverage": e.coverage,
+                "weight_share": e.weight_share,
+            })).collect::<Vec<_>>(),
             // #186 预留面：细则原文透出（判档不消费——rule_heuristic）
             "score_rules": it.score_rules,
         }));
@@ -2578,6 +2723,10 @@ fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
         "gap": gap,
         "by_item": by_item,
         "breakdown": doc.breakdown,
+        // #224：映射报告（每评分项 → 章节/权重/来源/原文锚——双向追溯面）
+        "mappings": mappings_report,
+        // #224：未映射评分项（非空 = 总分可能偏低——响亮告警）
+        "unmapped_scoring_items": doc.unmapped_scoring_items,
         "notes": doc.notes,
         "price_input": spec_echo,
         "sections_scored": sections.len(),
@@ -2700,6 +2849,11 @@ fn build_scorer(
 ) -> (
     bid_domain::scoring::SectionScorer,
     Vec<bid_domain::scoring::ScoringItem>,
+    // #224 追溯面：**生效**账本映射键集 (req_id, section_id)。账本行与派生
+    // params.section 同节时被去重（派生赢、账本行 inert 不入 mappings）——
+    // 报告只认生效来源：同节 inert 行的 source/anchor/evidence 不得误归因
+    // 给派生映射（Lead 审查 2：键集区分「账本生效」与「派生」两路）。
+    std::collections::HashSet<(String, String)>,
 ) {
     let parents: std::collections::HashSet<&str> = store
         .sections()
@@ -2772,9 +2926,53 @@ fn build_scorer(
     }
     // 项目专名锚（B3 ProjectContext 同源——具体性判定的锚词面）
     let terms = bid_tools::quality::ProjectContext::from_store(store).scorer_terms();
-    let items = bid_domain::scoring::derive_scoring_items(&reqs);
-    let tree = bid_domain::scoring::derive_scoring_tree(&reqs);
-    (bid_domain::scoring::SectionScorer::new(tree, terms), items)
+    let mut items = bid_domain::scoring::derive_scoring_items(&reqs);
+    let mut tree = bid_domain::scoring::derive_scoring_tree(&reqs);
+    // #224 多对多：并入持久化映射（AgentSubmitted/Manual——账本在
+    // store.scoring_mappings()，联结进 items/tree.index 两份视图）。
+    // 同 (req, section) 键与 params.section 重合时跳过（params 单值 share
+    // 恒 1.0——同章重合以账本 share 为准的语义留给后续显式覆写面，本步
+    // 保守去重防双重计入）。
+    let persistent: Vec<(String, bid_domain::scoring::SectionMapping)> = store
+        .scoring_mappings()
+        .iter()
+        .map(|m| {
+            (
+                m.scoring_req_id.clone(),
+                bid_domain::scoring::SectionMapping {
+                    section_id: m.section_id.clone(),
+                    weight_share: m.weight_share,
+                },
+            )
+        })
+        .collect();
+    let apply = |item: &mut bid_domain::scoring::ScoringItem,
+                 persistent: &[(String, bid_domain::scoring::SectionMapping)],
+                 ledger_effective: &mut std::collections::HashSet<(String, String)>| {
+        for (req_id, m) in persistent {
+            if *req_id == item.requirement_id
+                && !item.mappings.iter().any(|x| x.section_id == m.section_id)
+            {
+                item.mappings.push(m.clone());
+                // 只有真正进 mappings 的账本行才是生效映射（同节被派生
+                // 去重的 inert 行不算）——报告归因的判定面。
+                ledger_effective.insert((req_id.clone(), m.section_id.clone()));
+            }
+        }
+    };
+    let mut ledger_effective: std::collections::HashSet<(String, String)> =
+        std::collections::HashSet::new();
+    for it in &mut items {
+        apply(it, &persistent, &mut ledger_effective);
+    }
+    for (_, item) in tree.index.iter_mut() {
+        apply(item, &persistent, &mut ledger_effective);
+    }
+    (
+        bid_domain::scoring::SectionScorer::new(tree, terms),
+        items,
+        ledger_effective,
+    )
 }
 
 /// 价格类评分项判定（`bid_domain::scoring::is_price_item` 的镜像——该函数

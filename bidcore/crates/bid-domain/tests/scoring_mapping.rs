@@ -679,6 +679,114 @@ fn restore_enforces_registration_row_constraints() {
     assert_eq!(ok.scoring_mappings().len(), 1);
 }
 
+/// restore 聚合不变量（Lead 二次阻塞审查）：两条各自合法、合计 1.4 的
+/// 账本映射快照必须拒载（恢复即账本态，scoring_items 随即消费）；合法
+/// 边界快照（0.7+0.3=1.0）照常恢复。
+#[test]
+fn restore_rejects_oversized_aggregate_shares() {
+    let mut s = store_base();
+    upsert(&mut s, "REQ-0001", "SEC-01", 0.7);
+    upsert(&mut s, "REQ-0001", "SEC-02", 0.3);
+
+    // 合法边界快照（每行合法且合计 = 1.0）→ 照常恢复
+    let ok = DomainStore::restore(s.to_snapshot()).unwrap();
+    assert_eq!(ok.scoring_mappings().len(), 2, "合计恰为 1.0 的快照放行");
+
+    // 手改快照（绕过登记面——upsert 已拒的形态从快照溜进来）：
+    // SEC-02 行 0.3 → 0.7 → 联结面合计 1.4 → 拒载
+    let mut bad = s.to_snapshot();
+    bad.scoring_mappings[1].weight_share = 0.7;
+    let Err(e) = DomainStore::restore(bad) else {
+        panic!("两条 0.7 的快照必须拒载（跨章评分会超单项满分）")
+    };
+    assert!(
+        matches!(e, ToolError::EUnprocessable { .. }),
+        "拒载错误必须是 E_UNPROCESSABLE：{e:?}"
+    );
+    assert!(
+        format!("{e:?}").contains("REQ-0001"),
+        "报错须定位到超限评分项：{e:?}"
+    );
+}
+
+/// restore 聚合不变量——派生 + 异节（Lead 二次阻塞审查）：params.section
+/// 派生 1.0 与异节账本行并存（合计 1.4）的快照必须拒载；同节账本行去重
+/// 不计；无派生冲突的同款行照常恢复。
+#[test]
+fn restore_rejects_derived_plus_ledger_overshoot() {
+    // 基座：REQ-0001 带派生 params.section=SEC-01；账本先放一条合法行
+    // （REQ-0002 × SEC-01——真 upsert 签发，占 SM 水位与复合键），
+    // 快照后手改为「REQ-0001 × 异节 SEC-02 × 0.4」——登记面进不去的
+    // 形态，快照面必须拦下。
+    let mut s = DomainStore::new();
+    s.create_project("派生快照", "C-DSN", "明标", "dsn-key")
+        .unwrap();
+    s.upsert_file(
+        "A-招标文件.docx",
+        "招标文件",
+        "sha-dsn",
+        10,
+        1,
+        50,
+        0,
+        bid_domain::ParseStatus::Ok,
+        "",
+    )
+    .unwrap();
+    s.set_requirements(vec![
+        score_req("REQ-0001", "4.1 技术方案 20 分", 20.0, Some("SEC-01")),
+        score_req("REQ-0002", "4.2 售后服务 10 分", 10.0, None),
+        body_req("REQ-0003", "5.1 甲接口"),
+        body_req("REQ-0004", "5.2 乙接口"),
+    ])
+    .unwrap();
+    s.set_outline(vec![
+        leaf("SEC-01", 1, "技术方案", &["REQ-0003"]),
+        leaf("SEC-02", 2, "售后服务", &["REQ-0004"]),
+    ])
+    .unwrap();
+    upsert(&mut s, "REQ-0002", "SEC-01", 1.0);
+
+    // 手改：挂到带派生 (SEC-01, 1.0) 的 REQ-0001 异节 SEC-02 → 联结面 1.4 → 拒
+    let mut snap = s.to_snapshot();
+    let row = snap.scoring_mappings.iter_mut().next().unwrap();
+    row.scoring_req_id = "REQ-0001".into();
+    row.section_id = "SEC-02".into();
+    row.weight_share = 0.4;
+    let Err(e) = DomainStore::restore(snap) else {
+        panic!("派生 1.0 + 异节账本 0.4 的快照必须拒载")
+    };
+    assert!(
+        matches!(e, ToolError::EUnprocessable { .. }),
+        "拒载错误必须是 E_UNPROCESSABLE：{e:?}"
+    );
+    assert!(
+        format!("{e:?}").contains("1.400"),
+        "报错须给出联结面合计：{e:?}"
+    );
+
+    // 同节（= 派生节 SEC-01）账本行：联结去重不计 → 联结面仍 1.0 → 放行
+    let mut same_sec = s.to_snapshot();
+    let row = same_sec.scoring_mappings.iter_mut().next().unwrap();
+    row.scoring_req_id = "REQ-0001".into();
+    row.section_id = "SEC-01".into();
+    row.weight_share = 0.6;
+    let ok = DomainStore::restore(same_sec).unwrap();
+    assert_eq!(
+        ok.scoring_mappings().len(),
+        1,
+        "与派生同节的账本行去重不计，合计仍 1.0 → 放行"
+    );
+
+    // 对照：同款异节行挂在无派生的评分项（REQ-0002）上 → 合计 0.4 → 放行
+    let mut plain = s.to_snapshot();
+    let row = plain.scoring_mappings.iter_mut().next().unwrap();
+    row.section_id = "SEC-02".into();
+    row.weight_share = 0.4;
+    let ok = DomainStore::restore(plain).unwrap();
+    assert_eq!(ok.scoring_mappings().len(), 1, "无派生冲突的合法快照放行");
+}
+
 /// content_version 语义（Lead blocker 3）：真变更（新增 / 任一字段更新）
 /// bump；全字段等值重提（真 no-op）不 bump——映射影响评分结果，乐观并发
 /// 面不得「版本没变但评分面变了」。

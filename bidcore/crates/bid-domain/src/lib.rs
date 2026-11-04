@@ -1316,6 +1316,50 @@ impl DomainStore {
                 m.id
             )));
         }
+        // #224 聚合不变量（Lead 2026-11-04 二次阻塞审查）：行约束挡不住
+        // 「每行合法、同一评分项合计 1.4」的快照——restore 是登记面之外的
+        // 第二条写入口（手改/旧版本落盘），恢复即账本态，scoring_items
+        // 随即消费（跨章评分超单项满分）。口径与 upsert 登记面同源：
+        // - 派生 params.section 单值映射（share=1.0）计入；
+        // - 与派生同节的账本行联结去重（派生赢、不生效）→ 不计入；
+        // - epsilon 1e-9 与登记面一致（0.1+0.2+0.7 浮点和放行）。
+        {
+            use std::collections::HashMap;
+            // 被映射的评分项 → 派生 params.section（孤儿检查已保证 REQ 在场；
+            // 无 params.section → None）
+            let mut derived: HashMap<&str, Option<&str>> = HashMap::new();
+            for m in &snap.scoring_mappings {
+                derived
+                    .entry(m.scoring_req_id.as_str())
+                    .or_insert_with(|| {
+                        snap.requirements
+                            .iter()
+                            .find(|r| r.id == m.scoring_req_id)
+                            .and_then(|r| r.params.get("section"))
+                            .and_then(|v| v.as_str())
+                    });
+            }
+            // 联结面有效份额：异节账本行求和（与派生同节 = 去重不计）
+            let mut sums: HashMap<&str, f64> = HashMap::new();
+            for m in &snap.scoring_mappings {
+                let ds = derived.get(m.scoring_req_id.as_str()).copied().flatten();
+                if Some(m.section_id.as_str()) == ds {
+                    continue;
+                }
+                *sums.entry(m.scoring_req_id.as_str()).or_insert(0.0) += m.weight_share;
+            }
+            for (rid, ds) in &derived {
+                let mut total = *sums.get(*rid).unwrap_or(&0.0);
+                if ds.is_some() {
+                    total += 1.0;
+                }
+                if total > 1.0 + 1e-9 {
+                    return Err(un(format!(
+                        "评分项 {rid} 的映射份额合计 {total:.3} 超过 1.0（#224 聚合不变量——与登记面同约束，拒载；派生 params.section 单值映射 share=1.0 计入，与派生同节的账本行联结去重不计入）"
+                    )));
+                }
+            }
+        }
         // 孤儿数据（有集合无项目 = 半个库）
         if snap.project.is_none()
             && (!snap.files.is_empty()

@@ -11,8 +11,11 @@
 //!      SUPERSEDED——bind 时拒了，但 `apply_validity` 可后置翻转，真实风险）；
 //!   6. `W_PLACEHOLDER`（MAJOR）：占位符残留（borrow check.rs 的
 //!      PLACEHOLDER_MARKERS 口径——TODO/待补充/【占位】）；
-//!   7. `W_CHARS_OFF_TARGET`（MINOR）：字数偏离配额 ±20% 之外（与 draft
+//!   7. `W_CHARS_OFF_TARGET`（MINOR）：字数**超出**配额 +20% 之外（与 draft
 //!      生成带对称——同口径可对账）；
+//!   7b. `E_CHARS_BELOW_MIN`（BLOCKER）：正文低于配额 −20% 容差下限
+//!      （1.0 写作验收：最低篇幅不达标 → 整份标书不得报告达标/导出——
+//!      下限与 draft `pad_to_target` 的 80% 同口径，见规则 4 内注）；
 //!   8. `W_FORMAT_BASELINE`（MINOR）：格式条款零命中按工程基线（Lead
 //!      「不准硬编码」的降级告知面）。
 //! - **第二层（模型复核，可选）**——[`ModelReviewer`] trait 注入（表述质量/
@@ -32,6 +35,12 @@
 //! **纯只读诊断**：validate 不改稿不落库——BLOCKER 的解除通道是既有面
 //! （`set_matrix_override` 响应覆写 / 证据补绑 / 章节 draft），export 的
 //! 双前置门消费同一真源。报告是导数不是源数据。
+//!
+//! **导出时点复算面（1.0 写作验收）**：[`writing_acceptance_findings`] 把
+//! 写作验收 BLOCKER（规则 3 空章节 + 规则 4 下界）单独成面，供
+//! `export_document` 前置门 1c 消费——篇幅不足时**即使审核已直接批准**
+//! （零 findings 零 RT）也不得导出：记审记录是流程事实不是质量事实，
+//! 导出门不消费记审面、独立复算（fail-closed）。
 //!
 //! scope：`"all"` | 叶 section_id 清单（局部复审面——过滤只作用于**章节级**
 //! 规则 3/4/6/7；全局级规则 1/2/5/8 恒全量——资格与否决没有「局部」语义）。
@@ -220,16 +229,7 @@ pub fn validate_document(
         // 规则 3：无正文 / 未 DRAFTED
         let has_content = node.content.as_deref().map(|c| !c.trim().is_empty()).unwrap_or(false);
         if !has_content {
-            structural_f.push(ValidationFinding {
-                rule_code: "E_SECTION_EMPTY".into(),
-                severity: "BLOCKER",
-                section_id: Some(node.id.clone()),
-                requirement_id: None,
-                message: format!(
-                    "章节「{}」（{}）无正文（状态 {}）——半个文档不能过审",
-                    node.title, node.id, node.status.as_str(),
-                ),
-            });
+            structural_f.push(section_empty_no_content(node));
             // #187：模型复核面覆盖 scope 内**全部**章节——空章也询问
             // reviewer（内容传空串）。否则唯一章节为空时零次调用，semantic
             // 桶无法区分「未配置」与「已复核零章」（NoModel 会伪装成
@@ -242,32 +242,37 @@ pub fn validate_document(
             continue; // 无正文的章节不再跑字数/占位符/引用规则（无米之炊）
         }
         if !is_drafted(node.status) {
-            structural_f.push(ValidationFinding {
-                rule_code: "E_SECTION_EMPTY".into(),
-                severity: "BLOCKER",
-                section_id: Some(node.id.clone()),
-                requirement_id: None,
-                message: format!(
-                    "章节「{}」（{}）状态 {} 未达 DRAFTED——内容未定稿",
-                    node.title, node.id, node.status.as_str(),
-                ),
-            });
+            structural_f.push(section_empty_not_drafted(node));
         }
         let content = node.content.as_deref().unwrap_or("");
 
-        // 规则 4：字数偏离 ±20%（与 draft 生成带对称的验收口径）
+        // 规则 4：篇幅验收（与 draft 生成带对称的验收口径——带 = target ×
+        //      [80%, 120%]，Lead 验收线 ±20%）。
+        //
+        // 【1.0 写作验收】下界与上界分治：
+        // - **下界 BLOCKER**（`E_CHARS_BELOW_MIN`）：篇幅不足 = 偷工减料——
+        //   响应覆盖度不足以支撑评审，不得把整份标书报告为达标（ok 翻
+        //   false）；经 record_review 派生 RT 后导出门（export_allowed
+        //   的「全 RT DONE」面）拒导出——防废标的最后一关。
+        // - **上界 MINOR**（`W_CHARS_OFF_TARGET` 原样）：超出只是提示（页数
+        //   超限风险由人裁），不阻断——与旧口径兼容，避免过度收紧。
+        // - `target_chars == 0`（无配额的叶）不判：没有目标就没有带外；
+        //   空正文已由规则 3 E_SECTION_EMPTY 报 BLOCKER（continue 跳过），
+        //   不双报。
         if node.target_chars > 0 {
             let chars = content.chars().count();
             let target = f64::from(node.target_chars);
-            if (chars as f64) < target * 0.80 || (chars as f64) > target * 1.20 {
+            if (chars as f64) < target * 0.80 {
+                structural_f.push(chars_below_min(node, chars));
+            } else if (chars as f64) > target * 1.20 {
                 structural_f.push(ValidationFinding {
                     rule_code: "W_CHARS_OFF_TARGET".into(),
                     severity: "MINOR",
                     section_id: Some(node.id.clone()),
                     requirement_id: None,
                     message: format!(
-                        "章节「{}」字数 {chars} 偏离配额 {}（±20% 带外：[{:.0}, {:.0}]）",
-                        node.title, node.target_chars, target * 0.80, target * 1.20,
+                        "章节「{}」字数 {chars} 超出配额 {}（+20% 带外：上限 {:.0}）",
+                        node.title, node.target_chars, target * 1.20,
                     ),
                 });
             }
@@ -423,6 +428,105 @@ fn is_drafted(s: SectionStatus) -> bool {
             | SectionStatus::Revising
             | SectionStatus::Accepted
     )
+}
+
+// ---------------------------------------------------------------- 1.0 写作验收 · 导出门复算面
+
+/// 规则 3 无正文变体的 finding 构造（validate 与导出复算面共用——单一
+/// 真源，防两面文案漂移）。
+fn section_empty_no_content(node: &bid_domain::outline::OutlineNode) -> ValidationFinding {
+    ValidationFinding {
+        rule_code: "E_SECTION_EMPTY".into(),
+        severity: "BLOCKER",
+        section_id: Some(node.id.clone()),
+        requirement_id: None,
+        message: format!(
+            "章节「{}」（{}）无正文（状态 {}）——半个文档不能过审",
+            node.title, node.id, node.status.as_str(),
+        ),
+    }
+}
+
+/// 规则 3 未定稿变体的 finding 构造（共用，同上）。
+fn section_empty_not_drafted(node: &bid_domain::outline::OutlineNode) -> ValidationFinding {
+    ValidationFinding {
+        rule_code: "E_SECTION_EMPTY".into(),
+        severity: "BLOCKER",
+        section_id: Some(node.id.clone()),
+        requirement_id: None,
+        message: format!(
+            "章节「{}」（{}）状态 {} 未达 DRAFTED——内容未定稿",
+            node.title, node.id, node.status.as_str(),
+        ),
+    }
+}
+
+/// 规则 4 下界 BLOCKER 的 finding 构造（共用，同上）。
+fn chars_below_min(
+    node: &bid_domain::outline::OutlineNode,
+    chars: usize,
+) -> ValidationFinding {
+    let target = f64::from(node.target_chars);
+    ValidationFinding {
+        rule_code: "E_CHARS_BELOW_MIN".into(),
+        severity: "BLOCKER",
+        section_id: Some(node.id.clone()),
+        requirement_id: None,
+        message: format!(
+            "章节「{}」正文 {} 字低于最低篇幅 {:.0}（目标 {} 的 −20% 容差下限）——篇幅不足不得达标/导出，补写后重校",
+            node.title, chars, target * 0.80, node.target_chars,
+        ),
+    }
+}
+
+/// 1.0 写作验收的导出时点复算（`export_document` 前置门 1c 消费）。
+///
+/// **门禁语义（Lead 问询补明 2026-11）**：篇幅不足时，即使有人直接批准
+/// 审核（PreExportConfirm Approved、零 findings、零 RT），仍然禁止导出。
+/// 理由：记审记录是**流程事实**不是**质量事实**——审核员漏看/绕过
+/// validate 的发现不构成篇幅豁免；validate 本身是纯只读诊断（报告是
+/// 导数不是源数据，过审与导出之间内容可再被改短），所以导出门必须
+/// **独立复算**写作验收硬线，不消费记审面（reviews / RT / gate_approved
+/// 均不看）——fail-closed。
+///
+/// 复算范围 = 写作验收 BLOCKER 两条（与 validate 同规则同构造器，无
+/// scope 恒全量叶）：
+/// - 规则 3 `E_SECTION_EMPTY`：必写叶无正文 / 未达 DRAFTED；
+/// - 规则 4 下界 `E_CHARS_BELOW_MIN`：正文 < target×80%。
+///
+/// **不在**此面的规则及其理由：上界 `W_CHARS_OFF_TARGET` 是 MINOR 提示
+/// 不阻断导出；矩阵/否决/资格面有关 1a 矩阵门；证据效期/引用幽灵走
+/// 审核记审面（findings→RT）——写作验收门只管篇幅与空章，不越界。
+///
+/// 返回空 vec = 过门；非空 = BLOCKER 清单（导出面逐条点名拒）。
+pub fn writing_acceptance_findings(store: &DomainStore) -> Vec<ValidationFinding> {
+    let parents: HashSet<&str> = store
+        .sections()
+        .iter()
+        .filter_map(|n| n.parent_id.as_deref())
+        .collect();
+    let mut out = Vec::new();
+    for node in store.sections().iter().filter(|n| !parents.contains(&n.id[..])) {
+        let has_content = node
+            .content
+            .as_deref()
+            .map(|c| !c.trim().is_empty())
+            .unwrap_or(false);
+        if !has_content {
+            out.push(section_empty_no_content(node));
+            continue; // 无正文的叶不再跑字数规则（与 validate 同口径，不双报）
+        }
+        if !is_drafted(node.status) {
+            out.push(section_empty_not_drafted(node));
+        }
+        if node.target_chars > 0 {
+            let chars = node.content.as_deref().unwrap_or("").chars().count();
+            if (chars as f64) < f64::from(node.target_chars) * 0.80 {
+                out.push(chars_below_min(node, chars));
+            }
+        }
+    }
+    out
 }
 
 fn excerpt_of(req: &bid_domain::Requirement) -> String {

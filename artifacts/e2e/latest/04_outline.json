@@ -1,5 +1,5 @@
 {
-  "leaves": 27,
+  "leaves": 26,
   "nodes": [
     {
       "id": "SEC-0009",
@@ -196,9 +196,9 @@
       "level": 1,
       "order": 20,
       "parent_id": null,
-      "reqs": 61,
+      "reqs": 59,
       "status": "PENDING",
-      "target_chars": 5500,
+      "target_chars": 5000,
       "title": "资格与响应"
     },
     {
@@ -296,25 +296,15 @@
       "level": 2,
       "order": 30,
       "parent_id": "SEC-0028",
-      "reqs": 6,
+      "reqs": 5,
       "status": "PENDING",
       "target_chars": 500,
       "title": "资格与响应（第10块）"
     },
     {
       "id": "SEC-0039",
-      "level": 2,
-      "order": 31,
-      "parent_id": "SEC-0028",
-      "reqs": 1,
-      "status": "PENDING",
-      "target_chars": 500,
-      "title": "资格与响应（第11块）"
-    },
-    {
-      "id": "SEC-0040",
       "level": 1,
-      "order": 32,
+      "order": 31,
       "parent_id": null,
       "reqs": 9,
       "status": "PENDING",
@@ -322,29 +312,29 @@
       "title": "格式要求"
     },
     {
-      "id": "SEC-0041",
+      "id": "SEC-0040",
       "level": 2,
-      "order": 33,
-      "parent_id": "SEC-0040",
+      "order": 32,
+      "parent_id": "SEC-0039",
       "reqs": 6,
       "status": "PENDING",
       "target_chars": 500,
       "title": "格式要求（第1块）"
     },
     {
-      "id": "SEC-0042",
+      "id": "SEC-0041",
       "level": 2,
-      "order": 34,
-      "parent_id": "SEC-0040",
+      "order": 33,
+      "parent_id": "SEC-0039",
       "reqs": 3,
       "status": "PENDING",
       "target_chars": 500,
       "title": "格式要求（第2块）"
     },
     {
-      "id": "SEC-0043",
+      "id": "SEC-0042",
       "level": 1,
-      "order": 35,
+      "order": 34,
       "parent_id": null,
       "reqs": 15,
       "status": "PENDING",
@@ -352,39 +342,39 @@
       "title": "技术参数"
     },
     {
-      "id": "SEC-0044",
+      "id": "SEC-0043",
       "level": 2,
-      "order": 36,
-      "parent_id": "SEC-0043",
+      "order": 35,
+      "parent_id": "SEC-0042",
       "reqs": 6,
       "status": "PENDING",
       "target_chars": 500,
       "title": "技术参数（第1块）"
     },
     {
-      "id": "SEC-0045",
+      "id": "SEC-0044",
       "level": 2,
-      "order": 37,
-      "parent_id": "SEC-0043",
+      "order": 36,
+      "parent_id": "SEC-0042",
       "reqs": 6,
       "status": "PENDING",
       "target_chars": 500,
       "title": "技术参数（第2块）"
     },
     {
-      "id": "SEC-0046",
+      "id": "SEC-0045",
       "level": 2,
-      "order": 38,
-      "parent_id": "SEC-0043",
+      "order": 37,
+      "parent_id": "SEC-0042",
       "reqs": 3,
       "status": "PENDING",
       "target_chars": 500,
       "title": "技术参数（第3块）"
     },
     {
-      "id": "SEC-0047",
+      "id": "SEC-0046",
       "level": 1,
-      "order": 39,
+      "order": 38,
       "parent_id": null,
       "reqs": 4,
       "status": "PENDING",
@@ -392,10 +382,10 @@
       "title": "商务要求"
     },
     {
-      "id": "SEC-0048",
+      "id": "SEC-0047",
       "level": 2,
-      "order": 40,
-      "parent_id": "SEC-0047",
+      "order": 39,
+      "parent_id": "SEC-0046",
       "reqs": 4,
       "status": "PENDING",
       "target_chars": 500,

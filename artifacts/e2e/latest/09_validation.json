@@ -14,7 +14,7 @@
       "findings": [
         {
           "kind": "DETERMINISTIC",
-          "message": "章节「第一章 招标公告」字数 951 偏离配额 500（±20% 带外：[400, 600]）",
+          "message": "章节「第一章 招标公告」字数 951 超出配额 500（+20% 带外：上限 600）",
           "requirement_id": null,
           "rule_code": "W_CHARS_OFF_TARGET",
           "section_id": "SEC-0010",
@@ -22,7 +22,7 @@
         },
         {
           "kind": "DETERMINISTIC",
-          "message": "章节「第三章 投标人须知（第1块）」字数 995 偏离配额 500（±20% 带外：[400, 600]）",
+          "message": "章节「第三章 投标人须知（第1块）」字数 995 超出配额 500（+20% 带外：上限 600）",
           "requirement_id": null,
           "rule_code": "W_CHARS_OFF_TARGET",
           "section_id": "SEC-0012",
@@ -30,7 +30,7 @@
         },
         {
           "kind": "DETERMINISTIC",
-          "message": "章节「第三章 投标人须知（第2块）」字数 605 偏离配额 500（±20% 带外：[400, 600]）",
+          "message": "章节「第三章 投标人须知（第2块）」字数 605 超出配额 500（+20% 带外：上限 600）",
           "requirement_id": null,
           "rule_code": "W_CHARS_OFF_TARGET",
           "section_id": "SEC-0013",
@@ -38,7 +38,7 @@
         },
         {
           "kind": "DETERMINISTIC",
-          "message": "章节「第八章 附件说明」字数 604 偏离配额 500（±20% 带外：[400, 600]）",
+          "message": "章节「第八章 附件说明」字数 604 超出配额 500（+20% 带外：上限 600）",
           "requirement_id": null,
           "rule_code": "W_CHARS_OFF_TARGET",
           "section_id": "SEC-0015",
@@ -46,7 +46,7 @@
         },
         {
           "kind": "DETERMINISTIC",
-          "message": "章节「技术方案要求」字数 838 偏离配额 500（±20% 带外：[400, 600]）",
+          "message": "章节「技术方案要求」字数 838 超出配额 500（+20% 带外：上限 600）",
           "requirement_id": null,
           "rule_code": "W_CHARS_OFF_TARGET",
           "section_id": "SEC-0017",
@@ -54,7 +54,7 @@
         },
         {
           "kind": "DETERMINISTIC",
-          "message": "章节「资格与响应（第1块）」字数 1178 偏离配额 500（±20% 带外：[400, 600]）",
+          "message": "章节「资格与响应（第1块）」字数 1178 超出配额 500（+20% 带外：上限 600）",
           "requirement_id": null,
           "rule_code": "W_CHARS_OFF_TARGET",
           "section_id": "SEC-0029",
@@ -62,7 +62,7 @@
         },
         {
           "kind": "DETERMINISTIC",
-          "message": "章节「资格与响应（第2块）」字数 1098 偏离配额 500（±20% 带外：[400, 600]）",
+          "message": "章节「资格与响应（第2块）」字数 1098 超出配额 500（+20% 带外：上限 600）",
           "requirement_id": null,
           "rule_code": "W_CHARS_OFF_TARGET",
           "section_id": "SEC-0030",
@@ -70,7 +70,7 @@
         },
         {
           "kind": "DETERMINISTIC",
-          "message": "章节「资格与响应（第3块）」字数 1168 偏离配额 500（±20% 带外：[400, 600]）",
+          "message": "章节「资格与响应（第3块）」字数 1168 超出配额 500（+20% 带外：上限 600）",
           "requirement_id": null,
           "rule_code": "W_CHARS_OFF_TARGET",
           "section_id": "SEC-0031",
@@ -78,7 +78,7 @@
         },
         {
           "kind": "DETERMINISTIC",
-          "message": "章节「资格与响应（第4块）」字数 1047 偏离配额 500（±20% 带外：[400, 600]）",
+          "message": "章节「资格与响应（第4块）」字数 1047 超出配额 500（+20% 带外：上限 600）",
           "requirement_id": null,
           "rule_code": "W_CHARS_OFF_TARGET",
           "section_id": "SEC-0032",
@@ -86,7 +86,7 @@
         },
         {
           "kind": "DETERMINISTIC",
-          "message": "章节「资格与响应（第5块）」字数 956 偏离配额 500（±20% 带外：[400, 600]）",
+          "message": "章节「资格与响应（第5块）」字数 985 超出配额 500（+20% 带外：上限 600）",
           "requirement_id": null,
           "rule_code": "W_CHARS_OFF_TARGET",
           "section_id": "SEC-0033",
@@ -94,7 +94,7 @@
         },
         {
           "kind": "DETERMINISTIC",
-          "message": "章节「资格与响应（第6块）」字数 1007 偏离配额 500（±20% 带外：[400, 600]）",
+          "message": "章节「资格与响应（第6块）」字数 975 超出配额 500（+20% 带外：上限 600）",
           "requirement_id": null,
           "rule_code": "W_CHARS_OFF_TARGET",
           "section_id": "SEC-0034",
@@ -102,7 +102,7 @@
         },
         {
           "kind": "DETERMINISTIC",
-          "message": "章节「资格与响应（第7块）」字数 1037 偏离配额 500（±20% 带外：[400, 600]）",
+          "message": "章节「资格与响应（第7块）」字数 1087 超出配额 500（+20% 带外：上限 600）",
           "requirement_id": null,
           "rule_code": "W_CHARS_OFF_TARGET",
           "section_id": "SEC-0035",
@@ -110,7 +110,7 @@
         },
         {
           "kind": "DETERMINISTIC",
-          "message": "章节「资格与响应（第8块）」字数 1030 偏离配额 500（±20% 带外：[400, 600]）",
+          "message": "章节「资格与响应（第8块）」字数 1002 超出配额 500（+20% 带外：上限 600）",
           "requirement_id": null,
           "rule_code": "W_CHARS_OFF_TARGET",
           "section_id": "SEC-0036",
@@ -118,7 +118,7 @@
         },
         {
           "kind": "DETERMINISTIC",
-          "message": "章节「资格与响应（第9块）」字数 1003 偏离配额 500（±20% 带外：[400, 600]）",
+          "message": "章节「资格与响应（第9块）」字数 989 超出配额 500（+20% 带外：上限 600）",
           "requirement_id": null,
           "rule_code": "W_CHARS_OFF_TARGET",
           "section_id": "SEC-0037",
@@ -126,7 +126,7 @@
         },
         {
           "kind": "DETERMINISTIC",
-          "message": "章节「资格与响应（第10块）」字数 1091 偏离配额 500（±20% 带外：[400, 600]）",
+          "message": "章节「资格与响应（第10块）」字数 971 超出配额 500（+20% 带外：上限 600）",
           "requirement_id": null,
           "rule_code": "W_CHARS_OFF_TARGET",
           "section_id": "SEC-0038",
@@ -134,15 +134,23 @@
         },
         {
           "kind": "DETERMINISTIC",
-          "message": "章节「格式要求（第1块）」字数 1049 偏离配额 500（±20% 带外：[400, 600]）",
+          "message": "章节「格式要求（第1块）」字数 1049 超出配额 500（+20% 带外：上限 600）",
           "requirement_id": null,
           "rule_code": "W_CHARS_OFF_TARGET",
-          "section_id": "SEC-0041",
+          "section_id": "SEC-0040",
           "severity": "MINOR"
         },
         {
           "kind": "DETERMINISTIC",
-          "message": "章节「技术参数（第1块）」字数 1213 偏离配额 500（±20% 带外：[400, 600]）",
+          "message": "章节「技术参数（第1块）」字数 1213 超出配额 500（+20% 带外：上限 600）",
+          "requirement_id": null,
+          "rule_code": "W_CHARS_OFF_TARGET",
+          "section_id": "SEC-0043",
+          "severity": "MINOR"
+        },
+        {
+          "kind": "DETERMINISTIC",
+          "message": "章节「技术参数（第2块）」字数 1194 超出配额 500（+20% 带外：上限 600）",
           "requirement_id": null,
           "rule_code": "W_CHARS_OFF_TARGET",
           "section_id": "SEC-0044",
@@ -150,7 +158,7 @@
         },
         {
           "kind": "DETERMINISTIC",
-          "message": "章节「技术参数（第2块）」字数 1194 偏离配额 500（±20% 带外：[400, 600]）",
+          "message": "章节「技术参数（第3块）」字数 697 超出配额 500（+20% 带外：上限 600）",
           "requirement_id": null,
           "rule_code": "W_CHARS_OFF_TARGET",
           "section_id": "SEC-0045",
@@ -158,18 +166,10 @@
         },
         {
           "kind": "DETERMINISTIC",
-          "message": "章节「技术参数（第3块）」字数 697 偏离配额 500（±20% 带外：[400, 600]）",
+          "message": "章节「商务要求」字数 732 超出配额 500（+20% 带外：上限 600）",
           "requirement_id": null,
           "rule_code": "W_CHARS_OFF_TARGET",
-          "section_id": "SEC-0046",
-          "severity": "MINOR"
-        },
-        {
-          "kind": "DETERMINISTIC",
-          "message": "章节「商务要求」字数 732 偏离配额 500（±20% 带外：[400, 600]）",
-          "requirement_id": null,
-          "rule_code": "W_CHARS_OFF_TARGET",
-          "section_id": "SEC-0048",
+          "section_id": "SEC-0047",
           "severity": "MINOR"
         }
       ],
@@ -187,7 +187,7 @@
   "findings": [
     {
       "kind": "DETERMINISTIC",
-      "message": "章节「第一章 招标公告」字数 951 偏离配额 500（±20% 带外：[400, 600]）",
+      "message": "章节「第一章 招标公告」字数 951 超出配额 500（+20% 带外：上限 600）",
       "requirement_id": null,
       "rule_code": "W_CHARS_OFF_TARGET",
       "section_id": "SEC-0010",
@@ -195,7 +195,7 @@
     },
     {
       "kind": "DETERMINISTIC",
-      "message": "章节「第三章 投标人须知（第1块）」字数 995 偏离配额 500（±20% 带外：[400, 600]）",
+      "message": "章节「第三章 投标人须知（第1块）」字数 995 超出配额 500（+20% 带外：上限 600）",
       "requirement_id": null,
       "rule_code": "W_CHARS_OFF_TARGET",
       "section_id": "SEC-0012",
@@ -203,7 +203,7 @@
     },
     {
       "kind": "DETERMINISTIC",
-      "message": "章节「第三章 投标人须知（第2块）」字数 605 偏离配额 500（±20% 带外：[400, 600]）",
+      "message": "章节「第三章 投标人须知（第2块）」字数 605 超出配额 500（+20% 带外：上限 600）",
       "requirement_id": null,
       "rule_code": "W_CHARS_OFF_TARGET",
       "section_id": "SEC-0013",
@@ -211,7 +211,7 @@
     },
     {
       "kind": "DETERMINISTIC",
-      "message": "章节「第八章 附件说明」字数 604 偏离配额 500（±20% 带外：[400, 600]）",
+      "message": "章节「第八章 附件说明」字数 604 超出配额 500（+20% 带外：上限 600）",
       "requirement_id": null,
       "rule_code": "W_CHARS_OFF_TARGET",
       "section_id": "SEC-0015",
@@ -219,7 +219,7 @@
     },
     {
       "kind": "DETERMINISTIC",
-      "message": "章节「技术方案要求」字数 838 偏离配额 500（±20% 带外：[400, 600]）",
+      "message": "章节「技术方案要求」字数 838 超出配额 500（+20% 带外：上限 600）",
       "requirement_id": null,
       "rule_code": "W_CHARS_OFF_TARGET",
       "section_id": "SEC-0017",
@@ -227,7 +227,7 @@
     },
     {
       "kind": "DETERMINISTIC",
-      "message": "章节「资格与响应（第1块）」字数 1178 偏离配额 500（±20% 带外：[400, 600]）",
+      "message": "章节「资格与响应（第1块）」字数 1178 超出配额 500（+20% 带外：上限 600）",
       "requirement_id": null,
       "rule_code": "W_CHARS_OFF_TARGET",
       "section_id": "SEC-0029",
@@ -235,7 +235,7 @@
     },
     {
       "kind": "DETERMINISTIC",
-      "message": "章节「资格与响应（第2块）」字数 1098 偏离配额 500（±20% 带外：[400, 600]）",
+      "message": "章节「资格与响应（第2块）」字数 1098 超出配额 500（+20% 带外：上限 600）",
       "requirement_id": null,
       "rule_code": "W_CHARS_OFF_TARGET",
       "section_id": "SEC-0030",
@@ -243,7 +243,7 @@
     },
     {
       "kind": "DETERMINISTIC",
-      "message": "章节「资格与响应（第3块）」字数 1168 偏离配额 500（±20% 带外：[400, 600]）",
+      "message": "章节「资格与响应（第3块）」字数 1168 超出配额 500（+20% 带外：上限 600）",
       "requirement_id": null,
       "rule_code": "W_CHARS_OFF_TARGET",
       "section_id": "SEC-0031",
@@ -251,7 +251,7 @@
     },
     {
       "kind": "DETERMINISTIC",
-      "message": "章节「资格与响应（第4块）」字数 1047 偏离配额 500（±20% 带外：[400, 600]）",
+      "message": "章节「资格与响应（第4块）」字数 1047 超出配额 500（+20% 带外：上限 600）",
       "requirement_id": null,
       "rule_code": "W_CHARS_OFF_TARGET",
       "section_id": "SEC-0032",
@@ -259,7 +259,7 @@
     },
     {
       "kind": "DETERMINISTIC",
-      "message": "章节「资格与响应（第5块）」字数 956 偏离配额 500（±20% 带外：[400, 600]）",
+      "message": "章节「资格与响应（第5块）」字数 985 超出配额 500（+20% 带外：上限 600）",
       "requirement_id": null,
       "rule_code": "W_CHARS_OFF_TARGET",
       "section_id": "SEC-0033",
@@ -267,7 +267,7 @@
     },
     {
       "kind": "DETERMINISTIC",
-      "message": "章节「资格与响应（第6块）」字数 1007 偏离配额 500（±20% 带外：[400, 600]）",
+      "message": "章节「资格与响应（第6块）」字数 975 超出配额 500（+20% 带外：上限 600）",
       "requirement_id": null,
       "rule_code": "W_CHARS_OFF_TARGET",
       "section_id": "SEC-0034",
@@ -275,7 +275,7 @@
     },
     {
       "kind": "DETERMINISTIC",
-      "message": "章节「资格与响应（第7块）」字数 1037 偏离配额 500（±20% 带外：[400, 600]）",
+      "message": "章节「资格与响应（第7块）」字数 1087 超出配额 500（+20% 带外：上限 600）",
       "requirement_id": null,
       "rule_code": "W_CHARS_OFF_TARGET",
       "section_id": "SEC-0035",
@@ -283,7 +283,7 @@
     },
     {
       "kind": "DETERMINISTIC",
-      "message": "章节「资格与响应（第8块）」字数 1030 偏离配额 500（±20% 带外：[400, 600]）",
+      "message": "章节「资格与响应（第8块）」字数 1002 超出配额 500（+20% 带外：上限 600）",
       "requirement_id": null,
       "rule_code": "W_CHARS_OFF_TARGET",
       "section_id": "SEC-0036",
@@ -291,7 +291,7 @@
     },
     {
       "kind": "DETERMINISTIC",
-      "message": "章节「资格与响应（第9块）」字数 1003 偏离配额 500（±20% 带外：[400, 600]）",
+      "message": "章节「资格与响应（第9块）」字数 989 超出配额 500（+20% 带外：上限 600）",
       "requirement_id": null,
       "rule_code": "W_CHARS_OFF_TARGET",
       "section_id": "SEC-0037",
@@ -299,7 +299,7 @@
     },
     {
       "kind": "DETERMINISTIC",
-      "message": "章节「资格与响应（第10块）」字数 1091 偏离配额 500（±20% 带外：[400, 600]）",
+      "message": "章节「资格与响应（第10块）」字数 971 超出配额 500（+20% 带外：上限 600）",
       "requirement_id": null,
       "rule_code": "W_CHARS_OFF_TARGET",
       "section_id": "SEC-0038",
@@ -307,15 +307,23 @@
     },
     {
       "kind": "DETERMINISTIC",
-      "message": "章节「格式要求（第1块）」字数 1049 偏离配额 500（±20% 带外：[400, 600]）",
+      "message": "章节「格式要求（第1块）」字数 1049 超出配额 500（+20% 带外：上限 600）",
       "requirement_id": null,
       "rule_code": "W_CHARS_OFF_TARGET",
-      "section_id": "SEC-0041",
+      "section_id": "SEC-0040",
       "severity": "MINOR"
     },
     {
       "kind": "DETERMINISTIC",
-      "message": "章节「技术参数（第1块）」字数 1213 偏离配额 500（±20% 带外：[400, 600]）",
+      "message": "章节「技术参数（第1块）」字数 1213 超出配额 500（+20% 带外：上限 600）",
+      "requirement_id": null,
+      "rule_code": "W_CHARS_OFF_TARGET",
+      "section_id": "SEC-0043",
+      "severity": "MINOR"
+    },
+    {
+      "kind": "DETERMINISTIC",
+      "message": "章节「技术参数（第2块）」字数 1194 超出配额 500（+20% 带外：上限 600）",
       "requirement_id": null,
       "rule_code": "W_CHARS_OFF_TARGET",
       "section_id": "SEC-0044",
@@ -323,7 +331,7 @@
     },
     {
       "kind": "DETERMINISTIC",
-      "message": "章节「技术参数（第2块）」字数 1194 偏离配额 500（±20% 带外：[400, 600]）",
+      "message": "章节「技术参数（第3块）」字数 697 超出配额 500（+20% 带外：上限 600）",
       "requirement_id": null,
       "rule_code": "W_CHARS_OFF_TARGET",
       "section_id": "SEC-0045",
@@ -331,46 +339,38 @@
     },
     {
       "kind": "DETERMINISTIC",
-      "message": "章节「技术参数（第3块）」字数 697 偏离配额 500（±20% 带外：[400, 600]）",
+      "message": "章节「商务要求」字数 732 超出配额 500（+20% 带外：上限 600）",
       "requirement_id": null,
       "rule_code": "W_CHARS_OFF_TARGET",
-      "section_id": "SEC-0046",
-      "severity": "MINOR"
-    },
-    {
-      "kind": "DETERMINISTIC",
-      "message": "章节「商务要求」字数 732 偏离配额 500（±20% 带外：[400, 600]）",
-      "requirement_id": null,
-      "rule_code": "W_CHARS_OFF_TARGET",
-      "section_id": "SEC-0048",
+      "section_id": "SEC-0047",
       "severity": "MINOR"
     }
   ],
   "ok": true,
   "project_status": "VALIDATING",
-  "project_version": 206,
-  "request_id": "req-000034",
-  "sections_checked": 27,
+  "project_version": 200,
+  "request_id": "req-000033",
+  "sections_checked": 26,
   "warnings": [
-    "章节「第一章 招标公告」字数 951 偏离配额 500（±20% 带外：[400, 600]）",
-    "章节「第三章 投标人须知（第1块）」字数 995 偏离配额 500（±20% 带外：[400, 600]）",
-    "章节「第三章 投标人须知（第2块）」字数 605 偏离配额 500（±20% 带外：[400, 600]）",
-    "章节「第八章 附件说明」字数 604 偏离配额 500（±20% 带外：[400, 600]）",
-    "章节「技术方案要求」字数 838 偏离配额 500（±20% 带外：[400, 600]）",
-    "章节「资格与响应（第1块）」字数 1178 偏离配额 500（±20% 带外：[400, 600]）",
-    "章节「资格与响应（第2块）」字数 1098 偏离配额 500（±20% 带外：[400, 600]）",
-    "章节「资格与响应（第3块）」字数 1168 偏离配额 500（±20% 带外：[400, 600]）",
-    "章节「资格与响应（第4块）」字数 1047 偏离配额 500（±20% 带外：[400, 600]）",
-    "章节「资格与响应（第5块）」字数 956 偏离配额 500（±20% 带外：[400, 600]）",
-    "章节「资格与响应（第6块）」字数 1007 偏离配额 500（±20% 带外：[400, 600]）",
-    "章节「资格与响应（第7块）」字数 1037 偏离配额 500（±20% 带外：[400, 600]）",
-    "章节「资格与响应（第8块）」字数 1030 偏离配额 500（±20% 带外：[400, 600]）",
-    "章节「资格与响应（第9块）」字数 1003 偏离配额 500（±20% 带外：[400, 600]）",
-    "章节「资格与响应（第10块）」字数 1091 偏离配额 500（±20% 带外：[400, 600]）",
-    "章节「格式要求（第1块）」字数 1049 偏离配额 500（±20% 带外：[400, 600]）",
-    "章节「技术参数（第1块）」字数 1213 偏离配额 500（±20% 带外：[400, 600]）",
-    "章节「技术参数（第2块）」字数 1194 偏离配额 500（±20% 带外：[400, 600]）",
-    "章节「技术参数（第3块）」字数 697 偏离配额 500（±20% 带外：[400, 600]）",
-    "章节「商务要求」字数 732 偏离配额 500（±20% 带外：[400, 600]）"
+    "章节「第一章 招标公告」字数 951 超出配额 500（+20% 带外：上限 600）",
+    "章节「第三章 投标人须知（第1块）」字数 995 超出配额 500（+20% 带外：上限 600）",
+    "章节「第三章 投标人须知（第2块）」字数 605 超出配额 500（+20% 带外：上限 600）",
+    "章节「第八章 附件说明」字数 604 超出配额 500（+20% 带外：上限 600）",
+    "章节「技术方案要求」字数 838 超出配额 500（+20% 带外：上限 600）",
+    "章节「资格与响应（第1块）」字数 1178 超出配额 500（+20% 带外：上限 600）",
+    "章节「资格与响应（第2块）」字数 1098 超出配额 500（+20% 带外：上限 600）",
+    "章节「资格与响应（第3块）」字数 1168 超出配额 500（+20% 带外：上限 600）",
+    "章节「资格与响应（第4块）」字数 1047 超出配额 500（+20% 带外：上限 600）",
+    "章节「资格与响应（第5块）」字数 985 超出配额 500（+20% 带外：上限 600）",
+    "章节「资格与响应（第6块）」字数 975 超出配额 500（+20% 带外：上限 600）",
+    "章节「资格与响应（第7块）」字数 1087 超出配额 500（+20% 带外：上限 600）",
+    "章节「资格与响应（第8块）」字数 1002 超出配额 500（+20% 带外：上限 600）",
+    "章节「资格与响应（第9块）」字数 989 超出配额 500（+20% 带外：上限 600）",
+    "章节「资格与响应（第10块）」字数 971 超出配额 500（+20% 带外：上限 600）",
+    "章节「格式要求（第1块）」字数 1049 超出配额 500（+20% 带外：上限 600）",
+    "章节「技术参数（第1块）」字数 1213 超出配额 500（+20% 带外：上限 600）",
+    "章节「技术参数（第2块）」字数 1194 超出配额 500（+20% 带外：上限 600）",
+    "章节「技术参数（第3块）」字数 697 超出配额 500（+20% 带外：上限 600）",
+    "章节「商务要求」字数 732 超出配额 500（+20% 带外：上限 600）"
   ]
 }

@@ -33,13 +33,15 @@ merge:   { regex_total, regex_dropped_covered, agent_requirements,
            uncovered_blocks, coverage_complete }        ← #219 二步合并面
 conflicts:        [ { a: "REQ-*", b: "REQ-*", reason } ]   ← 补遗与正文冲突双向登记
 missing_sequence: [ { file_id, expected_clause_nos, found } ] ← 条款编号缺号
-warnings:         [ …含 UNCOVERED_BLOCKS / AGENT_MANDATORY_NOT_BLOCKING ]
+warnings:         [ …含 UNCOVERED_BLOCKS / AGENT_MANDATORY_OFFCATEGORY ]
 ```
 
 **合并守恒**：counts.total = regex_total − regex_dropped_covered + agent_requirements。
 `UNCOVERED_BLOCKS`：未覆盖块正则已兜底——Agent 补标后重跑更准。
-`AGENT_MANDATORY_NOT_BLOCKING`：Agent 标必选但类别不在阻断面（资格条件/
-否决项）——导出闸门暂不拦（is_mandatory 接线属后续 issue），必须向用户提示。
+`AGENT_MANDATORY_OFFCATEGORY`：Agent 标必选且类别不在资格/否决阻断面——
+**已接线**：这些条款进入矩阵 blocking 面，未响应将拦起草与导出（重跑
+build_matrix 后生效）；响应（绑证据）或人工 receipt 覆写（set_matrix_override）
+后放行。向用户提示的口径：必选漏响应 = 废标风险，请逐条确认响应状态。
 
 **必须向用户复述**：`共抽取 N 条（资格 q / 否决 v / 评分 s / 技术参数 t /
 商务 c / 格式 f / 其他 o）`。

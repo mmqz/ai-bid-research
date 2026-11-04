@@ -54,9 +54,14 @@ pub struct MergeStats {
     pub uncovered_blocks: usize,
     /// 有抽取面文件是否全部覆盖。
     pub coverage_complete: bool,
-    /// Agent 标 mandatory=true 但类别不在阻断面（资格条件/否决项）的条数——
-    /// is_mandatory 接线属后续 issue，先亮统计防静默漏洞。
-    pub agent_mandatory_not_blocking: usize,
+    /// Agent 标 mandatory=true 且类别不在类别阻断面（资格条件/否决项）的条数。
+    ///
+    /// 历史名 `agent_mandatory_not_blocking`（AGENT_MANDATORY_NOT_BLOCKING
+    /// 警告时代——那批条款确实不拦）。Agent 必选标记接线进矩阵 blocking 面
+    /// 后这些条款**会拦**（matrix.rs `agent_mandatory`），改名 offcategory
+    /// 防语义漂移：本统计只计「靠 Agent 标记而非类别进入阻断面」的条数，
+    /// 供 extract 响应面的信息性提示（AGENT_MANDATORY_OFFCATEGORY warning）。
+    pub agent_mandatory_offcategory: usize,
 }
 
 /// 该文件是否有条款抽取面（与 `extract::extract_requirements` 的分发前缀对齐）。
@@ -146,7 +151,7 @@ pub fn merge_extraction(
     // ---- ③ 转换：submitted → REQ-Axxxx（按 face 顺序 + block_idx 稳定序）。
     let mut agent_reqs: Vec<Requirement> = Vec::new();
     let mut seq = 0usize;
-    let mut mandatory_not_blocking = 0usize;
+    let mut offcategory = 0usize; // Agent 必选且类别不在类别阻断面（见 MergeStats 字段注）
     for f in faces {
         let mut subs: Vec<&SubmittedRequirement> = f.submitted.iter().collect();
         // 稳定排序：同 block_idx 保持提交序（sort_by_key 是稳定排序）
@@ -159,7 +164,7 @@ pub fn merge_extraction(
             seq += 1;
             let category = s.category.clone().unwrap_or_else(|| "其他".to_string());
             if s.mandatory && !BLOCKING_CATEGORIES.contains(&category.as_str()) {
-                mandatory_not_blocking += 1;
+                offcategory += 1;
             }
             let mut params: HashMap<String, serde_json::Value> = HashMap::new();
             params.insert("statement".into(), serde_json::json!(s.statement));
@@ -209,7 +214,7 @@ pub fn merge_extraction(
             agent_requirements,
             uncovered_blocks,
             coverage_complete,
-            agent_mandatory_not_blocking: mandatory_not_blocking,
+            agent_mandatory_offcategory: offcategory,
         },
     )
 }
@@ -446,7 +451,7 @@ mod tests {
         assert_eq!(out[0].category, "资格条件");
         assert_eq!(out[1].category, "商务要求");
         assert_eq!(
-            stats.agent_mandatory_not_blocking, 1,
+            stats.agent_mandatory_offcategory, 1,
             "C件必选（商务要求）计入"
         );
         assert!(stats.coverage_complete);

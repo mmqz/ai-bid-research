@@ -840,12 +840,14 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
             merge_stats.uncovered_blocks
         ));
     }
-    // Agent 标必选但类别不在阻断面（资格条件/否决项）——is_mandatory 接线
-    // 属后续 issue，先亮警告防静默漏洞
-    if merge_stats.agent_mandatory_not_blocking > 0 {
+    // Agent 标必选且类别不在类别阻断面（资格条件/否决项）——这些条款经
+    // matrix.rs `agent_mandatory` 接线进入矩阵 blocking 面（未响应即拦
+    // 起草/导出）。信息性提示：告诉 Agent 这些标记现在有阻断力，重跑
+    // build_matrix 后生效，响应（绑证据/覆写）后放行。
+    if merge_stats.agent_mandatory_offcategory > 0 {
         warnings.push(format!(
-            "AGENT_MANDATORY_NOT_BLOCKING: {} 条 Agent 标必选但类别不在阻断面（资格条件/否决项）——导出闸门不拦，需后续接线",
-            merge_stats.agent_mandatory_not_blocking
+            "AGENT_MANDATORY_OFFCATEGORY: {} 条 Agent 标必选且类别不在资格/否决阻断面——已进入矩阵 blocking 面（重跑 build_matrix 后未响应将拦起草/导出；响应或人工 receipt 覆写后放行）",
+            merge_stats.agent_mandatory_offcategory
         ));
     }
 
@@ -980,7 +982,11 @@ fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
                     "category": r.category,
                     "category_key": category_key(&r.category),
                     "statement": anchor.map(|a| a.excerpt.as_str()).unwrap_or(""),
-                    "mandatory": r.category == "否决项" || r.category == "资格条件",
+                    // 同源真源：类别阻断面（is_mandatory）∪ Agent 必选标记
+                    // （agent_mandatory）——与 matrix.rs blocking 派生同一判定面，
+                    // 工具面 mandatory 即本门输入（不得在此另写一套字面量）。
+                    "mandatory": bid_domain::matrix::is_mandatory(&r.category)
+                        || bid_domain::matrix::agent_mandatory(r),
                     "source_anchor": anchor.map(|a| json!({
                         "file": a.file, "kind": a.kind, "locator": a.locator, "excerpt": a.excerpt,
                     })),

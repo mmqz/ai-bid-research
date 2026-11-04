@@ -35,6 +35,7 @@
 //! | MissingPerformance | 标题含业绩/类似项目 且 可用业绩 < [`MIN_PERFORMANCE_COUNT`] | 阻塞 |
 //! | MissingTechEvidence | 本章技术参数类 REQ 无可用证据佐证 | 阻塞 |
 //! | UncoveredVetoItem | 本章负责的否决项在矩阵未响应 / blocking | 阻塞 |
+//! | UncoveredMandatoryItem | 本章负责的 **Agent 标必选**条款（非否决类）在矩阵未响应 / blocking | 阻塞（Agent 必选接线） |
 //! | IncompleteTender | 招标包结构问题（无招标文件/多份正本/多份招标文件） | **警告**（信息面） |
 //! | **MissingAddendum** | 招标文件已导入，但补遗/澄清**缺失或不就绪**（逐件分级） | **阻塞**（L3，#184 升级） |
 //! | **UnreadyInput** | 招标包输入件（主件/附件/图纸——**非补遗**）不就绪且未逐件确认 | **阻塞**（地图 P0-1） |
@@ -194,6 +195,18 @@ pub enum Blocker {
     MissingTechEvidence { req_ids: Vec<String> },
     /// 本章负责的否决项在合规矩阵里仍未被响应（否决项漏响应 = 直接废标）。
     UncoveredVetoItem { req_ids: Vec<String> },
+    /// 本章负责的 **Agent 标必选**条款（否决类归 [`Blocker::UncoveredVetoItem`]
+    /// 报，不双报）在合规矩阵里仍未被响应（必选漏响应 = 废标风险——Agent
+    /// 已确认为需响应，不得静默漏写）。
+    ///
+    /// 与 [`Blocker::UncoveredVetoItem`] 的分界：那条管**类别阻断面**
+    /// （否决项——含正则产物）；本条管 **Agent 必选标记**接线的面
+    /// （matrix.rs `agent_mandatory`——AGENT_MANDATORY_NOT_BLOCKING 缺口的
+    /// 起草半边）。类别已是否决项的 Agent 必选条款归那条报，不双报。
+    ///
+    /// 出口（与否决项同款）：绑证据 + 章节在位 → 矩阵 RESPONDED；或经人工
+    /// receipt 覆写（set_matrix_override——不适用必须给理由）。
+    UncoveredMandatoryItem { req_ids: Vec<String> },
     /// 招标包不完整（无招标文件本体 / 多份无法确定正本）。**警告面**。
     IncompleteTender { missing: Vec<String> },
     /// 招标文件已导入，但补遗/澄清件**缺失或不就绪**（L3——**阻塞**，#184
@@ -349,6 +362,11 @@ impl Blocker {
                 req_ids.len(),
                 req_ids.join("、")
             ),
+            Blocker::UncoveredMandatoryItem { req_ids } => format!(
+                "必选条款尚未响应：{} 条 Agent 标必选的条款在合规矩阵里还没响应（{}）——必选漏响应有废标风险，先绑证据或经人工覆写（set_matrix_override）后再起草",
+                req_ids.len(),
+                req_ids.join("、")
+            ),
             Blocker::IncompleteTender { missing } => format!(
                 "招标包信息不完整：{}",
                 missing.join("；")
@@ -379,6 +397,7 @@ impl Blocker {
             Blocker::MissingPerformance { .. } => "MISSING_PERFORMANCE",
             Blocker::MissingTechEvidence { .. } => "MISSING_TECH_EVIDENCE",
             Blocker::UncoveredVetoItem { .. } => "UNCOVERED_VETO_ITEM",
+            Blocker::UncoveredMandatoryItem { .. } => "UNCOVERED_MANDATORY_ITEM",
             Blocker::IncompleteTender { .. } => "INCOMPLETE_TENDER",
             Blocker::MissingAddendum { .. } => "MISSING_ADDENDUM",
             Blocker::UnreadyInput { .. } => "UNREADY_INPUT",
@@ -415,6 +434,10 @@ impl Blocker {
             Blocker::UncoveredVetoItem { req_ids } => make_placeholder(
                 PlaceholderKind::Confirm,
                 &format!("{} 条否决项条款待确认响应方式", req_ids.len()),
+            ),
+            Blocker::UncoveredMandatoryItem { req_ids } => make_placeholder(
+                PlaceholderKind::Confirm,
+                &format!("{} 条必选条款待确认响应方式", req_ids.len()),
             ),
             Blocker::IncompleteTender { .. } => make_placeholder(
                 PlaceholderKind::Confirm,
@@ -585,11 +608,39 @@ pub fn check_draft_readiness(store: &DomainStore, section_id: &str) -> DraftRead
     let veto_ids: Vec<String> = reqs
         .iter()
         .filter(|r| r.category == CAT_VETO)
-        .filter(|r| !veto_covered(store, &r.id))
+        .filter(|r| !matrix_responded(store, &r.id))
         .map(|r| r.id.clone())
         .collect();
     if !veto_ids.is_empty() {
         blockers.push(Blocker::UncoveredVetoItem { req_ids: veto_ids });
+    }
+
+    // ---- 5b. Agent 必选条款响应（AGENT_MANDATORY_NOT_BLOCKING 缺口的
+    //      起草半边）：本章负责的 Agent 标必选条款在矩阵未响应 → 阻塞。
+    //      否决类除外（归 UncoveredVetoItem 报，不双报）；资格类虽已在
+    //      类别阻断面（导出门拦），起草门此前只靠标题启发式（Missing-
+    //      Qualification），这里补上逐条款的矩阵判定。判定与否决项同源：
+    //      矩阵行 RESPONDED，或人工覆写不适用且带理由，才算已处理。
+    //
+    //      裁定（PR #241 报 Lead 决策点 2，2026-11-04）：正文已响应但
+    //      没有外部证据 **不算已响应**——章节正文内容不是矩阵派生输入
+    //      （derive_matrix_rows 只认绑定/章节归属/覆写三真源）。承诺型
+    //      商务必选条款（响应形态=正文承诺，无佐证材料）的出口：绑佐证
+    //      （有则 RESPONDED），或人工覆写 RESPONDED+说明（#182 只认
+    //      Human receipt——Agent 不得以「正文写了承诺」自证已响应）；
+    //      NOT_APPLICABLE+理由留给真不适用。测试钉：readiness_check.rs
+    //      `drafted_body_without_evidence_is_not_response` /
+    //      `responded_override_with_reason_is_the_promise_form_exit`，
+    //      全链 exit：agent_mandatory_gate.rs `promise_form_mandatory_...`。
+    let mandatory_ids: Vec<String> = reqs
+        .iter()
+        .filter(|r| r.category != CAT_VETO)
+        .filter(|r| bid_domain::matrix::agent_mandatory(r))
+        .filter(|r| !matrix_responded(store, &r.id))
+        .map(|r| r.id.clone())
+        .collect();
+    if !mandatory_ids.is_empty() {
+        blockers.push(Blocker::UncoveredMandatoryItem { req_ids: mandatory_ids });
     }
 
     // ---- 其他提示面（不阻塞）
@@ -665,7 +716,7 @@ fn req_has_usable_evidence(store: &DomainStore, req_id: &str) -> bool {
     })
 }
 
-/// 否决项是否已在矩阵响应。
+/// 矩阵行是否「已响应」（否决项与 Agent 必选条款共用的覆盖判定）。
 ///
 /// 矩阵反映**人工覆写优先**后的真实响应态（override 是唯一人工输入），
 /// 所以这里直接看矩阵，不看绑定——「绑了证据但矩阵仍标未响应」说明证据被
@@ -676,7 +727,7 @@ fn req_has_usable_evidence(store: &DomainStore, req_id: &str) -> bool {
 /// - 命中行 `NOT_APPLICABLE` 且**有偏离说明** → 视为已处理（可审计的豁免，
 ///   与 matrix.rs「不适用必须给理由」同口径）；
 /// - 其余（NOT_RESPONDED / PARTIAL / blocking / 无矩阵行）→ 未响应。
-fn veto_covered(store: &DomainStore, req_id: &str) -> bool {
+fn matrix_responded(store: &DomainStore, req_id: &str) -> bool {
     let Some(row) = store.matrix().iter().find(|r: &&MatrixRow| r.requirement_id == req_id) else {
         return false; // 矩阵未构建或漏行——没对过账就是没响应
     };

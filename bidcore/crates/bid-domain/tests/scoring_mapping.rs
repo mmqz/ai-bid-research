@@ -258,10 +258,13 @@ fn upsert_idempotent_and_validates() {
     let mut s = store_base();
     let m1 = upsert(&mut s, "REQ-0001", "SEC-01", 0.6);
     assert!(m1.id.starts_with("SM-"), "SM-xxxx 签发");
-    let m2 = upsert(&mut s, "REQ-0001", "SEC-01", 1.0); // 同键 → 更新非身份字段
+    let m2 = upsert(&mut s, "REQ-0001", "SEC-01", 1.0); // 同键 → 更新非身份字段（单行 1.0 合法）
     assert_eq!(m1.id, m2.id, "幂等键命中不重签 id");
     assert_eq!(s.scoring_mappings().len(), 1);
     assert!((s.scoring_mappings()[0].weight_share - 1.0).abs() < 1e-9);
+    // 聚合不变量（Lead 2026-11-04 blocker 1）：先降回 0.6 腾出份额，
+    // 再追加 SEC-02（0.6+0.4=1.0 合法）——旧版的 1.0+0.4 会撞新校验
+    upsert(&mut s, "REQ-0001", "SEC-01", 0.6);
     upsert(&mut s, "REQ-0001", "SEC-02", 0.4); // 新键 → 追加
     assert_eq!(s.scoring_mappings().len(), 2);
 
@@ -391,6 +394,174 @@ fn mapping_source_serde_roundtrip() {
         let back: MappingSource = serde_json::from_str(&j).unwrap();
         assert_eq!(back, v);
     }
+}
+
+// ---------------------------------------------------------------- Lead review blockers（2026-11-04）
+
+/// 三叶夹具：1 评分项 + 3 技术参数叶（SEC-01/02/03）——聚合份额多行场景。
+fn store_three_leaves() -> DomainStore {
+    let mut s = DomainStore::new();
+    s.create_project("聚合份额", "C-SUM", "明标", "sum-key")
+        .unwrap();
+    s.upsert_file(
+        "A-招标文件.docx",
+        "招标文件",
+        "sha-sum",
+        10,
+        1,
+        50,
+        0,
+        bid_domain::ParseStatus::Ok,
+        "",
+    )
+    .unwrap();
+    s.set_requirements(vec![
+        score_req("REQ-0001", "4.1 技术方案 20 分", 20.0, None),
+        body_req("REQ-0003", "5.1 甲接口"),
+        body_req("REQ-0004", "5.2 乙接口"),
+        body_req("REQ-0005", "5.3 丙接口"),
+    ])
+    .unwrap();
+    s.set_outline(vec![
+        leaf("SEC-01", 1, "技术方案一", &["REQ-0003"]),
+        leaf("SEC-02", 2, "技术方案二", &["REQ-0004"]),
+        leaf("SEC-03", 3, "技术方案三", &["REQ-0005"]),
+    ])
+    .unwrap();
+    s
+}
+
+/// 聚合不变量——新增路径：0.7+0.7 拒（单项贡献 140% 的主防，零副作用）；
+/// 恰好 1.0 放行；浮点和 1.0000000000000002 在 epsilon 内放行。
+#[test]
+fn aggregate_share_rejects_overshoot_on_insert() {
+    let mut s = store_three_leaves();
+    upsert(&mut s, "REQ-0001", "SEC-01", 0.7);
+    // 0.7 + 0.7 = 1.4 → 拒
+    let e = s
+        .upsert_scoring_mapping(
+            "REQ-0001".into(),
+            "SEC-02".into(),
+            0.7,
+            vec![],
+            anchor("x"),
+            MappingSource::Manual,
+        )
+        .unwrap_err();
+    assert!(
+        matches!(e, ToolError::EUnprocessable { .. }),
+        "0.7+0.7 必须拒（Lead blocker 1：单项贡献不得超满分）"
+    );
+    assert!(
+        format!("{e:?}").contains("≤ 1.0"),
+        "报错须给出总量纪律：{e:?}"
+    );
+    assert_eq!(s.scoring_mappings().len(), 1, "被拒后零副作用");
+    // 0.7 + 0.3 = 1.0 → 放行（边界）
+    upsert(&mut s, "REQ-0001", "SEC-02", 0.3);
+    // 0.7 + 0.3 + 0.1 = 1.1 → 拒
+    let e = s
+        .upsert_scoring_mapping(
+            "REQ-0001".into(),
+            "SEC-03".into(),
+            0.1,
+            vec![],
+            anchor("x"),
+            MappingSource::Manual,
+        )
+        .unwrap_err();
+    assert!(matches!(e, ToolError::EUnprocessable { .. }), "1.1 必须拒");
+    assert_eq!(s.scoring_mappings().len(), 2, "被拒后零副作用");
+    // 浮点边界：0.1 + 0.2 + 0.7 = 1.0000000000000002 ≤ 1.0+1e-9 → 全部放行
+    let mut f = store_three_leaves();
+    upsert(&mut f, "REQ-0001", "SEC-01", 0.1);
+    upsert(&mut f, "REQ-0001", "SEC-02", 0.2);
+    upsert(&mut f, "REQ-0001", "SEC-03", 0.7);
+    assert_eq!(f.scoring_mappings().len(), 3, "epsilon 内的 1.0 放行");
+}
+
+/// 聚合不变量——更新路径：排除被替换行后校验（0.7+0.3 合法态原值重提
+/// 不得被误拒）；上调致超限拒且零副作用。
+#[test]
+fn aggregate_share_rejects_overshoot_on_update() {
+    let mut s = store_three_leaves();
+    upsert(&mut s, "REQ-0001", "SEC-01", 0.7);
+    upsert(&mut s, "REQ-0001", "SEC-02", 0.3);
+    // 上调 B：0.7 + 0.5 = 1.2 → 拒；B 保持 0.3（零副作用）
+    let e = s
+        .upsert_scoring_mapping(
+            "REQ-0001".into(),
+            "SEC-02".into(),
+            0.5,
+            vec![],
+            anchor("x"),
+            MappingSource::Manual,
+        )
+        .unwrap_err();
+    assert!(matches!(e, ToolError::EUnprocessable { .. }), "0.7+0.5 必须拒");
+    let b = s
+        .scoring_mappings()
+        .iter()
+        .find(|m| m.section_id == "SEC-02")
+        .unwrap();
+    assert!((b.weight_share - 0.3).abs() < 1e-9, "被拒后原值不变");
+    // 原值重提：排除被替换行 → 0.7+0.3=1.0 放行（不排除则 1.3 误拒）
+    upsert(&mut s, "REQ-0001", "SEC-02", 0.3);
+    // 先降再升的合法调整链：A 0.7→0.6（0.9）→ B 0.3→0.4（1.0）
+    upsert(&mut s, "REQ-0001", "SEC-01", 0.6);
+    upsert(&mut s, "REQ-0001", "SEC-02", 0.4);
+    assert_eq!(s.scoring_mappings().len(), 2);
+}
+
+/// 派生 params.section（RuleParsed 单值 share=1.0）计入有效份额：异节
+/// 账本行必超 1.0 → 拒；同节入账为联结去重的 inert 行（总量仍 1.0）→ 放行。
+#[test]
+fn derived_section_mapping_counts_into_sum() {
+    let mut s = DomainStore::new();
+    s.create_project("派生份额", "C-DER", "明标", "der-key")
+        .unwrap();
+    s.upsert_file(
+        "A-招标文件.docx",
+        "招标文件",
+        "sha-der",
+        10,
+        1,
+        50,
+        0,
+        bid_domain::ParseStatus::Ok,
+        "",
+    )
+    .unwrap();
+    s.set_requirements(vec![
+        score_req("REQ-0001", "4.1 技术方案 20 分", 20.0, Some("SEC-01")),
+        body_req("REQ-0003", "5.1 甲接口"),
+        body_req("REQ-0004", "5.2 乙接口"),
+    ])
+    .unwrap();
+    s.set_outline(vec![
+        leaf("SEC-01", 1, "技术方案一", &["REQ-0003"]),
+        leaf("SEC-02", 2, "技术方案二", &["REQ-0004"]),
+    ])
+    .unwrap();
+    // 派生 (SEC-01, 1.0) 恒在联结面 → 异节 SEC-02 任何正份额都超限
+    let e = s
+        .upsert_scoring_mapping(
+            "REQ-0001".into(),
+            "SEC-02".into(),
+            0.4,
+            vec![],
+            anchor("x"),
+            MappingSource::Manual,
+        )
+        .unwrap_err();
+    assert!(
+        matches!(e, ToolError::EUnprocessable { .. }),
+        "派生 1.0 + 异节 0.4 必须拒（联结面总量 1.4）"
+    );
+    assert_eq!(s.scoring_mappings().len(), 0, "被拒后零副作用");
+    // 同节入账：联结去重（派生赢）→ 总量仍 1.0 → 放行（账本仅记录）
+    upsert(&mut s, "REQ-0001", "SEC-01", 1.0);
+    assert_eq!(s.scoring_mappings().len(), 1);
 }
 
 /// 快照往返 + 旧快照（无 scoring_mappings 键）空集合加载 + 孤儿/复合键重复拒载。

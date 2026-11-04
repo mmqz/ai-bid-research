@@ -1337,6 +1337,12 @@ impl DomainStore {
     ///   ——映射对其他类别无意义）；
     /// - `section_id` 必须在 sections（孤儿映射 = 半个账本）；
     /// - `weight_share` ∈ (0,1]（越界 = 权重语义破坏）；
+    /// - **聚合不变量**（Lead 2026-11-04 review blocker 1）：该评分项
+    ///   **联结后有效份额**合计 ≤ 1.0——派生 `params.section` 单值映射
+    ///   （share=1.0）计入，异节账本行计入；更新路径排除被替换的同键行；
+    ///   与派生同节的账本行联结去重（派生赢），不计入。单条 ∈ (0,1] 挡
+    ///   不住 0.7+0.7 的 140% 虚高（score_section 逐条摊分、score_document
+    ///   跨章求和——超限映射会让单项贡献超出其标称满分）；
     /// - `evidence_refs` 中每个 EV-id 必须在 evidences（幽灵引用拒收）。
     pub fn upsert_scoring_mapping(
         &mut self,
@@ -1377,6 +1383,37 @@ impl DomainStore {
             return Err(ToolError::ENotFound {
                 what: format!("证据 {ev} 不存在（先 register_evidence）"),
             });
+        }
+        // #224 聚合不变量（Lead 2026-11-04 review blocker 1）：按**联结后
+        // 有效份额**校验——单条 ∈ (0,1] 挡不住 0.7+0.7 的 140% 虚高。
+        // 口径与评分消费面（scoring_items 联结 / MCP build_scorer）一致：
+        // - 派生 params.section 单值映射 share=1.0 恒在联结面 → 计入 1.0；
+        // - 与派生同节的账本行被联结去重（派生赢、不生效）→ 不计入；
+        // - 更新路径排除被替换的同键行（否则「0.7+0.3 合法态原值重提」
+        //   会被 0.7+0.3+0.3 误拒）；
+        // - epsilon 1e-9：0.1+0.2+0.7 的浮点和 = 1.0000000000000002。
+        let derived_sec: Option<&str> = req.params.get("section").and_then(|v| v.as_str());
+        let mut resulting = if derived_sec.is_some() { 1.0 } else { 0.0 };
+        for m in self
+            .scoring_mappings
+            .iter()
+            .filter(|m| m.scoring_req_id == scoring_req_id && m.section_id != section_id)
+        {
+            if Some(m.section_id.as_str()) != derived_sec {
+                resulting += m.weight_share;
+            }
+        }
+        if derived_sec != Some(section_id.as_str()) {
+            resulting += weight_share;
+        }
+        if resulting > 1.0 + 1e-9 {
+            return Err(bad(format!(
+                "{scoring_req_id} 映射份额合计将达 {resulting:.3}（合法 ≤ 1.0）——\
+                 同一评分项各章节占比之和不得超过 1.0（#224 聚合不变量：score_section \
+                 逐条摊分、score_document 跨章求和，超限会让单项贡献超出满分；派生 \
+                 params.section 单值映射 share=1.0 计入，与派生同节的账本行联结去重不生效。\
+                 调整既有占比请先降再增）"
+            )));
         }
         // 幂等键命中 → 更新非身份字段；未命中 → 追加签新 id
         if let Some(existing) = self

@@ -5,6 +5,8 @@
 //!   MissingPerformance / MissingTechEvidence / UncoveredVetoItem / IncompleteTender）；
 //! - Agent 必选接线（UncoveredMandatoryItem）：Agent 标必选且类别不在
 //!   资格/否决阻断面、矩阵未响应 → 阻塞；非必选/无标记不误断；否决类不双报；
+//! - 承诺型裁定（PR #241 决策点 2）：正文已响应但无外部证据**不算已响应**
+//!  （正文不是矩阵派生输入）；出口=绑佐证或人工覆写 RESPONDED+说明；
 //! - 阻塞信息**人类可读**（不含 enum 名）；
 //! - 占位符：扫描正文里的【待补充】、行号、往返一致；
 //! - 真实场景：没有业绩证据的章节 → `ready = false`（issue 验收第 4 条）；
@@ -412,6 +414,99 @@ fn agent_mandatory_veto_category_reports_via_veto_blocker_only() {
         "否决类不双报：{:?}",
         codes(&r)
     );
+}
+
+/// 裁定（PR #241 报 Lead 决策点 2，2026-11-04）：普通商务必选条款
+/// 「正文已响应、但没有外部证据」**不算已响应**。
+///
+/// 依据：矩阵四态（T-2 规格 / V3-2 实装注）的派生输入只有
+/// 绑定 / 章节归属 / 覆写三个真源——**章节正文内容不是派生输入**
+/// （derive_matrix_rows 结构上不读 content）。承诺型商务条款的出口
+/// 与 #226 死锁同款：有佐证材料就绑定（→RESPONDED），没有就走
+/// 人工覆写（RESPONDED+说明——正文承诺型；NOT_APPLICABLE+理由——
+/// 真不适用）；Agent 不得以「正文写了承诺」自证已响应（#182：覆写
+/// 只认 Human receipt）。
+#[test]
+fn drafted_body_without_evidence_is_not_response() {
+    let mut s = base_store(
+        vec![node("SEC-0001", "商务响应", 1, &["REQ-0001"])],
+        vec![agent_req("REQ-0001", "商务要求", true)],
+    );
+    // 正文已落承诺（真实写路径：状态链 Pending→Outlining→Drafting→Drafted
+    // + set_section_content——不 force 字段）
+    s.advance_section_status("SEC-0001", SectionStatus::Outlining).unwrap();
+    s.advance_section_status("SEC-0001", SectionStatus::Drafting).unwrap();
+    s.set_section_content(
+        "SEC-0001",
+        "我方郑重承诺：质保期不少于五年，满足招标文件全部要求。".into(),
+    )
+    .unwrap();
+    s.advance_section_status("SEC-0001", SectionStatus::Drafted).unwrap();
+    s.build_matrix().unwrap();
+
+    // 矩阵面：正文在位，无证据无覆写 → 仍 NOT_RESPONDED、仍 blocking
+    let row = s
+        .matrix()
+        .iter()
+        .find(|r| r.requirement_id == "REQ-0001")
+        .expect("REQ-0001 在矩阵中");
+    assert_eq!(
+        row.status,
+        bid_domain::matrix::ResponseStatus::NotResponded,
+        "正文不是矩阵派生输入——无证据无覆写即未响应（裁定主面）"
+    );
+    assert!(row.blocking, "Agent 必选商务条款未响应 → blocking");
+
+    // 起草门：已起草的正文不豁免响应账（复核/再起草同口径）
+    let r = check_draft_readiness(&s, "SEC-0001");
+    assert!(!r.ready, "正文已写不等于已响应：{:?}", r);
+    let b = r
+        .blockers
+        .iter()
+        .find(|b| b.code() == "UNCOVERED_MANDATORY_ITEM")
+        .expect("正文在位仍应报必选未响应");
+    let msg = b.to_message();
+    assert!(msg.contains("REQ-0001") && !msg.contains("UncoveredMandatoryItem"), "{msg}");
+}
+
+/// 承诺型商务必选条款的**正门出口**：人工覆写 RESPONDED（带说明）。
+///
+/// 与 NOT_APPLICABLE（真不适用）的分野：条款适用、已以正文承诺响应、
+/// 仅无外部佐证材料时，诚实态是 RESPONDED+说明——不是谎报「不适用」。
+/// 全链出口见 agent_mandatory_gate.rs
+/// `promise_form_mandatory_exits_via_responded_override_receipt`（receipt 面）。
+#[test]
+fn responded_override_with_reason_is_the_promise_form_exit() {
+    let mut s = base_store(
+        vec![node("SEC-0001", "商务响应", 1, &["REQ-0001"])],
+        vec![agent_req("REQ-0001", "商务要求", true)],
+    );
+    s.set_section_content(
+        "SEC-0001",
+        "我方郑重承诺：质保期不少于五年，满足招标文件全部要求。".into(),
+    )
+    .unwrap();
+    let reason = "商务承诺条款：正文承诺响应，无外部佐证材料（人工确认响应成立）";
+    s.set_matrix_override(
+        "REQ-0001".into(),
+        bid_domain::matrix::ResponseStatus::Responded,
+        Some(reason.into()),
+        &bid_domain::principal::TrustedPrincipal::human("readiness-lead"),
+    )
+    .unwrap();
+    s.build_matrix().unwrap();
+
+    let row = s
+        .matrix()
+        .iter()
+        .find(|r| r.requirement_id == "REQ-0001")
+        .expect("REQ-0001 在矩阵中");
+    assert_eq!(row.status, bid_domain::matrix::ResponseStatus::Responded);
+    assert!(!row.blocking, "人工确认的正文承诺响应 → 不再 blocking");
+    assert_eq!(row.deviation.as_deref(), Some(reason), "说明落账（可审计）");
+
+    let r = check_draft_readiness(&s, "SEC-0001");
+    assert!(r.ready, "承诺型条款经人工 RESPONDED 覆写后应就绪：{:?}", r);
 }
 
 // ---------------------------------------------------------------- ⑥ IncompleteTender（警告）

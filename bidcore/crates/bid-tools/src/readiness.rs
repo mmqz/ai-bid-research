@@ -621,6 +621,17 @@ pub fn check_draft_readiness(store: &DomainStore, section_id: &str) -> DraftRead
     //      类别阻断面（导出门拦），起草门此前只靠标题启发式（Missing-
     //      Qualification），这里补上逐条款的矩阵判定。判定与否决项同源：
     //      矩阵行 RESPONDED，或人工覆写不适用且带理由，才算已处理。
+    //
+    //      裁定（PR #241 报 Lead 决策点 2，2026-11-04）：正文已响应但
+    //      没有外部证据 **不算已响应**——章节正文内容不是矩阵派生输入
+    //      （derive_matrix_rows 只认绑定/章节归属/覆写三真源）。承诺型
+    //      商务必选条款（响应形态=正文承诺，无佐证材料）的出口：绑佐证
+    //      （有则 RESPONDED），或人工覆写 RESPONDED+说明（#182 只认
+    //      Human receipt——Agent 不得以「正文写了承诺」自证已响应）；
+    //      NOT_APPLICABLE+理由留给真不适用。测试钉：readiness_check.rs
+    //      `drafted_body_without_evidence_is_not_response` /
+    //      `responded_override_with_reason_is_the_promise_form_exit`，
+    //      全链 exit：agent_mandatory_gate.rs `promise_form_mandatory_...`。
     let mandatory_ids: Vec<String> = reqs
         .iter()
         .filter(|r| r.category != CAT_VETO)

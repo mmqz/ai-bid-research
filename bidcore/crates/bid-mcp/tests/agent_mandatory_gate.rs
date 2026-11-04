@@ -7,6 +7,8 @@
 //! → **导出门**（export_blockers 含 REQ-A0001）
 //! → **起草门**（draft_response_section → UNCOVERED_MANDATORY_ITEM 阻塞）
 //! → 人工 receipt 覆写（set_matrix_override，#182 签域）→ 两门放行。
+//! → **承诺型出口**（决策点 2 裁定）：商务承诺条款无外部佐证材料时，
+//! 人工覆写 RESPONDED+说明 是正门（NOT_APPLICABLE 留给真不适用）。
 //!
 //! 非误断对照：非必选（mandatory=false）条款全程不进 blocking 面；
 //! noise/规则说明区间结构性不可能携带 requirement（validate_submitted——
@@ -268,4 +270,80 @@ fn non_mandatory_agent_marks_never_block_any_gate() {
     let blockers = svc.store().export_blockers().unwrap();
     assert!(blockers.is_empty(), "非必选未响应不得拦导出：{blockers:?}");
     assert!(svc.store().check_export_ready().is_ok(), "导出门放行");
+}
+
+// ---------------------------------------------------------------- 4. 承诺型出口（报 Lead 决策点 2 的裁定落测）
+//
+// 裁定（2026-11-04）：普通商务必选条款「正文已响应、但没有外部证据」
+// **不算已响应**——矩阵派生只认 绑定/章节归属/覆写 三真源，章节正文
+// 内容不是派生输入（单测钉负向面：readiness_check.rs
+// `drafted_body_without_evidence_is_not_response`）。承诺型条款的诚实
+// 出口 = 人工 receipt 覆写 **RESPONDED**（带说明）——区别于上一用例的
+// NOT_APPLICABLE（真不适用）：条款适用且以正文承诺响应、仅无外部佐证
+// 材料时，不该谎报「不适用」。本用例钉全链：门拦 → RESPONDED 覆写 →
+// 起草放行（正文落承诺）→ 导出门放行。
+
+#[test]
+fn promise_form_mandatory_exits_via_responded_override_receipt() {
+    if !corpus_ready("promise_form_mandatory_exits_via_responded_override_receipt") {
+        return;
+    }
+    let (mut svc, pid, blocking) = gated_project("promise-exit", true).expect("夹具就绪");
+    assert_eq!(blocking, 1, "REQ-A0001 商务必选未响应 → 恰一条 blocking");
+
+    // REQ-A0001 落在哪个叶章节（父聚合也含该 REQ——取最深层）
+    let sec_id = svc
+        .store()
+        .sections()
+        .iter()
+        .filter(|n| n.requirement_ids.iter().any(|r| r == "REQ-A0001"))
+        .max_by_key(|n| n.level as u32)
+        .map(|n| n.id.clone())
+        .expect("REQ-A0001 必须落在章节树里（build_outline 全量分组）");
+
+    // 前置复核：未响应的承诺型必选条款拦起草（无证据无覆写，正文无从落）
+    let reply = call(&mut svc, "draft_response_section", json!({
+        "project_id": pid, "section_id": sec_id, "generator": "mock",
+    }));
+    let msg = err_msg(&reply);
+    assert!(
+        msg.contains("必选条款尚未响应") && msg.contains("REQ-A0001"),
+        "起草门先拦：{msg}"
+    );
+
+    // 承诺型正门：人工 receipt 覆写 RESPONDED + 说明（#182 签域含 status+deviation）
+    let deviation = "商务承诺条款：正文承诺响应，无外部佐证材料（人工确认响应成立）";
+    let receipt = override_receipt(&mut svc, "mandatory-lead", &pid, "REQ-A0001", "RESPONDED", deviation);
+    ok_result(call(&mut svc, "set_matrix_override", json!({
+        "project_id": pid, "requirement_id": "REQ-A0001",
+        "status": "RESPONDED", "deviation": deviation, "receipt": receipt,
+    })));
+
+    // 矩阵面：RESPONDED（非 NOT_APPLICABLE——适用条款的诚实态）且不再 blocking
+    let a1 = row_of(&mut svc, &pid, "REQ-A0001");
+    assert_eq!(a1["status"], "RESPONDED", "承诺型出口落 RESPONDED，不是谎报不适用");
+    assert_eq!(a1["blocking"], false);
+
+    // 起草门：REQ-A0001 退出阻塞（其余阻塞如 MissingAddendum 与本面无关——
+    // 只断言该条款退出，不断言全就绪；放行即正文落承诺）
+    let reply2 = call(&mut svc, "draft_response_section", json!({
+        "project_id": pid, "section_id": sec_id, "generator": "mock",
+    }));
+    match reply2 {
+        ToolReply::Err { error, .. } => {
+            let m = format!("{error}");
+            assert!(
+                !m.contains("REQ-A0001"),
+                "RESPONDED 覆写后 REQ-A0001 不得再拦起草：{m}"
+            );
+        }
+        ToolReply::Ok(_) => {} // 全部阻塞清零 → 直接放行（同样合法）
+    }
+
+    // 导出门：REQ-A0001 退出阻断清单（承诺型条款经人工确认后导出放行）
+    let blockers = svc.store().export_blockers().unwrap();
+    assert!(
+        !blockers.iter().any(|b| b.contains("REQ-A0001")),
+        "RESPONDED 覆写后 REQ-A0001 必须退出导出阻断：{blockers:?}"
+    );
 }

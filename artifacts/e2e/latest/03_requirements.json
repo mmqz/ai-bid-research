@@ -1,12 +1,12 @@
 {
   "by_category": {
-    "其他": 31,
+    "其他": 32,
     "否决项": 52,
-    "商务要求": 0,
+    "商务要求": 4,
     "技术参数": 15,
-    "格式要求": 4,
+    "格式要求": 9,
     "评分项": 5,
-    "资格条件": 8
+    "资格条件": 9
   },
   "requirements": [
     {
@@ -159,7 +159,7 @@
           "locator": "第一章 招标公告 > 二、投标人资格要求"
         }
       ],
-      "category": "其他",
+      "category": "资格条件",
       "clause_no": "1.4.7",
       "id": "REQ-0010",
       "params": {},
@@ -1486,7 +1486,7 @@
           "locator": "第六章 合同条款及格式（摘要）"
         }
       ],
-      "category": "其他",
+      "category": "商务要求",
       "clause_no": "6.1",
       "id": "REQ-0096",
       "params": {},
@@ -1501,7 +1501,7 @@
           "locator": "第六章 合同条款及格式（摘要）"
         }
       ],
-      "category": "其他",
+      "category": "商务要求",
       "clause_no": "6.2",
       "id": "REQ-0097",
       "params": {},
@@ -1516,7 +1516,7 @@
           "locator": "第六章 合同条款及格式（摘要）"
         }
       ],
-      "category": "其他",
+      "category": "商务要求",
       "clause_no": "6.3",
       "id": "REQ-0098",
       "params": {},
@@ -1531,7 +1531,7 @@
           "locator": "第六章 合同条款及格式（摘要）"
         }
       ],
-      "category": "其他",
+      "category": "商务要求",
       "clause_no": "6.4",
       "id": "REQ-0099",
       "params": {},
@@ -1546,7 +1546,7 @@
           "locator": "第七章 投标文件格式"
         }
       ],
-      "category": "其他",
+      "category": "格式要求",
       "clause_no": "7.1",
       "id": "REQ-0100",
       "params": {},
@@ -1561,7 +1561,7 @@
           "locator": "第七章 投标文件格式"
         }
       ],
-      "category": "其他",
+      "category": "格式要求",
       "clause_no": "7.2",
       "id": "REQ-0101",
       "params": {},
@@ -1576,7 +1576,7 @@
           "locator": "第七章 投标文件格式"
         }
       ],
-      "category": "其他",
+      "category": "格式要求",
       "clause_no": "7.3",
       "id": "REQ-0102",
       "params": {},
@@ -1606,7 +1606,7 @@
           "locator": "第七章 投标文件格式"
         }
       ],
-      "category": "其他",
+      "category": "格式要求",
       "clause_no": "7.5",
       "id": "REQ-0104",
       "params": {},
@@ -1621,7 +1621,7 @@
           "locator": "第七章 投标文件格式"
         }
       ],
-      "category": "其他",
+      "category": "格式要求",
       "clause_no": "7.6",
       "id": "REQ-0105",
       "params": {},
@@ -1675,6 +1675,171 @@
     {
       "anchors": [
         {
+          "excerpt": "1.1 本规范书规定智慧病房物联网平台各子系统的详细技术参数、接口协议与验收测试方法，适用于本项目全部货物的设计、制造、检验与交付。",
+          "file": "B-技术规范书.docx",
+          "kind": "para",
+          "locator": ""
+        }
+      ],
+      "category": "其他",
+      "clause_no": "1.1",
+      "id": "REQ-0109",
+      "params": {},
+      "source_file": "B-技术规范书.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "1.2 系统总体架构分为感知层、网络层、平台层、终端层四层；各层设备须支持远程集中管理与固件在线升级。",
+          "file": "B-技术规范书.docx",
+          "kind": "para",
+          "locator": ""
+        }
+      ],
+      "category": "其他",
+      "clause_no": "1.2",
+      "id": "REQ-0110",
+      "params": {},
+      "source_file": "B-技术规范书.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "2.1 物联网关技术规范：",
+          "file": "B-技术规范书.docx",
+          "kind": "para",
+          "locator": ""
+        }
+      ],
+      "category": "其他",
+      "clause_no": "2.1",
+      "id": "REQ-0111",
+      "params": {},
+      "source_file": "B-技术规范书.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "2.2 生理与生命体征传感器技术规范：",
+          "file": "B-技术规范书.docx",
+          "kind": "para",
+          "locator": ""
+        }
+      ],
+      "category": "其他",
+      "clause_no": "2.2",
+      "id": "REQ-0112",
+      "params": {},
+      "source_file": "B-技术规范书.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "3.1 接入交换机技术规范：",
+          "file": "B-技术规范书.docx",
+          "kind": "para",
+          "locator": ""
+        }
+      ],
+      "category": "其他",
+      "clause_no": "3.1",
+      "id": "REQ-0113",
+      "params": {},
+      "source_file": "B-技术规范书.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "4.1 物联网平台软件须采用微服务架构，提供 RESTful 开放接口不少于 120 个，接口平均响应时间≤500 毫秒。",
+          "file": "B-技术规范书.docx",
+          "kind": "para",
+          "locator": ""
+        }
+      ],
+      "category": "其他",
+      "clause_no": "4.1",
+      "id": "REQ-0114",
+      "params": {},
+      "source_file": "B-技术规范书.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "4.2 数据存储须支持时序数据库与关系数据库混合部署，历史数据在线保存不少于 3 年。",
+          "file": "B-技术规范书.docx",
+          "kind": "para",
+          "locator": ""
+        }
+      ],
+      "category": "其他",
+      "clause_no": "4.2",
+      "id": "REQ-0115",
+      "params": {},
+      "source_file": "B-技术规范书.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "5.1 床旁交互终端技术规范：",
+          "file": "B-技术规范书.docx",
+          "kind": "para",
+          "locator": ""
+        }
+      ],
+      "category": "其他",
+      "clause_no": "5.1",
+      "id": "REQ-0116",
+      "params": {},
+      "source_file": "B-技术规范书.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "5.2 输液监测终端技术规范：",
+          "file": "B-技术规范书.docx",
+          "kind": "para",
+          "locator": ""
+        }
+      ],
+      "category": "其他",
+      "clause_no": "5.2",
+      "id": "REQ-0117",
+      "params": {},
+      "source_file": "B-技术规范书.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "6.1 到货验收：设备开箱逐台核对型号、数量与外观，型号须与本规范书一致。",
+          "file": "B-技术规范书.docx",
+          "kind": "para",
+          "locator": ""
+        }
+      ],
+      "category": "其他",
+      "clause_no": "6.1",
+      "id": "REQ-0118",
+      "params": {},
+      "source_file": "B-技术规范书.docx"
+    },
+    {
+      "anchors": [
+        {
+          "excerpt": "6.2 系统验收：按子系统分别进行功能测试、性能测试与连续 72 小时稳定性测试。",
+          "file": "B-技术规范书.docx",
+          "kind": "para",
+          "locator": ""
+        }
+      ],
+      "category": "其他",
+      "clause_no": "6.2",
+      "id": "REQ-0119",
+      "params": {},
+      "source_file": "B-技术规范书.docx"
+    },
+    {
+      "anchors": [
+        {
           "excerpt": "1.1 原招标文件规定的开标时间\"2026-11-18 09:30\"变更为\"2026-11-30 09:30\"；",
           "file": "C-补遗文件.pdf",
           "kind": "pdf_line",
@@ -1683,7 +1848,7 @@
       ],
       "category": "其他",
       "clause_no": "1.1",
-      "id": "REQ-0109",
+      "id": "REQ-0120",
       "params": {
         "date": "2026-11-18",
         "date_cn": "2026-11-18"
@@ -1701,7 +1866,7 @@
       ],
       "category": "其他",
       "clause_no": "1.2",
-      "id": "REQ-0110",
+      "id": "REQ-0121",
       "params": {
         "date": "2026-11-30",
         "date_cn": "2026-11-30"
@@ -1725,7 +1890,7 @@
       ],
       "category": "否决项",
       "clause_no": "2.1",
-      "id": "REQ-0111",
+      "id": "REQ-0122",
       "params": {
         "amount_wan": 1650.0
       },
@@ -1742,7 +1907,7 @@
       ],
       "category": "否决项",
       "clause_no": "3.1",
-      "id": "REQ-0112",
+      "id": "REQ-0123",
       "params": {},
       "source_file": "C-补遗文件.pdf"
     },
@@ -1757,7 +1922,7 @@
       ],
       "category": "否决项",
       "clause_no": "3.2",
-      "id": "REQ-0113",
+      "id": "REQ-0124",
       "params": {},
       "source_file": "C-补遗文件.pdf"
     },
@@ -1778,7 +1943,7 @@
       ],
       "category": "其他",
       "clause_no": "4.1",
-      "id": "REQ-0114",
+      "id": "REQ-0125",
       "params": {},
       "source_file": "C-补遗文件.pdf"
     },
@@ -1793,7 +1958,7 @@
       ],
       "category": "其他",
       "clause_no": "5.1",
-      "id": "REQ-0115",
+      "id": "REQ-0126",
       "params": {
         "date": "2026-11-05",
         "date_cn": "2026-11-05"
@@ -1801,5 +1966,5 @@
       "source_file": "C-补遗文件.pdf"
     }
   ],
-  "total": 115
+  "total": 126
 }

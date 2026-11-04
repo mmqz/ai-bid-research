@@ -1,11 +1,11 @@
 {
   "batch_abc_e": {
-    "error": null,
+    "error": "E_PARTIAL",
     "totals": {
-      "chunks": 329,
+      "chunks": 328,
       "files": 4,
-      "parse_failed": 0,
-      "partial": 0
+      "parse_failed": 1,
+      "partial": 1
     }
   },
   "batch_d": {
@@ -29,6 +29,7 @@
       "ocr_tier": "none",
       "pages": 0,
       "parse_status": "ok",
+      "parse_summary": "engine-docx @ aa0c859d956597992c2d93e9055e2f0beca017c3｜警告 0 条｜部件账本 9 面",
       "sha256": "b5cfe741e924be7fcb2b59180645999f625450a32224a277b904eb803388423f",
       "tables": 7
     },
@@ -40,6 +41,7 @@
       "ocr_tier": "none",
       "pages": 0,
       "parse_status": "ok",
+      "parse_summary": "engine-docx @ aa0c859d956597992c2d93e9055e2f0beca017c3｜警告 0 条｜部件账本 9 面",
       "sha256": "b9400b7f92aa7e1d13993b0ce4ae6047c7797aa8b7673672f2aaabb86d2e5545",
       "tables": 5
     },
@@ -51,17 +53,22 @@
       "ocr_tier": "none",
       "pages": 2,
       "parse_status": "ok",
+      "parse_summary": "pdf 文本层: 2 页 21 行块",
       "sha256": "28815b77d1dbc1846afb53988fa33d95dc62af76e17d7caf9e385bc9237a4d83",
       "tables": 0
     },
     {
-      "chunks": 1,
+      "chunks": 0,
       "deduplicated": false,
+      "errors": [
+        "pdf 解析失败 E-原招标公告盖章页-扫描件.pdf: pdf 扫描层 OCR 失败（1 页报错、零行块产出）——疑似 OCR 环境缺失：检查 tesseract 与 chi_sim 语言数据（TESSDATA_PREFIX 或 ~/.tessdata）；本文件按失败处理，不留空内容伪装成功；纯 Rust 兜底也失败：PDF 无文本层（疑扫描件——需 OCR 链）"
+      ],
       "file_id": "TF-0005",
       "filename": "E-原招标公告盖章页-扫描件.pdf",
-      "ocr_tier": "none",
-      "pages": 1,
-      "parse_status": "ok",
+      "ocr_tier": "n/a",
+      "pages": 0,
+      "parse_status": "failed",
+      "parse_summary": "pdf 解析失败 E-原招标公告盖章页-扫描件.pdf: pdf 扫描层 OCR 失败（1 页报错、零行块产出）——疑似 OCR 环境缺失：检查 tesseract 与 chi_sim 语言数据（TESSDATA_PREFIX 或 ~/.tessdata）；本文件按失败处理，不留空内容伪装成功；纯 Rust 兜底也失败：PDF 无文本层（疑扫描件——需 OCR 链）",
       "sha256": "796057319ba93433881e34e3b88a004b0d3371f5106012dec83dc76dbcd3b052",
       "tables": 0
     }

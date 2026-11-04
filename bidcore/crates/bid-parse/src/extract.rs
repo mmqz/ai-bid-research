@@ -869,9 +869,18 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                     // 零扰动面：corpus-A/BJ 实测「形态+否决并存」除 GT 那
                     // 1 条 true 外为 0——纯增益修复。
                     let ctx_cat = category_for(chapter, subsection);
+                    // #226/#233 层 2（DOCX 编号分支，对齐 PDF :530 模式）：
+                    // 强否决短语若其实是「招标人规则陈述」（本次招标/逾期
+                    // 不予受理…），不判否决项——它没有可请求的响应正文，
+                    // 判了就是永久 blocking 死锁。分类降级到资格面/章节
+                    // 上下文，条款本体照常 push（编号分支本就无条件落账）。
+                    // 分值形态锁的否决旁路（#110 G4）只对**非规则说明**的
+                    // 真否决生效——规则说明形不参与否决旁路。
                     let cat = if ctx_cat == "评分项" && re_score_shape.is_match(&grp_text) && !vl::is_veto(&grp_text) {
                         "评分项"
-                    } else if vl::is_veto(&grp_text) {
+                    } else if vl::is_veto(&grp_text)
+                        && !crate::veto_rule::is_rule_statement(&grp_text)
+                    {
                         "否决项"
                     } else if ctx_cat == "评分项" {
                         "评分项"
@@ -891,10 +900,27 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                     // 待填占位（□复选/下划线留白）不抽
                 } else if vl::is_veto(t) {
                     // 无编号普通段：强否决信号 → 否决项 REQ（真实示范文本
-                    // 大量无编号条款：资格负面清单/审查表导语——L1 修复面）
-                    push_req(reqs, seq, "否决项", None, vec![anchor(f, b)], HashMap::new(), &f.name);
-                    if vl::opens_veto_context(t) {
-                        veto_ctx = true;
+                    // 大量无编号条款：资格负面清单/审查表导语——L1 修复面）。
+                    // #226/#233 层 2（对齐 PDF :553 修复版）：规则说明段
+                    // （「招标人不予受理…」类）分类降级（资格面/章节上下文）
+                    // ——**条款本体不丢**（整段跳过会让 REQ 掉进兜底 else
+                    // 不落账，#230 已在 PDF 侧踩过，DOCX 同款防线）。
+                    if crate::veto_rule::is_rule_statement(t) {
+                        // 章节上下文从 locator 重拆（编号分支 :816 同款——
+                        // 无编号段没有现成变量）
+                        let (chapter, subsection) = split_locator(&b.locator);
+                        let cat = if vl::is_qual(t) {
+                            "资格条件"
+                        } else {
+                            category_for(chapter, subsection)
+                        };
+                        push_req(reqs, seq, cat, None, vec![anchor(f, b)], HashMap::new(), &f.name);
+                        veto_ctx = false;
+                    } else {
+                        push_req(reqs, seq, "否决项", None, vec![anchor(f, b)], HashMap::new(), &f.name);
+                        if vl::opens_veto_context(t) {
+                            veto_ctx = true;
+                        }
                     }
                 } else if vl::is_qual(t) {
                     push_req(reqs, seq, "资格条件", None, vec![anchor(f, b)], HashMap::new(), &f.name);

@@ -68,6 +68,12 @@ fn numbered_clause_priority_chain() {
 }
 
 /// 后置否定从句：处置动词在句尾（「…，招标人有权拒收。」）。
+///
+/// #226/#233 层 2 后行为分派（与 PDF 侧同款）：
+/// - 「招标人有权拒收」是**规则说明**（主语招标人+无响应正文）→ 不落
+///   否决项，降级章节上下文（跨格式对称——本测试即 #233 的验收面）；
+/// - 「将被否决」是**处置结果**（闸 0）→ 仍落否决项（后置否定从句的
+///   抽取能力由这条保留——原测试意图面不丢）。
 #[test]
 fn postpositive_negation_clause() {
     let f = pf(
@@ -78,8 +84,53 @@ fn postpositive_negation_clause() {
         ],
     );
     let reqs = extract_requirements(&[f]);
-    assert_eq!(cats(&reqs).len(), 2);
-    assert!(cats(&reqs).iter().all(|c| c == "否决项"));
+    let cats = cats(&reqs);
+    assert_eq!(cats.len(), 2, "两条都应落账（规则说明分类降级但条款不丢）");
+    assert_eq!(cats[0], "其他", "「招标人有权拒收」是规则说明——不落否决（与 PDF 对称）");
+    assert_eq!(cats[1], "否决项", "「将被否决」是处置结果（闸 0）——仍落否决");
+}
+
+/// #233 验收面：同一句 PDF/DOCX 分类对称。
+#[test]
+fn rule_statement_para_symmetric_with_pdf() {
+    // 评委处置形（无规则主语）：仍落否决项——否决面能力不因层 2 退化
+    let f = pf(
+        "A-test.docx",
+        vec![para(0, "第二章 投标人须知", "评标委员会对弄虚作假的投标将予以否决。")],
+    );
+    let reqs = extract_requirements(&[f]);
+    assert_eq!(cats(&reqs), vec!["否决项".to_string()]);
+
+    // 串通纪律条（#233 基线 85 条候选复核抓出的 DOCX 新形态）：网 4
+    // 「私下接触」拦下——不是规则说明，仍落否决项
+    let f2 = pf(
+        "A-test.docx",
+        vec![para(0, "第二章 投标人须知", "不私下接触招标人、招标代理机构或评标委员会成员，利用人际关系干扰招标投标活动；")],
+    );
+    let reqs2 = extract_requirements(&[f2]);
+    assert_eq!(cats(&reqs2), vec!["否决项".to_string()], "串通纪律条不得被规则说明豁免");
+}
+
+/// #233 验收面：编号条款的规则说明形降级（DOCX 编号分支对齐 PDF :530）。
+#[test]
+fn numbered_rule_statement_downgrades_not_veto() {
+    // issue #226 原文同款（DOCX 语料 A-unicom-ry 基线候选 [2]）：
+    // 「本次招标不接受联合体投标」主语是本次招标（规则说明），
+    // 但含资格面词（is_qual）→ 降级到资格条件（非否决）。
+    let f = pf(
+        "A-test.docx",
+        vec![para(0, "第二章 投标人须知 > 3.资格审查", "2.3本次招标不接受联合体投标。符合本项规定。")],
+    );
+    let reqs = extract_requirements(&[f]);
+    assert_eq!(cats(&reqs), vec!["资格条件".to_string()], "规则说明形不落否决——降级资格面");
+
+    // 真否决（处置词）不受层 2 影响：仍落否决项
+    let f2 = pf(
+        "A-test.docx",
+        vec![para(0, "第二章 投标人须知 > 3.资格", "3.4.2 投标人未提供有效营业执照的，其投标将被否决。")],
+    );
+    let reqs2 = extract_requirements(&[f2]);
+    assert_eq!(cats(&reqs2), vec!["否决项".to_string()]);
 }
 
 /// 例外从句排除：除…外 不是否决（精确率守护）。

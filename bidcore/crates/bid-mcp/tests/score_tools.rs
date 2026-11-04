@@ -562,6 +562,46 @@ fn score_document_reports_mappings_unmapped_and_multi_mapping() {
     assert!((bi["weight_share"].as_f64().unwrap() - 0.6).abs() < 1e-9, "首映射 share");
     assert!(bi["section_id"].is_string(), "契约 §15 旧键 section_id 保留（首映射）");
 
+    // Lead 审查 1（多对多聚合）：estimated = 全部映射章节的贡献之和——
+    // 与 total 计入口径同源，不再只取首章；contributions 逐章明细对账。
+    let per_sec: Vec<f64> = r["breakdown"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|s| {
+            s["item_scores"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|i| i["item_id"] == "REQ-0002")
+                .map(|i| i["estimated"].as_f64().unwrap())
+        })
+        .collect();
+    assert_eq!(per_sec.len(), 2, "两章各一条贡献（0.6/0.4 摊分）：{per_sec:?}");
+    let expect_sum = (per_sec.iter().sum::<f64>() * 100.0).round() / 100.0;
+    let est = bi["estimated"].as_f64().unwrap();
+    assert!(
+        (est - expect_sum).abs() < 1e-9,
+        "by_item.estimated = 两章贡献之和（{est} vs {expect_sum}）——多映射不得只报首章"
+    );
+    let contribs = bi["contributions"].as_array().unwrap();
+    assert_eq!(contribs.len(), 2, "逐章明细两行（与 mapping_ids 同面）");
+    for c in contribs {
+        assert!(c["section_id"].is_string() && c["tier"].is_string(), "逐章明细形状：{c:?}");
+    }
+    let contrib_sum = (contribs
+        .iter()
+        .map(|c| c["estimated"].as_f64().unwrap())
+        .sum::<f64>()
+        * 100.0)
+        .round()
+        / 100.0;
+    assert!(
+        (est - contrib_sum).abs() < 1e-9,
+        "contributions 之和 == estimated（{est} vs {contrib_sum}）"
+    );
+    assert!(est <= 20.0 + 1e-9, "聚合不超该评分项满分 20（实际 {est}）");
+
     // unmapped：无映射项结构化（synth 形态 REQ-0001 价格项不入——价格分
     // 不依赖章节映射；REQ-0002 已映射 → unmapped 为空）
     let unmapped = r["unmapped_scoring_items"].as_array().unwrap();
@@ -579,6 +619,146 @@ fn score_document_reports_mappings_unmapped_and_multi_mapping() {
         r["technical"].as_f64().unwrap() <= 20.0 + 1e-9,
         "同一项跨两章不重复计入总分（technical ≤ 20，实际 {}）",
         r["technical"].as_f64().unwrap()
+    );
+}
+
+/// Lead 审查 2（同节派生+账本去重的归因）：REQ-0002 派生映射
+/// （params.section_title「第四章」→ 章引用联结回填，RuleParsed share 1.0）
+/// + **同节**账本行（AgentSubmitted 0.3，带证据引用与登记锚）——账本行
+/// 在联结面被派生去重（inert，派生赢）。映射报告必须按**生效**映射归因：
+/// source=RULE_PARSED、share=1.0、锚回 REQ 首锚、evidence_refs 空——
+/// 不得把 inert 账本行的 source/anchor/evidence 误挂给派生映射。
+#[test]
+fn score_document_mapping_report_attributes_effective_source_only() {
+    let (mut svc, pid) = svc_drafted("score-map-224-attrib", true, Some("第四章 评标办法"));
+    // 派生映射的目标叶：锚在「第四章 评标办法」的正文 REQ（REQ-0004）所住叶
+    // ——build_scorer 章引用联结回填 params.section 的确定性落点（与
+    // score_section_maps_scoring_item_via_chapter_ref 同款发现逻辑）。
+    let target_leaf = {
+        let secs = svc.store().sections();
+        let parents: std::collections::HashSet<&str> = secs
+            .iter()
+            .filter_map(|n| n.parent_id.as_deref())
+            .collect();
+        let req4 = svc
+            .store()
+            .requirements()
+            .iter()
+            .find(|r| r.id == "REQ-0004")
+            .expect("REQ-0004 在库");
+        secs.iter()
+            .find(|n| {
+                !parents.contains(n.id.as_str()) && n.requirement_ids.contains(&req4.id)
+            })
+            .map(|n| n.id.clone())
+            .expect("REQ-0004 应住某片叶（正文类目）")
+    };
+
+    // 真实证据（账本行 evidence_refs 非空——误归因时报告会带出它，可检出）
+    use bid_domain::evidence::{EvidenceKind, EvidenceSpec};
+    use bid_domain::locator::EngineLocator;
+    let (eid, _) = svc
+        .store_mut()
+        .register_evidence(EvidenceSpec {
+            kind: EvidenceKind::Qualification,
+            title: "技术方案佐证材料".into(),
+            source_file: "EV-attrib.pdf".into(),
+            source_sha256: "sha-attrib".into(),
+            locator: EngineLocator::DocxParagraph {
+                paragraph_index: 3,
+                text_fingerprint: "fnv64:attr".into(),
+            },
+            fingerprint: "fnv64:attr".into(),
+            valid_from: None,
+            valid_until: None,
+            subject_name: "某公司".into(),
+            scope: "电子与智能化工程".into(),
+            client: None,
+            amount_wan: None,
+            completed_on: None,
+            fields: Default::default(),
+            excerpt: None,
+            excerpt_locator: None,
+            verification_tier: None,
+        })
+        .unwrap();
+
+    // 同节账本行：share 0.3 + 证据引用 + 登记锚（与 REQ 首锚不同的 locator/excerpt）
+    svc.store_mut()
+        .upsert_scoring_mapping(
+            "REQ-0002".into(),
+            target_leaf.clone(),
+            0.3,
+            vec![eid],
+            bid_domain::Anchor {
+                file: "A-招标文件.docx".into(),
+                kind: "table".into(),
+                locator: "第四章 评标办法 > 表 4-2 第 3 行".into(),
+                excerpt: "技术方案完整性 20 分，详见评审细则".into(),
+            },
+            bid_domain::scoring::MappingSource::AgentSubmitted,
+        )
+        .unwrap();
+
+    let r = ok_result(call(&mut svc, "score_document", json!({
+        "project_id": &pid,
+    })));
+
+    // 映射报告：REQ-0002 只剩派生映射一节（同节账本行 inert），且归因正确
+    let maps = r["mappings"].as_array().unwrap();
+    let m2 = maps
+        .iter()
+        .find(|m| m["item_id"] == "REQ-0002")
+        .expect("映射报告含 REQ-0002");
+    let secs = m2["sections"].as_array().unwrap();
+    assert_eq!(secs.len(), 1, "同节账本行被派生去重——生效映射只此一节");
+    let s0 = &secs[0];
+    assert_eq!(s0["section_id"].as_str().unwrap(), target_leaf);
+    assert_eq!(
+        s0["source"], json!("RULE_PARSED"),
+        "生效来源 = 派生（不得把 inert 账本行误标为 AGENT_SUBMITTED）"
+    );
+    assert!(
+        (s0["weight_share"].as_f64().unwrap() - 1.0).abs() < 1e-9,
+        "生效 share = 派生 1.0（不是账本 0.3）"
+    );
+    // 锚回 REQ 首锚：excerpt 是 REQ-0002 的条款原文，不是账本登记锚
+    let anchor_excerpt = s0["source_anchor"]["excerpt"].as_str().unwrap();
+    assert!(
+        anchor_excerpt.contains("4.2 技术分"),
+        "锚必须回 REQ 首锚（条款原文），实际：{anchor_excerpt}"
+    );
+    assert!(
+        !s0["source_anchor"]["locator"]
+            .as_str()
+            .unwrap()
+            .contains("表 4-2"),
+        "不得挂 inert 账本锚（表 4-2）"
+    );
+    assert_eq!(
+        s0["evidence_refs"].as_array().unwrap().len(),
+        0,
+        "派生映射无证据引用（误归因会带出账本行的 EV）"
+    );
+
+    // by_item 聚合（对照面）：单节生效 → 贡献恰一条，estimated = 该节贡献
+    let bi = r["by_item"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["item_id"] == "REQ-0002")
+        .unwrap();
+    let contribs = bi["contributions"].as_array().unwrap();
+    assert_eq!(contribs.len(), 1, "inert 账本行不产生第二条贡献");
+    let c_est = contribs[0]["estimated"].as_f64().unwrap();
+    assert!(
+        (bi["estimated"].as_f64().unwrap() - c_est).abs() < 1e-9,
+        "单映射聚合 = 唯一贡献"
+    );
+    // 该项满分不被 0.3 账本行稀释：max 仍 20，贡献 ≤ 20×1.0
+    assert!(
+        (bi["max"].as_f64().unwrap() - 20.0).abs() < 1e-9,
+        "item 满分不受 inert 行影响"
     );
 }
 

@@ -625,12 +625,17 @@ out: { project_id, diagnostic_only(true), result_kind("rule_heuristic"),
                section_id（首映射——旧键保留）,
                mapping_ids:[SEC-…]（#224 全部映射章节——多对多面）,
                weight_share（#224 首映射摊分比）,
+               contributions:[{section_id,estimated,tier,coverage,weight_share}…]
+               （#224 多对多聚合：estimated = 逐章贡献之和——与 total 计入
+               口径同源，多章不取首章；tier 多章同档→该档、异档→多章混合
+               列举；coverage 份额加权均值；价格项 contributions 恒空）,
                score_rules（细则原文 | null——判档不消费，透出供对照）}],
        mappings:[{item_id,criteria,weight,sections:[{section_id,section_title,
                weight_share,source(RULE_PARSED|AGENT_SUBMITTED|MANUAL),
                source_anchor:{file,kind,locator,excerpt},evidence_refs:[EV-…]}]}]
                （#224 映射报告——每个评分项→哪些章节→权重多少→依据原文哪里；
-               RuleParsed 派生映射锚回 REQ 首锚，账本映射带登记原文锚+来源+证据）,
+               RuleParsed 派生映射锚回 REQ 首锚，账本映射带登记原文锚+来源+证据；
+               只认**生效**映射的来源——同节 inert 账本行（派生赢）不归因）,
        breakdown:[SectionScore…（逐章节；#224 摊分后的章内满分）],
        unmapped_scoring_items:[{req_id,criteria,weight}…]（#224 结构化 UNMAPPED——
        非空 = 响亮告警「有 N 个评分项未映射章节，总分可能偏低」）,

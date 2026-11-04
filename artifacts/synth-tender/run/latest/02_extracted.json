@@ -1,7 +1,7 @@
 {
   "by_category": {
     "其他": 32,
-    "否决项": 52,
+    "否决项": 50,
     "技术参数": 15,
     "格式要求": 9,
     "评分项": 5,
@@ -685,36 +685,6 @@
     {
       "anchors": [
         {
-          "excerpt": "（9）投标报价超过招标控制价（最高限价）的；",
-          "file": "A-招标文件.docx",
-          "kind": "para",
-          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
-        }
-      ],
-      "category": "否决项",
-      "clause_no": null,
-      "id": "REQ-0045",
-      "params": {},
-      "source_file": "A-招标文件.docx"
-    },
-    {
-      "anchors": [
-        {
-          "excerpt": "（10）评标委员会认定的其他不符合招标文件实质性要求情形的。",
-          "file": "A-招标文件.docx",
-          "kind": "para",
-          "locator": "第三章 投标人须知 > 七、开标、评标与否决条款"
-        }
-      ],
-      "category": "否决项",
-      "clause_no": null,
-      "id": "REQ-0046",
-      "params": {},
-      "source_file": "A-招标文件.docx"
-    },
-    {
-      "anchors": [
-        {
           "excerpt": "3.7.3 评标委员会在评标过程中发现投标人有下列情形之一的，视为投标人相互串通投标，其投标将被否决：",
           "file": "A-招标文件.docx",
           "kind": "para",
@@ -723,7 +693,7 @@
       ],
       "category": "否决项",
       "clause_no": "3.7.3",
-      "id": "REQ-0047",
+      "id": "REQ-0045",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -738,7 +708,7 @@
       ],
       "category": "否决项",
       "clause_no": null,
-      "id": "REQ-0048",
+      "id": "REQ-0046",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -753,7 +723,7 @@
       ],
       "category": "否决项",
       "clause_no": null,
-      "id": "REQ-0049",
+      "id": "REQ-0047",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -768,7 +738,7 @@
       ],
       "category": "否决项",
       "clause_no": null,
-      "id": "REQ-0050",
+      "id": "REQ-0048",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -783,7 +753,7 @@
       ],
       "category": "否决项",
       "clause_no": null,
-      "id": "REQ-0051",
+      "id": "REQ-0049",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -798,7 +768,7 @@
       ],
       "category": "否决项",
       "clause_no": null,
-      "id": "REQ-0052",
+      "id": "REQ-0050",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -813,7 +783,7 @@
       ],
       "category": "否决项",
       "clause_no": null,
-      "id": "REQ-0053",
+      "id": "REQ-0051",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -828,7 +798,7 @@
       ],
       "category": "否决项",
       "clause_no": null,
-      "id": "REQ-0054",
+      "id": "REQ-0052",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -843,7 +813,7 @@
       ],
       "category": "否决项",
       "clause_no": null,
-      "id": "REQ-0055",
+      "id": "REQ-0053",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -858,7 +828,7 @@
       ],
       "category": "否决项",
       "clause_no": "3.7.4",
-      "id": "REQ-0056",
+      "id": "REQ-0054",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -873,7 +843,7 @@
       ],
       "category": "其他",
       "clause_no": "3.8.1",
-      "id": "REQ-0057",
+      "id": "REQ-0055",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -888,7 +858,7 @@
       ],
       "category": "其他",
       "clause_no": "3.8.2",
-      "id": "REQ-0058",
+      "id": "REQ-0056",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -903,7 +873,7 @@
       ],
       "category": "否决项",
       "clause_no": "3.9.1",
-      "id": "REQ-0059",
+      "id": "REQ-0057",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -918,7 +888,7 @@
       ],
       "category": "其他",
       "clause_no": "3.9.2",
-      "id": "REQ-0060",
+      "id": "REQ-0058",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -933,7 +903,7 @@
       ],
       "category": "评分项",
       "clause_no": "4.1",
-      "id": "REQ-0061",
+      "id": "REQ-0059",
       "params": {
         "score": 30.0
       },
@@ -950,7 +920,7 @@
       ],
       "category": "评分项",
       "clause_no": "4.2",
-      "id": "REQ-0062",
+      "id": "REQ-0060",
       "params": {
         "score": 55.0
       },
@@ -967,7 +937,7 @@
       ],
       "category": "评分项",
       "clause_no": "4.3",
-      "id": "REQ-0063",
+      "id": "REQ-0061",
       "params": {
         "amount_wan": 500.0,
         "score": 15.0
@@ -985,7 +955,7 @@
       ],
       "category": "评分项",
       "clause_no": "4.4",
-      "id": "REQ-0064",
+      "id": "REQ-0062",
       "params": {
         "score": 10.0
       },
@@ -1002,7 +972,7 @@
       ],
       "category": "否决项",
       "clause_no": "4.5",
-      "id": "REQ-0065",
+      "id": "REQ-0063",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1017,7 +987,7 @@
       ],
       "category": "否决项",
       "clause_no": "表-2",
-      "id": "REQ-0066",
+      "id": "REQ-0064",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1032,7 +1002,7 @@
       ],
       "category": "否决项",
       "clause_no": "表-3",
-      "id": "REQ-0067",
+      "id": "REQ-0065",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1047,7 +1017,7 @@
       ],
       "category": "否决项",
       "clause_no": "表-4",
-      "id": "REQ-0068",
+      "id": "REQ-0066",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1062,7 +1032,7 @@
       ],
       "category": "否决项",
       "clause_no": "表-5",
-      "id": "REQ-0069",
+      "id": "REQ-0067",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1077,7 +1047,7 @@
       ],
       "category": "否决项",
       "clause_no": "表-6",
-      "id": "REQ-0070",
+      "id": "REQ-0068",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1092,7 +1062,7 @@
       ],
       "category": "否决项",
       "clause_no": "表-7",
-      "id": "REQ-0071",
+      "id": "REQ-0069",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1107,7 +1077,7 @@
       ],
       "category": "否决项",
       "clause_no": "表-8",
-      "id": "REQ-0072",
+      "id": "REQ-0070",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1122,7 +1092,7 @@
       ],
       "category": "否决项",
       "clause_no": "表-9",
-      "id": "REQ-0073",
+      "id": "REQ-0071",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1137,7 +1107,7 @@
       ],
       "category": "否决项",
       "clause_no": null,
-      "id": "REQ-0074",
+      "id": "REQ-0072",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1152,7 +1122,7 @@
       ],
       "category": "否决项",
       "clause_no": null,
-      "id": "REQ-0075",
+      "id": "REQ-0073",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1167,7 +1137,7 @@
       ],
       "category": "否决项",
       "clause_no": null,
-      "id": "REQ-0076",
+      "id": "REQ-0074",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1182,7 +1152,7 @@
       ],
       "category": "否决项",
       "clause_no": null,
-      "id": "REQ-0077",
+      "id": "REQ-0075",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1197,7 +1167,7 @@
       ],
       "category": "否决项",
       "clause_no": null,
-      "id": "REQ-0078",
+      "id": "REQ-0076",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1212,7 +1182,7 @@
       ],
       "category": "否决项",
       "clause_no": "4.6",
-      "id": "REQ-0079",
+      "id": "REQ-0077",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1227,7 +1197,7 @@
       ],
       "category": "评分项",
       "clause_no": "4.7",
-      "id": "REQ-0080",
+      "id": "REQ-0078",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1242,7 +1212,7 @@
       ],
       "category": "技术参数",
       "clause_no": "5.0",
-      "id": "REQ-0081",
+      "id": "REQ-0079",
       "params": {
         "amount_wan": 1650.0
       },
@@ -1259,7 +1229,7 @@
       ],
       "category": "技术参数",
       "clause_no": "5.1.1",
-      "id": "REQ-0082",
+      "id": "REQ-0080",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1274,7 +1244,7 @@
       ],
       "category": "技术参数",
       "clause_no": "5.1.1",
-      "id": "REQ-0083",
+      "id": "REQ-0081",
       "params": {
         "model": "T-GW-3000"
       },
@@ -1291,7 +1261,7 @@
       ],
       "category": "技术参数",
       "clause_no": "5.1.1",
-      "id": "REQ-0084",
+      "id": "REQ-0082",
       "params": {
         "model": "SNS-TH-02"
       },
@@ -1308,7 +1278,7 @@
       ],
       "category": "技术参数",
       "clause_no": "5.2.1",
-      "id": "REQ-0085",
+      "id": "REQ-0083",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1323,7 +1293,7 @@
       ],
       "category": "技术参数",
       "clause_no": "5.2.1",
-      "id": "REQ-0086",
+      "id": "REQ-0084",
       "params": {
         "model": "S5735-L48T4X-A1"
       },
@@ -1340,7 +1310,7 @@
       ],
       "category": "技术参数",
       "clause_no": "5.3.1",
-      "id": "REQ-0087",
+      "id": "REQ-0085",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1355,7 +1325,7 @@
       ],
       "category": "技术参数",
       "clause_no": "5.3.1",
-      "id": "REQ-0088",
+      "id": "REQ-0086",
       "params": {
         "model": "GW-8000-T4"
       },
@@ -1372,7 +1342,7 @@
       ],
       "category": "技术参数",
       "clause_no": "5.3.1",
-      "id": "REQ-0089",
+      "id": "REQ-0087",
       "params": {
         "model": "GW-8000-T4"
       },
@@ -1389,7 +1359,7 @@
       ],
       "category": "技术参数",
       "clause_no": "5.4.1",
-      "id": "REQ-0090",
+      "id": "REQ-0088",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1404,7 +1374,7 @@
       ],
       "category": "技术参数",
       "clause_no": "5.4.1",
-      "id": "REQ-0091",
+      "id": "REQ-0089",
       "params": {
         "model": "BED-T12-AND"
       },
@@ -1421,7 +1391,7 @@
       ],
       "category": "技术参数",
       "clause_no": "5.4.1",
-      "id": "REQ-0092",
+      "id": "REQ-0090",
       "params": {
         "model": "RTLS-TAG-B1"
       },
@@ -1438,7 +1408,7 @@
       ],
       "category": "技术参数",
       "clause_no": "5.5.1",
-      "id": "REQ-0093",
+      "id": "REQ-0091",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1453,7 +1423,7 @@
       ],
       "category": "技术参数",
       "clause_no": "5.5.1",
-      "id": "REQ-0094",
+      "id": "REQ-0092",
       "params": {
         "model": "NCS-64-E"
       },
@@ -1470,7 +1440,7 @@
       ],
       "category": "技术参数",
       "clause_no": "5.6.1",
-      "id": "REQ-0095",
+      "id": "REQ-0093",
       "params": {
         "date": "2026-12-30"
       },
@@ -1487,7 +1457,7 @@
       ],
       "category": "商务要求",
       "clause_no": "6.1",
-      "id": "REQ-0096",
+      "id": "REQ-0094",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1502,7 +1472,7 @@
       ],
       "category": "商务要求",
       "clause_no": "6.2",
-      "id": "REQ-0097",
+      "id": "REQ-0095",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1517,7 +1487,7 @@
       ],
       "category": "商务要求",
       "clause_no": "6.3",
-      "id": "REQ-0098",
+      "id": "REQ-0096",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1532,7 +1502,7 @@
       ],
       "category": "商务要求",
       "clause_no": "6.4",
-      "id": "REQ-0099",
+      "id": "REQ-0097",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1547,7 +1517,7 @@
       ],
       "category": "格式要求",
       "clause_no": "7.1",
-      "id": "REQ-0100",
+      "id": "REQ-0098",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1562,7 +1532,7 @@
       ],
       "category": "格式要求",
       "clause_no": "7.2",
-      "id": "REQ-0101",
+      "id": "REQ-0099",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1577,7 +1547,7 @@
       ],
       "category": "格式要求",
       "clause_no": "7.3",
-      "id": "REQ-0102",
+      "id": "REQ-0100",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1592,7 +1562,7 @@
       ],
       "category": "资格条件",
       "clause_no": "7.4",
-      "id": "REQ-0103",
+      "id": "REQ-0101",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1607,7 +1577,7 @@
       ],
       "category": "格式要求",
       "clause_no": "7.5",
-      "id": "REQ-0104",
+      "id": "REQ-0102",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1622,7 +1592,7 @@
       ],
       "category": "格式要求",
       "clause_no": "7.6",
-      "id": "REQ-0105",
+      "id": "REQ-0103",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1637,7 +1607,7 @@
       ],
       "category": "其他",
       "clause_no": "8.1",
-      "id": "REQ-0106",
+      "id": "REQ-0104",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1652,7 +1622,7 @@
       ],
       "category": "其他",
       "clause_no": "8.2",
-      "id": "REQ-0107",
+      "id": "REQ-0105",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1667,7 +1637,7 @@
       ],
       "category": "其他",
       "clause_no": "8.3",
-      "id": "REQ-0108",
+      "id": "REQ-0106",
       "params": {},
       "source_file": "A-招标文件.docx"
     },
@@ -1682,7 +1652,7 @@
       ],
       "category": "其他",
       "clause_no": "1.1",
-      "id": "REQ-0109",
+      "id": "REQ-0107",
       "params": {},
       "source_file": "B-技术规范书.docx"
     },
@@ -1697,7 +1667,7 @@
       ],
       "category": "其他",
       "clause_no": "1.2",
-      "id": "REQ-0110",
+      "id": "REQ-0108",
       "params": {},
       "source_file": "B-技术规范书.docx"
     },
@@ -1712,7 +1682,7 @@
       ],
       "category": "其他",
       "clause_no": "2.1",
-      "id": "REQ-0111",
+      "id": "REQ-0109",
       "params": {},
       "source_file": "B-技术规范书.docx"
     },
@@ -1727,7 +1697,7 @@
       ],
       "category": "其他",
       "clause_no": "2.2",
-      "id": "REQ-0112",
+      "id": "REQ-0110",
       "params": {},
       "source_file": "B-技术规范书.docx"
     },
@@ -1742,7 +1712,7 @@
       ],
       "category": "其他",
       "clause_no": "3.1",
-      "id": "REQ-0113",
+      "id": "REQ-0111",
       "params": {},
       "source_file": "B-技术规范书.docx"
     },
@@ -1757,7 +1727,7 @@
       ],
       "category": "其他",
       "clause_no": "4.1",
-      "id": "REQ-0114",
+      "id": "REQ-0112",
       "params": {},
       "source_file": "B-技术规范书.docx"
     },
@@ -1772,7 +1742,7 @@
       ],
       "category": "其他",
       "clause_no": "4.2",
-      "id": "REQ-0115",
+      "id": "REQ-0113",
       "params": {},
       "source_file": "B-技术规范书.docx"
     },
@@ -1787,7 +1757,7 @@
       ],
       "category": "其他",
       "clause_no": "5.1",
-      "id": "REQ-0116",
+      "id": "REQ-0114",
       "params": {},
       "source_file": "B-技术规范书.docx"
     },
@@ -1802,7 +1772,7 @@
       ],
       "category": "其他",
       "clause_no": "5.2",
-      "id": "REQ-0117",
+      "id": "REQ-0115",
       "params": {},
       "source_file": "B-技术规范书.docx"
     },
@@ -1817,7 +1787,7 @@
       ],
       "category": "其他",
       "clause_no": "6.1",
-      "id": "REQ-0118",
+      "id": "REQ-0116",
       "params": {},
       "source_file": "B-技术规范书.docx"
     },
@@ -1832,7 +1802,7 @@
       ],
       "category": "其他",
       "clause_no": "6.2",
-      "id": "REQ-0119",
+      "id": "REQ-0117",
       "params": {},
       "source_file": "B-技术规范书.docx"
     },
@@ -1847,7 +1817,7 @@
       ],
       "category": "其他",
       "clause_no": "1.1",
-      "id": "REQ-0120",
+      "id": "REQ-0118",
       "params": {
         "date": "2026-11-18",
         "date_cn": "2026-11-18"
@@ -1865,7 +1835,7 @@
       ],
       "category": "其他",
       "clause_no": "1.2",
-      "id": "REQ-0121",
+      "id": "REQ-0119",
       "params": {
         "date": "2026-11-30",
         "date_cn": "2026-11-30"
@@ -1889,7 +1859,7 @@
       ],
       "category": "否决项",
       "clause_no": "2.1",
-      "id": "REQ-0122",
+      "id": "REQ-0120",
       "params": {
         "amount_wan": 1650.0
       },
@@ -1906,7 +1876,7 @@
       ],
       "category": "否决项",
       "clause_no": "3.1",
-      "id": "REQ-0123",
+      "id": "REQ-0121",
       "params": {},
       "source_file": "C-补遗文件.pdf"
     },
@@ -1921,7 +1891,7 @@
       ],
       "category": "否决项",
       "clause_no": "3.2",
-      "id": "REQ-0124",
+      "id": "REQ-0122",
       "params": {},
       "source_file": "C-补遗文件.pdf"
     },
@@ -1942,7 +1912,7 @@
       ],
       "category": "其他",
       "clause_no": "4.1",
-      "id": "REQ-0125",
+      "id": "REQ-0123",
       "params": {},
       "source_file": "C-补遗文件.pdf"
     },
@@ -1957,7 +1927,7 @@
       ],
       "category": "其他",
       "clause_no": "5.1",
-      "id": "REQ-0126",
+      "id": "REQ-0124",
       "params": {
         "date": "2026-11-05",
         "date_cn": "2026-11-05"
@@ -1965,5 +1935,5 @@
       "source_file": "C-补遗文件.pdf"
     }
   ],
-  "total": 126
+  "total": 124
 }

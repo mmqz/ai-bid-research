@@ -52,7 +52,7 @@
     "E-原招标公告盖章页-扫描件.pdf": {
       "chunks": 0,
       "errors": [
-        "pdf 解析失败 E-原招标公告盖章页-扫描件.pdf: pdf 扫描层 OCR 失败（1 页报错、零行块产出）——疑似 OCR 环境缺失：检查 tesseract 与 chi_sim 语言数据（TESSDATA_PREFIX 或 ~/.tessdata）；本文件按失败处理，不留空内容伪装成功；纯 Rust 兜底也失败：PDF 无文本层（疑扫描件——需 OCR 链）"
+        "pdf 扫描层 OCR 失败（1 页报错、零行块产出）——疑似 OCR 环境缺失：检查 tesseract 与 chi_sim 语言数据（TESSDATA_PREFIX 或 ~/.tessdata）；本文件按失败处理，不留空内容伪装成功"
       ],
       "ocr_tier": "n/a",
       "pages": 0,

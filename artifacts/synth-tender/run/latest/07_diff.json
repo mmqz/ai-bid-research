@@ -497,32 +497,32 @@
       "will_extract": true
     },
     {
-      "actual_category": "否决项",
+      "actual_category": "(缺失)",
       "category_diff": false,
       "engine_category": "否决项",
       "excerpt_key": "（9）投标报价超过招标控制价（最高限价）的",
       "expect_occurrences": 1,
-      "hit": true,
+      "hit": false,
       "ideal_category": "否决项",
-      "matched": 1,
+      "matched": 0,
       "note": "",
-      "prediction_ok": true,
+      "prediction_ok": false,
       "source_file": "A-招标文件.docx",
       "syn_id": "SYN-A-029",
       "trap": null,
       "will_extract": true
     },
     {
-      "actual_category": "否决项",
+      "actual_category": "(缺失)",
       "category_diff": false,
       "engine_category": "否决项",
       "excerpt_key": "（10）评标委员会认定的其他不符合招标文件实质性要求情形的",
       "expect_occurrences": 1,
-      "hit": true,
+      "hit": false,
       "ideal_category": "否决项",
-      "matched": 1,
+      "matched": 0,
       "note": "",
-      "prediction_ok": true,
+      "prediction_ok": false,
       "source_file": "A-招标文件.docx",
       "syn_id": "SYN-A-030",
       "trap": null,
@@ -1665,144 +1665,144 @@
       "category": "否决项",
       "clause_no": "3.7.4",
       "excerpt": "3.7.4 评标委员会成员应当客观、公正地履行职务，遵守职业道德，对其评审意见承",
-      "id": "REQ-0056",
+      "id": "REQ-0054",
       "source_file": "A-招标文件.docx"
     },
     {
       "category": "其他",
       "clause_no": "3.8.1",
       "excerpt": "3.8.1 中标人须在中标通知书发出之日起 30 日内与招标人签订合同；合同签订",
-      "id": "REQ-0057",
+      "id": "REQ-0055",
       "source_file": "A-招标文件.docx"
     },
     {
       "category": "其他",
       "clause_no": "3.8.2",
       "excerpt": "3.8.2 招标人将在中标通知书发出后 7 个工作日内向中标人发出合同文本草案；",
-      "id": "REQ-0058",
+      "id": "REQ-0056",
       "source_file": "A-招标文件.docx"
     },
     {
       "category": "其他",
       "clause_no": "3.9.2",
       "excerpt": "3.9.2 对招标过程中招标人、招标代理机构及评标委员会成员的违法违纪行为，投标",
-      "id": "REQ-0060",
+      "id": "REQ-0058",
       "source_file": "A-招标文件.docx"
     },
     {
       "category": "否决项",
       "clause_no": null,
       "excerpt": "三、串通投标与弄虚作假的认定",
-      "id": "REQ-0074",
+      "id": "REQ-0072",
       "source_file": "A-招标文件.docx"
     },
     {
       "category": "评分项",
       "clause_no": "4.7",
       "excerpt": "4.7 评标委员会按照得分由高到低排序推荐中标候选人，并出具评标报告；得分相同的",
-      "id": "REQ-0080",
+      "id": "REQ-0078",
       "source_file": "A-招标文件.docx"
     },
     {
       "category": "商务要求",
       "clause_no": "6.1",
       "excerpt": "6.1 合同价格形式：固定总价合同，除招标文件约定的调整情形外不做调整。",
-      "id": "REQ-0096",
+      "id": "REQ-0094",
       "source_file": "A-招标文件.docx"
     },
     {
       "category": "商务要求",
       "clause_no": "6.2",
       "excerpt": "6.2 违约责任：逾期交付每日按合同总价 0.5‰ 计违约金，上限为合同总价的 ",
-      "id": "REQ-0097",
+      "id": "REQ-0095",
       "source_file": "A-招标文件.docx"
     },
     {
       "category": "商务要求",
       "clause_no": "6.3",
       "excerpt": "6.3 付款节点：合同签订生效后 10 个工作日内支付预付款 30%；全部设备到",
-      "id": "REQ-0098",
+      "id": "REQ-0096",
       "source_file": "A-招标文件.docx"
     },
     {
       "category": "商务要求",
       "clause_no": "6.4",
       "excerpt": "6.4 争议解决：协商不成的，提交项目所在地有管辖权的人民法院诉讼解决。",
-      "id": "REQ-0099",
+      "id": "REQ-0097",
       "source_file": "A-招标文件.docx"
     },
     {
       "category": "格式要求",
       "clause_no": "7.1",
       "excerpt": "7.1 投标函格式（略，按本章附件样例填写）：投标函须按样例格式签署并加盖单位公",
-      "id": "REQ-0100",
+      "id": "REQ-0098",
       "source_file": "A-招标文件.docx"
     },
     {
       "category": "格式要求",
       "clause_no": "7.2",
       "excerpt": "7.2 开标一览表、投标分项报价表格式（略）：开标一览表中的投标总报价须与投标函",
-      "id": "REQ-0101",
+      "id": "REQ-0099",
       "source_file": "A-招标文件.docx"
     },
     {
       "category": "格式要求",
       "clause_no": "7.3",
       "excerpt": "7.3 法定代表人身份证明及授权委托书格式（略）：授权委托书须载明授权事项、权限",
-      "id": "REQ-0102",
+      "id": "REQ-0100",
       "source_file": "A-招标文件.docx"
     },
     {
       "category": "格式要求",
       "clause_no": "7.5",
       "excerpt": "7.5 技术方案编制格式：技术方案按「总体方案—分项技术方案—实施方案—售后方案",
-      "id": "REQ-0104",
+      "id": "REQ-0102",
       "source_file": "A-招标文件.docx"
     },
     {
       "category": "格式要求",
       "clause_no": "7.6",
       "excerpt": "7.6 已标价工程量清单格式（略）：按第五章技术需求书的分项逐项报价，不得缺漏项",
-      "id": "REQ-0105",
+      "id": "REQ-0103",
       "source_file": "A-招标文件.docx"
     },
     {
       "category": "其他",
       "clause_no": "8.1",
       "excerpt": "8.1 附件 1：图纸目录说明——随本招标文件发出的《D-图纸说明》及全套图纸（",
-      "id": "REQ-0106",
+      "id": "REQ-0104",
       "source_file": "A-招标文件.docx"
     },
     {
       "category": "其他",
       "clause_no": "8.2",
       "excerpt": "8.2 附件 2：设备技术参数明细表——详见随本招标文件发出的《B-技术规范书》",
-      "id": "REQ-0107",
+      "id": "REQ-0105",
       "source_file": "A-招标文件.docx"
     },
     {
       "category": "其他",
       "clause_no": "8.3",
       "excerpt": "8.3 附件 3：原招标公告盖章页（扫描件）——见《E-原招标公告盖章页-扫描件",
-      "id": "REQ-0108",
+      "id": "REQ-0106",
       "source_file": "A-招标文件.docx"
     },
     {
       "category": "其他",
       "clause_no": "1.1",
       "excerpt": "1.1 本规范书规定智慧病房物联网平台各子系统的详细技术参数、接口协议与验收测试",
-      "id": "REQ-0109",
+      "id": "REQ-0107",
       "source_file": "B-技术规范书.docx"
     }
   ],
   "summary": {
     "category_diff": 15,
-    "engine_reqs": 126,
+    "engine_reqs": 124,
     "expected_entries": 98,
     "extras_count": 32,
-    "hit": 91,
-    "miss": 7,
-    "occurrence_diff": 1,
-    "prediction_ok": 86
+    "hit": 89,
+    "miss": 9,
+    "occurrence_diff": 3,
+    "prediction_ok": 84
   }
 }

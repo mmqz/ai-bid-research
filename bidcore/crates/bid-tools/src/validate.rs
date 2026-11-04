@@ -11,8 +11,11 @@
 //!      SUPERSEDED——bind 时拒了，但 `apply_validity` 可后置翻转，真实风险）；
 //!   6. `W_PLACEHOLDER`（MAJOR）：占位符残留（borrow check.rs 的
 //!      PLACEHOLDER_MARKERS 口径——TODO/待补充/【占位】）；
-//!   7. `W_CHARS_OFF_TARGET`（MINOR）：字数偏离配额 ±20% 之外（与 draft
+//!   7. `W_CHARS_OFF_TARGET`（MINOR）：字数**超出**配额 +20% 之外（与 draft
 //!      生成带对称——同口径可对账）；
+//!   7b. `E_CHARS_BELOW_MIN`（BLOCKER）：正文低于配额 −20% 容差下限
+//!      （1.0 写作验收：最低篇幅不达标 → 整份标书不得报告达标/导出——
+//!      下限与 draft `pad_to_target` 的 80% 同口径，见规则 4 内注）；
 //!   8. `W_FORMAT_BASELINE`（MINOR）：格式条款零命中按工程基线（Lead
 //!      「不准硬编码」的降级告知面）。
 //! - **第二层（模型复核，可选）**——[`ModelReviewer`] trait 注入（表述质量/
@@ -255,19 +258,42 @@ pub fn validate_document(
         }
         let content = node.content.as_deref().unwrap_or("");
 
-        // 规则 4：字数偏离 ±20%（与 draft 生成带对称的验收口径）
+        // 规则 4：篇幅验收（与 draft 生成带对称的验收口径——带 = target ×
+        //      [80%, 120%]，Lead 验收线 ±20%）。
+        //
+        // 【1.0 写作验收】下界与上界分治：
+        // - **下界 BLOCKER**（`E_CHARS_BELOW_MIN`）：篇幅不足 = 偷工减料——
+        //   响应覆盖度不足以支撑评审，不得把整份标书报告为达标（ok 翻
+        //   false）；经 record_review 派生 RT 后导出门（export_allowed
+        //   的「全 RT DONE」面）拒导出——防废标的最后一关。
+        // - **上界 MINOR**（`W_CHARS_OFF_TARGET` 原样）：超出只是提示（页数
+        //   超限风险由人裁），不阻断——与旧口径兼容，避免过度收紧。
+        // - `target_chars == 0`（无配额的叶）不判：没有目标就没有带外；
+        //   空正文已由规则 3 E_SECTION_EMPTY 报 BLOCKER（continue 跳过），
+        //   不双报。
         if node.target_chars > 0 {
             let chars = content.chars().count();
             let target = f64::from(node.target_chars);
-            if (chars as f64) < target * 0.80 || (chars as f64) > target * 1.20 {
+            if (chars as f64) < target * 0.80 {
+                structural_f.push(ValidationFinding {
+                    rule_code: "E_CHARS_BELOW_MIN".into(),
+                    severity: "BLOCKER",
+                    section_id: Some(node.id.clone()),
+                    requirement_id: None,
+                    message: format!(
+                        "章节「{}」正文 {} 字低于最低篇幅 {:.0}（目标 {} 的 −20% 容差下限）——篇幅不足不得达标/导出，补写后重校",
+                        node.title, chars, target * 0.80, node.target_chars,
+                    ),
+                });
+            } else if (chars as f64) > target * 1.20 {
                 structural_f.push(ValidationFinding {
                     rule_code: "W_CHARS_OFF_TARGET".into(),
                     severity: "MINOR",
                     section_id: Some(node.id.clone()),
                     requirement_id: None,
                     message: format!(
-                        "章节「{}」字数 {chars} 偏离配额 {}（±20% 带外：[{:.0}, {:.0}]）",
-                        node.title, node.target_chars, target * 0.80, target * 1.20,
+                        "章节「{}」字数 {chars} 超出配额 {}（+20% 带外：上限 {:.0}）",
+                        node.title, node.target_chars, target * 1.20,
                     ),
                 });
             }

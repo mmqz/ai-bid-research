@@ -293,16 +293,16 @@ fn rule_section_empty_is_blocker() {
     assert!(codes.contains(&"E_SECTION_EMPTY"), "空章节必须 BLOCKER: {codes:?}");
 }
 
-// ---------------------------------------------------------------- 4. 规则 4：字数偏离
+// ---------------------------------------------------------------- 4. 规则 4：篇幅验收（1.0 写作验收）
 
+/// 【1.0 写作验收】篇幅不足 → `E_CHARS_BELOW_MIN` BLOCKER：整份标书不得
+/// 报告为达标（ok=false、errors 面在位）。旧口径下短稿只是 MINOR 告警——
+/// 不足会静默放行到导出，违背「篇幅不达标的标书不能出厂」的验收线。
 #[test]
-fn rule_chars_off_target_warns() {
-    let (mut svc, pid) = svc_base("chars");
+fn rule_chars_below_min_is_blocker() {
+    let (mut svc, pid) = svc_base("chars-low");
     bind_evidence_for(&mut svc, &["REQ-0001", "REQ-0002", "REQ-0003"]);
-    for sid in leaf_ids(&svc) {
-        svc.draft_section(&sid, None, None, None, &mut bid_tools::draft::MockGenerator).unwrap();
-    }
-    // 人工超短稿（偏离 ±20%）
+    // 人工超短稿（远低于 target×80% 下限——svc_base 单叶 target=2000）
     let sids = leaf_ids(&svc);
     struct Tiny;
     impl bid_tools::draft::SectionGenerator for Tiny {
@@ -314,10 +314,65 @@ fn rule_chars_off_target_warns() {
             })
         }
     }
-    svc.draft_section(&sids[0], None, None, Some("超短稿"), &mut Tiny).unwrap();
+    for sid in &sids {
+        svc.draft_section(sid, None, None, Some("超短稿"), &mut Tiny).unwrap();
+    }
     let r = validate(&mut svc, &pid);
-    assert!(r["warnings"].as_array().unwrap().iter().any(|w| w.as_str().unwrap().contains("偏离配额")),
-        "字数偏离必须 MINOR 告警: {}", r["warnings"]);
+    assert_eq!(r["ok"], json!(false), "篇幅不足整份标书不得报告达标: {}", r["errors"]);
+    let errors = r["errors"].as_array().unwrap();
+    assert!(
+        errors.iter().any(|e| e["rule_code"] == "E_CHARS_BELOW_MIN" && e["severity"] == "BLOCKER"),
+        "篇幅不足必须 E_CHARS_BELOW_MIN BLOCKER: {errors:?}"
+    );
+    // 定位面：finding 带 section_id + 消息含目标与最低线（补写指引）
+    let f = errors.iter().find(|e| e["rule_code"] == "E_CHARS_BELOW_MIN").unwrap();
+    assert!(f["section_id"].as_str().is_some_and(|s| !s.is_empty()), "锚到章节: {f:?}");
+    let msg = f["message"].as_str().unwrap();
+    assert!(msg.contains("最低篇幅") && msg.contains("2000"), "消息含目标与下限: {msg}");
+}
+
+/// 篇幅**超出**上限（> target×120%）→ `W_CHARS_OFF_TARGET` MINOR 告警
+/// （旧口径保留面——超出是提示不阻断，防过度收紧）。
+#[test]
+fn rule_chars_over_target_still_warns_minor() {
+    let (mut svc, pid) = svc_base("chars-over");
+    bind_evidence_for(&mut svc, &["REQ-0001", "REQ-0002", "REQ-0003"]);
+    let sids = leaf_ids(&svc);
+    struct Huge;
+    impl bid_tools::draft::SectionGenerator for Huge {
+        fn generate(&mut self, _i: &bid_tools::draft::SectionDraftInput)
+            -> Result<bid_tools::draft::GeneratedDraft, String> {
+            // > 2000 × 120% = 2400 字（带外上限之上）
+            Ok(bid_tools::draft::GeneratedDraft {
+                content: "超".repeat(2600),
+            })
+        }
+    }
+    for sid in &sids {
+        svc.draft_section(sid, None, None, Some("超长稿"), &mut Huge).unwrap();
+    }
+    let r = validate(&mut svc, &pid);
+    assert!(r["warnings"].as_array().unwrap().iter().any(|w| w.as_str().unwrap().contains("超出配额")),
+        "字数超出必须 MINOR 告警: {}", r["warnings"]);
+    // 超出不是 BLOCKER：ok 不因此翻 false（无其他 BLOCKER 时）
+    assert_eq!(r["ok"], json!(true), "超出上限只是提示，不阻断: {}", r["errors"]);
+    assert_eq!(r["counts"]["blocker"], json!(0));
+}
+
+/// 带内（target×80% ≤ chars ≤ target×120%）→ 零篇幅发现（既不 BLOCKER 也不
+/// MINOR）——mock 生成器（pad_to_target 补到带内）的默认面即此。
+#[test]
+fn rule_chars_in_band_no_findings() {
+    let (mut svc, pid) = svc_base("chars-band");
+    bind_evidence_for(&mut svc, &["REQ-0001", "REQ-0002", "REQ-0003"]);
+    for sid in leaf_ids(&svc) {
+        svc.draft_section(&sid, None, None, None, &mut bid_tools::draft::MockGenerator).unwrap();
+    }
+    let r = validate(&mut svc, &pid);
+    let codes: Vec<&str> = r["findings"].as_array().unwrap().iter()
+        .map(|f| f["rule_code"].as_str().unwrap()).collect();
+    assert!(!codes.contains(&"E_CHARS_BELOW_MIN"), "带内不得报下限: {codes:?}");
+    assert!(!codes.contains(&"W_CHARS_OFF_TARGET"), "带内不得报偏离: {codes:?}");
 }
 
 // ---------------------------------------------------------------- 5. 规则 6：占位符

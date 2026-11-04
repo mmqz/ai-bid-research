@@ -3,6 +3,8 @@
 //! 覆盖（issue 验收线）：
 //! - 六种 Blocker 各至少一个用例（NoRequirements / MissingQualification /
 //!   MissingPerformance / MissingTechEvidence / UncoveredVetoItem / IncompleteTender）；
+//! - Agent 必选接线（UncoveredMandatoryItem）：Agent 标必选且类别不在
+//!   资格/否决阻断面、矩阵未响应 → 阻塞；非必选/无标记不误断；否决类不双报；
 //! - 阻塞信息**人类可读**（不含 enum 名）；
 //! - 占位符：扫描正文里的【待补充】、行号、往返一致；
 //! - 真实场景：没有业绩证据的章节 → `ready = false`（issue 验收第 4 条）；
@@ -48,6 +50,14 @@ fn req(id: &str, category: &str) -> Requirement {
         params: Default::default(),
         source_file: "招标文件.docx".into(),
     }
+}
+
+/// Agent 路径 REQ（merge.rs 转换产物形状：params.marked_by + params.mandatory）。
+fn agent_req(id: &str, category: &str, mandatory: bool) -> Requirement {
+    let mut r = req(id, category);
+    r.params.insert("marked_by".into(), serde_json::json!("agent"));
+    r.params.insert("mandatory".into(), serde_json::json!(mandatory));
+    r
 }
 
 fn node(id: &str, title: &str, order: u32, reqs: &[&str]) -> OutlineNode {
@@ -312,6 +322,96 @@ fn veto_cleared_by_evidence_bind_and_by_override_with_reason() {
     s.build_matrix().unwrap();
     let r = check_draft_readiness(&s, "SEC-0001");
     assert!(r.ready, "否决项全部处理完 → 就绪：{:?}", r);
+}
+
+// ---------------------------------------------------------------- ⑤b UncoveredMandatoryItem（Agent 必选接线）
+
+/// Agent 标必选（类别不在资格/否决阻断面）且矩阵未响应 → 起草门阻塞。
+#[test]
+fn agent_mandatory_unresponded_blocks_draft() {
+    let s = base_store(
+        vec![node("SEC-0001", "商务响应", 1, &["REQ-0001"])],
+        vec![agent_req("REQ-0001", "商务要求", true)],
+    );
+    let r = check_draft_readiness(&s, "SEC-0001");
+    assert!(!r.ready, "Agent 必选未响应必须阻塞：{:?}", r);
+    let b = r.blockers
+        .iter()
+        .find(|b| b.code() == "UNCOVERED_MANDATORY_ITEM")
+        .expect("应报 Agent 必选未响应");
+    let msg = b.to_message();
+    assert!(msg.contains("必选条款尚未响应") && msg.contains("REQ-0001"), "{msg}");
+    assert!(!msg.contains("UncoveredMandatoryItem"), "不得泄漏 enum 名：{msg}");
+}
+
+/// 出口与否决项同款：证据绑定（矩阵 RESPONDED）或人工覆写（不适用+理由）→ 放行。
+#[test]
+fn agent_mandatory_cleared_by_evidence_and_override() {
+    let mut s = base_store(
+        vec![node("SEC-0001", "商务响应", 1, &["REQ-0001", "REQ-0002"])],
+        vec![
+            agent_req("REQ-0001", "商务要求", true),
+            agent_req("REQ-0002", "商务要求", true),
+        ],
+    );
+    // REQ-0001：证据绑定 + 章节在位 → 矩阵 RESPONDED
+    let ev = register_ev(&mut s, EvidenceKind::ProductDoc, "展期服务承诺函", None);
+    s.bind_evidence(&ev, "REQ-0001", "2026-12-31").unwrap();
+    s.build_matrix().unwrap();
+    let r = check_draft_readiness(&s, "SEC-0001");
+    let b = r.blockers
+        .iter()
+        .find(|b| b.code() == "UNCOVERED_MANDATORY_ITEM")
+        .expect("REQ-0002 仍未响应");
+    assert_eq!(
+        b,
+        &Blocker::UncoveredMandatoryItem { req_ids: vec!["REQ-0002".into()] },
+        "已响应的 REQ-0001 不再报"
+    );
+
+    // REQ-0002：带理由的人工覆写（#182 receipt 面的域层半边）→ 放行
+    s.set_matrix_override(
+        "REQ-0002".into(),
+        bid_domain::matrix::ResponseStatus::NotApplicable,
+        Some("该承诺由厂商标准配置满足，无需专项响应（招标文件 §5.4）".into()),
+        &bid_domain::principal::TrustedPrincipal::human("readiness-lead"),
+    )
+    .unwrap();
+    s.build_matrix().unwrap();
+    let r = check_draft_readiness(&s, "SEC-0001");
+    assert!(r.ready, "Agent 必选全部处理完 → 就绪：{:?}", r);
+}
+
+/// 非误断对照：非必选（mandatory=false）与无标记（正则形状）未响应 → 不进本门。
+#[test]
+fn non_mandatory_and_unmarked_do_not_trip_gate() {
+    let s = base_store(
+        vec![node("SEC-0001", "商务响应", 1, &["REQ-0001", "REQ-0002"])],
+        vec![
+            agent_req("REQ-0001", "商务要求", false),
+            req("REQ-0002", "商务要求"),
+        ],
+    );
+    let r = check_draft_readiness(&s, "SEC-0001");
+    assert!(r.ready, "非必选条款未响应不得误断：{:?}", r);
+    assert!(!codes(&r).contains(&"UNCOVERED_MANDATORY_ITEM"));
+}
+
+/// 类别已是否决项的 Agent 必选条款归 UncoveredVetoItem 报，不双报。
+#[test]
+fn agent_mandatory_veto_category_reports_via_veto_blocker_only() {
+    let s = base_store(
+        vec![node("SEC-0001", "响应承诺", 1, &["REQ-0001"])],
+        vec![agent_req("REQ-0001", "否决项", true)],
+    );
+    let r = check_draft_readiness(&s, "SEC-0001");
+    assert!(!r.ready);
+    assert!(codes(&r).contains(&"UNCOVERED_VETO_ITEM"), "否决类照常报：{:?}", codes(&r));
+    assert!(
+        !codes(&r).contains(&"UNCOVERED_MANDATORY_ITEM"),
+        "否决类不双报：{:?}",
+        codes(&r)
+    );
 }
 
 // ---------------------------------------------------------------- ⑥ IncompleteTender（警告）

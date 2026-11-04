@@ -630,6 +630,10 @@ fn wrong_status_receipt_is_rejected() {
     }
     // 人批的是「这一条标不适用」；Agent 拿这张签去改 RESPONDED → 拒。
     // 状态换签不通用——否则人工确认面可以被挪去任何状态。
+    // Lead 复核（2026-11-04）：单维隔离——RESPONDED 调用携带与签域**完全
+    // 相同**的 deviation，项目/行/理由摘要三段全对齐，唯一错配段是状态。
+    // 若此处省略 deviation，签域的空串摘要也错配，测试就证明不了状态段
+    // 独立生效（status 和 reason 双重不符，拒了也说不清是哪段拦的）。
     let mut svc = BidService::new().with_fs_root(fixtures());
     let pid = ready_project(&mut svc, "226-status-swap");
     let (rid, _) = first_blocking(&mut svc, &pid);
@@ -639,6 +643,7 @@ fn wrong_status_receipt_is_rejected() {
     );
     let r = call(&mut svc, "set_matrix_override", json!({
         "project_id": pid, "requirement_id": rid, "status": "RESPONDED",
+        "deviation": "#226：人批的不适用豁免",
         "receipt": receipt,
     }));
     assert_eq!(err_code(&r), "E_UNPROCESSABLE", "换状态必须换签");

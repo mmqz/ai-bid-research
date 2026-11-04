@@ -1139,9 +1139,11 @@ impl BidService {
     /// `export_bid_document` 业务半边（#59 阶段 2 + #117 任务 1 表格接线）。
     ///
     /// 步骤：
-    /// 1. **双前置门**（防废标的最后关口——fail-closed）：
+    /// 1. **三前置门**（防废标的最后关口——fail-closed）：
     ///    a. 矩阵 blocking 行清零（`check_export_ready`——必选未响应不得导出）；
     ///    b. 审核 BLOCKER findings 清零（`export_allowed`——T-7 闸门）；
+    ///    c. 写作验收复算（1.0——`writing_acceptance_findings`：篇幅不足/
+    ///       空章节即使审核已直接批准也不得导出，见该函数门禁语义注记）；
     /// 2. format-spec 解析：`.mang/format-spec.json` 在场 → 读盘校验；
     ///    缺失 → `derive_from_requirements`（从格式条款提取；零命中 → 基线
     ///    + warning，Lead 铁律「不硬编码」的降级面）；
@@ -1177,6 +1179,32 @@ impl BidService {
         self.store.check_export_ready()?;
         // ---- 1b. 审核门（BLOCKER findings 未清 → E_UNPROCESSABLE）
         self.store.export_allowed().map_err(ToolError::from)?;
+        // ---- 1c. 写作验收门（1.0——导出时点独立复算，fail-closed）：
+        //      篇幅不足/空章节时，即使有人直接批准审核（三门全 Approved、
+        //      零 findings 零 RT）也仍禁止导出——记审面是流程事实不是质量
+        //      事实，本门不消费 reviews/RT/gate_approved，只复算写作验收
+        //      BLOCKER（E_SECTION_EMPTY / E_CHARS_BELOW_MIN，详见
+        //      validate::writing_acceptance_findings 的门禁语义注记）。
+        let wa = crate::validate::writing_acceptance_findings(self.store());
+        if !wa.is_empty() {
+            let detail = wa
+                .iter()
+                .map(|f| {
+                    format!(
+                        "{}@{}",
+                        f.rule_code,
+                        f.section_id.as_deref().unwrap_or("PROJECT")
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("、");
+            return Err(ToolError::EUnprocessable {
+                reason: format!(
+                    "写作验收门未过：{} 处 BLOCKER（{detail}）——篇幅不足/空章节即使审核已批准也不得导出（导出门独立复算，不消费记审面）；补写后 validate 复核、重走 pre_export_confirm",
+                    wa.len(),
+                ),
+            });
+        }
 
         // ---- 2. format-spec（读盘优先，derive 兜底）
         let mut warnings: Vec<String> = Vec::new();

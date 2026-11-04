@@ -18,6 +18,10 @@
 //!    Rejected 派生 RT → 导出双拒面（未过门 E_STATE；即使门已过、RT 未
 //!    关单仍 E_UNPROCESSABLE）→ 修复闭环（补写回带内 → 关 RT → 重审 →
 //!    导出成功 EXPORTED）。
+//! 3. [`writing_acceptance_export_independent_of_review_approval`]（导出
+//!    门独立复算——Lead 问询补明 2026-11）：篇幅不足时即使有人直接批准
+//!    审核（三门全 Approved、零 findings、零 RT）仍禁止导出——前置门 1c
+//!    不消费记审面；含空叶变体与修复闭环（修好重审就能出厂，不是死锁）。
 //!
 //! 写操作全部走 `dispatch_with` MCP 分派（不绕开契约面）；无 MCP 工具的
 //! 准备步骤（证据绑定/记审/RT 关单）走服务面并显式标注——e2e_pipeline
@@ -460,4 +464,122 @@ fn writing_acceptance_short_draft_blocked_from_export() {
     })));
     assert_eq!(r["project_status"], "EXPORTED", "修复闭环后导出成功");
     assert_eq!(r["chapters_written"].as_u64().unwrap(), leaves.len() as u64);
+}
+
+// ---------------------------------------------------------------- 3. 导出门独立复算（即使直接批准也拒）
+
+/// 导出门独立复算（Lead 问询补明 2026-11：「篇幅不足时，即使有人直接
+/// 批准审核，是否仍应禁止导出？」——**是**）。
+///
+/// 写作验收门（`export_document` 前置门 1c，消费
+/// `validate::writing_acceptance_findings`）不消费记审面：审核记审记录是
+/// 流程事实不是质量事实，直接 Approved（零 findings 零 RT）不构成篇幅豁免。
+///
+/// - 面A：全叶短稿 + PreExportConfirm 直接批准（零 findings）→ 记审面
+///   全绿（三门过 + 零 RT，断言锁死）→ 导出仍拒（E_UNPROCESSABLE，拒因
+///   点名写作验收门 / E_CHARS_BELOW_MIN）→ 零半成品；
+/// - 面B：补写回带内 → validate 复绿 → 重走 pre_export_confirm（#180 新
+///   摘要）→ 导出 EXPORTED（门禁不是死锁：修好就能出厂）；
+/// - 面C：空叶 + 直接批准 → 同门拒，点名 E_SECTION_EMPTY（必写叶无
+///   正文与篇幅下限同属写作验收 BLOCKER）。
+#[test]
+fn writing_acceptance_export_independent_of_review_approval() {
+    if !corpus_ready("wa-direct") {
+        return;
+    }
+
+    // ---- 面A：短稿 + 直接批准审核 → 导出仍拒
+    let (mut svc, pid, ws) = acceptance_setup("direct");
+    let leaves = leaf_ids(&svc);
+    assert!(!leaves.is_empty());
+    // Tiny 生成器：全部叶短稿（模拟 LLM 偷工——有正文但远低于下限）
+    struct Tiny;
+    impl bid_tools::draft::SectionGenerator for Tiny {
+        fn generate(&mut self, i: &bid_tools::draft::SectionDraftInput)
+            -> Result<bid_tools::draft::GeneratedDraft, String> {
+            Ok(bid_tools::draft::GeneratedDraft {
+                content: format!(
+                    "{}短稿。",
+                    i.requirements.iter().map(|r| format!("[{}]", r.id)).collect::<Vec<_>>().join("")
+                ),
+            })
+        }
+    }
+    for sid in &leaves {
+        svc.draft_section(sid, None, None, Some("直接批准场景"), &mut Tiny).unwrap();
+    }
+    // 「有人直接批准审核」：PreExportConfirm Approved 零 findings（不带
+    // validate 发现、零 RT——记审面全绿）
+    use bid_domain::review::{Decision, Gate};
+    svc.store_mut()
+        .record_review(
+            Gate::PreExportConfirm,
+            &bid_domain::TrustedPrincipal::human("wa-lead"),
+            Decision::Approved,
+            vec![],
+        )
+        .unwrap();
+    // 记审面确实全绿（三门过 + RT 闸清空——`open_blockers` 是 export_allowed
+    // 的 RT 判据面）——拒力只能来自独立复算门
+    assert!(svc.store().gate_approved(Gate::PreExportConfirm), "确认门已过");
+    assert!(svc.store().open_blockers().is_empty(), "零 findings 记审不派生 RT——RT 闸面为空");
+
+    let reply = call(&mut svc, "export_bid_document", json!({
+        "project_id": &pid, "format": "docx", "output_path": "out/投标文件-直接批准.docx",
+    }));
+    assert_eq!(err_code(&reply), "E_UNPROCESSABLE", "篇幅不足即使直接批准也拒: {reply:?}");
+    let et = err_text(&reply);
+    assert!(et.contains("写作验收门"), "拒因点名写作验收门: {et}");
+    assert!(et.contains("E_CHARS_BELOW_MIN"), "拒因点名篇幅下限规则: {et}");
+    assert!(!ws.join("out/投标文件-直接批准.docx").exists(), "拒导出时不得留半成品");
+
+    // ---- 面B：补写回带内 → validate 复绿 → 重走确认门 → 导出成功
+    for sid in &leaves {
+        svc.draft_section(sid, None, None, Some("补写至配额带内"), &mut bid_tools::draft::MockGenerator)
+            .unwrap();
+    }
+    let r = ok_result(call(&mut svc, "validate_bid_document", json!({
+        "project_id": &pid, "scope": "all",
+    })));
+    assert_eq!(r["ok"], json!(true), "补写后复绿: {}", r["errors"]);
+    // 内容已变 → #180 要求重走 pre_export_confirm（新摘要绑定）
+    svc.store_mut()
+        .record_review(
+            Gate::PreExportConfirm,
+            &bid_domain::TrustedPrincipal::human("wa-lead"),
+            Decision::Approved,
+            vec![],
+        )
+        .unwrap();
+    let r = ok_result(call(&mut svc, "export_bid_document", json!({
+        "project_id": &pid, "format": "docx", "output_path": "out/投标文件-直接批准-修复.docx",
+    })));
+    assert_eq!(r["project_status"], "EXPORTED", "修复重审后导出成功");
+    assert_eq!(r["chapters_written"].as_u64().unwrap(), leaves.len() as u64);
+
+    // ---- 面C：空叶 + 直接批准 → 同门拒（E_SECTION_EMPTY 同属写作验收）
+    //      半个文档场景：只起草一叶（in-band，项目进 Drafting——空项目会被
+    //      状态面先行 E_STATE 拒，与本门无关），其余叶保持无正文。
+    let (mut svc, pid, ws) = acceptance_setup("direct-empty");
+    let leaves = leaf_ids(&svc);
+    assert!(leaves.len() >= 2, "面C 需 ≥2 叶（一半有文一半空）: {}", leaves.len());
+    svc.draft_section(&leaves[0], None, None, Some("仅此一叶起草"), &mut bid_tools::draft::MockGenerator)
+        .unwrap();
+    svc.store_mut()
+        .record_review(
+            Gate::PreExportConfirm,
+            &bid_domain::TrustedPrincipal::human("wa-lead"),
+            Decision::Approved,
+            vec![],
+        )
+        .unwrap();
+    let reply = call(&mut svc, "export_bid_document", json!({
+        "project_id": &pid, "format": "docx", "output_path": "out/投标文件-空叶.docx",
+    }));
+    assert_eq!(err_code(&reply), "E_UNPROCESSABLE", "空叶即使直接批准也拒: {reply:?}");
+    let et = err_text(&reply);
+    assert!(et.contains("E_SECTION_EMPTY"), "拒因点名空章节规则: {et}");
+    assert!(et.contains("写作验收门"), "同门拒（非矩阵/审核面）: {et}");
+    assert!(!et.contains("E_CHARS_BELOW_MIN"), "已起草叶 in-band，不误报篇幅: {et}");
+    assert!(!ws.join("out/投标文件-空叶.docx").exists(), "零半成品");
 }

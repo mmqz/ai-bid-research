@@ -306,6 +306,7 @@ fn veto_cleared_by_evidence_bind_and_by_override_with_reason() {
         "REQ-0002".into(),
         bid_domain::matrix::ResponseStatus::NotApplicable,
         Some("本项目不含进口设备，该否决项不适用（招标文件 §9.2）".into()),
+        &bid_domain::principal::TrustedPrincipal::human("readiness-lead"),
     )
     .unwrap();
     s.build_matrix().unwrap();

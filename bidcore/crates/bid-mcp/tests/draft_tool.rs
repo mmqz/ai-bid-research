@@ -275,15 +275,16 @@ fn draft_override_requirements_and_ghost_warning() {
         "override 后非指定 REQ 不进响应面: {cited:?}");
 }
 
-// ---------------------------------------------------------------- 3. 契约工具面回归（21——#184 增补遗逐件确认）
+// ---------------------------------------------------------------- 3. 契约工具面回归（22——#184 补遗逐件确认 + #226 否决项死锁出口）
 
 #[test]
 fn tool_face_remains_twenty_with_draft_implemented() {
     let v = bid_mcp::tools_schema();
     let arr = v["tools"].as_array().unwrap();
     // #145 时点 20；#184 增 record_addendum_waiver（补遗分级阻塞的逐件
-    // 人工确认）→ 21
-    assert_eq!(arr.len(), 24, "工具面保持 24 个（21 + #219 全块覆盖三工具）");
+    // 人工确认）→ 21；#219 增 3 覆盖工具 → 24；#226 增 set_matrix_override
+    // （否决项死锁出口）→ 25
+    assert_eq!(arr.len(), 25, "工具面保持 25 个（21 + #219 三工具 + #226 死锁出口）");
     let draft = arr.iter().find(|t| t["name"] == "draft_response_section").unwrap();
     assert_eq!(draft["implemented"], json!(true));
     // #145 任务 1：search_evidence 已接线——原「不得提前标实现」守卫随之撤销

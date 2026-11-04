@@ -5,7 +5,7 @@
 工具三件套（issue #137 验收第一条）：
 
   1. initialize        —— 版本协商 + serverInfo + capabilities
-  2. list_tools        —— 24 个工具全量在座，每个带合法 inputSchema
+  2. list_tools        —— 25 个工具全量在座，每个带合法 inputSchema（#219 三覆盖工具 + #226 set_matrix_override）
   3. call_tool         —— 成功路径（create_bid_project）+
                           工具执行错误（isError=true + 契约错误码）+
                           协议错误（未知工具 → McpError -32602）
@@ -37,7 +37,10 @@ EXPECTED_TOOLS = {
     "build_outline", "register_evidence", "bind_evidence", "record_review_gate",
     "record_addendum_waiver",
     "score_price", "score_section", "score_document",
+    # #219 全块覆盖三工具（#237 已入 main；#227 曾漏登 e2e 清单——
+    # CI 无 Python SDK 抓不到，本分支合流时与 TOOL_NAMES 25 对齐）
     "get_document_chunks", "submit_block_marks", "get_coverage_report",
+    "set_matrix_override",  # #226 层 1：否决项死锁的人工出口
 }
 
 server_bin = sys.argv[1] if len(sys.argv) > 1 else "bid-mcp-server"
@@ -72,7 +75,7 @@ async def main() -> None:
             # ---- ② list_tools（全量工具面 + inputSchema 形态）----
             tools = (await session.list_tools()).tools
             names = {t.name for t in tools}
-            check(len(tools) == 24, f"list_tools: 工具数 = {len(tools)}（24）")
+            check(len(tools) == 25, f"list_tools: 工具数 = {len(tools)}（25）")
             check(names == EXPECTED_TOOLS, "list_tools: 与 TOOL_NAMES 单一真源一致")
             for t in tools:
                 check(isinstance(t.inputSchema, dict) and t.inputSchema.get("type") == "object",

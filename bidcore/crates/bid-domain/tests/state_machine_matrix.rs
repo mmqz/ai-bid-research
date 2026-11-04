@@ -24,12 +24,14 @@ const ALL_STATES: [ProjectStatus; 10] = [
     ProjectStatus::Exported,
 ];
 
-/// 全部 21 个工具（TOOL_NAMES 的真源在 bid-mcp——这里钉死字面量，
+/// 全部 22 个工具（TOOL_NAMES 的真源在 bid-mcp——这里钉死字面量，
 /// 目的是「工具面变更必须显式改测试」，而不是静默跟随）。
 /// #184 增 `record_addendum_waiver`（尾插——放行窗口与 record_review_gate
 /// 同族但更宽：FILES_IMPORTED+，含 Exported——与 Gate::AddendumWaiver
 /// 「导入后任意时刻」同窗口语义，审计面写入与 record_review_gate 同款）。
-const ALL_TOOLS: [&str; 24] = [
+/// #219 增全块覆盖三工具；#226 增 `set_matrix_override`（尾插——矩阵已建
+/// 才有可覆写对象，MatrixReady 起放行）= 25。
+const ALL_TOOLS: [&str; 25] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -55,6 +57,8 @@ const ALL_TOOLS: [&str; 24] = [
     "get_document_chunks",
     "submit_block_marks",
     "get_coverage_report",
+    // #226 层 1：否决项死锁的人工出口
+    "set_matrix_override",
 ];
 
 // ---------------------------------------------------------------- 1. 前向迁移表
@@ -197,25 +201,26 @@ fn terminal_state_blocks_write_tools() {
 fn full_matrix_snapshot() {
     let grid: Vec<(ProjectStatus, &str)> = vec![
         // Draft（record_addendum_waiver 拒——导入前无件可确认）
-        (ProjectStatus::Draft, "110000000000001000000000"),
+        // #227 后 24 工具位串 + #226 尾位（set_matrix_override）= 25 位
+        (ProjectStatus::Draft, "1100000000000010000000000"),
         // FilesImported
-        (ProjectStatus::FilesImported, "011010001000001000001111"),
+        (ProjectStatus::FilesImported, "0110100010000010000011110"),
         // RequirementsExtracted
-        (ProjectStatus::RequirementsExtracted, "011110001000001000001111"),
+        (ProjectStatus::RequirementsExtracted, "0111100010000010000011110"),
         // MatrixReady
-        (ProjectStatus::MatrixReady, "000011101100101101101001"),
+        (ProjectStatus::MatrixReady, "0000111011001011011010011"),
         // EvidenceBound
-        (ProjectStatus::EvidenceBound, "000011101100101101101001"),
+        (ProjectStatus::EvidenceBound, "0000111011001011011010011"),
         // Drafting
-        (ProjectStatus::Drafting, "000010001101111101101001"),
+        (ProjectStatus::Drafting, "0000100011011111011010011"),
         // Validating
-        (ProjectStatus::Validating, "000010001001111101101001"),
+        (ProjectStatus::Validating, "0000100010011111011010011"),
         // Reviewing
-        (ProjectStatus::Reviewing, "000010001001111101101001"),
+        (ProjectStatus::Reviewing, "0000100010011111011010011"),
         // ReadyToExport
-        (ProjectStatus::ReadyToExport, "000010001001111101101001"),
+        (ProjectStatus::ReadyToExport, "0000100010011111011010011"),
         // Exported
-        (ProjectStatus::Exported, "000010001000111101101001"),
+        (ProjectStatus::Exported, "0000100010001111011010011"),
     ];
     assert_eq!(grid.len(), ALL_STATES.len());
 

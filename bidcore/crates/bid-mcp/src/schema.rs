@@ -473,6 +473,24 @@ fn input_schema(name: &str) -> Value {
             },
             "required": ["project_id", "gate", "decision", "receipt"]
         }),
+        // #226 层 1：否决项死锁的人工出口。deviation 在 NOT_APPLICABLE 时必填
+        // ——schema 层不写条件必填（JSON Schema draft-07 的 if/then 会让
+        // 部分客户端解析失败），约束落在工具实现里并以清晰报错暴露。
+        // #182：receipt 验签（签域 matrix_override:{requirement_id} 行级
+        // 绑定）——人工出口只认真人，Agent 不得伪造。
+        "set_matrix_override" => json!({
+            "type": "object",
+            "description": "人工覆写某条款的响应状态（#226——否决项死锁出口：把「本次招标不接受联合体」这类招标人规则说明标为 NOT_APPLICABLE，附理由；覆写后矩阵立即重算，响应回 blocking 行数与操作者审计面）",
+            "properties": {
+                "project_id": pid,
+                "requirement_id": {"type": "string", "description": "REQ-* 条款 id（须真实存在；receipt 签域绑定本行——REQ-0003 的 receipt 免不了 REQ-0004）"},
+                "status": {"type": "string", "enum": ["RESPONDED", "NOT_APPLICABLE", "NOT_RESPONDED", "PARTIAL"], "description": "目标响应状态"},
+                "deviation": {"type": "string", "description": "偏离/不适用说明——status=NOT_APPLICABLE 时必填（不可审计的豁免不算豁免）"},
+                "receipt": {"type": "string", "description": "#182 宿主签发的审批回执（签域 matrix_override:<requirement_id>，行级绑定）——principal/operator 参数不存在，Agent 不得伪造（把必选条款标不适用是豁免动作，只认真人）"},
+                "project_version": pv
+            },
+            "required": ["project_id", "requirement_id", "status", "receipt"]
+        }),
         "record_addendum_waiver" => json!({
             "type": "object",
             "description": "招标包输入件不就绪的逐件人工确认（#184 补遗分级阻塞 + 地图 P0-1 扩面到主件/附件）：任一输入件不处 READY（FAILED/OCR_PENDING）时 draft_response_section 被拒；人工继续必须逐件确认到具体 file_id（非全局布尔）。确认即审计面（file_id/reason/at/principal + actor）；放行后起草标 RESTRICTED（受限起草，不静默当完整输入）",
@@ -552,6 +570,7 @@ fn describe(name: &str) -> &'static str {
         "bind_evidence" => "证据批量绑定 + 矩阵重算（G2——EXPIRED 禁绑；MATRIX_READY+）",
         "record_review_gate" => "三门记审（G3——matrix/outline/pre_export；#182 receipt 验签——人工确认由宿主签发 receipt 提供）",
         "record_addendum_waiver" => "补遗逐件人工确认（#184——分级阻塞的免责面；#182 receipt 验签（签域绑定 file_id）；FILES_IMPORTED+）",
+        "set_matrix_override" => "人工覆写条款响应状态（#226——否决项死锁出口；NOT_APPLICABLE 必带理由；覆写即重算矩阵；MATRIX_READY+）",
         "score_price" => "价格分试算 + 最优报价反推（#100 任务 3——纯计算器，B1 五方法只调用不改）",
         "score_section" => "章节自评（#100 任务 3——四维规则判定；大纲联结补 section 映射）",
         "score_document" => "整本自评（#100 任务 3——技术/商务/价格三段 + by_item 逐项；没报价 → price null）",
@@ -585,6 +604,7 @@ fn is_implemented(name: &str) -> bool {
             | "bind_evidence"
             | "record_review_gate"
             | "record_addendum_waiver"
+            | "set_matrix_override"
             | "score_price"
             | "score_section"
             | "score_document"

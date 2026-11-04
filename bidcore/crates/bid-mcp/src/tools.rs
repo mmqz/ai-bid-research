@@ -22,6 +22,7 @@ use crate::cursor;
 use crate::error::{ToolError, ToolResult};
 use crate::state::next_request_id;
 use bid_domain::evidence::{EvidenceKind, EvidenceStatus};
+use bid_domain::matrix::ResponseStatus;
 use bid_domain::{ParseStatus, ProjectStatus};
 use bid_tools::service::{BidService, ImportSpec};
 
@@ -55,6 +56,8 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         "record_review_gate" => record_review_gate(svc, args),
         // ---- #184：补遗分级阻塞的逐件人工确认（L3 伴生闸）----
         "record_addendum_waiver" => record_addendum_waiver(svc, args),
+        // ---- #226 层 1：否决项死锁的人工出口（规则说明标 NOT_APPLICABLE）----
+        "set_matrix_override" => set_matrix_override(svc, args),
         // ---- #100 任务 3：B1/B2 接线（能得几分、该报多少价）----
         // score_price 是纯计算器（无 project 路由/状态门——报价推演面）；
         // score_section / score_document 走既有 route_guard（只读诊断）。
@@ -3869,6 +3872,121 @@ fn addendum_readiness_block(svc: &BidService) -> Value {
         .collect();
     json!({ "total": statuses.len(), "ready": ready, "not_ready": not_ready })
 }
+
+// ---------------------------------------------------------------- #226 层 1 set_matrix_override
+
+/// `set_matrix_override` —— #226 层 1：否决项死锁的人工出口。
+///
+/// 背景：真实招标文件里「本次招标不接受联合体投标」这类**规则说明**被判成
+/// 否决项 → mandatory → 未响应即 blocking，但它本来就没有可响应的正文，
+/// 于是章节永久不可起草。人工标 NOT_APPLICABLE（附理由）是唯一诚实的出路。
+///
+/// 四条硬约束（都在本层与域层各校一遍，缺一不成）：
+/// 1. **NOT_APPLICABLE 必须给非空理由**——不可审计的豁免不算豁免；
+/// 2. **requirement_id 必须真实存在**——防手造 id 刷出一堆无效豁免；
+/// 3. **状态门**：MATRIX_READY+（矩阵未建时无可覆写的对象）；
+/// 4. **receipt 验签（#182）**：人工出口只认真人——宿主签发的审批回执
+///    （签域 `matrix_override:{requirement_id}` 行级绑定），Agent 不得
+///    伪造、REQ-0003 的 receipt 免不了 REQ-0004。
+///
+/// 生效面：写完覆写**立刻重算矩阵**（`rebuild_matrix_for_override`），
+/// 响应里直接回 blocking 行数——调用方不必再拉一次矩阵就知道死锁解没解。
+fn set_matrix_override(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "set_matrix_override";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let requirement_id = req_str(&args, "requirement_id", TOOL)?;
+    let status_raw = req_str(&args, "status", TOOL)?;
+    let deviation = opt_str(&args, "deviation", TOOL)?;
+    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    // #182：裸身份参数显式拒绝（参数面先于验签面——防未来有人加回
+    // operator/principal 直传，把人工出口退化成 Agent 自免单通道）。
+    if args.get("principal").is_some() || args.get("operator").is_some() {
+        return Err(ToolError::EUnprocessable {
+            what: format!(
+                "{TOOL}: principal/operator 参数不存在（#182）——人工确认由宿主签发 receipt 提供，Agent 不得伪造"
+            ),
+        });
+    }
+    let receipt = req_str(&args, "receipt", TOOL)?;
+
+    let status = match status_raw.as_str() {
+        "RESPONDED" => ResponseStatus::Responded,
+        "NOT_APPLICABLE" => ResponseStatus::NotApplicable,
+        "NOT_RESPONDED" => ResponseStatus::NotResponded,
+        "PARTIAL" => ResponseStatus::Partial,
+        other => {
+            return Err(ToolError::EUnprocessable {
+                what: format!(
+                    "{TOOL}: status 非法 {other}（合法：RESPONDED | NOT_APPLICABLE | NOT_RESPONDED | PARTIAL）"
+                ),
+            });
+        }
+    };
+    // 域层也有同一校验；这里先拦一次是为了给出面向工具调用的清晰报错
+    // （域层那条是「不适用不给理由 = 不可审计的豁免」，对 Agent 不够直白）。
+    if status == ResponseStatus::NotApplicable
+        && deviation.as_deref().map(str::trim).unwrap_or("").is_empty()
+    {
+        return Err(ToolError::EUnprocessable {
+            what: format!("{TOOL}: deviation 必填——NOT_APPLICABLE 不给理由 = 不可审计的豁免"),
+        });
+    }
+
+    route_guard(svc, &project_id, TOOL, project_version)?;
+
+    let (rows, blocking, principal) = svc
+        .set_matrix_override(requirement_id.clone(), status, deviation.clone(), &receipt)
+        .map_err(ToolError::from)?;
+
+    // 回显该行覆写后的真实状态（从重算后的矩阵取——不是把入参抄回去，
+    // 否则「写成功了但没生效」这种 bug 会被响应体掩盖）。
+    let row = svc
+        .store()
+        .matrix()
+        .iter()
+        .find(|r| r.requirement_id == requirement_id)
+        .map(|r| {
+            json!({
+                "id": r.id,
+                "requirement_id": r.requirement_id,
+                "status": r.status.as_str(),
+                "deviation": r.deviation,
+                "blocking": r.blocking,
+                "evidence_ids": r.evidence_ids,
+            })
+        });
+
+    // 覆写审计面（#226/#182：谁豁免了这一行、何时——回溯可查）
+    let override_rec = svc
+        .store()
+        .matrix_overrides()
+        .get(&requirement_id)
+        .map(|o| {
+            json!({
+                "principal": o.principal,
+                "at": o.at,
+            })
+        });
+
+    Ok(json!({
+        "requirement_id": requirement_id,
+        "row": row,
+        "override": override_rec,
+        // #182 可信身份回显（与 record_addendum_waiver.actor 同款）
+        "actor": {
+            "actor_id": principal.actor_id,
+            "actor_type": principal.actor_type.as_str(),
+            "authentication_method": principal.authentication_method,
+        },
+        "matrix_rows": rows,
+        "blocking_rows": blocking,
+        "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
+}
+
+// ---------------------------------------------------------------- #184 record_addendum_waiver
 
 /// `record_addendum_waiver` —— #184 补遗分级阻塞的逐件人工确认
 /// （#182：receipt 验签）。

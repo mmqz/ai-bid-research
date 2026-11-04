@@ -43,6 +43,8 @@ pub mod pdf;
 pub mod pdf_text;
 pub mod review_table;
 pub mod veto_lexicon;
+// #226 层 2：规则说明识别（区分「招标人规则陈述」与「投标人响应要求」）。
+pub mod veto_rule;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

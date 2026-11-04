@@ -29,7 +29,11 @@ fn corpus_dir() -> PathBuf {
 #[test]
 fn b_cqyd_announcement_survives_mixed_garbage_stream() {
     let pdf = corpus_dir().join("telecom/parse-input/B-cqyd-招标公告.pdf");
-    assert!(pdf.exists(), "缺少真件夹具 {}（不能静默通过）", pdf.display());
+    assert!(
+        pdf.exists(),
+        "缺少真件夹具 {}（不能静默通过）",
+        pdf.display()
+    );
     let raw = std::fs::read(&pdf).expect("读取 B-cqyd");
 
     // 钉兜底路（#223 事故路：iText 5.5.13 输出在无 poppler 环境走兜底）
@@ -42,6 +46,13 @@ fn b_cqyd_announcement_survives_mixed_garbage_stream() {
         text.contains("招标公告"),
         "正文关键词应还原，前 200 字符：{}",
         text.chars().take(200).collect::<String>()
+    );
+
+    // 真实件使用 Type0 Identity-H + Adobe/Identity CIDSystemInfo；必须识别为
+    // 实际在用的 CJK CID 字体，不能因没有 Adobe-GB1 等显式 CMap 名而退成 NoSignal。
+    assert!(
+        bid_parse::pdf_text::cid_cjk_font_in_use(&raw),
+        "B-cqyd 的 /F1 Type0 Identity-H 字体应被识别为在用 CID-CJK"
     );
 
     // 分页多数决：多数页正常 → Clean；垃圾流组单独点名
@@ -102,9 +113,6 @@ fn baseline_files_requirement_counts_hold() {
     }
 }
 
-fn pdf_text_fallback(
-    p: &std::path::Path,
-    name: &str,
-) -> Result<bid_parse::ParsedFile, String> {
+fn pdf_text_fallback(p: &std::path::Path, name: &str) -> Result<bid_parse::ParsedFile, String> {
     bid_parse::pdf_text::parse_via_fallback(p, name)
 }

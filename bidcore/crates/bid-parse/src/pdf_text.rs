@@ -1795,16 +1795,64 @@ const CID_CMAP_MARKERS: &[&[u8]] = &[
     b"CNS-EUC",
 ];
 
-/// 对象号 → 对象体内是否含 CID CMap 标记（对象体 = 本对象头到下一头/文件尾）。
-fn obj_declares_cid_cmap(bytes: &[u8], heads: &[(usize, u64)], num: u64) -> bool {
-    for (i, &(pos, n)) in heads.iter().enumerate() {
-        if n == num {
-            let end = heads.get(i + 1).map(|&(p, _)| p).unwrap_or(bytes.len());
-            let body = &bytes[pos..end];
-            return CID_CMAP_MARKERS.iter().any(|m| contains(body, m));
+/// 对象号 → 对象体（本对象头到下一对象头/文件尾）。
+fn object_body<'a>(bytes: &'a [u8], heads: &[(usize, u64)], num: u64) -> Option<&'a [u8]> {
+    let (i, pos) = heads
+        .iter()
+        .enumerate()
+        .find_map(|(i, &(pos, n))| (n == num).then_some((i, pos)))?;
+    let end = heads.get(i + 1).map(|&(p, _)| p).unwrap_or(bytes.len());
+    Some(&bytes[pos..end])
+}
+
+/// 对象体中直接引用的对象号（例如 `/DescendantFonts [18 0 R]`）。
+fn object_ref_nums(body: &[u8]) -> Vec<u64> {
+    let mut refs = Vec::new();
+    let mut k = 0usize;
+    while let Some(p) = find_from(body, k, b" 0 R") {
+        let mut j = p;
+        while j > 0 && body[j - 1].is_ascii_digit() {
+            j -= 1;
         }
+        if j < p {
+            if let Ok(n) = std::str::from_utf8(&body[j..p])
+                .unwrap_or("")
+                .parse::<u64>()
+            {
+                refs.push(n);
+            }
+        }
+        k = p + 4;
     }
-    false
+    refs
+}
+
+/// 对象号 → 对象体内是否声明可触发探测的 CID-CJK 字体。
+///
+/// 除显式 Adobe/Uni CMap 外，也识别常见的 Type0 Identity-H/V 字体：部分
+/// 中文 PDF（如 iText 输出）将 CIDSystemInfo 写成 Adobe/Identity，而把
+/// CJK 字体身份留在 Type0/CIDFont 的 BaseFont 名中。
+fn obj_declares_cid_cmap(bytes: &[u8], heads: &[(usize, u64)], num: u64) -> bool {
+    let Some(body) = object_body(bytes, heads, num) else {
+        return false;
+    };
+    if CID_CMAP_MARKERS.iter().any(|m| contains(body, m)) {
+        return true;
+    }
+
+    let identity_cjk_type0 = contains(body, b"/Type0")
+        && (contains(body, b"/Identity-H") || contains(body, b"/Identity-V"))
+        && CJK_FONT_MARKERS.iter().any(|m| contains(body, m));
+    if !identity_cjk_type0 {
+        return false;
+    }
+
+    object_ref_nums(body).into_iter().any(|child_num| {
+        object_body(bytes, heads, child_num).is_some_and(|child| {
+            (contains(child, b"CIDFontType0") || contains(child, b"CIDFontType2"))
+                && CJK_FONT_MARKERS.iter().any(|m| contains(child, m))
+        })
+    })
 }
 
 /// 内容流里 Tf 实际选用的字体资源名（跨全部可解码流）。
@@ -2129,7 +2177,6 @@ pub fn probe_cjk_garble_pages(pdf_bytes: &[u8], pages: &[String]) -> PageGarbleV
         garbled_pages,
     }
 }
-
 
 /// 拼一条路的全部文本（探测输入）。
 pub fn parsed_text_of(pf: &crate::ParsedFile) -> String {

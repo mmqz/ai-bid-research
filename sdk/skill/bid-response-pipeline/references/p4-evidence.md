@@ -2,9 +2,9 @@
 
 > 契约依据：`docs/bid-mcp-contract.md` §11-A / §11-B / §4-A。外部 Agent 纯
 > MCP 驱动的证据三板斧：**登记（register）→ 绑定（bind）→ 盘点（list）**。
-> `search_evidence`（知识库双通道检索，契约 §5）当前未接线（M2-b）——企业
-> 资料库就绪后接入；检索模式选择（资格类 exact 优先等）届时生效，本文件
-> 末节预留。
+> `search_evidence`（知识库双通道检索，契约 §5）已接线（#145 朴素实现 +
+> #217 正文摘录面）——选证/续绑前可用它查找；真向量库与游标信封属
+> M2-b（见文末）。
 
 ## 登记面（register_evidence）
 
@@ -98,13 +98,22 @@
 用户补料 → register（新 EV）→ bind（只绑受影响 REQ）→ 矩阵复blocking=0。
 不要整单重跑（恢复协议：缺料只补受影响行）。
 
-## 预留：search_evidence 双通道（M2-b 接线后）
+## search_evidence 双通道（已接线——#145 朴素实现）
 
-- 模式三选：`hybrid`（缺省，语义+精确交替合并）/ `semantic` / `exact`；
+- 模式三选：`hybrid`（缺省，语义+精确合并去重——双中 `match_type=both`，
+  分取 exact 的 1.0）/ `semantic` / `exact`；
 - **资格类查询默认 exact 优先**（证书号/金额/日期/型号——精确命中即够，
-  语义召回反而引入噪声）；
-- `valid_until < 开标日` 的证据自动降权并附 warning（EVIDENCE_EXPIRING/
-  EXPIRED）；
-- 排序带确定性 tie-breaker（score, evidence_id）——同查询同结果，可重放；
-- hits 是大结果面：走统一游标信封（与 list_evidence 同口径），不自带第二套
-  分页。
+  语义召回反而引入噪声；exact 五字段：model / amount / date / clause_no /
+  cert）；
+- `filters`：`source_type` / `valid_at`（开标日）/ `min_valid_until`；
+  `top_k` 1..=1000（缺省 20，越界显式拒）；`threshold` 0..=1.0（作用于
+  降权后的分值）；
+- `valid_at` 在场时：`valid_until < 开标日` 的证据自动降权（score×0.5）并
+  附 warning（EVIDENCE_EXPIRED）；不足 90 天 → EVIDENCE_EXPIRING（可绑但
+  提示换证）；
+- 排序确定性（score DESC, ev_id ASC）——同查询同结果，可重放；
+- hits 携带 #217 三面（`excerpt` / `excerpt_locator` / `verification_tier`）
+  + 台账直通附加面（kind / title / status / valid_until）——检索命中可直接
+  看实料，非标题转写；`trace` 回显双通道命中数与 content_face；
+- **M2-b 待办**：真向量库（当前是 token/子串朴素引擎——`trace.engine`
+  自标记 naive-token-v1）与统一游标信封（当前 top_k 截断，非分页）。

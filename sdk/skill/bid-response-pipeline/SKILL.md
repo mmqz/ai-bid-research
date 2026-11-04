@@ -28,9 +28,12 @@ description: >
 | P7 审校 | 模型审校→修订任务闭环 | `validate_bid_document` +（后端）RevisionTask | 每个 MAJOR finding 有 RT 且 DONE | 只重跑 DIRTY 章节 |
 | P8 导出 | 预检+导出 | `export_bid_document` | precheck.blockers=0；artifact sha256 复述 | 同参幂等 |
 
-\* `search_evidence`（知识库双通道检索）当前未接线（M2-b 里程碑）——企业证据面
-走 `register_evidence`（登记）+ `bind_evidence`（绑定）+ `list_evidence`（只读
-盘点）三板斧；检索通道就绪后本表无需改动（工具名已列）。
+\* `search_evidence`（知识库双通道检索）已接线（#145 朴素实现：hybrid /
+semantic / exact 三模式、top_k 1..=1000、确定性排序可重放；#217 起正文
+摘录进检索面——hits 携带 excerpt / excerpt_locator / verification_tier）。
+真向量库与游标信封属 M2-b；企业证据面仍以 `register_evidence`（登记）+
+`bind_evidence`（绑定）+ `list_evidence`（只读盘点）三板斧为主，search
+用于选证/续绑前的查找。
 
 辅助工具（不占阶段）：`get_bid_project_state`（断点恢复入口）、
 `check_bid_quality`（章节发现面——**外部 Agent 获取章节清单的正式查询口**，
@@ -42,8 +45,9 @@ sections 只列可起草叶）、`score_price` / `score_section` / `score_docume
 > OCR_PENDING=扫描件零文本）→ `draft_response_section` 被 MissingAddendum
 > 拒，拒稿理由逐件点名文件名与原因——**部分失败也算**（坏的那份可能正是改
 > 控制价/截止时间的）。出口两条：修复重传可解析版本（阻塞自然消失）；或
-> 经用户逐件确认后放行（`record_addendum_waiver`，file_id+reason+`human:`
-> 前缀 principal——逐件留底，非全局布尔）。import 响应的
+> 经用户逐件确认后放行（`record_addendum_waiver`，file_id+reason+宿主签发
+> receipt——签域 `addendum_waiver:{file_id}` 件级绑定，#182；逐件留底，
+> 非全局布尔）。import 响应的
 > `addendum_readiness.not_ready[].file_id` 是确认的锚。
 
 > **自评面口径（#170 方案 A 落地后 · 2026-11-02）**：
@@ -63,8 +67,10 @@ sections 只列可起草叶）、`score_price` / `score_section` / `score_docume
 > 判档不消费——notes 的 SCORE_RULES_RESERVED 会显式登记）——可用于起草/审校
 > 对照细则，但不得声称「已按细则评分」。
 
-人工门（`record_review_gate`，reviewer 必须以 `human:` 前缀——AI 操作者不得
-自审自过）：矩阵门 `matrix_approval` → 大纲门 `outline_approval` → 导出确认门
+人工门（`record_review_gate`——过门身份由宿主签发的 `receipt` 验签保证：
+`v1.<actor>.human.<scope>.<issued_at>.<hmac>`，HMAC-SHA256 + 24h 时效窗 +
+scope 门级绑定；旧 `reviewer` 参数显式拒——AI 操作者不得自审自过）：矩阵门
+`matrix_approval` → 大纲门 `outline_approval` → 导出确认门
 `pre_export_confirm`（三门有序，export 前逐一记审）；第四门 `addendum_waiver`
 （**单件招标文件无补遗时**的人工确认——draft 会被 MissingAddendum 阻塞，
 此门是「无补遗」的唯一出口，导入后任意时刻可记；#184 起它**不掩蔽**补遗
@@ -114,8 +120,11 @@ project_version 恒为本次完成后最新值，直接传给下一个工具。
 
 - `references/p1-import.md`——文件分类表、OCR 档位含义、失败降级话术
 - `references/p2-extract.md`——七类产物定义、条款类型判定边界、参数槽位表
+- `references/p3-matrix.md`——建纲/矩阵用法、四态与 blocking 判定、资格结论推导、blocking 行排查表
 - `references/p4-evidence.md`——证据登记/绑定面、有效期核对法、补料清单模板
 - `references/p6-validation.md`——确定性规则清单与模型检查范围、WAIVED 审批话术
+- `references/p7-review.md`——四道审门与 receipt 验签、RevisionTask 闭环、质量复核收口清单
+- `references/p8-export.md`——导出双前置门、六表七件对账、暗标与幂等、产物验证
 - `scripts/checklist.py`——无依赖质检脚本（核对工具返回 JSON 与预期）
 
 ## 正文起草的两种姿势

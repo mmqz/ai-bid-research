@@ -207,7 +207,7 @@ fn is_list_item(t: &str) -> bool {
 /// 利害关系…不得参加投标」「中标人无正当理由拒签合同的，招标人取消其中
 /// 标资格」。它们的共性是**带处置动词或禁止短语**。
 fn has_misconduct_clause(t: &str) -> bool {
-    const MISCONDUCT: [&str; 14] = [
+    const MISCONDUCT: [&str; 15] = [
         "串通",
         "泄露",
         "行贿",
@@ -222,6 +222,12 @@ fn has_misconduct_clause(t: &str) -> bool {
         "视为",
         "属于",
         "利害关系",
+        // #233（DOCX 基线 85 条候选复核抓出）：「不私下接触采购人/
+        // 招标代理机构或评标委员会成员，利用人际关系干扰采购活动」——
+        // 串通纪律条。DOCX 侧它是独立段（PDF 侧被列举闸拦），「接触采购人」
+        // 的宾语命中规则主语窗（快窗「不私下接触采购人」第 6-8 字位）。
+        // 「私下接触」是纪律条专用词，不误伤规则说明面（PDF 69 条 dump 零命中）。
+        "私下接触",
     ];
     MISCONDUCT.iter().any(|k| t.contains(k))
 }

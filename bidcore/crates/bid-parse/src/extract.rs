@@ -87,25 +87,33 @@ fn extract_dispatch(
         // 违反 issue #9「缺失不得伪装成功」纪律。
         //
         // 前缀是测试夹具的命名约定，不应泄漏为生产判据。
-        // 现在：导入时登记的业务 kind（招标文件/补遗/附件/图纸/证据）优先；
-        //       kind 缺省时退回前缀推断（兼容既有夹具与外部直接调用）。
+        //
+        // 【#199 审查修复】kind 值域对齐导入面 TENDER_FILE_KINDS
+        // （招标文件|附件|图纸|补遗|答疑|评分办法|格式模板）。
+        // 初版把 is_main 写成封闭白名单（招标文件|补遗|澄清）——
+        // 「答疑/评分办法/格式模板」三个合法 kind 三分支全不命中 →
+        // 静默跳过（#196 要修的形态换了马甲回来），且这些 kind 存在时
+        // 前缀兜底（kind.is_none() 分支）也不生效。改为**反向清单**：
+        // 只有明确无条款面的 kind（附件/图纸/证据）才跳过，其余登记
+        // kind（含未来新增）一律主抽取——默认可见（fail-visible），
+        // 与工具面 ZERO_REQUIREMENTS 兜底告警配套。
         let kind = kind_of(&f.name);
-        let is_main = matches!(kind.as_deref(), Some("招标文件") | Some("补遗") | Some("澄清"));
         let is_attachment = matches!(kind.as_deref(), Some("附件") | Some("图纸") | Some("证据"));
         let is_b1 = matches!(kind.as_deref(), Some("报价文件")) || f.name.starts_with("B1");
         let is_b2 = matches!(kind.as_deref(), Some("扫描件")) || f.name.starts_with("B2");
-        if is_main || (!is_attachment && !is_b1 && !is_b2 && kind.is_none()) {
-            if is_pdf_blocks {
-                extract_main_pdf(f, &mut reqs, &mut seq);
-            } else {
-                extract_main_docx(f, &mut reqs, &mut seq);
-            }
+        if is_attachment {
+            // 附件/图纸/证据：无条款抽取面（证据入库走 chunk 索引）。
         } else if is_b1 {
             extract_b1_lines(f, &mut reqs, &mut seq);
         } else if is_b2 {
             extract_b2_ocr(f, &mut reqs, &mut seq);
+        } else if is_pdf_blocks {
+            // 招标文件/补遗/答疑/评分办法/格式模板（及 kind 缺省的
+            // 无前缀兜底——真实文件名不再静默丢弃）
+            extract_main_pdf(f, &mut reqs, &mut seq);
+        } else {
+            extract_main_docx(f, &mut reqs, &mut seq);
         }
-        // 附件/图纸/证据：无条款抽取面（证据入库走 chunk 索引）。
     }
     // #52 排除面统一复检（引擎排除面——精确率攻坚）：
     // 否决类 REQ 命中形态锁排除面 → 改判「评分项/其他」。

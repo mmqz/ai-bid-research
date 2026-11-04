@@ -424,20 +424,31 @@ pub fn derive_outline(
     if quota_sum != target {
         let diff = target.abs_diff(quota_sum);
         let step: u32 = if quota_sum < target { 1 } else { 0 }; // 1 = 加，0 = 减
-        let mut i = 0;
         let mut remaining = diff;
-        while remaining > 0 {
-            let idx = i % quotas.len();
-            if step == 1 {
-                quotas[idx] += 1;
-                remaining -= 1;
-            } else if quotas[idx] > MIN_LEAF_CHARS {
-                quotas[idx] -= 1;
-                remaining -= 1;
+        // 【#199 审查修复】触底判定改为「整轮零进展」，废弃旧判据
+        // `i > len*4 && remaining == diff`：旧判据只在【从未扣减】时成立——
+        // 一旦部分扣减后全部触底，remaining < diff 且不再变化，守卫永假 →
+        // 死循环（100% CPU 空转）。实测触发：叶片增多使下限和超过
+        // target、且大叶片头寸 < 差额时（e2e_artifacts 在 #199 分发扩大
+        // 抽取面后必现）。加法模式每轮必有进展，不从此口退出。
+        loop {
+            let before = remaining;
+            for q in quotas.iter_mut() {
+                if remaining == 0 {
+                    break;
+                }
+                if step == 1 {
+                    *q += 1;
+                    remaining -= 1;
+                } else if *q > MIN_LEAF_CHARS {
+                    *q -= 1;
+                    remaining -= 1;
+                }
             }
-            i += 1;
-            if i > quotas.len() * 4 && remaining == diff {
-                break; // 全部触底（target 过小）——接受偏差（验收容差 ±10% 兜底）
+            // 一轮零进展 = 能减的已全部触底（target 过小）——接受偏差
+            // （验收容差 ±10% 兜底）。空叶表亦安全（首轮即零进展退出）。
+            if remaining == 0 || remaining == before {
+                break;
             }
         }
     }
@@ -1289,5 +1300,66 @@ mod tests {
         assert_eq!(d.len(), 64);
         assert!(d.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
         assert_eq!(sections_digest(&[]), hex::encode(Sha256::new().chain_update(b"").finalize()));
+    }
+
+    /// #199 审查回归锁：配额均衡「部分扣减 → 全部触底」的停滞路径。
+    ///
+    /// 旧守卫 `i > len*4 && remaining == diff` 只在【从未扣减】时成立；
+    /// 一旦先扣减了一部分（remaining < diff），随后全部叶触底
+    /// MIN_LEAF_CHARS，remaining 不再变化但守卫永假 → 100% CPU 死循环。
+    /// 实测触发面：#199 按 kind 分发扩大抽取面后，e2e_artifacts /
+    /// synth_tender_eval 在建纲步必现（叶片增多使下限和超过 target，
+    /// 且大叶片头寸 < 差额）。
+    ///
+    /// 构造（target=12000，max_reqs_per_leaf=6，共 78 REQ / 25 叶）：
+    /// · 技术参数 ×6 → 1 叶，配额 12000×6/78 ≈ 923（头寸 423）
+    /// · 其他 ×72，分属 24 个「第X章」组，各 3 条 → 各 1 叶，
+    ///   配额 12000×3/78 ≈ 461 → 抬到下限 500
+    /// → quota_sum = 923 + 24×500 = 12923 > 12000（减法，diff=923 > 头寸 423）
+    /// → 扣完 423 后全触底停滞：旧代码死循环，新代码整轮零进展退出。
+    #[test]
+    fn quota_rebalance_no_infinite_loop_on_partial_floor_stall() {
+        let mk_req = |i: usize, cat: &str, locator: String| Requirement {
+            id: format!("REQ-Q{i:03}"),
+            category: cat.into(),
+            clause_no: Some(format!("3.{i}")),
+            anchors: vec![crate::Anchor {
+                file: "A".into(),
+                kind: "para".into(),
+                locator,
+                excerpt: format!("条款-{i} 摘录"),
+            }],
+            params: std::collections::HashMap::new(),
+            source_file: "A".into(),
+        };
+        let mut reqs: Vec<Requirement> = (0..6)
+            .map(|i| mk_req(i, "技术参数", "第三章 采购需求".into()))
+            .collect();
+        for ch in 1..=24u32 {
+            for i in 0..3u32 {
+                reqs.push(mk_req(
+                    (ch * 10 + i) as usize,
+                    "其他",
+                    format!("第{ch}章 专用技术要求"),
+                ));
+            }
+        }
+        assert_eq!(reqs.len(), 78);
+        let spec = OutlineSpec { target_total_chars: 12_000, max_reqs_per_leaf: 6 };
+        let mut seq = 0;
+        // 旧代码在本构造下死循环（测试超时即红）；新代码必须返回。
+        let nodes = derive_outline(&reqs, spec, &mut |p| {
+            seq += 1;
+            format!("{p}-{seq}")
+        });
+        let leaves: Vec<&OutlineNode> = nodes.iter().filter(|n| n.level == 2).collect();
+        assert_eq!(leaves.len(), 25, "1 技术参数叶 + 24 章叶");
+        for l in &leaves {
+            assert!(
+                l.target_chars >= MIN_LEAF_CHARS,
+                "叶配额不得低于下限：{}",
+                l.target_chars
+            );
+        }
     }
 }

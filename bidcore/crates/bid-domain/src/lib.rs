@@ -62,6 +62,7 @@ pub mod pricing;
 pub mod principal;
 pub mod review;
 pub mod scoring;
+pub mod coverage;
 
 pub use principal::{ActorType, TrustedPrincipal};
 
@@ -163,6 +164,10 @@ impl ProjectStatus {
                 // #184：补遗分级阻塞的人工出口（导入后任意时刻可逐件确认——
                 // 与 Gate::AddendumWaiver 门同窗口语义，坏补遗不能拖到 MATRIX_READY+ 才能救）
                 "record_addendum_waiver",
+                // #219 全块覆盖（导入后、抽取前后均可标——Agent 先读块再判断）
+                "get_document_chunks",
+                "submit_block_marks",
+                "get_coverage_report",
             ],
             RequirementsExtracted => &[
                 "import_tender_files",
@@ -174,8 +179,13 @@ impl ProjectStatus {
                 "build_outline",
                 // #184：同 FilesImported 的窗口语义（导入后任意时刻）
                 "record_addendum_waiver",
+                // #219 全块覆盖（建纲前最后机会补标——覆盖不足时 build_outline 应告警）
+                "get_document_chunks",
+                "submit_block_marks",
+                "get_coverage_report",
             ],
             MatrixReady | EvidenceBound => &[
+                "get_coverage_report",
                 "get_compliance_matrix",
                 "search_evidence",
                 "get_bid_project_state",
@@ -192,6 +202,7 @@ impl ProjectStatus {
                 "score_document",
             ],
             Drafting => &[
+                "get_coverage_report",
                 "get_compliance_matrix",
                 "search_evidence",
                 "get_bid_project_state",
@@ -208,6 +219,7 @@ impl ProjectStatus {
             ],
             Validating | Reviewing | ReadyToExport => &[
                 "get_compliance_matrix",
+                "get_coverage_report",
                 "search_evidence",
                 "get_bid_project_state",
                 "validate_bid_document",
@@ -220,6 +232,7 @@ impl ProjectStatus {
                 "score_document",
             ],
             Exported => &[
+                "get_coverage_report",
                 "get_compliance_matrix",
                 "search_evidence",
                 "get_bid_project_state",
@@ -382,6 +395,9 @@ pub struct DomainStore {
     /// #188 文件业务角色（内容身份 sha256 唯一，角色可多——追加不覆盖；
     /// 登记见 [`DomainStore::register_file_role`]，不碰 content_version）
     file_roles: Vec<FileRole>,
+    /// #219 全块覆盖标记（文件 ID → 区间标记列表；Agent 判断面，
+    /// 引擎只做区间校验与覆盖统计——见 coverage.rs）
+    block_marks: HashMap<String, Vec<coverage::BlockMark>>,
     /// 幂等键 → 首次结果 JSON（同 key 重放返回首次结果，不重复执行）
     idempotency: HashMap<String, serde_json::Value>,
     id_seq: u64,
@@ -405,6 +421,7 @@ impl DomainStore {
             revision_tasks: vec![],
             addendum_waivers: vec![],
             file_roles: vec![],
+            block_marks: HashMap::new(),
             idempotency: HashMap::new(),
             id_seq: 0,
         }
@@ -730,6 +747,41 @@ impl DomainStore {
         Ok(rec)
     }
 
+    // ---------------------------------------------------------------- #219 全块覆盖
+
+    /// 写入某文件的区间标记（#219）。
+    ///
+    /// 校验：区间合法 + 不越界 + 不重叠。通过后整体替换该文件的标记集。
+    pub fn set_block_marks(
+        &mut self,
+        file_id: &str,
+        marks: Vec<coverage::BlockMark>,
+        total_blocks: usize,
+    ) -> Result<(), ToolError> {
+        if !self.files.iter().any(|f| f.id == file_id) {
+            return Err(ToolError::ENotFound {
+                what: format!("文件 {file_id} 不存在"),
+            });
+        }
+        coverage::validate_marks(&marks, total_blocks)
+            .map_err(|e| ToolError::EUnprocessable { reason: e.to_message() })?;
+        self.block_marks.insert(file_id.to_string(), marks);
+        if let Some(p) = self.project.as_mut() {
+            p.content_version += 1;
+        }
+        Ok(())
+    }
+
+    /// 读某文件的区间标记。
+    pub fn block_marks_of(&self, file_id: &str) -> &[coverage::BlockMark] {
+        self.block_marks.get(file_id).map(|v| v.as_slice()).unwrap_or(&[])
+    }
+
+    /// 覆盖报告（纯派生）。
+    pub fn coverage_report(&self, file_id: &str, total_blocks: usize) -> coverage::CoverageReport {
+        coverage::compute_coverage(self.block_marks_of(file_id), total_blocks)
+    }
+
     // ------------------------------------------------------------ extract_requirements（契约 §3）
     /// 写入条款集（dedupe_hash 幂等合并：同源锚+同陈述 → 复用既有 REQ）。
     pub fn set_requirements(
@@ -844,6 +896,9 @@ pub struct StoreSnapshot {
     /// 角色为空时初始身份回退到 TenderFile.kind/name，行为与旧版一致）
     #[serde(default)]
     pub file_roles: Vec<FileRole>,
+    /// #219 全块覆盖标记（加性迁移——旧快照无此字段 → 空映射加载）
+    #[serde(default)]
+    pub block_marks: BTreeMap<String, Vec<coverage::BlockMark>>,
     #[serde(default)]
     pub idempotency: BTreeMap<String, serde_json::Value>,
     #[serde(default)]
@@ -870,6 +925,8 @@ impl DomainStore {
             revision_tasks: self.revision_tasks.clone(),
             addendum_waivers: self.addendum_waivers.clone(),
             file_roles: self.file_roles.clone(),
+            // HashMap → BTreeMap（与 idempotency 同纪律：持久化 DTO 要字节一致）
+            block_marks: self.block_marks.clone().into_iter().collect(),
             // HashMap → BTreeMap：持久化 DTO 要求跨进程字节一致（HashMap 迭代序不确定）
             idempotency: self.idempotency.clone().into_iter().collect(),
             id_seq: self.id_seq,
@@ -1071,6 +1128,7 @@ impl DomainStore {
             revision_tasks: snap.revision_tasks,
             addendum_waivers: snap.addendum_waivers,
             file_roles: snap.file_roles,
+            block_marks: snap.block_marks.into_iter().collect(),
             idempotency: snap.idempotency.into_iter().collect(),
             id_seq: snap.id_seq,
         })

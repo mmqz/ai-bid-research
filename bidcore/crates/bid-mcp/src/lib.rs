@@ -20,6 +20,7 @@
 //! `bid-mcp-server`）。旧逐行裸 JSON 路径（[`dispatch_json`] +
 //! `bid-mcp-stdio`）一字未动。
 
+pub mod coverage_tools;
 pub mod cursor;
 pub mod error;
 pub mod protocol;
@@ -47,7 +48,7 @@ use serde_json::Value;
 /// （B1 价格分 + B2 自评的 MCP 接线——「能得几分、该报多少价」）；
 /// #184 增 1 个：`record_addendum_waiver`（补遗分级阻塞的逐件人工确认）
 /// = 21。
-pub const TOOL_NAMES: [&str; 21] = [
+pub const TOOL_NAMES: [&str; 24] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -69,6 +70,10 @@ pub const TOOL_NAMES: [&str; 21] = [
     "score_price",
     "score_section",
     "score_document",
+    // #219 全块覆盖三工具
+    "get_document_chunks",
+    "submit_block_marks",
+    "get_coverage_report",
 ];
 
 /// 工具解析与分发入口（进程级全局服务态——stdio 默认传输面）。

@@ -3873,31 +3873,21 @@ fn addendum_readiness_block(svc: &BidService) -> Value {
     json!({ "total": statuses.len(), "ready": ready, "not_ready": not_ready })
 }
 
-/// `record_addendum_waiver` —— #184 补遗分级阻塞的逐件人工确认
-/// （#182：receipt 验签）。
-///
-/// 语义：任一补遗不处 Ready 时起草闸阻塞（E_UNPROCESSABLE，逐件点名）；
-/// 人工继续必须**逐件**确认到具体 file_id（非全局布尔——「3 份坏 1 份」
-/// 要对齐到哪一份、为什么故意带病放行）。确认即审计面：
-/// `{file_id, reason, at, principal, actor}`。
-///
-/// #182：`principal` 参数废除（裸身份串可被 Agent 伪造），改收宿主签发的
-/// `receipt`（服务层验签，签域 `addendum_waiver:{file_id}` 件级绑定——
-/// TF-0003 的 receipt 免不了 TF-0004）；旧参数显式拒绝（同 record_review_gate）。
-///
-/// 出参：`recorded`（本次确认）+ `addendum_waivers`（全部确认记录——
-/// 验收 C 的「记录可查」）+ `addendum_readiness`（就绪度回显，含 waived
-/// 标记——报告面仍含该件，但不再构成阻塞）。
+// ---------------------------------------------------------------- #226 层 1 set_matrix_override
+
 /// `set_matrix_override` —— #226 层 1：否决项死锁的人工出口。
 ///
 /// 背景：真实招标文件里「本次招标不接受联合体投标」这类**规则说明**被判成
 /// 否决项 → mandatory → 未响应即 blocking，但它本来就没有可响应的正文，
 /// 于是章节永久不可起草。人工标 NOT_APPLICABLE（附理由）是唯一诚实的出路。
 ///
-/// 三条硬约束（都在本层与域层各校一遍，缺一不成）：
+/// 四条硬约束（都在本层与域层各校一遍，缺一不成）：
 /// 1. **NOT_APPLICABLE 必须给非空理由**——不可审计的豁免不算豁免；
 /// 2. **requirement_id 必须真实存在**——防手造 id 刷出一堆无效豁免；
-/// 3. **状态门**：MATRIX_READY+（矩阵未建时无可覆写的对象）。
+/// 3. **状态门**：MATRIX_READY+（矩阵未建时无可覆写的对象）；
+/// 4. **receipt 验签（#182）**：人工出口只认真人——宿主签发的审批回执
+///    （签域 `matrix_override:{requirement_id}` 行级绑定），Agent 不得
+///    伪造、REQ-0003 的 receipt 免不了 REQ-0004。
 ///
 /// 生效面：写完覆写**立刻重算矩阵**（`rebuild_matrix_for_override`），
 /// 响应里直接回 blocking 行数——调用方不必再拉一次矩阵就知道死锁解没解。
@@ -3908,6 +3898,16 @@ fn set_matrix_override(svc: &mut BidService, args: Value) -> ToolResult {
     let status_raw = req_str(&args, "status", TOOL)?;
     let deviation = opt_str(&args, "deviation", TOOL)?;
     let project_version = opt_u64(&args, "project_version", TOOL)?;
+    // #182：裸身份参数显式拒绝（参数面先于验签面——防未来有人加回
+    // operator/principal 直传，把人工出口退化成 Agent 自免单通道）。
+    if args.get("principal").is_some() || args.get("operator").is_some() {
+        return Err(ToolError::EUnprocessable {
+            what: format!(
+                "{TOOL}: principal/operator 参数不存在（#182）——人工确认由宿主签发 receipt 提供，Agent 不得伪造"
+            ),
+        });
+    }
+    let receipt = req_str(&args, "receipt", TOOL)?;
 
     let status = match status_raw.as_str() {
         "RESPONDED" => ResponseStatus::Responded,
@@ -3934,8 +3934,8 @@ fn set_matrix_override(svc: &mut BidService, args: Value) -> ToolResult {
 
     route_guard(svc, &project_id, TOOL, project_version)?;
 
-    let (rows, blocking) = svc
-        .set_matrix_override(requirement_id.clone(), status, deviation.clone())
+    let (rows, blocking, principal) = svc
+        .set_matrix_override(requirement_id.clone(), status, deviation.clone(), &receipt)
         .map_err(ToolError::from)?;
 
     // 回显该行覆写后的真实状态（从重算后的矩阵取——不是把入参抄回去，
@@ -3956,9 +3956,28 @@ fn set_matrix_override(svc: &mut BidService, args: Value) -> ToolResult {
             })
         });
 
+    // 覆写审计面（#226/#182：谁豁免了这一行、何时——回溯可查）
+    let override_rec = svc
+        .store()
+        .matrix_overrides()
+        .get(&requirement_id)
+        .map(|o| {
+            json!({
+                "principal": o.principal,
+                "at": o.at,
+            })
+        });
+
     Ok(json!({
         "requirement_id": requirement_id,
         "row": row,
+        "override": override_rec,
+        // #182 可信身份回显（与 record_addendum_waiver.actor 同款）
+        "actor": {
+            "actor_id": principal.actor_id,
+            "actor_type": principal.actor_type.as_str(),
+            "authentication_method": principal.authentication_method,
+        },
         "matrix_rows": rows,
         "blocking_rows": blocking,
         "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
@@ -3967,6 +3986,23 @@ fn set_matrix_override(svc: &mut BidService, args: Value) -> ToolResult {
     }))
 }
 
+// ---------------------------------------------------------------- #184 record_addendum_waiver
+
+/// `record_addendum_waiver` —— #184 补遗分级阻塞的逐件人工确认
+/// （#182：receipt 验签）。
+///
+/// 语义：任一补遗不处 Ready 时起草闸阻塞（E_UNPROCESSABLE，逐件点名）；
+/// 人工继续必须**逐件**确认到具体 file_id（非全局布尔——「3 份坏 1 份」
+/// 要对齐到哪一份、为什么故意带病放行）。确认即审计面：
+/// `{file_id, reason, at, principal, actor}`。
+///
+/// #182：`principal` 参数废除（裸身份串可被 Agent 伪造），改收宿主签发的
+/// `receipt`（服务层验签，签域 `addendum_waiver:{file_id}` 件级绑定——
+/// TF-0003 的 receipt 免不了 TF-0004）；旧参数显式拒绝（同 record_review_gate）。
+///
+/// 出参：`recorded`（本次确认）+ `addendum_waivers`（全部确认记录——
+/// 验收 C 的「记录可查」）+ `addendum_readiness`（就绪度回显，含 waived
+/// 标记——报告面仍含该件，但不再构成阻塞）。
 fn record_addendum_waiver(svc: &mut BidService, args: Value) -> ToolResult {
     const TOOL: &str = "record_addendum_waiver";
     let project_id = req_str(&args, "project_id", TOOL)?;

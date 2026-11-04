@@ -19,6 +19,7 @@
 
 use crate::evidence::{EvidenceStatus, Evidence};
 use crate::outline::OutlineNode;
+use crate::principal::TrustedPrincipal;
 use crate::{DomainStore, ProjectStatus, Requirement, ToolError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -66,6 +67,19 @@ pub struct MatrixOverride {
     pub requirement_id: String,
     pub status: ResponseStatus,
     pub deviation: Option<String>,
+    /// #226/#182：覆写人（human:{actor_id} 派生值——legacy 回显面，
+    /// 与 AddendumWaiverRecord.principal 同款）。空串 = 旧快照
+    /// （receipt 面之前的记录，宽容载入）。
+    #[serde(default)]
+    pub principal: String,
+    /// #182 可信身份：验签后的 TrustedPrincipal（谁豁免了这一行，
+    /// 回溯可查——服务层 HMAC 验签注入，域层不重复验签只纵深拦
+    /// actor_type）。None = legacy 快照。
+    #[serde(default)]
+    pub trusted: Option<TrustedPrincipal>,
+    /// 覆写时刻（unix epoch 秒——no-chrono 纪律）。
+    #[serde(default)]
+    pub at: u64,
 }
 
 // ---------------------------------------------------------------- 纯派生面
@@ -223,11 +237,25 @@ impl DomainStore {
     }
 
     /// 人工覆写（不适用/偏离——NOT_APPLICABLE 必须给理由，诚实状态）。
+    ///
+    /// #226/#182 验签面：principal 由服务层 receipt 验签注入（宿主签发，
+    /// Agent 不得伪造）；域层纵深拦 actor_type——非 Human 拒（与
+    /// record_addendum_waiver 同款，真正的身份保证在服务层 HMAC）。
     pub fn set_matrix_override(&mut self, requirement_id: String,
-                               status: ResponseStatus, deviation: Option<String>)
+                               status: ResponseStatus, deviation: Option<String>,
+                               principal: &TrustedPrincipal)
         -> Result<(), ToolError>
     {
         self.project()?;
+        if principal.actor_type != crate::principal::ActorType::Human {
+            return Err(ToolError::EUnprocessable {
+                reason: format!(
+                    "覆写人 {:?} 是 {} 身份（#182：矩阵覆写只认 Human——把必选条款标 NOT_APPLICABLE 是豁免动作，Agent 不得自免单）",
+                    principal.actor_id,
+                    principal.actor_type.as_str()
+                ),
+            });
+        }
         if status == ResponseStatus::NotApplicable
             && deviation.as_deref().map(str::trim).unwrap_or("").is_empty()
         {
@@ -240,8 +268,16 @@ impl DomainStore {
                 what: format!("requirement {requirement_id} 不存在"),
             });
         }
+        let at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
         self.matrix_overrides.insert(requirement_id.clone(), MatrixOverride {
             requirement_id, status, deviation,
+            // legacy 回显面从可信身份派生（human:{actor_id}）——不另造第二套人设体系
+            principal: format!("human:{}", principal.actor_id),
+            trusted: Some(principal.clone()),
+            at,
         });
         if let Some(p) = self.project.as_mut() {
             p.content_version += 1;
@@ -366,6 +402,10 @@ mod tests {
             requirement_id: "REQ-0004".into(),
             status: ResponseStatus::NotApplicable,
             deviation: Some("本地化服务条款不适用于本项目（招标文件 §8.3 豁免面）".into()),
+            // 审计字段不参与派生（derive 只读 status/deviation）——纯函数测试补默认面
+            principal: String::new(),
+            trusted: None,
+            at: 0,
         });
         let rows = derive_matrix_rows(&reqs, &bindings, &sections, &overrides);
         assert_eq!(rows.len(), 4);
@@ -406,7 +446,8 @@ mod tests {
         }
         // EV-0003 需在台账（matrix_view 活证据过滤）——build_matrix 用全量绑定（含过期证据
         // 由 R-03 绑定时刻把关，视图层过滤），此处直接放行验证闸门翻转
-        s.set_matrix_override("REQ-0003".into(), ResponseStatus::Responded, None).ok();
+        s.set_matrix_override("REQ-0003".into(), ResponseStatus::Responded, None,
+                              &TrustedPrincipal::human("域层测试")).ok();
         // 章节树真正落 store（PR #24 修复批次）：旧代码 `let _ = sections;`
         // 构造完即丢弃——「绑定+章节全响应」的验收意图从未被检验（blocking=0
         // 实际全靠绑定→PARTIAL 不阻断达成，章节位恒缺）。set_outline 过树校验
@@ -432,18 +473,45 @@ mod tests {
     #[test]
     fn override_validation_and_unbuilt_gate() {
         let mut s = store_with_matrix_base(5);
-        let err = s.set_matrix_override("REQ-0003".into(), ResponseStatus::NotApplicable, None).unwrap_err();
+        let hp = TrustedPrincipal::human("域层测试");
+        let err = s.set_matrix_override("REQ-0003".into(), ResponseStatus::NotApplicable, None, &hp).unwrap_err();
         assert_eq!(err.code(), "E_UNPROCESSABLE", "不适用无理由拒");
-        let err = s.set_matrix_override("REQ-9999".into(), ResponseStatus::NotApplicable, Some("理由".into())).unwrap_err();
+        let err = s.set_matrix_override("REQ-9999".into(), ResponseStatus::NotApplicable, Some("理由".into()), &hp).unwrap_err();
         assert_eq!(err.code(), "E_NOTFOUND", "幽灵 REQ 拒");
         // 矩阵未建 → 导出拒（未对账不得导出）
         let err = s.check_export_ready().unwrap_err();
         assert!(format!("{err:?}").contains("矩阵未构建"));
         // override 生效路径
-        s.set_matrix_override("REQ-0003".into(), ResponseStatus::NotApplicable, Some("豁免理由".into())).unwrap();
+        s.set_matrix_override("REQ-0003".into(), ResponseStatus::NotApplicable, Some("豁免理由".into()), &hp).unwrap();
         let _ = s.build_matrix().unwrap();
         let row = s.matrix().iter().find(|r| r.requirement_id == "REQ-0003").unwrap();
         assert_eq!(row.status, ResponseStatus::NotApplicable);
+        // #226/#182：覆写落账携带审计面（谁、何时）
+        let ov = s.matrix_overrides().get("REQ-0003").unwrap();
+        assert_eq!(ov.principal, "human:域层测试");
+        assert!(ov.trusted.is_some(), "可信身份留痕");
+        assert!(ov.at > 0, "覆写时刻落账");
+    }
+
+    /// #226/#182：矩阵覆写的身份纵深——非 Human 拒（服务层验签的域层半边）。
+    #[test]
+    fn override_rejects_non_human_principal() {
+        use crate::principal::{ActorType, TrustedPrincipal};
+        let mut s = store_with_matrix_base(5);
+        let agent = TrustedPrincipal {
+            actor_id: "bid-agent".into(),
+            actor_type: ActorType::Agent,
+            authentication_method: "hmac_receipt_v1".into(),
+            approval_receipt: String::new(),
+        };
+        let err = s.set_matrix_override(
+            "REQ-0003".into(), ResponseStatus::NotApplicable,
+            Some("Agent 自免单".into()), &agent,
+        ).unwrap_err();
+        assert_eq!(err.code(), "E_UNPROCESSABLE");
+        assert!(format!("{err:?}").contains("只认 Human"));
+        // 拒绝路径零副作用：不落覆写
+        assert!(s.matrix_overrides().get("REQ-0003").is_none());
     }
 
     /// 视图过滤：EXPIRED/SUPERSEDED 证据的绑定不计入响应面（R-03 时序一致性）。

@@ -337,16 +337,19 @@ fn export_blocked_by_unresponded_mandatory_rows() {
     assert!(msg.contains("REQ-0001"), "逐行列出: {msg}");
     assert!(msg.contains("R-03/R-04"), "闸门语义: {msg}");
     // 人工覆写响应后放行（矩阵门的解除通道——NOT_APPLICABLE 不可无理由，
-    // 用 Responded 覆写）
+    // 用 Responded 覆写；#182 验签面在 MCP 工具层，域层直调用可信身份注入）
+    let human = bid_domain::principal::TrustedPrincipal::human("export-lead");
     svc.store_mut().set_matrix_override(
         "REQ-0001".into(),
         bid_domain::matrix::ResponseStatus::Responded,
         None,
+        &human,
     ).unwrap();
     svc.store_mut().set_matrix_override(
         "REQ-0002".into(),
         bid_domain::matrix::ResponseStatus::Responded,
         None,
+        &human,
     ).unwrap();
     let _ = svc.store_mut().build_matrix().unwrap();
     // 仍需章内容：draft 全部叶

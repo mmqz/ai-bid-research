@@ -584,6 +584,13 @@ pub fn addendum_waiver_scope(file_id: &str) -> String {
     format!("addendum_waiver:{file_id}")
 }
 
+/// #226/#182：矩阵覆写逐行确认 receipt 的签域——绑定具体 requirement_id
+/// （REQ-0003 的 receipt 免不了 REQ-0004——行级绑定，与 addendum_waiver
+/// 同款：豁免动作必须逐行留痕，不得一票通融）。
+pub fn matrix_override_scope(requirement_id: &str) -> String {
+    format!("matrix_override:{requirement_id}")
+}
+
 impl BidService {
     #[must_use]
     pub fn new() -> Self {
@@ -685,28 +692,36 @@ impl BidService {
         &mut self.store
     }
 
-    /// `set_matrix_override` 服务半边（#226 层 1：否决项死锁的人工出口）。
+    /// `set_matrix_override` 业务半边（#226 层 1：否决项死锁的人工出口
+    /// + #182 receipt 验签）。
     ///
     /// **域层 `DomainStore::set_matrix_override` 只写 overrides 表，不重算矩阵**
     /// ——所以单独调它之后 `export_blockers()` 仍看旧行，死锁根本没解。
-    /// 本方法把「写覆写 → 重建矩阵 → 落盘」串成一次语义动作，调用方看到的
-    /// `matrix` 与 `export_blockers()` 才是同一个真源。
+    /// 本方法把「验签 → 写覆写 → 重建矩阵 → 落盘」串成一次语义动作，
+    /// 调用方看到的 `matrix` 与 `export_blockers()` 才是同一个真源。
     ///
-    /// 返回 (矩阵行数, blocking 行数)——供工具面直接回显。
+    /// #182：入参带 `receipt`（宿主签发的审批回执，签域
+    /// `matrix_override:{requirement_id}` 行级绑定）。服务层验签是 MCP
+    /// 面的唯一入口（单一真源）；验签得 TrustedPrincipal → 域层再拦
+    /// actor_type（纵深）。Agent 不得伪造 receipt 自免单。
     ///
     /// 前置：矩阵必须已构建（`build_matrix` 过）。未构建时先建再覆写没有
     /// 意义——覆写的对象就是矩阵行。
+    /// 返回 (矩阵行数, blocking 行数, 可信身份)——供工具面直接回显。
     pub fn set_matrix_override(
         &mut self,
         requirement_id: String,
         status: bid_domain::matrix::ResponseStatus,
         deviation: Option<String>,
-    ) -> Result<(usize, usize), ToolError> {
+        receipt: &str,
+    ) -> Result<(usize, usize, TrustedPrincipal), ToolError> {
+        let principal =
+            self.verify_approval_receipt(receipt, &matrix_override_scope(&requirement_id))?;
         self.store
-            .set_matrix_override(requirement_id, status, deviation)?;
-        let r = self.store.rebuild_matrix_for_override()?;
+            .set_matrix_override(requirement_id, status, deviation, &principal)?;
+        let (rows, blocking) = self.store.rebuild_matrix_for_override()?;
         self.auto_checkpoint()?;
-        Ok(r)
+        Ok((rows, blocking, principal))
     }
 
     /// 持久化工作区目录（persist 在场时——章节内容/导出产物的落盘锚点；

@@ -58,6 +58,12 @@ fn err_msg(reply: &ToolReply) -> String {
     }
 }
 
+/// 宿主签发面（#182——不进 MCP 工具表）：真人确认后宿主用服务态密钥
+/// 签发矩阵覆写回执（签域 matrix_override:{rid} 行级绑定）。
+fn override_receipt(svc: &mut BidService, actor: &str, rid: &str) -> String {
+    svc.issue_approval_receipt(actor, &format!("matrix_override:{rid}"))
+}
+
 /// 建项目 + 导入 + 抽取 + 建矩阵 —— 得到 MATRIX_READY 且矩阵已填。
 fn ready_project(svc: &mut BidService, key: &str) -> String {
     let r = ok_result(call(svc, "create_bid_project", json!({
@@ -128,11 +134,13 @@ fn not_applicable_unblocks_a_blocking_row() {
     let blocking_before = svc.store().export_blockers().unwrap().len();
     assert!(blocking_before > 0, "前提：真实语料有 blocking");
 
+    let receipt = override_receipt(&mut svc, "226-lead", &rid);
     let r = ok_result(call(&mut svc, "set_matrix_override", json!({
         "project_id": pid,
         "requirement_id": rid,
         "status": "NOT_APPLICABLE",
         "deviation": "#226 测试：该条为招标人规则说明，我方独立投标，无需响应正文",
+        "receipt": receipt,
     })));
 
     // 响应体里的该行必须已经不 blocking（回显取自重算后的矩阵，不是抄入参）
@@ -143,6 +151,18 @@ fn not_applicable_unblocks_a_blocking_row() {
     assert!(
         row["deviation"].as_str().unwrap().contains("规则说明"),
         "偏离说明必须落库并回显"
+    );
+
+    // #226/#182：审计面——谁豁免了这一行、何时（回溯可查）
+    assert_eq!(r["actor"]["actor_id"], "226-lead", "可信身份回显");
+    assert_eq!(r["actor"]["actor_type"], "human");
+    assert_eq!(
+        r["override"]["principal"], "human:226-lead",
+        "覆写落账携带 human:{{actor_id}} 回显面"
+    );
+    assert!(
+        r["override"]["at"].as_u64().unwrap() > 0,
+        "覆写时刻落账"
     );
 
     // 全局 blocking 计数必须下降（死锁解开的硬证据）
@@ -179,11 +199,13 @@ fn unblocked_row_lets_export_proceed_further() {
         "前提：该条款在导出阻断清单里"
     );
 
+    let receipt = override_receipt(&mut svc, "226-lead", &rid);
     ok_result(call(&mut svc, "set_matrix_override", json!({
         "project_id": pid,
         "requirement_id": rid,
         "status": "NOT_APPLICABLE",
         "deviation": "#226：规则说明，不产生响应正文",
+        "receipt": receipt,
     })));
 
     let blockers_after = svc.store().export_blockers().unwrap();
@@ -208,10 +230,12 @@ fn not_applicable_without_deviation_is_rejected() {
     let mut svc = BidService::new().with_fs_root(fixtures());
     let pid = ready_project(&mut svc, "226-no-dev");
     let (rid, _) = first_blocking(&mut svc, &pid);
+    let receipt = override_receipt(&mut svc, "226-lead", &rid);
 
     // 缺 deviation 字段
     let r1 = call(&mut svc, "set_matrix_override", json!({
         "project_id": pid, "requirement_id": rid, "status": "NOT_APPLICABLE",
+        "receipt": receipt,
     }));
     assert_eq!(err_code(&r1), "E_UNPROCESSABLE", "无理由的不适用必须被拒");
     assert!(
@@ -223,6 +247,7 @@ fn not_applicable_without_deviation_is_rejected() {
     // deviation 是空白串（不是缺字段）——同样不算理由
     let r2 = call(&mut svc, "set_matrix_override", json!({
         "project_id": pid, "requirement_id": rid, "status": "NOT_APPLICABLE", "deviation": "   ",
+        "receipt": receipt,
     }));
     assert_eq!(err_code(&r2), "E_UNPROCESSABLE", "空白 deviation 同样必须被拒");
 
@@ -242,11 +267,14 @@ fn unknown_requirement_id_is_rejected() {
     }
     let mut svc = BidService::new().with_fs_root(fixtures());
     let pid = ready_project(&mut svc, "226-bad-req");
+    // 假 id 也要持真 receipt（签域绑 REQ-999999——验签应过、存在性门拒）
+    let receipt = override_receipt(&mut svc, "226-lead", "REQ-999999");
     let r = call(&mut svc, "set_matrix_override", json!({
         "project_id": pid,
         "requirement_id": "REQ-999999",
         "status": "NOT_APPLICABLE",
         "deviation": "伪造 id 不该能刷出豁免",
+        "receipt": receipt,
     }));
     assert_eq!(err_code(&r), "E_NOTFOUND", "不存在的条款必须 E_NOTFOUND");
 }
@@ -259,8 +287,10 @@ fn invalid_status_is_rejected() {
     let mut svc = BidService::new().with_fs_root(fixtures());
     let pid = ready_project(&mut svc, "226-bad-status");
     let (rid, _) = first_blocking(&mut svc, &pid);
+    let receipt = override_receipt(&mut svc, "226-lead", &rid);
     let r = call(&mut svc, "set_matrix_override", json!({
         "project_id": pid, "requirement_id": rid, "status": "IGNORED",
+        "receipt": receipt,
     }));
     assert_eq!(err_code(&r), "E_UNPROCESSABLE", "未知 status 必须被拒");
     assert!(
@@ -277,12 +307,15 @@ fn draft_state_is_rejected_by_state_machine() {
         "name": "226 态门", "bid_deadline": "2026-12-31", "mode": "明标", "external_key": "226-state",
     })));
     let pid = r["project_id"].as_str().unwrap().to_string();
-    // DRAFT 态：矩阵都没建，覆写无对象 → E_STATE
+    // DRAFT 态：矩阵都没建，覆写无对象 → E_STATE（receipt 先签好——
+    // 状态门的报错不应被「缺 receipt」的参数错误顶掉）
+    let receipt = override_receipt(&mut svc, "226-lead", "REQ-0001");
     let reply = call(&mut svc, "set_matrix_override", json!({
         "project_id": pid,
         "requirement_id": "REQ-0001",
         "status": "NOT_APPLICABLE",
         "deviation": "DRAFT 态不该能覆写",
+        "receipt": receipt,
     }));
     assert_eq!(err_code(&reply), "E_STATE", "DRAFT 态必须被状态机拒绝");
 }
@@ -295,11 +328,13 @@ fn wrong_project_id_is_rejected() {
     let mut svc = BidService::new().with_fs_root(fixtures());
     let pid = ready_project(&mut svc, "226-wrong-proj");
     let (rid, _) = first_blocking(&mut svc, &pid);
+    let receipt = override_receipt(&mut svc, "226-lead", &rid);
     let r = call(&mut svc, "set_matrix_override", json!({
         "project_id": "PRJ-9999",
         "requirement_id": rid,
         "status": "NOT_APPLICABLE",
         "deviation": "错项目 id 必须被拒",
+        "receipt": receipt,
     }));
     assert_eq!(err_code(&r), "E_NOTFOUND", "项目路由失败必须 E_NOTFOUND");
 }
@@ -317,8 +352,10 @@ fn responded_status_also_unblocks_and_keeps_evidence_slot() {
     let (rid, _) = first_blocking(&mut svc, &pid);
     let blocking_before = svc.store().export_blockers().unwrap().len();
 
+    let receipt = override_receipt(&mut svc, "226-lead", &rid);
     let r = ok_result(call(&mut svc, "set_matrix_override", json!({
         "project_id": pid, "requirement_id": rid, "status": "RESPONDED",
+        "receipt": receipt,
     })));
     assert_eq!(r["row"]["blocking"], false, "RESPONDED 同样解除 blocking");
     assert_eq!(
@@ -339,12 +376,15 @@ fn not_responded_keeps_blocking() {
     let (rid, _) = first_blocking(&mut svc, &pid);
     let blocking_before = svc.store().export_blockers().unwrap().len();
 
+    let receipt = override_receipt(&mut svc, "226-lead", &rid);
     ok_result(call(&mut svc, "set_matrix_override", json!({
         "project_id": pid, "requirement_id": rid, "status": "NOT_APPLICABLE",
         "deviation": "#226：先标不适用",
+        "receipt": receipt,
     })));
     let r = ok_result(call(&mut svc, "set_matrix_override", json!({
         "project_id": pid, "requirement_id": rid, "status": "NOT_RESPONDED",
+        "receipt": receipt,
     })));
     assert_eq!(r["row"]["blocking"], true, "改回 NOT_RESPONDED 后必须重新 blocking");
     assert_eq!(
@@ -364,9 +404,10 @@ fn repeated_same_override_is_idempotent() {
     let mut svc = BidService::new().with_fs_root(fixtures());
     let pid = ready_project(&mut svc, "226-idem");
     let (rid, _) = first_blocking(&mut svc, &pid);
+    let receipt = override_receipt(&mut svc, "226-lead", &rid);
     let args = json!({
         "project_id": pid, "requirement_id": rid, "status": "NOT_APPLICABLE",
-        "deviation": "#226：幂等测试",
+        "deviation": "#226：幂等测试", "receipt": receipt,
     });
     let r1 = ok_result(call(&mut svc, "set_matrix_override", args.clone()));
     let r2 = ok_result(call(&mut svc, "set_matrix_override", args));
@@ -377,5 +418,162 @@ fn repeated_same_override_is_idempotent() {
     assert_eq!(
         r1["row"]["status"], r2["row"]["status"],
         "重复覆写结果一致"
+    );
+}
+
+// ---------------------------------------------------------------- 6. #182 receipt 验签面
+// 人工出口只认真人：宿主签发的 receipt（HMAC + 行级签域 + 24h 时效窗）。
+// Agent 伪造、错签域、跨行挪用、非 Human 身份，都必须真拒绝且零副作用。
+
+#[test]
+fn missing_receipt_is_rejected() {
+    if !corpus_a_ready("missing_receipt_is_rejected") {
+        return;
+    }
+    let mut svc = BidService::new().with_fs_root(fixtures());
+    let pid = ready_project(&mut svc, "226-no-receipt");
+    let (rid, _) = first_blocking(&mut svc, &pid);
+    // 不带 receipt 字段——参数面直接拒（req_str 报缺参）
+    let r = call(&mut svc, "set_matrix_override", json!({
+        "project_id": pid, "requirement_id": rid, "status": "NOT_APPLICABLE",
+        "deviation": "没有 receipt 的豁免",
+    }));
+    assert_eq!(err_code(&r), "E_UNPROCESSABLE", "缺 receipt 必须被拒");
+    assert!(
+        err_msg(&r).contains("receipt"),
+        "报错要指向缺失参数：{}",
+        err_msg(&r)
+    );
+    // 零副作用
+    let row = ok_result(call(&mut svc, "get_compliance_matrix", json!({
+        "project_id": pid, "page_size": 500,
+    })))["rows"].as_array().unwrap().iter()
+        .find(|r| r["requirement"]["id"] == rid.as_str()).unwrap().clone();
+    assert_eq!(row["blocking"], true, "被拒后该行仍 blocking");
+}
+
+#[test]
+fn forged_receipt_is_rejected() {
+    if !corpus_a_ready("forged_receipt_is_rejected") {
+        return;
+    }
+    let mut svc = BidService::new().with_fs_root(fixtures());
+    let pid = ready_project(&mut svc, "226-forged");
+    let (rid, _) = first_blocking(&mut svc, &pid);
+    // Agent 手搓的假 receipt（六段结构对但 HMAC 不对）
+    let r = call(&mut svc, "set_matrix_override", json!({
+        "project_id": pid, "requirement_id": rid, "status": "NOT_APPLICABLE",
+        "deviation": "伪造 receipt 自免单",
+        "receipt": "v1.bid-agent.Human.matrix_override:REQ-0001.1730000000.deadbeef",
+    }));
+    assert_eq!(err_code(&r), "E_UNPROCESSABLE");
+    assert!(
+        err_msg(&r).contains("BAD_SIGNATURE") || err_msg(&r).contains("MALFORMED_RECEIPT"),
+        "伪造 receipt 要报验签分类码：{}",
+        err_msg(&r)
+    );
+}
+
+#[test]
+fn cross_requirement_receipt_is_rejected() {
+    if !corpus_a_ready("cross_requirement_receipt_is_rejected") {
+        return;
+    }
+    // 行级签域：REQ-A 的 receipt 免不了 REQ-B（豁免不得一票通融）
+    let mut svc = BidService::new().with_fs_root(fixtures());
+    let pid = ready_project(&mut svc, "226-cross-scope");
+    let m = ok_result(call(&mut svc, "get_compliance_matrix", json!({
+        "project_id": pid, "page_size": 500,
+    })));
+    let rows = m["rows"].as_array().unwrap();
+    let b1 = rows.iter().find(|r| r["blocking"].as_bool().unwrap_or(false)).unwrap();
+    let rid_a = b1["requirement"]["id"].as_str().unwrap().to_string();
+    let rid_b = rows.iter()
+        .filter(|r| r["blocking"].as_bool().unwrap_or(false) && r["requirement"]["id"] != rid_a)
+        .next().map(|r| r["requirement"]["id"].as_str().unwrap().to_string());
+    let Some(rid_b) = rid_b else {
+        return; // 只有一条 blocking 的语料形态——跳过（不适用本测试）
+    };
+    // 拿 A 行的 receipt 去覆写 B 行
+    let receipt_a = override_receipt(&mut svc, "226-lead", &rid_a);
+    let r = call(&mut svc, "set_matrix_override", json!({
+        "project_id": pid, "requirement_id": rid_b, "status": "NOT_APPLICABLE",
+        "deviation": "拿 A 行的 receipt 豁免 B 行",
+        "receipt": receipt_a,
+    }));
+    assert_eq!(err_code(&r), "E_UNPROCESSABLE", "跨行挪用 receipt 必须被拒");
+    assert!(
+        err_msg(&r).contains("BAD_SIGNATURE"),
+        "签域不匹配报 BAD_SIGNATURE：{}",
+        err_msg(&r)
+    );
+    // B 行零副作用
+    let row_b = ok_result(call(&mut svc, "get_compliance_matrix", json!({
+        "project_id": pid, "page_size": 500,
+    })))["rows"].as_array().unwrap().iter()
+        .find(|r| r["requirement"]["id"] == rid_b).unwrap().clone();
+    assert_eq!(row_b["blocking"], true, "被拒后 B 行仍 blocking");
+}
+
+#[test]
+fn agent_identity_receipt_is_rejected() {
+    if !corpus_a_ready("agent_identity_receipt_is_rejected") {
+        return;
+    }
+    // 非 Human 身份：持钥签发的 Agent receipt（跨 crate 集成测试构造攻击
+    // 样本的合法路径——approval_key 是宿主侧只读面）
+    let mut svc = BidService::new().with_fs_root(fixtures());
+    let pid = ready_project(&mut svc, "226-agent-id");
+    let (rid, _) = first_blocking(&mut svc, &pid);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let agent_receipt = bid_domain::principal::issue_approval_receipt_as(
+        svc.approval_key(),
+        "bid-agent",
+        bid_domain::principal::ActorType::Agent,
+        &format!("matrix_override:{rid}"),
+        now,
+    );
+    let r = call(&mut svc, "set_matrix_override", json!({
+        "project_id": pid, "requirement_id": rid, "status": "NOT_APPLICABLE",
+        "deviation": "Agent 给自己免单",
+        "receipt": agent_receipt,
+    }));
+    assert_eq!(err_code(&r), "E_UNPROCESSABLE");
+    assert!(
+        err_msg(&r).contains("NOT_HUMAN_ACTOR"),
+        "Agent 身份 receipt 报 NOT_HUMAN_ACTOR：{}",
+        err_msg(&r)
+    );
+    // 零副作用：不落覆写
+    let row = ok_result(call(&mut svc, "get_compliance_matrix", json!({
+        "project_id": pid, "page_size": 500,
+    })))["rows"].as_array().unwrap().iter()
+        .find(|r| r["requirement"]["id"] == rid.as_str()).unwrap().clone();
+    assert_eq!(row["blocking"], true, "被拒后该行仍 blocking");
+}
+
+#[test]
+fn bare_identity_params_are_rejected() {
+    if !corpus_a_ready("bare_identity_params_are_rejected") {
+        return;
+    }
+    // #182：裸身份参数显式拒绝——参数面先于验签面（防人工出口退化成
+    // 直传 operator 的 Agent 自免单通道）
+    let mut svc = BidService::new().with_fs_root(fixtures());
+    let pid = ready_project(&mut svc, "226-bare-param");
+    let (rid, _) = first_blocking(&mut svc, &pid);
+    let r = call(&mut svc, "set_matrix_override", json!({
+        "project_id": pid, "requirement_id": rid, "status": "NOT_APPLICABLE",
+        "deviation": "裸身份直传",
+        "principal": "human:admin",
+    }));
+    assert_eq!(err_code(&r), "E_UNPROCESSABLE");
+    assert!(
+        err_msg(&r).contains("principal"),
+        "报错要指明被拒参数：{}",
+        err_msg(&r)
     );
 }

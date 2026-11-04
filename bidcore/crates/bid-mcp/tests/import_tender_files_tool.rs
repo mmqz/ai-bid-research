@@ -685,3 +685,86 @@ fn pdf_import_routes_engine_with_legacy_fallback() {
     let reqs = bid_parse::extract::extract_requirements(svc.parsed());
     assert!(!reqs.is_empty(), "B1 抽取面非空（型号/日期行条款）");
 }
+
+// ---------------------------------------------------------------- #199 审查：kind 分发工具面
+
+/// #196 端到端回归锁（工具面）：真实文件名（无 A- 前缀）+ 登记业务 kind
+/// → extract_requirements 工具按 kind 主分发，抽取非零。
+/// 旧缺陷：分发按文件名前缀，真实用户文件静默零抽取且 ok:true。
+#[test]
+fn real_filename_with_registered_kind_extracts_via_tool() {
+    let mut svc = BidService::new().with_fs_root(fixtures());
+    if skip_if_fixture_missing(
+        "real_filename_with_registered_kind_extracts_via_tool",
+        &[&word_complex()],
+    ) {
+        return;
+    }
+    let r = ok_result(call(&mut svc, "create_bid_project", json!({
+        "name": "#196 真实文件名抽取", "bid_deadline": "2026-12-31", "mode": "明标",
+        "external_key": "i196-real-name",
+    })));
+    let pid = r["project_id"].as_str().unwrap().to_string();
+    // 文件名不带夹具前缀——真实用户形态；kind 是唯一业务判据
+    let r = ok_result(call(&mut svc, "import_tender_files", json!({
+        "project_id": pid,
+        "files": [{
+            "upload_ref": word_complex().display().to_string(),
+            "filename": "word-complex.docx",
+            "kind": "招标文件",
+        }],
+    })));
+    assert_eq!(r["per_file"][0]["parse_status"], "ok", "导入成功：{r}");
+
+    let extract = ok_result(call(&mut svc, "extract_requirements", json!({
+        "project_id": pid,
+    })));
+    let total = extract["counts"]["total"].as_u64().unwrap_or(0);
+    assert!(total > 0, "#196 真实文件名 + kind=招标文件 必须抽出条款（total={total}）");
+    let warns = extract["warnings"].as_array().cloned().unwrap_or_default();
+    assert!(
+        !warns.iter().any(|w| w.as_str().unwrap_or("").starts_with("ZERO_REQUIREMENTS")),
+        "正常抽取不应触发零抽取告警：{warns:?}"
+    );
+}
+
+/// 零抽取告警（issue #9「缺失不得伪装成功」）：kind=附件（无条款面）
+/// → total=0 且 warnings 含 ZERO_REQUIREMENTS——响亮可见，不再静默成功。
+#[test]
+fn zero_requirements_warns_loudly() {
+    let mut svc = BidService::new().with_fs_root(fixtures());
+    if skip_if_fixture_missing("zero_requirements_warns_loudly", &[&word_complex()]) {
+        return;
+    }
+    let r = ok_result(call(&mut svc, "create_bid_project", json!({
+        "name": "#196 零抽取告警", "bid_deadline": "2026-12-31", "mode": "明标",
+        "external_key": "i196-zero-warn",
+    })));
+    let pid = r["project_id"].as_str().unwrap().to_string();
+    // 同一份内容登记为附件 → 无条款抽取面 → 0 条
+    let r = ok_result(call(&mut svc, "import_tender_files", json!({
+        "project_id": pid,
+        "files": [{
+            "upload_ref": word_complex().display().to_string(),
+            "filename": "word-complex.docx",
+            "kind": "附件",
+        }],
+    })));
+    assert_eq!(r["per_file"][0]["parse_status"], "ok", "导入成功：{r}");
+
+    let extract = ok_result(call(&mut svc, "extract_requirements", json!({
+        "project_id": pid,
+    })));
+    assert_eq!(
+        extract["counts"]["total"].as_u64().unwrap_or(0),
+        0,
+        "附件无条款面：total=0"
+    );
+    let warns = extract["warnings"].as_array().cloned().unwrap_or_default();
+    assert!(
+        warns
+            .iter()
+            .any(|w| w.as_str().unwrap_or("").starts_with("ZERO_REQUIREMENTS")),
+        "零抽取必须触发 ZERO_REQUIREMENTS 告警（issue #9）：{warns:?}"
+    );
+}

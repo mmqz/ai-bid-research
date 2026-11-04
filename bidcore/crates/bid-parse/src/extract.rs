@@ -298,6 +298,17 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
         r"评标表|评审标准|资格审查标准|符合性审查|检查项目|查验以下内容|序号\s*评审项目",
     )
     .unwrap();
+    // #234 要求动词面（格式章表格头判定的反面）：真条款行必有动词
+    //（应/须/提供/递交/加盖/拟投入…），纯名词短语（「投标人名称」
+    // 「传真 网址」）是模板占位。表求宽——防误杀真条款（漏抽比多留
+    // 代价大，与 #226 死锁面权衡后宁可放行）。
+    let re_req_verb = Regex::new(concat!(
+        "应|须|需|请|不得|不予|提供|提交|递交|出具|附|加盖|填写|注明|标明|",
+        "载明|写明|具备|具有|包括|包含|承诺|接受|拒绝|采用|使用|按照|依据|",
+        "遵照|执行|响应|满足|符合|一致|密封|装订|签署|签字|盖章|编制|持有|",
+        "取得|授予|委托|授权|拟|担任|负责|参与|发生|完成|承担"
+    ))
+    .unwrap();
     // #68 阶段 4（K1）：开标查验证件清单形态——「是否携带身份证/保证金收据/
     // 复印件/开户许可证/电汇单」是到场核查列举（GT 跨 7 件一致未标否决——
     // 标注口径：携带义务是形式要求，处置词未出现不推定否决）。传播排除面。
@@ -376,6 +387,39 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
     let mut review_ctx = false;
     // 强审查头已开标志（L3——格式章守卫的旁路面）
     let mut review_strong = false;
+    // #234 格式章标志：章号行自身含「格式」（同行形态）或章标题行
+    //（两行形态——「第8章」/「投标文件格式」分立）含「格式」。
+    // chapter 变量在两行形态下停在章号行（不含「格式」），既有
+    // chapter.contains("格式") 守卫全部漏判——本标志补面，chapter
+    // 字符串本身不动（category_for 行为面不变）。
+    let mut format_chapter = false;
+    // #234 章标题行文本（两行形态前瞻所得）：章标题是章节结构非正文，
+    // 拼进段落时不得作为段首 noun 判定拦段（标题行段的既有行为保持）。
+    let mut chapter_title: Option<String> = None;
+
+    // #234 格式章表格头形态判定（纯文本面——格式章上下文由调用侧组合）：
+    // 剥条款号/列举序号后 (a) 无句末标点 (b) 非空白 ≤12 字 (c) 无要求
+    // 动词 → 纯名词短语占位行（「投标人名称」「联系人 电话」——投标人
+    // 要填的位置标注，非响应要求）。
+    let is_noun_phrase_row = |t: &str| -> bool {
+        let no_clause = re_clause.replace(t, "").into_owned();
+        let no_list = re_list_cn.replace(&no_clause, "").into_owned();
+        let stripped = re_subsection.replace(&no_list, "");
+        let s = stripped.trim();
+        if s.is_empty() {
+            return false;
+        }
+        // (a) 无句末标点（。；！？：——模板头无完整句）
+        if s.chars().last().map(|c| "。；！？：；".contains(c)).unwrap_or(false) {
+            return false;
+        }
+        // (b) 短行：≤12 字（长行是表内容/正文段，不在此面）
+        if s.chars().filter(|c| !c.is_whitespace()).count() > 12 {
+            return false;
+        }
+        // (c) 无要求动词
+        !re_req_verb.is_match(s)
+    };
 
     // 强词判定（例外从句剥离后匹配；履约语境排除——「承包人不得…拒收」
     // 类合同期条款非投标否决：主体为承包人/发包人且无投标词时不判）
@@ -499,12 +543,41 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
         if t.matches('.').count() >= 6 || t.contains("……") {
             continue;
         }
+        // #234 修法 2：碎片过滤——剥条款号后 <2 字的**单行**段落不抽 REQ
+        //（表格单元格残片/纯数字残渣；veto_rule 闸 5 同思路在抽取层落地，
+        // 不依赖否决信号）。多行段落的首行碎片（「9」+ 跨页续行——段落
+        // 本体是真条款文本）不在此面：拦了就丢条款。
+        if para_end[i] == i {
+            let frag_n = re_clause
+                .replace(t, "")
+                .chars()
+                .filter(|c| !c.is_whitespace())
+                .count();
+            if frag_n < 2 {
+                continue;
+            }
+        }
         if re_chapter.is_match(&nfkc(t)) {
             chapter = t.to_string();
             subsection.clear();
             veto_ctx = false;
             review_ctx = false;
             review_strong = false;
+            // #234：两行章形态（「第8章」/「投标文件格式」分立行）——
+            // 章号行不含标题，向前看首个内容行补判格式章。同行形态
+            //（「第8章 投标文件格式」标题内联）不前瞻——窗口内首个
+            // 内容行是正文行，误记为章标题会放走正文 noun 行（same_line
+            // 实测：内联形态下「信用等级」被误当标题豁守护卫）。
+            let inline_title = re_chapter.replace(&nfkc(t), "").trim().to_string();
+            chapter_title = if inline_title.is_empty() {
+                chapter_title_ahead(blocks, i)
+            } else {
+                None
+            };
+            format_chapter = chapter.contains("格式")
+                || chapter_title
+                    .as_deref()
+                    .map_or(false, |title| title.contains("格式"));
             continue;
         }
         if re_subsection.is_match(t) && t.chars().count() <= 40 {
@@ -631,6 +704,19 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
             // 资格分支抢先会把它落「资格条件」而丢否决语义（GT 的资格性
             // 否决恰在审查表条目里）。条目 + 开放语境 → 传播优先。
             && !((veto_ctx || review_ctx) && re_list_cn.is_match(t))
+            // #234 修法 1：格式章表格头守卫——格式章（第X章 投标文件格式）
+            // 内的纯名词短语行是模板占位（「投标人名称」「传真 网址」——
+            // 投标人要填的位置标注），不是响应要求：整页表格行无句末标点
+            // 被段落重组拼成大段，<6 字成员行独立触发 REQ 化，段落中后部
+            // 的资格词面（「营业执照号/资质证书」）误判资格条件 → 永久
+            // blocking 死锁（A-04 实测 9 条 REQ-0943~0951）。强审查表头
+            // 旁路（review_strong——附表三评标表物理住在格式章区域的既有
+            // 口径）；带要求动词/句末标点的真条款行不拦；章标题行拼段时
+            // 是章节结构非段首 noun，排除（标题行段既有行为保持）。
+            && !(format_chapter
+                && !review_strong
+                && is_noun_phrase_row(t)
+                && Some(t) != chapter_title.as_deref())
         {
             // 资格面行："见投标人须知前附表"类引用行排除
             push_req(reqs, seq, "资格条件", None, para_anchors(i, pend), HashMap::new(), &f.name);
@@ -1176,6 +1262,33 @@ fn split_locator(locator: &str) -> (&str, &str) {
         Some((c, s)) => (c, s),
         None => (locator, ""),
     }
+}
+
+/// #234：章号行向前看章标题行（真实件两行章形态——pdftotext 把
+/// 「第8章」与「投标文件格式」切成两行，章号行自身不含标题，
+/// `chapter` 字符串判不出格式章）。窗口 3 块：跳过空行/纯页码行，
+/// 首个内容行满足标题形态（≤20 字、无句末标点）即返回；长行/带
+/// 标点（正文段非标题）返回 None。
+fn chapter_title_ahead(blocks: &[Block], idx: usize) -> Option<String> {
+    for b in blocks.iter().skip(idx + 1).take(3) {
+        if !matches!(b.kind, BlockKind::PdfLine | BlockKind::OcrLine) {
+            return None;
+        }
+        let s = b.text.trim();
+        if s.is_empty() || s.chars().all(|c| c.is_ascii_digit()) {
+            continue;
+        }
+        let ends_sentence = s
+            .chars()
+            .last()
+            .map(|c| "。；！？：；".contains(c))
+            .unwrap_or(false);
+        if s.chars().count() <= 20 && !ends_sentence {
+            return Some(s.to_string());
+        }
+        return None;
+    }
+    None
 }
 
 fn row_no_of(locator: &str) -> usize {

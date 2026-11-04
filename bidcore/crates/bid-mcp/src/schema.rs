@@ -476,8 +476,8 @@ fn input_schema(name: &str) -> Value {
         // #226 层 1：否决项死锁的人工出口。deviation 在 NOT_APPLICABLE 时必填
         // ——schema 层不写条件必填（JSON Schema draft-07 的 if/then 会让
         // 部分客户端解析失败），约束落在工具实现里并以清晰报错暴露。
-        // #182：receipt 验签（签域 matrix_override:{requirement_id} 行级
-        // 绑定）——人工出口只认真人，Agent 不得伪造。
+        // #182：receipt 验签（签域 matrix_override 四重绑定：项目/行/状态/
+        // 理由摘要）——人工出口只认真人，Agent 不得伪造、不得挪用换态偷换理由。
         "set_matrix_override" => json!({
             "type": "object",
             "description": "人工覆写某条款的响应状态（#226——否决项死锁出口：把「本次招标不接受联合体」这类招标人规则说明标为 NOT_APPLICABLE，附理由；覆写后矩阵立即重算，响应回 blocking 行数与操作者审计面）",
@@ -486,7 +486,7 @@ fn input_schema(name: &str) -> Value {
                 "requirement_id": {"type": "string", "description": "REQ-* 条款 id（须真实存在；receipt 签域绑定本行——REQ-0003 的 receipt 免不了 REQ-0004）"},
                 "status": {"type": "string", "enum": ["RESPONDED", "NOT_APPLICABLE", "NOT_RESPONDED", "PARTIAL"], "description": "目标响应状态"},
                 "deviation": {"type": "string", "description": "偏离/不适用说明——status=NOT_APPLICABLE 时必填（不可审计的豁免不算豁免）"},
-                "receipt": {"type": "string", "description": "#182 宿主签发的审批回执（签域 matrix_override:<requirement_id>，行级绑定）——principal/operator 参数不存在，Agent 不得伪造（把必选条款标不适用是豁免动作，只认真人）"},
+                "receipt": {"type": "string", "description": "#182 宿主签发的审批回执（签域 matrix_override:<project_id>:<requirement_id>:<status>:<理由sha256>——项目/行/状态/理由四重绑定，换任何一项都要换签）——principal/operator 参数不存在，Agent 不得伪造（把必选条款标不适用是豁免动作，只认真人）"},
                 "project_version": pv
             },
             "required": ["project_id", "requirement_id", "status", "receipt"]

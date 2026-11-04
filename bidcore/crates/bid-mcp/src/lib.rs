@@ -29,7 +29,7 @@ pub mod tools;
 pub mod transport;
 mod state;
 
-pub use bid_tools::service::BidService;
+pub use bid_tools::service::{BidService, matrix_override_scope};
 pub use error::{ToolError, ToolResult};
 pub use protocol::McpSession;
 pub use schema::{ToolCall, ToolOutcome, ToolReply};

@@ -3908,8 +3908,10 @@ fn addendum_readiness_block(svc: &BidService) -> Value {
 /// 2. **requirement_id 必须真实存在**——防手造 id 刷出一堆无效豁免；
 /// 3. **状态门**：MATRIX_READY+（矩阵未建时无可覆写的对象）；
 /// 4. **receipt 验签（#182）**：人工出口只认真人——宿主签发的审批回执
-///    （签域 `matrix_override:{requirement_id}` 行级绑定），Agent 不得
-///    伪造、REQ-0003 的 receipt 免不了 REQ-0004。
+///    （签域 `matrix_override:{project_id}:{requirement_id}:{status}:{理由
+///    sha256}` 四重绑定，Lead 合并门口径 2026-11-04）。Agent 不得伪造：
+///    REQ-0003 的 receipt 免不了 REQ-0004，人批「不适用」的签改不成
+///    RESPONDED，人批的理由换一个字都过不了验签。
 ///
 /// 生效面：写完覆写**立刻重算矩阵**（`rebuild_matrix_for_override`），
 /// 响应里直接回 blocking 行数——调用方不必再拉一次矩阵就知道死锁解没解。

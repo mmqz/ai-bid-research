@@ -693,6 +693,26 @@ impl DomainStore {
             .filter(|n| n.parent_id.is_none())
             .map(|n| u64::from(n.target_chars)).sum::<u64>();
         let count = nodes.len();
+        // #224 引用完整性（Lead 2026-11-04 review blocker 2）：评分映射引用的
+        // 章节不得随重挂大纲消失——SEC id 随树重建重签，旧 SEC 失踪 = 孤儿
+        // 映射；孤儿态一经 checkpoint 落盘，下一次 restore 拒载（快照卡死）。
+        // 拒破坏性重挂（fail-loud）：映射账本是审计面，不得静默蒸发。
+        if !self.scoring_mappings.is_empty() {
+            let known: std::collections::HashSet<&str> =
+                nodes.iter().map(|n| n.id.as_str()).collect();
+            if let Some(m) = self
+                .scoring_mappings
+                .iter()
+                .find(|m| !known.contains(m.section_id.as_str()))
+            {
+                return Err(ToolError::EUnprocessable {
+                    reason: format!(
+                        "评分映射 {} 引用的章节 {} 将在重挂大纲后不存在（#224 引用完整性：大纲重建不得孤儿化映射账本——先处理该映射或保留该章节）",
+                        m.id, m.section_id
+                    ),
+                });
+            }
+        }
         self.sections = nodes;
         if let Some(p) = self.project.as_mut() {
             p.content_version += 1;

@@ -564,6 +564,121 @@ fn derived_section_mapping_counts_into_sum() {
     assert_eq!(s.scoring_mappings().len(), 1);
 }
 
+/// 引用完整性——条款重建（Lead blocker 2）：set_requirements 的同哈希
+/// 换 id 覆盖与 replace_requirements 的整集替换都不得移走被映射的评分项
+/// （孤儿映射一经 checkpoint 落盘，下一次 restore 拒载——快照卡死）。
+#[test]
+fn requirement_rebuild_rejects_dropping_mapped_req() {
+    let mut s = store_base();
+    upsert(&mut s, "REQ-0001", "SEC-01", 1.0);
+
+    // set_requirements 幂等合并面：同锚同文克隆换 id（哈希命中 → 覆盖），
+    // 被映射的 REQ-0001 将消失 → 拒
+    let drifted = score_req(
+        "REQ-0099",
+        "4.1 技术方案完整性与针对性 20 分（方案须覆盖架构与选型）",
+        20.0,
+        None,
+    );
+    let e = s.set_requirements(vec![drifted]).unwrap_err();
+    assert!(
+        matches!(e, ToolError::EUnprocessable { .. }),
+        "换 id 覆盖被映射评分项必须拒"
+    );
+    assert!(
+        s.requirements().iter().any(|r| r.id == "REQ-0001"),
+        "被拒后条款集不变"
+    );
+    assert_eq!(s.scoring_mappings().len(), 1, "被拒后映射账本不变");
+
+    // replace_requirements 整集替换：缺 REQ-0001 → 拒
+    let e = s
+        .replace_requirements(vec![
+            score_req("REQ-0002", "4.2 售后服务方案 10 分（含响应时限承诺）", 10.0, None),
+            body_req("REQ-0003", "5.1 核心交换机须支持 48 口千兆光接口"),
+            body_req("REQ-0004", "5.2 售后响应时限 ≤ 2 小时"),
+        ])
+        .unwrap_err();
+    assert!(
+        matches!(e, ToolError::EUnprocessable { .. }),
+        "整集替换移走被映射评分项必须拒"
+    );
+    assert!(
+        s.requirements().iter().any(|r| r.id == "REQ-0001"),
+        "被拒后条款集不变"
+    );
+    assert_eq!(s.scoring_mappings().len(), 1, "被拒后映射账本不变");
+
+    // 保留被映射 id 的替换 → 放行（守卫只拦破坏性面）
+    let n = s
+        .replace_requirements(vec![
+            score_req(
+                "REQ-0001",
+                "4.1 技术方案完整性与针对性 20 分（方案须覆盖架构与选型）",
+                20.0,
+                None,
+            ),
+            score_req("REQ-0002", "4.2 售后服务方案 10 分（含响应时限承诺）", 10.0, None),
+        ])
+        .unwrap();
+    assert_eq!(n, 2, "保留被映射 id 的替换放行");
+}
+
+/// 引用完整性——大纲重挂（Lead blocker 2）：移走被映射章节必须拒
+/// （SEC id 随树重签；保留被映射章节的重挂放行）。
+#[test]
+fn outline_rebuild_rejects_dropping_mapped_section() {
+    let mut s = store_base();
+    upsert(&mut s, "REQ-0001", "SEC-01", 1.0);
+
+    // 重挂只含 SEC-02 的树 → SEC-01 将消失 → 拒
+    let e = s
+        .set_outline(vec![leaf("SEC-02", 1, "售后服务", &["REQ-0004"])])
+        .unwrap_err();
+    assert!(
+        matches!(e, ToolError::EUnprocessable { .. }),
+        "重挂移走被映射章节必须拒"
+    );
+    assert_eq!(s.sections().len(), 2, "被拒后大纲不变");
+    assert_eq!(s.scoring_mappings().len(), 1, "被拒后映射账本不变");
+
+    // 保留被映射章节的重挂（改 title/target_chars）→ 放行
+    s.set_outline(vec![
+        leaf("SEC-01", 1, "技术方案（改）", &["REQ-0003"]),
+        leaf("SEC-02", 2, "售后服务（改）", &["REQ-0004"]),
+    ])
+    .unwrap();
+    assert_eq!(s.sections().len(), 2, "保留被映射章节的重挂放行");
+}
+
+/// restore 行约束与登记面同源（Lead blocker 2）：份额越界与幽灵证据
+/// 引用拒载；合法快照照常恢复。
+#[test]
+fn restore_enforces_registration_row_constraints() {
+    let mut s = store_base();
+    upsert(&mut s, "REQ-0001", "SEC-01", 1.0);
+
+    // 份额越界（登记面拒的，快照面同样拒）
+    let mut bad_share = s.to_snapshot();
+    bad_share.scoring_mappings[0].weight_share = 1.5;
+    assert!(matches!(
+        DomainStore::restore(bad_share),
+        Err(ToolError::EUnprocessable { .. })
+    ));
+
+    // 幽灵证据引用
+    let mut ghost_ev = s.to_snapshot();
+    ghost_ev.scoring_mappings[0].evidence_refs = vec!["EV-9999".into()];
+    assert!(matches!(
+        DomainStore::restore(ghost_ev),
+        Err(ToolError::EUnprocessable { .. })
+    ));
+
+    // 合法快照照常恢复
+    let ok = DomainStore::restore(s.to_snapshot()).unwrap();
+    assert_eq!(ok.scoring_mappings().len(), 1);
+}
+
 /// 快照往返 + 旧快照（无 scoring_mappings 键）空集合加载 + 孤儿/复合键重复拒载。
 #[test]
 fn mapping_snapshot_roundtrip_and_old_snapshot_loads() {

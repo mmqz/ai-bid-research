@@ -885,6 +885,27 @@ impl DomainStore {
             }
         }
         let added = merged.len() - before;
+        // #224 引用完整性（Lead 2026-11-04 review blocker 2）：评分映射引用的
+        // 评分项不得随合并消失——同哈希覆盖（重跑换 id）同样会移走被映射的
+        // REQ id。拒绝破坏性写入（fail-loud）：映射账本是审计面，不得静默
+        // 蒸发，也不得留孤儿映射（孤儿态一经 checkpoint 落盘，下一次
+        // restore 拒载——快照卡死）。
+        if !self.scoring_mappings.is_empty() {
+            let known: std::collections::HashSet<&str> =
+                merged.iter().map(|r| r.id.as_str()).collect();
+            if let Some(m) = self
+                .scoring_mappings
+                .iter()
+                .find(|m| !known.contains(m.scoring_req_id.as_str()))
+            {
+                return Err(ToolError::EUnprocessable {
+                    reason: format!(
+                        "评分映射 {} 引用的评分项 {} 将在本次写入后不存在（#224 引用完整性：条款重建不得孤儿化映射账本——先处理该映射再重建）",
+                        m.id, m.scoring_req_id
+                    ),
+                });
+            }
+        }
         self.requirements = merged;
         let p = self.project.as_mut().unwrap();
         if p.status == ProjectStatus::FilesImported {
@@ -904,6 +925,9 @@ impl DomainStore {
     ///
     /// 抽取窗口内整集替换是安全的：大纲/矩阵/证据绑定/矩阵覆写只存在于
     /// MATRIX_READY+，而 extract 在该态被 E_STATE 拦死——不存在孤儿引用面。
+    /// （#224 修订：评分映射无状态门、可在抽取窗口内入账，故下方加映射
+    /// 引用完整性守卫——被映射的 REQ id 将被移走时拒绝替换，Lead
+    /// 2026-11-04 review blocker 2。）
     pub fn replace_requirements(&mut self, reqs: Vec<Requirement>) -> Result<usize, ToolError> {
         let p = self.project.as_ref().ok_or_else(|| ToolError::ENotFound {
             what: "project 未创建".into(),
@@ -923,6 +947,24 @@ impl DomainStore {
             return Err(ToolError::EUnprocessable {
                 reason: format!("条款 id 重复：{}（合并面编号必须唯一）", dup.id),
             });
+        }
+        // #224 引用完整性（Lead 2026-11-04 review blocker 2）：整集替换更
+        // 容易移走被映射的 REQ id——同 set_requirements 守卫，拒破坏性替换。
+        if !self.scoring_mappings.is_empty() {
+            let known: std::collections::HashSet<&str> =
+                reqs.iter().map(|r| r.id.as_str()).collect();
+            if let Some(m) = self
+                .scoring_mappings
+                .iter()
+                .find(|m| !known.contains(m.scoring_req_id.as_str()))
+            {
+                return Err(ToolError::EUnprocessable {
+                    reason: format!(
+                        "评分映射 {} 引用的评分项 {} 将在整集替换后不存在（#224 引用完整性：条款重建不得孤儿化映射账本——先处理该映射再替换）",
+                        m.id, m.scoring_req_id
+                    ),
+                });
+            }
         }
         self.requirements = reqs;
         let p = self.project.as_mut().unwrap();
@@ -1247,6 +1289,32 @@ impl DomainStore {
                     m.scoring_req_id, m.section_id
                 )));
             }
+        }
+        // #224 行约束与登记面同源（Lead 2026-11-04 review blocker 2）：
+        // restore 不得比 upsert 宽——份额越界（权重语义破坏）与幽灵证据
+        // 引用（半个账本）在快照面同样拒载。
+        if let Some(m) = snap
+            .scoring_mappings
+            .iter()
+            .find(|m| !(0.0 < m.weight_share && m.weight_share <= 1.0))
+        {
+            return Err(un(format!(
+                "scoring_mapping {} weight_share={} 越界（合法域 (0,1]——与登记面同约束，拒载）",
+                m.id, m.weight_share
+            )));
+        }
+        let ev_ids: std::collections::HashSet<&str> =
+            snap.evidences.iter().map(|e| e.id.as_str()).collect();
+        if let Some((m, ev)) = snap.scoring_mappings.iter().find_map(|m| {
+            m.evidence_refs
+                .iter()
+                .find(|e| !ev_ids.contains(e.as_str()))
+                .map(|ev| (m, ev))
+        }) {
+            return Err(un(format!(
+                "scoring_mapping {} 引用了不存在的证据 {ev}（幽灵证据引用——与登记面同约束，拒载）",
+                m.id
+            )));
         }
         // 孤儿数据（有集合无项目 = 半个库）
         if snap.project.is_none()

@@ -80,8 +80,41 @@ pub fn parse_pdf(path: &Path, name: &str) -> Result<ParsedFile, String> {
                 .map(|p| p.text.chars().filter(|c| !c.is_whitespace()).count())
                 .sum();
             if non_ws < 16 {
-                // 无文本层 → 扫描层 OCR 通道（行为零变更：不走 probe 门，
-                // 环境缺件在逐页执行中按既有语义暴露）
+                // Poppler 可能在合法但它无法解码的 CID 文件上返回空文本且退出码为 0。
+                // 先尝试纯 Rust 文本层，避免把可恢复的文本件误送入扫描 OCR；
+                // 真正无文本（扫描件）仍进入原 OCR 路径。
+                if let Ok(mut fb) = fallback.extract_parsed(path, name) {
+                    let fb_text = pdf_text::parsed_text_of(&fb);
+                    let fb_non_ws = fb_text.chars().filter(|c| !c.is_whitespace()).count();
+                    if fb_non_ws >= 16 {
+                        let probe =
+                            pdf_text::probe_cjk_garble_pages(&raw, &pdf_text::parsed_pages_of(&fb));
+                        match probe.verdict {
+                            CjkGarbleProbe::Garbled => {
+                                let residue = pdf_text::non_ascii_ratio(&fb_text);
+                                if residue >= 0.3 {
+                                    if let Some(ocr) = try_ocr_recovery(&tess, path, &raw, name) {
+                                        return Ok(ocr);
+                                    }
+                                    let hint = pdf_text::cjk_garble_reason_hint(&raw)
+                                        .map(|h| format!("。{h}"))
+                                        .unwrap_or_default();
+                                    return Err(format!(
+                                        "[pdf-fallback-only-garbled] Poppler 文本层为空；纯 Rust 兜底单路输出疑似 CJK 乱码且非 ASCII 占比 {residue:.2}，无 OCR 可互证——拒绝静默产出垃圾文本（issue #169/#200）{hint}"
+                                    ));
+                                }
+                                apply_outcome(&mut fb, PdfPathOutcome::FallbackOnlyLowResidue);
+                            }
+                            _ => apply_outcome(
+                                &mut fb,
+                                PdfPathOutcome::PrimaryUnavailableFallbackClean,
+                            ),
+                        }
+                        append_page_diagnostics(&mut fb, &raw);
+                        return Ok(fb);
+                    }
+                }
+                // 纯 Rust 也无足够文本：按扫描件主路径执行 OCR，保留缺件/治理错误。
                 return tess.ocr_parsed(path);
             }
             let primary = poppler::text_layer_parsed(&pages);

@@ -141,7 +141,12 @@ pub fn parse_file(path: &Path, name: &str) -> Result<ParsedFile, String> {
             let raw = std::fs::read(path).map_err(|e| format!("读取失败 {name}: {e}"))?;
             let (mut pf, used_fallback) = match pdf::parse(path) {
                 Ok(pf) => {
-                    match pdf_text::probe_cjk_garble(&raw, &pdf_text::parsed_text_of(&pf)) {
+                    // #223：探测改分页多数决——一页垃圾不再否决整份（多数页
+                    // 正常即 Clean，异常页在 parse_summary 点名）；全页皆乱
+                    // 仍 Garbled 降级/拒收（fail-loud 不放松）。
+                    match pdf_text::probe_cjk_garble_pages(&raw, &pdf_text::parsed_pages_of(&pf))
+                        .verdict
+                    {
                         pdf_text::CjkGarbleProbe::Garbled => {
                             match pdf_text::parse_via_fallback(path, name) {
                                 Ok(mut good) => {
@@ -176,16 +181,29 @@ pub fn parse_file(path: &Path, name: &str) -> Result<ParsedFile, String> {
             };
             // 兜底产物（无论从哪个分支来）过同一探测：双路皆乱 → 显式失败
             // （fail-loud——#169 影响面是「静默产出垃圾标书」，比失败更危险）。
-            if used_fallback
-                && pdf_text::probe_cjk_garble(&raw, &pdf_text::parsed_text_of(&pf))
-                    == pdf_text::CjkGarbleProbe::Garbled
-            {
+            // #223：探测改分页多数决，fail-loud 文案点名乱码页（定位修复面）。
+            let fallback_probe =
+                pdf_text::probe_cjk_garble_pages(&raw, &pdf_text::parsed_pages_of(&pf));
+            if used_fallback && fallback_probe.verdict == pdf_text::CjkGarbleProbe::Garbled {
                 // #200 能力边界：双路皆乱时点名原因与绕过（疑因线索）
                 let hint = pdf_text::cjk_garble_reason_hint(&raw)
                     .map(|h| format!("。{h}"))
                     .unwrap_or_default();
+                let pages_info = if fallback_probe.garbled_pages.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        "（乱码页：{}）",
+                        fallback_probe
+                            .garbled_pages
+                            .iter()
+                            .map(|p| p.to_string())
+                            .collect::<Vec<_>>()
+                            .join("、")
+                    )
+                };
                 return Err(format!(
-                    "pdf 两条路输出均为疑似 CJK 乱码（PDF 声明 CJK 字体而文本无 CJK）：{name}——拒绝静默产出垃圾文本（issue #169）{hint}"
+                    "pdf 两条路输出均为疑似 CJK 乱码（PDF 声明 CJK 字体而文本无 CJK）{pages_info}：{name}——拒绝静默产出垃圾文本（issue #169）{hint}"
                 ));
             }
             pf.name = name.to_string();

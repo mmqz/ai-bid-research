@@ -11,6 +11,7 @@ use crate::guard::{
     LIMIT_TESSERACT_STDOUT, MAX_OCR_PAGES, TIMEOUT_PDFTOPPM, TIMEOUT_PDFTOTEXT, TIMEOUT_TESSERACT,
 };
 use crate::{Block, BlockKind, ParsedFile};
+use crate::pdf_text::sanitize_line;
 use std::path::Path;
 use std::process::Command;
 
@@ -47,11 +48,13 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
                     continue;
                 }
                 line_no += 1;
+                // #223 对称防护：首选路同款行级控制字符清洗（pdftotext 经
+                // from_utf8_lossy 极少产出 C1 控制符，加了零成本兜住）
                 blocks.push(Block {
                     idx: blocks.len(),
                     kind: BlockKind::PdfLine,
                     locator: format!("第{}页 行{}", pi + 1, line_no),
-                    text: collapse_spaces(l),
+                    text: collapse_spaces(&sanitize_line(l)),
                     cells: vec![],
                 });
             }

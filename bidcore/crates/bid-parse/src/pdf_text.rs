@@ -1232,12 +1232,41 @@ fn on_tm2(
     *cur_x = x;
 }
 
-/// 把当前行落盘。
+/// #223 修 A：行级控制字符清洗。
+///
+/// 剔除 `\u{00}-\u{08}` / `\u{0B}-\u{0C}` / `\u{0E}-\u{1F}` / `\u{7F}` /
+/// `\u{80}-\u{9F}`（C1 控制符），保留 `\t \n \r`（合法排版控制）。
+///
+/// 来源登记：[`read_literal_string`] 的 `\nnn` 八进制转义可解出任意字节、
+/// 非 UTF-16BE 分支的 `decode_byte = b as char`（Latin-1 直映）会把
+/// 0x80-0x9F 变成 U+0080-U+009F 原样进正文——B-cqyd-招标公告.pdf 实测
+/// 157,029 个控制符把全局 cjk_ratio 拉到 0.0086，整份好文件被误判乱码
+/// （issue #223）。行级（而非全文级）清理：行边界不变，locator 行号与
+/// 文本天然对齐。
+pub fn sanitize_line(s: &str) -> String {
+    s.chars()
+        .filter(|c| {
+            !matches!(
+                c,
+                '\u{00}'..='\u{08}'
+                    | '\u{0B}'..='\u{0C}'
+                    | '\u{0E}'..='\u{1F}'
+                    | '\u{7F}'
+                    | '\u{80}'..='\u{9F}'
+            )
+        })
+        .collect()
+}
+
+/// 把当前行落盘（#223：落盘前过 [`sanitize_line`]——所有行的唯一出口，
+/// Tm 断行 / Td 断行 / 流尾 flush 全部途经此处，单点接线不漏行）。
 fn flush_parts(parts: &mut Vec<(f64, f64, String)>, lines: &mut Vec<String>) {
     if parts.is_empty() {
         return;
     }
-    let t = join_line(std::mem::take(parts)).trim().to_string();
+    let t = sanitize_line(&join_line(std::mem::take(parts)))
+        .trim()
+        .to_string();
     if !t.is_empty() {
         lines.push(t);
     }
@@ -1543,13 +1572,42 @@ pub fn parse_via_fallback(path: &std::path::Path, name: &str) -> Result<crate::P
     let all_text: String = blocks.iter().map(|b| b.text.as_str()).collect();
     let ratio = cjk_ratio(&all_text);
     let mut summary = format!("{} [{}]", t.summary(), name);
-    if bytes_declare_cjk_font(&bytes) && ratio < 0.02 {
-        summary.push_str(&format!(
-            "；【疑似乱码】声明中文字体而文本 CJK 占比仅 {:.1}%——文本层可能不可用（条款抽取可能为 0），建议提供可解析版本（DOCX）或安装 pdfium/poppler 后重新导入",
-            ratio * 100.0
-        ));
-    } else {
-        summary.push_str(&format!("；CJK 占比 {:.1}%", ratio * 100.0));
+    // #223：summary 同步页级判定——兜底「页」是文本流组（语义与 summary
+    // 的「N 页」口径一致，如实自报）。多数页正常而个别页垃圾 → 点名异常页
+    // 而非整份误标（B-cqyd 实测：修 A 后全局 ratio≈1.1% 仍 <2%，拉平判定
+    // 会继续误标整份——页级判定后 Clean + 点名第 5 流组）。
+    let page_texts: Vec<String> = t.pages.iter().map(|p| p.concat()).collect();
+    let page_probe = probe_cjk_garble_pages(&bytes, &page_texts);
+    let fmt_pages = |v: &[usize]| -> String {
+        v.iter().map(|p| p.to_string()).collect::<Vec<_>>().join("、")
+    };
+    match page_probe.verdict {
+        CjkGarbleProbe::Garbled => {
+            summary.push_str(&format!(
+                "；【疑似乱码】声明中文字体而有效页 CJK 占比异常（乱码页：{}）——文本层可能不可用（条款抽取可能为 0），建议提供可解析版本（DOCX）或安装 pdfium/poppler 后重新导入",
+                fmt_pages(&page_probe.garbled_pages)
+            ));
+        }
+        CjkGarbleProbe::Clean if !page_probe.garbled_pages.is_empty() => {
+            summary.push_str(&format!(
+                "；CJK 占比 {:.1}%（第{}页疑似乱码，其余页正常——异常页文本可能不可用，不影响整份可用性）",
+                ratio * 100.0,
+                fmt_pages(&page_probe.garbled_pages)
+            ));
+        }
+        // #218 可见性兜底：无有效页（全部页样本不足，退化拉平判 NoSignal）
+        // 时保持拉平可见性——声明 CJK 而占比异常低仍标注（Agent 可见性）。
+        // 不影响 probe 的拒收面（那是 lib.rs fail-loud 的事），也不影响
+        // B-cqyd 形态（它有有效页，走上面的页级分支）。
+        CjkGarbleProbe::NoSignal if bytes_declare_cjk_font(&bytes) && ratio < 0.02 => {
+            summary.push_str(&format!(
+                "；【疑似乱码】声明中文字体而文本 CJK 占比仅 {:.1}%——文本层可能不可用（条款抽取可能为 0），建议提供可解析版本（DOCX）或安装 pdfium/poppler 后重新导入",
+                ratio * 100.0
+            ));
+        }
+        _ => {
+            summary.push_str(&format!("；CJK 占比 {:.1}%", ratio * 100.0));
+        }
     }
     Ok(crate::ParsedFile {
         name: name.to_string(),
@@ -1649,6 +1707,11 @@ pub enum CjkGarbleProbe {
 /// 字体但正文以英文为主的模板件）被降级也无损失：降级只是换纯 Rust 兜底
 /// 重解同一文件，summary 诚实自报。
 pub fn probe_cjk_garble(pdf_bytes: &[u8], text: &str) -> CjkGarbleProbe {
+    probe_cjk_garble_flat(pdf_bytes, text)
+}
+
+/// 全文拉平判据（#223 前的唯一判定；保留为分页判据的退化面）。
+fn probe_cjk_garble_flat(pdf_bytes: &[u8], text: &str) -> CjkGarbleProbe {
     if !bytes_declare_cjk_font(pdf_bytes) {
         return CjkGarbleProbe::NoSignal;
     }
@@ -1663,9 +1726,122 @@ pub fn probe_cjk_garble(pdf_bytes: &[u8], text: &str) -> CjkGarbleProbe {
     }
 }
 
+/// 页级乱码判定结论（#223）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PageGarbleVerdict {
+    /// 整体结论。
+    pub verdict: CjkGarbleProbe,
+    /// 疑似乱码页号（1-based，按传入 pages 序；Clean 且非空 = 局部异常页）。
+    pub garbled_pages: Vec<usize>,
+}
+
+/// #223 修 B：分页多数决 CJK 乱码探测——一页垃圾不再否决整份文件。
+///
+/// B-cqyd-招标公告.pdf 实测：第 1-4 页正常（汉字 537/906/1161/579）而
+/// 第 5 文本流组 3209 字符全是控制符——全文拉平后 cjk_ratio=0.0086 被误判
+/// Garbled 整份拒收。分页后：有效页中「CJK 正常」的占严格多数 → Clean，
+/// 异常页单独点名（进 parse_summary），不否决整份。
+///
+/// 阈值与拉平判据同源：有效页 = 非空白字符 ≥ 32（样本门）；页正常 =
+/// cjk_ratio ≥ 0.02（Garbled 阈）——不引入第二套魔法数。
+///
+/// **不放松的红线**：全部有效页皆乱（clean==0）→ 仍判 [`CjkGarbleProbe::Garbled`]
+/// （fail-loud：全乱就是全乱，多数决不救）；平票（clean*2 == valid）保守判
+/// Garbled；有效页为 0（全部页样本不足）→ 退化为拉平判据（拼全部页，
+/// 行为与 #223 之前逐位一致）。
+pub fn probe_cjk_garble_pages(pdf_bytes: &[u8], pages: &[String]) -> PageGarbleVerdict {
+    if !bytes_declare_cjk_font(pdf_bytes) {
+        return PageGarbleVerdict {
+            verdict: CjkGarbleProbe::NoSignal,
+            garbled_pages: Vec::new(),
+        };
+    }
+    let valid: Vec<(usize, &str)> = pages
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| p.chars().filter(|c| !c.is_whitespace()).count() >= 32)
+        .map(|(i, p)| (i, p.as_str()))
+        .collect();
+    if valid.is_empty() {
+        // 退化面：拼全部页跑拉平判据（小文档不放松——单页文件行为不变）
+        let flat: String = pages.concat();
+        return PageGarbleVerdict {
+            verdict: probe_cjk_garble_flat(pdf_bytes, &flat),
+            garbled_pages: Vec::new(),
+        };
+    }
+    let mut garbled_pages = Vec::new();
+    let mut clean = 0usize;
+    for (i, p) in &valid {
+        if cjk_ratio(p) < 0.02 {
+            garbled_pages.push(i + 1);
+        } else {
+            clean += 1;
+        }
+    }
+    let verdict = if clean == 0 {
+        CjkGarbleProbe::Garbled
+    } else if clean * 2 > valid.len() {
+        CjkGarbleProbe::Clean
+    } else {
+        // 少数正常（含平票）：多数已乱，整份不可信——保守 Garbled
+        CjkGarbleProbe::Garbled
+    };
+    PageGarbleVerdict {
+        verdict,
+        garbled_pages,
+    }
+}
+
 /// 拼一条路的全部文本（探测输入）。
 pub fn parsed_text_of(pf: &crate::ParsedFile) -> String {
     pf.blocks.iter().map(|b| b.text.as_str()).collect()
+}
+
+/// 从块 locator 解析页号（#223 分桶用）。
+///
+/// 兼容三种在产格式：`第1页 行2`（pdftotext 首选路 pdf.rs）、
+/// `第1 页 > 第2 行`（纯 Rust 兜底路 parse_via_fallback）、
+/// `第1页 OCR 行2`（OcrLine）。无法解析 → None（调用方兜底进尾桶）。
+fn page_no_of_locator(loc: &str) -> Option<usize> {
+    let t = loc.trim_start().strip_prefix('第')?;
+    let digits: String = t.chars().take_while(|c| c.is_ascii_digit()).collect();
+    if digits.is_empty() {
+        return None;
+    }
+    let rest = &t[digits.len()..];
+    if rest.starts_with("页") || rest.starts_with(" 页") {
+        digits.parse().ok()
+    } else {
+        None
+    }
+}
+
+/// 按块 locator 的「第N页」前缀把一条解析路的文本分桶回页（#223 探测输入）。
+///
+/// locator 语义本就是「页内序号」的确定性编号（见 [`page_no_of_locator`] 的
+/// 三种在产格式），分桶即还原页结构；无法解析的块兜底进当前最后一桶——
+/// 文本绝不从探测中丢失（丢文本会把 Garbled 误判成 NoSignal）。
+pub fn parsed_pages_of(pf: &crate::ParsedFile) -> Vec<String> {
+    let mut pages: Vec<String> = Vec::new();
+    for b in &pf.blocks {
+        match page_no_of_locator(&b.locator) {
+            Some(no) if no >= 1 => {
+                while pages.len() < no {
+                    pages.push(String::new());
+                }
+                pages[no - 1].push_str(&b.text);
+            }
+            _ => {
+                if pages.is_empty() {
+                    pages.push(String::new());
+                }
+                let last = pages.len() - 1;
+                pages[last].push_str(&b.text);
+            }
+        }
+    }
+    pages
 }
 
 
@@ -2078,7 +2254,9 @@ mod tests {
     #[test]
     fn tounicode_non_stream_object_not_borrowing_foreign_stream() {
         let cmap_stream = b"begincmap\n1 beginbfchar\n<0001> <4E2D>\nendbfchar\nendcmap";
-        let content = b"BT /F1 12 Tf 1 0 0 -1 100 50 Tm <0001> Tj ET";
+        // #223 修 A：混入可打印 CID 0x0041（'A'）——纯 <0001> 件清洗后无文本层，
+        // 改后不借流剩 "A"（可打印），借流仍解出「中」被断言抓到，强度不变。
+        let content = b"BT /F1 12 Tf 1 0 0 -1 100 50 Tm <00410001> Tj ET";
         let mut v = Vec::new();
         v.extend_from_slice(b"%PDF-1.4\n");
         // 对象 9：**非流**字典对象（只有 endobj，无 stream）——但后面 12 号有流。
@@ -2298,8 +2476,11 @@ mod tests {
     #[test]
     fn fallback_summary_flags_suspected_garble() {
         // 声明 SimSun（CJK 字体 marker 命中）+ 无 ToUnicode + CID 直出
-        // （0x0001/0x0002 按 UTF-16BE 落非 CJK 区）→ 占比 0 → 必须标注。
-        let content = b"BT /F1 12 Tf 1 0 0 -1 100 50 Tm <0001000200030004> Tj ET";
+        // （0x0043/0x0032/0x0030/0x0031 按 UTF-16BE → 可打印 "C201"，非 CJK 区）
+        // → 占比 0 → 必须标注。#223 修 A 后改用可打印 CID：纯控制符件会被
+        // 行级清洗为空 → 诚实报无文本层（见 control_only_text_is_empty），
+        // 而 #218 的真实乱码形态（Latin 残渣）是可打印的，不受修 A 影响。
+        let content = b"BT /F1 12 Tf 1 0 0 -1 100 50 Tm <0043003200300031> Tj ET";
         let v = font_pdf(
             "F1",
             "<< /Type /Font /Subtype /Type0 /BaseFont /SimSun /Encoding /Identity-H \
@@ -2314,6 +2495,28 @@ mod tests {
             "summary 必须标注疑似乱码——实际：{}",
             pf.parse_summary
         );
+        let all = parsed_text_of(&pf);
+        assert!(all.contains("C201"), "可打印 CID 应直出：{all:?}");
+        let _ = std::fs::remove_file(&dir);
+    }
+
+    /// #223 修 A 新语义：纯控制符「文本」被行级清洗为空 → 诚实报无文本层。
+    ///
+    /// 修前：U+0001-U+0004 算 has_text → 兜底产出 4 个控制符的空壳「成功」
+    /// （假成功面）；修后：清洗后零行 → NoTextLayer（与「只抽到空白」同判）。
+    #[test]
+    fn control_only_text_is_empty_not_text_layer() {
+        let content = b"BT /F1 12 Tf 1 0 0 -1 100 50 Tm <0001000200030004> Tj ET";
+        let v = font_pdf(
+            "F1",
+            "<< /Type /Font /Subtype /Type0 /BaseFont /SimSun /Encoding /Identity-H /DescendantFonts [6 0 R] >>",
+            content,
+        );
+        let dir = std::env::temp_dir().join("bid_parse_223_control_only.pdf");
+        std::fs::write(&dir, &v).expect("写临时 PDF");
+        let err = parse_via_fallback(&dir, "control-only.pdf")
+            .expect_err("纯控制符件应诚实报无文本层（#223 修 A）");
+        assert!(err.contains("无文本层"), "报错应点名无文本层：{err}");
         let _ = std::fs::remove_file(&dir);
     }
 
@@ -2449,6 +2652,156 @@ mod tests {
         assert_eq!(decode_text_string_fc(b"\x67\x2c", &EMPTY, false), "g,");
         // 奇数长度不进恒等路（fail-safe）
         assert_eq!(decode_text_string_fc(b"\x67\x2c\x01", &EMPTY, true), "g,\u{1}");
+    }
+
+    // ---------------------------------------------------------------- #223 修 A：控制字符清洗
+
+    /// sanitize_line：剔除 C0（除 \t\n\r）/DEL/C1，正文与合法控制零损伤。
+    #[test]
+    fn sanitize_line_strips_control_chars_keeps_text() {
+        assert_eq!(sanitize_line("投标\u{00}文件\u{1f}合格"), "投标文件合格");
+        assert_eq!(sanitize_line("中文\u{80}混\u{9f}排"), "中文混排");
+        assert_eq!(sanitize_line("a\u{7f}b"), "ab");
+        // 合法排版控制保留
+        assert_eq!(sanitize_line("a\tb\nc\rd"), "a\tb\nc\rd");
+        // 正文零损伤
+        assert_eq!(sanitize_line("第3.2条 不接受联合体"), "第3.2条 不接受联合体");
+        assert_eq!(sanitize_line(""), "");
+    }
+
+    /// 事故回归：Latin-1 直映（b as char）产出的 C1 残渣必须被行级清洗
+    /// （B-cqyd 157,029 个控制符把 cjk_ratio 拉到 0.0086 的根因面）。
+    #[test]
+    fn flush_path_strips_c1_residue_from_latin1_bytes() {
+        // 非 uc2 字体 + 含 0x80-0x9F 裸字节的字面串 → Latin-1 直映 → C1 进正文
+        let content = b"BT /F1 12 Tf 72 720 Td (Re\x87sultat \x93\x94garbage\x95\x94) Tj ET";
+        let pdf = font_pdf("F1", LATIN_FONT_DICT, content);
+        let lines = extract(&pdf).expect("提取成功").lines();
+        let joined = lines.concat();
+        assert!(
+            !joined
+                .chars()
+                .any(|c| matches!(c, '\u{00}'..='\u{08}' | '\u{0B}'..='\u{0C}' | '\u{0E}'..='\u{1F}' | '\u{7F}' | '\u{80}'..='\u{9F}')),
+            "行面不得再有 C0/C1 残渣（#223 修 A）：{lines:?}"
+        );
+    }
+
+    // ---------------------------------------------------------------- #223 修 B：分页多数决
+
+    /// 混合形态：2 正常中文页 + 1 垃圾页 → Clean + 垃圾页单独点名
+    /// （B-cqyd 实测形态：前 4 页正常、第 5 流组全控制符——修前整份误杀）。
+    #[test]
+    fn paged_probe_mixed_pages_majority_clean() {
+        let pdf = font_pdf("F2", UC2_FONT_DICT, b"BT /F2 12 Tf 72 720 Td (\xb1\xbe) Tj ET");
+        let good = "本项目为2026年度数据中心水冷空调群控系统采购项目招标公告，本项目为2026年度数据中心水冷空调群控系统采购项目";
+        let garbled: String = "\u{93}".repeat(40);
+        let pages = vec![good.to_string(), good.to_string(), garbled];
+        let v = probe_cjk_garble_pages(&pdf, &pages);
+        assert_eq!(
+            v.verdict,
+            CjkGarbleProbe::Clean,
+            "多数页正常应 Clean（修前拉平判据误杀）：{:?}",
+            v.garbled_pages
+        );
+        assert_eq!(v.garbled_pages, vec![3], "垃圾页应单独点名");
+    }
+
+    /// 全部有效页皆乱 → 仍 Garbled（fail-loud 红线：多数决不救全乱）。
+    #[test]
+    fn paged_probe_all_garbled_still_fails_loud() {
+        let pdf = font_pdf("F2", UC2_FONT_DICT, b"BT /F2 12 Tf 72 720 Td (\xb1\xbe) Tj ET");
+        let garbled: String = "SbheN\u{93}\u{94}".repeat(10);
+        let pages = vec![garbled.clone(), garbled.clone(), garbled];
+        let v = probe_cjk_garble_pages(&pdf, &pages);
+        assert_eq!(v.verdict, CjkGarbleProbe::Garbled, "全乱必须继续判乱");
+        assert_eq!(v.garbled_pages, vec![1, 2, 3]);
+    }
+
+    /// 平票（2 正 2 乱）保守判 Garbled——不放松。
+    #[test]
+    fn paged_probe_tie_is_conservative_garbled() {
+        let pdf = font_pdf("F2", UC2_FONT_DICT, b"BT /F2 12 Tf 72 720 Td (\xb1\xbe) Tj ET");
+        let good = "本项目为数据中心水冷空调群控系统采购项目招标公告内容，本项目为数据中心水冷空调群控系统采购项目";
+        let garbled: String = "\u{93}\u{94}".repeat(40);
+        let pages = vec![good.to_string(), good.to_string(), garbled.clone(), garbled];
+        let v = probe_cjk_garble_pages(&pdf, &pages);
+        assert_eq!(v.verdict, CjkGarbleProbe::Garbled, "平票保守判乱（不放松）");
+        assert_eq!(v.garbled_pages, vec![3, 4]);
+    }
+
+    /// 无有效页（全部样本不足）→ 退化拉平判据，与 #223 之前行为逐位一致。
+    #[test]
+    fn paged_probe_degenerates_to_flat_when_no_valid_page() {
+        let pdf = font_pdf("F2", UC2_FONT_DICT, b"BT /F2 12 Tf 72 720 Td (\xb1\xbe) Tj ET");
+        // 各页 <32 非空白且合计也不足 → NoSignal
+        let v = probe_cjk_garble_pages(&pdf, &["短".to_string(), "页".to_string()]);
+        assert_eq!(v.verdict, CjkGarbleProbe::NoSignal);
+        // 各页 <32 但合计足且 CJK 正常 → Clean（退化面 == 拉平面）
+        let half: String = "本".repeat(20);
+        let v2 = probe_cjk_garble_pages(&pdf, &[half.clone(), half]);
+        assert_eq!(v2.verdict, CjkGarbleProbe::Clean, "退化面与拉平判据逐位一致");
+    }
+
+    /// 无 CJK 字体声明 → NoSignal（判据不适用——英文件永不触发）。
+    #[test]
+    fn paged_probe_no_cjk_declaration_is_no_signal() {
+        let pdf = b"%PDF-1.4\n1 0 obj\nendobj\n%%EOF\n".to_vec();
+        let good = "本项目为数据中心水冷空调群控系统采购项目招标公告内容重复若干次以满足样本门槛要求";
+        let v = probe_cjk_garble_pages(&pdf, &[good.to_string(), good.to_string()]);
+        assert_eq!(v.verdict, CjkGarbleProbe::NoSignal);
+    }
+
+    // ---------------------------------------------------------------- #223：locator 分桶
+
+    /// page_no_of_locator：三种在产格式 + 无法解析返回 None。
+    #[test]
+    fn page_no_of_locator_accepts_three_production_formats() {
+        assert_eq!(page_no_of_locator("第1页 行2"), Some(1));
+        assert_eq!(page_no_of_locator("第12 页 > 第3 行"), Some(12));
+        assert_eq!(page_no_of_locator("第2页 OCR 行5"), Some(2));
+        assert_eq!(page_no_of_locator("表格 3-1"), None);
+        assert_eq!(page_no_of_locator("第页 行1"), None);
+    }
+
+    /// parsed_pages_of：按页分桶、空页保留空桶、无法解析兜底尾桶（文本不丢）。
+    #[test]
+    fn parsed_pages_buckets_by_locator_page_prefix() {
+        let mk = |idx: usize, loc: &str, text: &str| crate::Block {
+            idx,
+            kind: crate::BlockKind::PdfLine,
+            locator: loc.to_string(),
+            text: text.to_string(),
+            cells: Vec::new(),
+        };
+        let pf = crate::ParsedFile {
+            name: "t.pdf".into(),
+            sha256: String::new(),
+            pages: 3,
+            tables: 0,
+            has_text_layer: true,
+            ocr_blocks: 0,
+            blocks: vec![
+                mk(0, "第1页 行1", "首页内容"),
+                mk(1, "第1 页 > 第2 行", "首页第二行"),
+                mk(2, "第3页 行1", "第三页"),
+                mk(3, "无页号格式", "尾桶兜底"),
+            ],
+            parse_summary: String::new(),
+            components: Vec::new(),
+        };
+        let pages = parsed_pages_of(&pf);
+        assert_eq!(pages.len(), 3, "应有 3 个页桶：{pages:?}");
+        assert!(
+            pages[0].contains("首页内容") && pages[0].contains("首页第二行"),
+            "第 1 页两行都该在桶内：{:?}",
+            pages[0]
+        );
+        assert!(pages[1].is_empty(), "第 2 页无块应为空桶（不参与多数决）");
+        assert!(
+            pages[2].contains("第三页") && pages[2].contains("尾桶兜底"),
+            "无法解析 locator 的块兜底进尾桶，文本绝不丢失：{:?}",
+            pages[2]
+        );
     }
 
 }

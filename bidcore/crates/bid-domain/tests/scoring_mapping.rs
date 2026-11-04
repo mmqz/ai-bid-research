@@ -679,6 +679,47 @@ fn restore_enforces_registration_row_constraints() {
     assert_eq!(ok.scoring_mappings().len(), 1);
 }
 
+/// content_version 语义（Lead blocker 3）：真变更（新增 / 任一字段更新）
+/// bump；全字段等值重提（真 no-op）不 bump——映射影响评分结果，乐观并发
+/// 面不得「版本没变但评分面变了」。
+#[test]
+fn mapping_mutation_bumps_content_version_but_noop_does_not() {
+    let mut s = store_base();
+    let v0 = s.content_version();
+
+    // 新增 → +1
+    let m1 = upsert(&mut s, "REQ-0001", "SEC-01", 0.6);
+    assert_eq!(s.content_version(), v0 + 1, "新增映射 bump");
+
+    // 全字段等值重提（同键同值同锚同来源）→ 真 no-op，不 bump
+    let m2 = upsert(&mut s, "REQ-0001", "SEC-01", 0.6);
+    assert_eq!(m1.id, m2.id, "幂等键命中不重签 id");
+    assert_eq!(s.content_version(), v0 + 1, "等值重提不 bump");
+    assert_eq!(s.scoring_mappings().len(), 1, "等值重提不追加行");
+
+    // 真更新（share 变）→ +1
+    upsert(&mut s, "REQ-0001", "SEC-01", 0.7);
+    assert_eq!(s.content_version(), v0 + 2, "share 更新 bump");
+
+    // 真更新（created_from 变，share 不变）→ +1（非身份字段也算变更）
+    s.upsert_scoring_mapping(
+        "REQ-0001".into(),
+        "SEC-01".into(),
+        0.7,
+        vec![],
+        anchor("4.1 技术方案完整性……（规则原文锚）"),
+        MappingSource::Manual,
+    )
+    .unwrap();
+    assert_eq!(s.content_version(), v0 + 3, "created_from 更新 bump");
+
+    // created_from 回位（又变）→ bump；随后终态等值重提 → 不 bump
+    upsert(&mut s, "REQ-0001", "SEC-01", 0.7);
+    assert_eq!(s.content_version(), v0 + 4, "created_from 回位也 bump");
+    upsert(&mut s, "REQ-0001", "SEC-01", 0.7);
+    assert_eq!(s.content_version(), v0 + 4, "终态等值重提不 bump");
+}
+
 /// 快照往返 + 旧快照（无 scoring_mappings 键）空集合加载 + 孤儿/复合键重复拒载。
 #[test]
 fn mapping_snapshot_roundtrip_and_old_snapshot_loads() {

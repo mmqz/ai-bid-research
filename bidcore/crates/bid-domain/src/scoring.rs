@@ -1415,16 +1415,28 @@ impl DomainStore {
                  调整既有占比请先降再增）"
             )));
         }
-        // 幂等键命中 → 更新非身份字段；未命中 → 追加签新 id
+        // 幂等键命中 → 更新非身份字段；未命中 → 追加签新 id。
+        // #224 content_version（Lead 2026-11-04 review blocker 3）：映射影响
+        // 评分结果——真变更必须 bump（乐观并发面不得「版本没变但评分面
+        // 变了」）；全字段等值重提（真 no-op）不制造假版本。
         if let Some(existing) = self
             .scoring_mappings
             .iter_mut()
             .find(|m| m.scoring_req_id == scoring_req_id && m.section_id == section_id)
         {
+            let changed = existing.weight_share != weight_share
+                || existing.evidence_refs != evidence_refs
+                || existing.source_anchor != source_anchor
+                || existing.created_from != created_from;
             existing.weight_share = weight_share;
             existing.evidence_refs = evidence_refs;
             existing.source_anchor = source_anchor;
             existing.created_from = created_from;
+            if changed {
+                if let Some(p) = self.project.as_mut() {
+                    p.content_version += 1;
+                }
+            }
             return Ok(existing.clone());
         }
         let m = ScoringMapping {
@@ -1437,6 +1449,10 @@ impl DomainStore {
             created_from,
         };
         self.scoring_mappings.push(m.clone());
+        // #224 content_version：新映射入账 = 评分面数据变更 → bump。
+        if let Some(p) = self.project.as_mut() {
+            p.content_version += 1;
+        }
         Ok(m)
     }
 

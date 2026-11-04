@@ -353,7 +353,9 @@ mod tests {
 
     #[test]
     fn nonexistent_tool_reported_missing() {
-        // 真实 PATH 下，不存在的工具必然被报告（探测逻辑的底线正确性）
+        // 真实 PATH 下，不存在的工具必然被报告（探测逻辑的底线正确性）。
+        // 持子进程测试锁（探测经 run_limited 占并发席——#200 R2 竞态治本）
+        let _g = crate::guard::SUBPROC_TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         let miss = missing_tools(&["definitely-not-a-real-tool-xyz-12345"]);
         assert_eq!(miss, vec!["definitely-not-a-real-tool-xyz-12345".to_string()]);
     }
@@ -369,6 +371,8 @@ mod tests {
 
     #[test]
     fn restricted_path_simulates_missing_env() {
+        // 持子进程测试锁（探测经 run_limited 占并发席——#200 R2 竞态治本）
+        let _g = crate::guard::SUBPROC_TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         // BID_PREFLIGHT_PATH 指向空目录 → 外部工具 + 语言数据全部判缺
         // （模拟无 poppler / 无 tessdata 的机器）。
         //

@@ -86,7 +86,9 @@ impl PdfText {
 
     /// 是否抽到了非空文本。
     pub fn has_text(&self) -> bool {
-        self.pages.iter().any(|p| p.iter().any(|l| !l.trim().is_empty()))
+        self.pages
+            .iter()
+            .any(|p| p.iter().any(|l| !l.trim().is_empty()))
     }
 
     /// 可供人读的摘要（进 parse_summary）。
@@ -125,7 +127,10 @@ pub fn extract(bytes: &[u8]) -> Result<PdfText, PdfTextError> {
     let fonts = collect_font_encodings(bytes);
     // #218：按字体路由的专属 CMap（多字体 CID 重叠时全局合并会错字；
     // 未能路由的字体回退 merged——行为与旧版一致）。
-    let fcmaps = FontCMaps { maps: collect_font_cmaps(bytes), merged: cmap };
+    let fcmaps = FontCMaps {
+        maps: collect_font_cmaps(bytes),
+        merged: cmap,
+    };
 
     let mut pages: Vec<Vec<String>> = Vec::new();
     let mut streams_decoded = 0usize;
@@ -153,7 +158,11 @@ pub fn extract(bytes: &[u8]) -> Result<PdfText, PdfTextError> {
         pages.push(lines);
     }
 
-    let out = PdfText { pages, streams_decoded, streams_skipped };
+    let out = PdfText {
+        pages,
+        streams_decoded,
+        streams_skipped,
+    };
     if out.has_text() {
         return Ok(out);
     }
@@ -221,9 +230,7 @@ fn collect_cmaps_inner(bytes: &[u8]) -> Vec<CMap> {
 /// 2 字节码**恒等**映射为同值 Unicode——这正是 ReportLab 等生成器
 /// 「非嵌入 CID 字体（STSong-Light）」的编码声明方式，因此**没有
 /// ToUnicode 也能精确解码**，不靠启发式猜。
-const UCS2_CMAP_MARKERS: &[&[u8]] = &[
-    b"UniGB-UCS2", b"UniCNS-UCS2", b"UniJIS-UCS2", b"UniKS-UCS2",
-];
+const UCS2_CMAP_MARKERS: &[&[u8]] = &[b"UniGB-UCS2", b"UniCNS-UCS2", b"UniJIS-UCS2", b"UniKS-UCS2"];
 
 /// 字体资源名（内容流 `Tf` 运算符的操作数，如 `F2`）→ 是否声明了
 /// UniXX-UCS2 预定义 CMap。
@@ -243,18 +250,11 @@ impl FontEncodings {
     }
 }
 
-/// 收集「资源名 → UniXX-UCS2 字体」映射。
+/// 全部 `N 0 obj` 对象头（" 0 obj" 匹配位置, 对象号），位置有序。
 ///
-/// 三步扫描（与 collect_cmaps 同款「字典层字节扫描」风格——字体字典
-/// 不进压缩流，名字可直接搜；不做完整 xref 解析）：
-///   1. 全部 `N 0 obj` 对象头（位置有序）；
-///   2. 每个 UniXX-UCS2 标记处向前找最近对象头 → 该字体对象号集合；
-///   3. 扫全部 `资源名 N 0 R` 间接引用，N 在集合中 → 记下资源名。
-///
-/// 能力边界（如实登记）：PDF 1.5+ 对象流（ObjStm 压缩存放的字体字典）
-/// 扫不到 → 映射为空 → 退回既有启发式行为（fail-safe，不劣化）。
-fn collect_font_encodings(bytes: &[u8]) -> FontEncodings {
-    // 步骤 1：对象头（匹配 " 0 obj" 的位置, 其前数字串即对象号）。
+/// 共享扫描器（#200 R1 重构：原 collect_font_encodings 内联的扫描逻辑抽出，
+/// CID 在用探测与 uc2 收集共用同一套对象头/引用扫描口径）。
+fn scan_obj_heads(bytes: &[u8]) -> Vec<(usize, u64)> {
     let mut heads: Vec<(usize, u64)> = Vec::new();
     let mut k = 0usize;
     while let Some(p) = find_from(bytes, k, b" 0 obj") {
@@ -270,8 +270,53 @@ fn collect_font_encodings(bytes: &[u8]) -> FontEncodings {
         }
         k = p + 6;
     }
+    heads
+}
 
-    // 步骤 2：UniXX-UCS2 标记 → 就近向前找对象头 → uc2 字体对象号集合。
+/// 全部 `/资源名 N 0 R` 间接引用（资源名, 对象号）。
+fn scan_name_refs(bytes: &[u8]) -> Vec<(String, u64)> {
+    let mut refs: Vec<(String, u64)> = Vec::new();
+    let mut k = 0usize;
+    while let Some(p) = find_from(bytes, k, b" 0 R") {
+        let mut j = p;
+        while j > 0 && bytes[j - 1].is_ascii_digit() {
+            j -= 1;
+        }
+        if j < p {
+            let num = std::str::from_utf8(&bytes[j..p]).unwrap_or("");
+            if let Ok(n) = num.parse::<u64>() {
+                let mut m = j;
+                while m > 0 && bytes[m - 1].is_ascii_whitespace() {
+                    m -= 1;
+                }
+                let mut s = m;
+                while s > 0
+                    && (bytes[s - 1].is_ascii_alphanumeric()
+                        || bytes[s - 1] == b'-'
+                        || bytes[s - 1] == b'+'
+                        || bytes[s - 1] == b'_')
+                {
+                    s -= 1;
+                }
+                if s < m && s > 0 && bytes[s - 1] == b'/' {
+                    let name = std::str::from_utf8(&bytes[s..m]).unwrap_or("");
+                    if !name.is_empty() {
+                        refs.push((name.to_string(), n));
+                    }
+                }
+            }
+        }
+        k = p + 4;
+    }
+    refs
+}
+
+/// 收集「资源名 → UniXX-UCS2 字体」映射（#200 恒等解码的字体资格面）。
+///
+/// 能力边界（如实登记）：PDF 1.5+ 对象流（ObjStm 压缩存放的字体字典）
+/// 扫不到 → 映射为空 → 退回既有启发式行为（fail-safe，不劣化）。
+fn collect_font_encodings(bytes: &[u8]) -> FontEncodings {
+    let heads = scan_obj_heads(bytes);
     let mut uc2_objs: std::collections::HashSet<u64> = std::collections::HashSet::new();
     for marker in UCS2_CMAP_MARKERS {
         let mut k = 0usize;
@@ -282,45 +327,10 @@ fn collect_font_encodings(bytes: &[u8]) -> FontEncodings {
             k = p + marker.len();
         }
     }
-
-    // 步骤 3：`/资源名 N 0 R` 引用 → N 在 uc2 集合 → 记资源名。
     let mut fonts = FontEncodings::default();
-    if !uc2_objs.is_empty() {
-        let mut k = 0usize;
-        while let Some(p) = find_from(bytes, k, b" 0 R") {
-            // p 指向 " 0 R" 的空格；p-1 起往前是对象号 N 的数字串。
-            let mut j = p;
-            while j > 0 && bytes[j - 1].is_ascii_digit() {
-                j -= 1;
-            }
-            if j < p {
-                let num = std::str::from_utf8(&bytes[j..p]).unwrap_or("");
-                if let Ok(n) = num.parse::<u64>() {
-                    if uc2_objs.contains(&n) {
-                        // 再往前跳空白，应见到 `/资源名`。
-                        let mut m = j;
-                        while m > 0 && bytes[m - 1].is_ascii_whitespace() {
-                            m -= 1;
-                        }
-                        let mut s = m;
-                        while s > 0
-                            && (bytes[s - 1].is_ascii_alphanumeric()
-                                || bytes[s - 1] == b'-'
-                                || bytes[s - 1] == b'+'
-                                || bytes[s - 1] == b'_')
-                        {
-                            s -= 1;
-                        }
-                        if s < m && s > 0 && bytes[s - 1] == b'/' {
-                            let name = std::str::from_utf8(&bytes[s..m]).unwrap_or("");
-                            if !name.is_empty() {
-                                fonts.uc2_fonts.insert(name.to_string());
-                            }
-                        }
-                    }
-                }
-            }
-            k = p + 4;
+    for (name, n) in scan_name_refs(bytes) {
+        if uc2_objs.contains(&n) {
+            fonts.uc2_fonts.insert(name);
         }
     }
     fonts
@@ -456,7 +466,6 @@ fn collect_font_cmaps(bytes: &[u8]) -> std::collections::HashMap<String, CMap> {
     }
     maps
 }
-
 /// 取 `N 0 obj` 对象流的字节（若有 Filter 则先解压）。
 ///
 /// #218 修复——对象定位三重防护（此前「单匹配 + 无界 stream 搜索」两处踩坑）：
@@ -556,7 +565,9 @@ fn iter_streams(bytes: &[u8]) -> Vec<(&[u8], Vec<String>)> {
     let mut i = 0usize;
     while i + 6 <= bytes.len() {
         // 定位 "stream"
-        let Some(pos) = find_from(bytes, i, b"stream") else { break };
+        let Some(pos) = find_from(bytes, i, b"stream") else {
+            break;
+        };
         // 前一个字符不能是字母（避开 endstream 里的 stream）
         let prev = if pos > 0 { bytes[pos - 1] } else { b'\n' };
         if prev.is_ascii_alphabetic() {
@@ -574,7 +585,9 @@ fn iter_streams(bytes: &[u8]) -> Vec<(&[u8], Vec<String>)> {
         if start < bytes.len() && bytes[start] == b'\n' {
             start += 1;
         }
-        let Some(end_rel) = find_from(bytes, start, b"endstream") else { break };
+        let Some(end_rel) = find_from(bytes, start, b"endstream") else {
+            break;
+        };
         let mut data_end = end_rel;
         // 剎掉末尾 EOL
         while data_end > start && (bytes[data_end - 1] == b'\n' || bytes[data_end - 1] == b'\r') {
@@ -634,7 +647,13 @@ fn rfind(hay: &[u8], needle: &[u8]) -> Option<usize> {
 }
 
 fn parse_filters(dict: &[u8]) -> Vec<String> {
-    let names = ["ASCII85Decode", "FlateDecode", "ASCIIHexDecode", "LZWDecode", "RunLengthDecode"];
+    let names = [
+        "ASCII85Decode",
+        "FlateDecode",
+        "ASCIIHexDecode",
+        "LZWDecode",
+        "RunLengthDecode",
+    ];
     let mut found: Vec<(usize, String)> = Vec::new();
     for name in names {
         let nb = name.as_bytes();
@@ -933,9 +952,11 @@ fn parse_hex_triples(chunk: &str) -> Vec<(u32, u32, String)> {
     let mut out = Vec::new();
     let mut i = 0usize;
     while i + 2 < toks.len() {
-        if let (Some(lo), Some(hi), Some(base)) =
-            (hex_to_u32(&toks[i]), hex_to_u32(&toks[i + 1]), hex_to_unicode(&toks[i + 2]))
-        {
+        if let (Some(lo), Some(hi), Some(base)) = (
+            hex_to_u32(&toks[i]),
+            hex_to_u32(&toks[i + 1]),
+            hex_to_unicode(&toks[i + 2]),
+        ) {
             if hi >= lo {
                 out.push((lo, hi, base));
                 i += 3;
@@ -976,7 +997,11 @@ fn hex_to_unicode(tok: &str) -> Option<String> {
         units.push(u16::from_str_radix(&hex[k..k + 4], 16).ok()?);
         k += 4;
     }
-    Some(char::decode_utf16(units).map(|r| r.unwrap_or(char::REPLACEMENT_CHARACTER)).collect())
+    Some(
+        char::decode_utf16(units)
+            .map(|r| r.unwrap_or(char::REPLACEMENT_CHARACTER))
+            .collect(),
+    )
 }
 
 fn base_codepoint(s: &str) -> u32 {
@@ -984,7 +1009,9 @@ fn base_codepoint(s: &str) -> u32 {
 }
 
 fn codepoint_to_string(cp: u32) -> String {
-    char::from_u32(cp).map(|c| c.to_string()).unwrap_or_default()
+    char::from_u32(cp)
+        .map(|c| c.to_string())
+        .unwrap_or_default()
 }
 
 // ---------------------------------------------------------------- 内容流扫描
@@ -1115,7 +1142,7 @@ fn extract_text_lines(content: &[u8], fcmaps: &FontCMaps, fonts: &FontEncodings)
                             let txt = decode_text_string(
                                 &joined,
                                 fcmaps,
-                                    cur_font.as_deref(),
+                                cur_font.as_deref(),
                                 cur_font.as_deref().is_some_and(|f| fonts.is_uc2(f)),
                             );
                             if !txt.trim().is_empty() {
@@ -1137,19 +1164,26 @@ fn extract_text_lines(content: &[u8], fcmaps: &FontCMaps, fonts: &FontEncodings)
                             let e = nums[nums.len() - 2];
                             let f = nums[nums.len() - 1];
                             // 绝对坐标 = Tm 平移 加上当前 CTM 平移
-        // #218：记录 Tm 的水平/垂直缩放分量（a/d 绝对值——d 常为负的
-        // y 翻转矩阵）。退化矩阵（0）保持原值，防除零式异常。
-        if nums.len() >= 6 {
-            let a = nums[nums.len() - 6].abs();
-            let d = nums[nums.len() - 3].abs();
-            if a > f64::EPSILON {
-                tm_scale_x = a;
-            }
-            if d > f64::EPSILON {
-                tm_scale_y = d;
-            }
-        }
-                            on_tm2(&mut parts, &mut cur_y, &mut cur_x, ctm.0 + e, ctm.1 + f, &mut lines);
+                            // #218：记录 Tm 的水平/垂直缩放分量（a/d 绝对值——d 常为负的
+                            // y 翻转矩阵）。退化矩阵（0）保持原值，防除零式异常。
+                            if nums.len() >= 6 {
+                                let a = nums[nums.len() - 6].abs();
+                                let d = nums[nums.len() - 3].abs();
+                                if a > f64::EPSILON {
+                                    tm_scale_x = a;
+                                }
+                                if d > f64::EPSILON {
+                                    tm_scale_y = d;
+                                }
+                            }
+                            on_tm2(
+                                &mut parts,
+                                &mut cur_y,
+                                &mut cur_x,
+                                ctm.0 + e,
+                                ctm.1 + f,
+                                &mut lines,
+                            );
                         }
                         nums.clear();
                         i = next;
@@ -1158,7 +1192,7 @@ fn extract_text_lines(content: &[u8], fcmaps: &FontCMaps, fonts: &FontEncodings)
                         if nums.len() >= 2 {
                             let tx = nums[nums.len() - 2];
                             let ty = nums[nums.len() - 1];
-                            cur_x += tx * tm_scale_x;   // #218：文本空间→页面空间
+                            cur_x += tx * tm_scale_x; // #218：文本空间→页面空间
                             let new_y = cur_y.map(|y| y + ty * tm_scale_y); // #218：同上（垂直分量）
                             if let Some(ny) = new_y {
                                 if let Some(prev) = cur_y {
@@ -1181,7 +1215,9 @@ fn extract_text_lines(content: &[u8], fcmaps: &FontCMaps, fonts: &FontEncodings)
             b'0'..=b'9' | b'-' | b'.' => {
                 let mut j = i;
                 let mut txt = String::new();
-                while j < n && (content[j].is_ascii_digit() || content[j] == b'-' || content[j] == b'.') {
+                while j < n
+                    && (content[j].is_ascii_digit() || content[j] == b'-' || content[j] == b'.')
+                {
                     txt.push(content[j] as char);
                     j += 1;
                 }
@@ -1201,7 +1237,7 @@ fn extract_text_lines(content: &[u8], fcmaps: &FontCMaps, fonts: &FontEncodings)
         let txt = decode_text_string(
             &joined,
             fcmaps,
-                cur_font.as_deref(),
+            cur_font.as_deref(),
             cur_font.as_deref().is_some_and(|f| fonts.is_uc2(f)),
         );
         if !txt.trim().is_empty() {
@@ -1323,11 +1359,11 @@ fn join_line(mut parts: Vec<(f64, f64, String)>) -> String {
     out
 }
 
-
-
 fn read_name(content: &[u8], start: usize) -> (String, usize) {
     let mut i = start;
-    while i < content.len() && (content[i].is_ascii_alphabetic() || content[i] == b'*' || content[i] == b'\'') {
+    while i < content.len()
+        && (content[i].is_ascii_alphabetic() || content[i] == b'*' || content[i] == b'\'')
+    {
         i += 1;
     }
     (String::from_utf8_lossy(&content[start..i]).to_string(), i)
@@ -1346,18 +1382,41 @@ fn read_literal_string(content: &[u8], start: usize) -> (Vec<u8>, usize) {
             }
             let nx = content[i + 1];
             match nx {
-                b'n' => { out.push(b'\n'); i += 2; }
-                b'r' => { out.push(b'\r'); i += 2; }
-                b't' => { out.push(b'\t'); i += 2; }
-                b'b' => { out.push(8); i += 2; }
-                b'f' => { out.push(12); i += 2; }
-                b'(' | b')' | b'\\' => { out.push(nx); i += 2; }
-                b'\n' => { i += 2; }
-                b'\r' => { i += 2; }
+                b'n' => {
+                    out.push(b'\n');
+                    i += 2;
+                }
+                b'r' => {
+                    out.push(b'\r');
+                    i += 2;
+                }
+                b't' => {
+                    out.push(b'\t');
+                    i += 2;
+                }
+                b'b' => {
+                    out.push(8);
+                    i += 2;
+                }
+                b'f' => {
+                    out.push(12);
+                    i += 2;
+                }
+                b'(' | b')' | b'\\' => {
+                    out.push(nx);
+                    i += 2;
+                }
+                b'\n' => {
+                    i += 2;
+                }
+                b'\r' => {
+                    i += 2;
+                }
                 b'0'..=b'7' => {
                     let mut oct = String::new();
                     let mut k = i + 1;
-                    while k < content.len() && oct.len() < 3 && (b'0'..=b'7').contains(&content[k]) {
+                    while k < content.len() && oct.len() < 3 && (b'0'..=b'7').contains(&content[k])
+                    {
                         oct.push(content[k] as char);
                         k += 1;
                     }
@@ -1365,7 +1424,10 @@ fn read_literal_string(content: &[u8], start: usize) -> (Vec<u8>, usize) {
                     out.push(v);
                     i = k;
                 }
-                _ => { out.push(nx); i += 2; }
+                _ => {
+                    out.push(nx);
+                    i += 2;
+                }
             }
             continue;
         }
@@ -1446,7 +1508,12 @@ fn decode_via_cmap(bytes: &[u8], cmap: &CMap) -> Option<String> {
     }
 }
 
-fn decode_text_string(bytes: &[u8], fcmaps: &FontCMaps, font: Option<&str>, uc2_identity: bool) -> String {
+fn decode_text_string(
+    bytes: &[u8],
+    fcmaps: &FontCMaps,
+    font: Option<&str>,
+    uc2_identity: bool,
+) -> String {
     // Identity-H 类字体：字节是 2 字节的 CID，必须走 CMap 查 Unicode。
     // #218 两级查表：先当前字体的**专属表**（多字体 CID 重叠——全局
     // 合并会错字，见 FontCMaps）；未全命中再降级**全局合并表**（小表
@@ -1507,7 +1574,7 @@ fn looks_utf16be(bytes: &[u8]) -> bool {
                 || (0x3000..=0x303F).contains(&c)   // CJK 标点
                 || (0x4E00..=0x9FFF).contains(&c)   // CJK 统一表意
                 || (0xFF00..=0xFFEF).contains(&c)   // 全角形式
-                || (0x2010..=0x2027).contains(&c)   // 一般标点
+                || (0x2010..=0x2027).contains(&c) // 一般标点
         })
         .count();
     // 七成以上码元合理 → 当 UTF-16BE 读（单字节编码下这个比例不可能达到）。
@@ -1563,7 +1630,11 @@ pub fn parse_via_fallback(path: &std::path::Path, name: &str) -> Result<crate::P
         }
     }
 
-    let pages = t.pages.iter().filter(|p| p.iter().any(|l| !l.trim().is_empty())).count();
+    let pages = t
+        .pages
+        .iter()
+        .filter(|p| p.iter().any(|l| !l.trim().is_empty()))
+        .count();
     // #218 乱码可见性：兜底产物自报 CJK 占比；声明中文字体而占比异常低
     //（<2%，与 probe_cjk_garble 的 Garbled 同阈）→ summary 显式标注
     // 「疑似乱码」——Agent 在导入回执即知文本层可能不可用，不用等
@@ -1579,7 +1650,10 @@ pub fn parse_via_fallback(path: &std::path::Path, name: &str) -> Result<crate::P
     let page_texts: Vec<String> = t.pages.iter().map(|p| p.concat()).collect();
     let page_probe = probe_cjk_garble_pages(&bytes, &page_texts);
     let fmt_pages = |v: &[usize]| -> String {
-        v.iter().map(|p| p.to_string()).collect::<Vec<_>>().join("、")
+        v.iter()
+            .map(|p| p.to_string())
+            .collect::<Vec<_>>()
+            .join("、")
     };
     match page_probe.verdict {
         CjkGarbleProbe::Garbled => {
@@ -1645,20 +1719,292 @@ pub fn parse_via_fallback(path: &std::path::Path, name: &str) -> Result<crate::P
 /// （NotoSansCJK/SourceHanSans/WenQuanYi）与繁体/日韩（B5pc/MSung/UniJIS）。
 const CJK_FONT_MARKERS: &[&[u8]] = &[
     // CMap / CIDSystemInfo 注册名
-    b"Adobe-GB1", b"Adobe-CNS1", b"Adobe-Japan1", b"Adobe-Korea1",
-    b"UniGB-UCS", b"UniCNS-UCS", b"UniJIS-UCS", b"UniKS-UCS",
-    b"GBK-EUC", b"GB-EUC", b"GBpc-EUC", b"B5pc-", b"ETen-B5", b"CNS-EUC",
+    b"Adobe-GB1",
+    b"Adobe-CNS1",
+    b"Adobe-Japan1",
+    b"Adobe-Korea1",
+    b"UniGB-UCS",
+    b"UniCNS-UCS",
+    b"UniJIS-UCS",
+    b"UniKS-UCS",
+    b"GBK-EUC",
+    b"GB-EUC",
+    b"GBpc-EUC",
+    b"B5pc-",
+    b"ETen-B5",
+    b"CNS-EUC",
     // 常见中文/日韩字体名（非嵌入时字典里仍留名）
-    b"STSong", b"STKaiti", b"STXihei", b"STFangsong", b"STZhongsong",
-    b"SimSun", b"SimHei", b"FangSong", b"KaiTi", b"YouYuan", b"HuaWenKaiTi",
-    b"Microsoft YaHei", b"DengXian", b"PingFang", b"Hiragino", b"Yu Gothic",
-    b"MSung", b"MHei", b"MKai", b"SourceHanSans", b"SourceHanSerif",
-    b"NotoSansCJK", b"NotoSerifCJK", b"WenQuanYi",
+    b"STSong",
+    b"STKaiti",
+    b"STXihei",
+    b"STFangsong",
+    b"STZhongsong",
+    b"SimSun",
+    b"SimHei",
+    b"FangSong",
+    b"KaiTi",
+    b"YouYuan",
+    b"HuaWenKaiTi",
+    b"Microsoft YaHei",
+    b"DengXian",
+    b"PingFang",
+    b"Hiragino",
+    b"Yu Gothic",
+    b"MSung",
+    b"MHei",
+    b"MKai",
+    b"SourceHanSans",
+    b"SourceHanSerif",
+    b"NotoSansCJK",
+    b"NotoSerifCJK",
+    b"WenQuanYi",
 ];
 
 /// PDF 原始字节是否声明了 CJK 字体/CMap。
 pub fn bytes_declare_cjk_font(bytes: &[u8]) -> bool {
     CJK_FONT_MARKERS.iter().any(|m| contains(bytes, m))
+}
+
+// ------------------------------------------------ CID-CJK 在用探测（#200 R1）
+//
+// 背景：#169 判据「PDF 声明 CJK 字体而输出无 CJK → 乱码」的字面口径把
+// 「声明 SimSun 的纯英文模板件」「声明未使用的 CID 字体」也判成乱码
+// （owner #200 R1 裁决：误伤）。乱码的真实成因是 **CID 字体的 CMap 映射
+// 环节失败**——所以激活条件收窄为：字典里有 CMap/CIDSystemInfo 注册名
+// **且** 该字体被内容流的 Tf 实际选用（或内容流解不开、无法排除）。
+
+/// CID CMap 注册名标记（能「解码失败」的编码形态）。
+///
+/// 与 [`CJK_FONT_MARKERS`] 的区别：**不含纯字体名**（SimSun/STSong 等）——
+/// 简单字体的文本不经 CMap，无从映射失败；SimSun 既可能是 Type1 简单字体
+/// （英文模板件常用）也可能是 Type0 的 BaseFont，判定必须看编码标记而非名字。
+const CID_CMAP_MARKERS: &[&[u8]] = &[
+    b"Adobe-GB1",
+    b"Adobe-CNS1",
+    b"Adobe-Japan1",
+    b"Adobe-Korea1",
+    b"UniGB-UCS",
+    b"UniCNS-UCS",
+    b"UniJIS-UCS",
+    b"UniKS-UCS",
+    b"GBK-EUC",
+    b"GB-EUC",
+    b"GBpc-EUC",
+    b"B5pc-",
+    b"ETen-B5",
+    b"CNS-EUC",
+];
+
+/// 对象号 → 对象体（本对象头到下一对象头/文件尾）。
+fn object_body<'a>(bytes: &'a [u8], heads: &[(usize, u64)], num: u64) -> Option<&'a [u8]> {
+    let (i, pos) = heads
+        .iter()
+        .enumerate()
+        .find_map(|(i, &(pos, n))| (n == num).then_some((i, pos)))?;
+    let end = heads.get(i + 1).map(|&(p, _)| p).unwrap_or(bytes.len());
+    Some(&bytes[pos..end])
+}
+
+/// 对象体中直接引用的对象号（例如 `/DescendantFonts [18 0 R]`）。
+fn object_ref_nums(body: &[u8]) -> Vec<u64> {
+    let mut refs = Vec::new();
+    let mut k = 0usize;
+    while let Some(p) = find_from(body, k, b" 0 R") {
+        let mut j = p;
+        while j > 0 && body[j - 1].is_ascii_digit() {
+            j -= 1;
+        }
+        if j < p {
+            if let Ok(n) = std::str::from_utf8(&body[j..p])
+                .unwrap_or("")
+                .parse::<u64>()
+            {
+                refs.push(n);
+            }
+        }
+        k = p + 4;
+    }
+    refs
+}
+
+/// 对象号 → 对象体内是否声明可触发探测的 CID-CJK 字体。
+///
+/// 除显式 Adobe/Uni CMap 外，也识别常见的 Type0 Identity-H/V 字体：部分
+/// 中文 PDF（如 iText 输出）将 CIDSystemInfo 写成 Adobe/Identity，而把
+/// CJK 字体身份留在 Type0/CIDFont 的 BaseFont 名中。
+fn obj_declares_cid_cmap(bytes: &[u8], heads: &[(usize, u64)], num: u64) -> bool {
+    let Some(body) = object_body(bytes, heads, num) else {
+        return false;
+    };
+    if CID_CMAP_MARKERS.iter().any(|m| contains(body, m)) {
+        return true;
+    }
+
+    let identity_cjk_type0 = contains(body, b"/Type0")
+        && (contains(body, b"/Identity-H") || contains(body, b"/Identity-V"))
+        && CJK_FONT_MARKERS.iter().any(|m| contains(body, m));
+    if !identity_cjk_type0 {
+        return false;
+    }
+
+    object_ref_nums(body).into_iter().any(|child_num| {
+        object_body(bytes, heads, child_num).is_some_and(|child| {
+            (contains(child, b"CIDFontType0") || contains(child, b"CIDFontType2"))
+                && CJK_FONT_MARKERS.iter().any(|m| contains(child, m))
+        })
+    })
+}
+
+/// 内容流里 Tf 实际选用的字体资源名（跨全部可解码流）。
+///
+/// 返回 (找到的 Tf 名字集合, 是否解出过至少一个流)。**保守原则**：
+/// Tf 扫描只用于「排除」——解不出流或一个 Tf 都没找到时，调用方应按
+/// 「无法排除」继续激活探测（防 #169 防线被扫描盲区静默关掉）。
+fn fonts_used_by_tf(bytes: &[u8]) -> (std::collections::HashSet<String>, bool) {
+    let mut used = std::collections::HashSet::new();
+    let mut any_stream = false;
+    for (data, filters) in iter_streams(bytes) {
+        if let Some(decoded) = decode_stream(&data, &filters) {
+            any_stream = true;
+            collect_tf_names(&decoded, &mut used);
+        }
+    }
+    (used, any_stream)
+}
+
+/// 从单个已解码内容流收集 `/NAME <size> Tf` 的资源名。
+fn collect_tf_names(content: &[u8], out: &mut std::collections::HashSet<String>) {
+    let mut k = 0usize;
+    while let Some(p) = find_from(content, k, b"Tf") {
+        // 向前：跳空白 → 跳字号数字（含负号/小数点）→ 跳空白 → 读 `/NAME`。
+        let mut j = p;
+        while j > 0 && content[j - 1].is_ascii_whitespace() {
+            j -= 1;
+        }
+        while j > 0
+            && (content[j - 1].is_ascii_digit() || content[j - 1] == b'-' || content[j - 1] == b'.')
+        {
+            j -= 1;
+        }
+        while j > 0 && content[j - 1].is_ascii_whitespace() {
+            j -= 1;
+        }
+        let mut s = j;
+        while s > 0
+            && (content[s - 1].is_ascii_alphanumeric()
+                || content[s - 1] == b'-'
+                || content[s - 1] == b'+'
+                || content[s - 1] == b'_')
+        {
+            s -= 1;
+        }
+        if s < j && s > 0 && content[s - 1] == b'/' {
+            if let Ok(name) = std::str::from_utf8(&content[s..j]) {
+                if !name.is_empty() {
+                    out.insert(name.to_string());
+                }
+            }
+        }
+        k = p + 2;
+    }
+}
+
+/// 乱码探测的激活条件（#200 R1）：存在**被内容流实际选用**（或无法排除）的
+/// CID-CJK 编码字体。
+///
+/// 保守方向：判「未用」必须同时满足——解出过流、找到过 Tf、且没有任何
+/// Tf 选用的字体带 CID CMap 标记。任一环节失明 → 按标记存在即激活
+/// （宁可多激活走互证/fail-loud，不可把 #169 防线静默关掉）。
+pub fn cid_cjk_font_in_use(bytes: &[u8]) -> bool {
+    let heads = scan_obj_heads(bytes);
+    let refs = scan_name_refs(bytes);
+    let marker_fonts: Vec<u64> = {
+        let mut seen = std::collections::HashSet::new();
+        let mut v = Vec::new();
+        for (_, n) in refs.iter() {
+            if seen.insert(*n) && obj_declares_cid_cmap(bytes, &heads, *n) {
+                v.push(*n);
+            }
+        }
+        v
+    };
+    let any_marker_in_doc =
+        !marker_fonts.is_empty() || CID_CMAP_MARKERS.iter().any(|m| contains(bytes, m));
+    if !any_marker_in_doc {
+        return false; // 全文档无 CID CMap 痕迹（Type1 简单字体件）——永不激活
+    }
+    let (used, any_stream) = fonts_used_by_tf(bytes);
+    if !any_stream || used.is_empty() {
+        return true; // 流解不开 / 没找到任何 Tf：无法排除 → 保守激活
+    }
+    refs.iter()
+        .any(|(name, n)| used.contains(name) && marker_fonts.contains(n))
+}
+
+/// 非空白字符中非 ASCII 的占比（#200 R1 残渣特征）。
+///
+/// 用途：首选路不可用、兜底单路输出无 CJK 时——占比高（如 GBK 双字节被
+/// 逐字节 Latin-1 化后 ≈ 一半字符 ≥ U+0080）说明输出像「多字节误判残渣」，
+/// 无第二路互证时 fail-loud；占比低（真英文/拉丁模板件）说明内容本就
+/// 单字节，按「内容确无 CJK」采信。
+pub fn non_ascii_ratio(text: &str) -> f64 {
+    let mut total = 0usize;
+    let mut non_ascii = 0usize;
+    for c in text.chars() {
+        if c.is_whitespace() {
+            continue;
+        }
+        total += 1;
+        if !c.is_ascii() {
+            non_ascii += 1;
+        }
+    }
+    if total == 0 {
+        0.0
+    } else {
+        non_ascii as f64 / total as f64
+    }
+}
+
+/// 双路输出是否互证（#200 R1）：NFKC + 去空白 + 去标点后逐字符相等。
+///
+/// 严格相等才互证——两路独立引擎解出同一内容，说明内容确实如此（字体
+/// 声明与内容语言不符的模板件）；任何差异都不互证（宁可 fail-loud 也不
+/// 把分叉的乱码当一致）。
+pub fn texts_corroborate(a: &str, b: &str) -> bool {
+    norm_for_corroborate(a) == norm_for_corroborate(b)
+}
+
+fn norm_for_corroborate(s: &str) -> String {
+    use unicode_normalization::UnicodeNormalization;
+    let nfkc: String = s.nfkc().collect();
+    nfkc.chars()
+        .filter(|c| {
+            !c.is_whitespace()
+                && !c.is_ascii_punctuation()
+                && !matches!(
+                    c,
+                    '，' | '。'
+                        | '；'
+                        | '、'
+                        | '：'
+                        | '（'
+                        | '）'
+                        | '！'
+                        | '？'
+                        | '“'
+                        | '”'
+                        | '‘'
+                        | '’'
+                        | '【'
+                        | '】'
+                        | '《'
+                        | '》'
+                        | '—'
+                        | '…'
+                )
+        })
+        .collect()
 }
 
 /// 文本的 CJK 占比：CJK 表意区（含扩展A/兼容）+ 中文标点/全角 / 非空白字符数。
@@ -1707,23 +2053,62 @@ pub enum CjkGarbleProbe {
 /// 字体但正文以英文为主的模板件）被降级也无损失：降级只是换纯 Rust 兜底
 /// 重解同一文件，summary 诚实自报。
 pub fn probe_cjk_garble(pdf_bytes: &[u8], text: &str) -> CjkGarbleProbe {
-    probe_cjk_garble_flat(pdf_bytes, text)
-}
-
-/// 全文拉平判据（#223 前的唯一判定；保留为分页判据的退化面）。
-fn probe_cjk_garble_flat(pdf_bytes: &[u8], text: &str) -> CjkGarbleProbe {
-    if !bytes_declare_cjk_font(pdf_bytes) {
+    // #200 R1 收窄：只对「CID-CJK 编码且内容流实际选用」的字体激活——
+    // Type1/TrueType 简单字体（如声明 SimSun 的英文模板件）不存在 CMap
+    // 映射环节，无从「映射失败」成 Latin-1 残渣，永不激活（防误伤）。
+    if !cid_cjk_font_in_use(pdf_bytes) {
         return CjkGarbleProbe::NoSignal;
     }
     let non_ws = text.chars().filter(|c| !c.is_whitespace()).count();
     if non_ws < 32 {
         return CjkGarbleProbe::NoSignal;
     }
-    if cjk_ratio(text) < 0.02 {
-        CjkGarbleProbe::Garbled
-    } else {
-        CjkGarbleProbe::Clean
+    // 【#200 R1-C 修复 v2】两件事必须分开判：
+    //
+    // ① 文档声明了 CID-CJK 字体且在选用（上面已过 cid_cjk_font_in_use 门）
+    //    → 正文里必须能解出至少一个 CJK 字符。解不出 = CMap 缺失或错用
+    //    恒等解码 → 确定是乱码（与 CJK 占比无关）。
+    //    实测反例（CI）：合成 UC2 件被兜底错解成 g, Tender document...
+    //    ——「本」变成 g,，而英文字母占比/空格/单词边界全部正常，
+    //    旧判据只看文本形状 → 误判 Clean → 采信了错误解码。
+    //
+    // ② 确实解出了 CJK 但占比低（真混排件：1 汉字 + 58 英文词 ≈ 1.7%）
+    //    → 不是乱码，采信；残渣占比 >=0.3 才继续疑。
+    if cjk_ratio(text) == 0.0 {
+        // 声明了 CJK 字体却一个 CJK 都没解出来——解码失败无疑
+        return CjkGarbleProbe::Garbled;
     }
+    if cjk_ratio(text) < 0.02 {
+        if non_ascii_ratio(text) >= 0.3 {
+            return CjkGarbleProbe::Garbled;
+        }
+        return CjkGarbleProbe::Clean;
+    }
+    CjkGarbleProbe::Clean
+}
+
+/// 文本是否像自然语言（#200 R1-C）——仅用于已确认含 CJK 的混排件。
+///
+/// 不能单独决定「是否乱码」：g, Tender document...（本被错解）形状完全正常。
+/// 乱码主判据在 probe_cjk_garble 的「零 CJK 输出」分支。
+fn looks_like_natural_text(text: &str) -> bool {
+    let chars: Vec<char> = text.chars().filter(|c| !c.is_whitespace()).collect();
+    if chars.is_empty() {
+        return false;
+    }
+    let letters = chars.iter().filter(|c| c.is_ascii_alphabetic()).count();
+    let letter_ratio = letters as f64 / chars.len() as f64;
+    if letter_ratio < 0.5 {
+        return false;
+    }
+    let total = text.chars().count();
+    let spaces = text.chars().filter(|c| c.is_whitespace()).count();
+    let space_ratio = spaces as f64 / total.max(1) as f64;
+    if space_ratio < 0.08 {
+        return false;
+    }
+    text.split(|c: char| !c.is_alphabetic())
+        .any(|w| w.len() >= 3 && w.chars().all(|c| c.is_ascii_alphabetic()))
 }
 
 /// 页级乱码判定结论（#223）。
@@ -1750,7 +2135,8 @@ pub struct PageGarbleVerdict {
 /// Garbled；有效页为 0（全部页样本不足）→ 退化为拉平判据（拼全部页，
 /// 行为与 #223 之前逐位一致）。
 pub fn probe_cjk_garble_pages(pdf_bytes: &[u8], pages: &[String]) -> PageGarbleVerdict {
-    if !bytes_declare_cjk_font(pdf_bytes) {
+    // 与全文判据一致：声明但未被内容流使用的 CID 字体不触发误判。
+    if !cid_cjk_font_in_use(pdf_bytes) {
         return PageGarbleVerdict {
             verdict: CjkGarbleProbe::NoSignal,
             garbled_pages: Vec::new(),
@@ -1766,17 +2152,16 @@ pub fn probe_cjk_garble_pages(pdf_bytes: &[u8], pages: &[String]) -> PageGarbleV
         // 退化面：拼全部页跑拉平判据（小文档不放松——单页文件行为不变）
         let flat: String = pages.concat();
         return PageGarbleVerdict {
-            verdict: probe_cjk_garble_flat(pdf_bytes, &flat),
+            verdict: probe_cjk_garble(pdf_bytes, &flat),
             garbled_pages: Vec::new(),
         };
     }
     let mut garbled_pages = Vec::new();
     let mut clean = 0usize;
     for (i, p) in &valid {
-        if cjk_ratio(p) < 0.02 {
-            garbled_pages.push(i + 1);
-        } else {
-            clean += 1;
+        match probe_cjk_garble(pdf_bytes, p) {
+            CjkGarbleProbe::Garbled => garbled_pages.push(i + 1),
+            CjkGarbleProbe::Clean | CjkGarbleProbe::NoSignal => clean += 1,
         }
     }
     let verdict = if clean == 0 {
@@ -1844,7 +2229,6 @@ pub fn parsed_pages_of(pf: &crate::ParsedFile) -> Vec<String> {
     pages
 }
 
-
 // ---------------------------------------------------------------- CJK 乱码拒收的原因定位（issue #200 剩余能力边界登记面）
 
 /// 非 UCS2 预定义 CMap 痕迹（#200 剩余边界的核心族）。
@@ -1854,8 +2238,14 @@ pub fn parsed_pages_of(pf: &crate::ParsedFile) -> Vec<String> {
 /// 即「硬解产出垃圾文本」）。正确解码需内置映射大表，本模块不做
 /// （fail-loud 纪律）。字节可在字体字典层直接搜到（字典不进压缩流）。
 const NON_UCS2_CMAP_MARKERS: &[(&[u8], &str)] = &[
-    (b"GBK-EUC", "GBK-EUC-H/V（简体中文，GBK 码值——非 Unicode 码位）"),
-    (b"GB-EUC", "GB-EUC-H/V（简体中文 EUC 码值——非 Unicode 码位）"),
+    (
+        b"GBK-EUC",
+        "GBK-EUC-H/V（简体中文，GBK 码值——非 Unicode 码位）",
+    ),
+    (
+        b"GB-EUC",
+        "GB-EUC-H/V（简体中文 EUC 码值——非 Unicode 码位）",
+    ),
     (b"GBpc-EUC", "GBpc-EUC（简体中文——非 Unicode 码位）"),
     (b"B5pc-", "B5pc-H/V（繁体中文 Big5 码值——非 Unicode 码位）"),
     (b"ETen-B5", "ETen-B5（繁体中文——非 Unicode 码位）"),
@@ -1946,7 +2336,11 @@ mod tests {
     use super::*;
 
     /// 空 CMap —— 不做任何字体映射时的基准。
-    const EMPTY: CMap = CMap { single: std::collections::BTreeMap::new(), ranges: Vec::new(), range_map: std::collections::BTreeMap::new() };
+    const EMPTY: CMap = CMap {
+        single: std::collections::BTreeMap::new(),
+        ranges: Vec::new(),
+        range_map: std::collections::BTreeMap::new(),
+    };
 
     // ---------------------------------------------------------------- 工具
 
@@ -2044,7 +2438,9 @@ mod tests {
         let encoded = a85_encode(&compressed);
 
         let mut pdf = Vec::new();
-        pdf.extend_from_slice(b"%PDF-1.4\n1 0 obj\n<< /Filter [ /ASCII85Decode /FlateDecode ] /Length ");
+        pdf.extend_from_slice(
+            b"%PDF-1.4\n1 0 obj\n<< /Filter [ /ASCII85Decode /FlateDecode ] /Length ",
+        );
         pdf.extend_from_slice(encoded.len().to_string().as_bytes());
         pdf.extend_from_slice(b" >>\nstream\n");
         pdf.extend_from_slice(&encoded);
@@ -2101,7 +2497,11 @@ mod tests {
         let lines = extract_text_lines(content, &FontCMaps::default(), &FontEncodings::default());
         // 连续 Tj 且中间没有 Tm 定位 → 它们就是同一行的延续（这是正确行为）。
         // 要断行必须靠 Tm 的 y 变化，见 per_char_tm_positioning_joins_into_one_line。
-        assert_eq!(lines, vec!["line1seg-twothird"], "TJ 数组与同行的连续 Tj 应拼接");
+        assert_eq!(
+            lines,
+            vec!["line1seg-twothird"],
+            "TJ 数组与同行的连续 Tj 应拼接"
+        );
     }
 
     // ---------------------------------------------------------------- 黑盒与诚实失败
@@ -2120,7 +2520,11 @@ mod tests {
     fn empty_text_layer_is_reported_not_silently_empty() {
         // 一个合法 PDF，流里没有任何显示运算符（扫描件特征）
         let pdf = min_pdf(b"BT /F1 12 Tf ET");
-        assert_eq!(extract(&pdf), Err(PdfTextError::NoTextLayer), "无文本层必须明说，不能返回空");
+        assert_eq!(
+            extract(&pdf),
+            Err(PdfTextError::NoTextLayer),
+            "无文本层必须明说，不能返回空"
+        );
     }
 
     #[test]
@@ -2142,7 +2546,11 @@ mod tests {
         let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../../fixtures/synth-tender/招标文件/C-补遗文件.pdf");
         // 缺夹具时**不能用「pass」冒充通过**——黄金例是这套兜底逻辑唯一的真值来源。
-        assert!(p.exists(), "缺少黄金例夹具 {}（issue #9 SKIP 口径要求响亮横幅，不能静默通过）", p.display());
+        assert!(
+            p.exists(),
+            "缺少黄金例夹具 {}（issue #9 SKIP 口径要求响亮横幅，不能静默通过）",
+            p.display()
+        );
         let bytes = std::fs::read(&p).expect("读黄金例");
         let t = extract(&bytes).expect("补遗 PDF 应能靠纯 Rust 提取");
         let all = t.lines().join("\n");
@@ -2156,12 +2564,14 @@ mod tests {
             ("最多 4 分", "商务分修正"),
         ];
         for (needle, label) in must {
-            assert!(all.contains(needle), "黄金例应含「{label}」({needle})，实际提取：\n{all}");
+            assert!(
+                all.contains(needle),
+                "黄金例应含「{label}」({needle})，实际提取：\n{all}"
+            );
         }
         assert!(t.has_text());
         assert!(t.pages.len() >= 2, "至少两页有文本，实际 {}", t.pages.len());
     }
-
 
     /// 真件测试：仓内自带的真实招标文件 PDF（重庆西永水冷空调）。
     ///
@@ -2181,7 +2591,11 @@ mod tests {
 
         // CMap 必须被读到（否则后面的中文判断都是假的）
         let cm = collect_cmaps(&bytes);
-        assert!(cm.single.len() > 100, "应读到大量 bfchar 映射，实际 {}", cm.single.len());
+        assert!(
+            cm.single.len() > 100,
+            "应读到大量 bfchar 映射，实际 {}",
+            cm.single.len()
+        );
 
         let t = extract(&bytes).expect("真件应能提取");
         assert!(t.has_text(), "真件应有文本层");
@@ -2196,8 +2610,13 @@ mod tests {
                 all.chars().take(400).collect::<String>()
             );
         }
-        assert!(t.pages.len() >= 20, "真件应有多页文本，实际 {}", t.pages.len());
-    }
+        assert!(
+            t.pages.len() >= 20,
+            "真件应有多页文本，实际 {}",
+            t.pages.len()
+        );
+    }
+
     #[test]
     fn per_char_tm_positioning_joins_into_one_line() {
         let content = b"BT /F1 12 Tf 1 0 0 -1 100 50 Tm (B) Tj ET \
@@ -2205,7 +2624,11 @@ mod tests {
                        BT /F1 12 Tf 1 0 0 -1 110 50 Tm (C) Tj ET \
                        BT /F1 12 Tf 1 0 0 -1 80 70 Tm (N) Tj ET";
         let lines = extract_text_lines(content, &FontCMaps::default(), &FontEncodings::default());
-        assert_eq!(lines, vec!["ABC", "N"], "同 y 应按 x 拼行；不同 y 应断行；实际 {lines:?}");
+        assert_eq!(
+            lines,
+            vec!["ABC", "N"],
+            "同 y 应按 x 拼行；不同 y 应断行；实际 {lines:?}"
+        );
     }
     // ---------------------------------------------------------------- #218：ToUnicode / 字体路由 / Tm 缩放
 
@@ -2216,7 +2639,8 @@ mod tests {
     #[test]
     fn tounicode_object_head_digit_boundary() {
         // CMap：CID 0x0001→'中'、0x0002→'文'（未压缩流——零 Filter 依赖）。
-        let cmap_stream = b"begincmap\n2 beginbfchar\n<0001> <4E2D>\n<0002> <6587>\nendbfchar\nendcmap";
+        let cmap_stream =
+            b"begincmap\n2 beginbfchar\n<0001> <4E2D>\n<0002> <6587>\nendbfchar\nendcmap";
         let content = b"BT /F1 12 Tf 1 0 0 -1 100 50 Tm <00010002> Tj ET";
         let mut v = Vec::new();
         v.extend_from_slice(b"%PDF-1.4\n");
@@ -2233,20 +2657,27 @@ mod tests {
               /CIDSystemInfo << /Registry (Adobe) /Ordering (GB1) /Supplement 4 >> >>\nendobj\n",
         );
         // 真 CMap 对象 9（在 79 之后——旧实现的首次搜索必然先撞上 79）。
-        v.extend_from_slice(format!("9 0 obj\n<< /Length {} >>\nstream\n", cmap_stream.len()).as_bytes());
+        v.extend_from_slice(
+            format!("9 0 obj\n<< /Length {} >>\nstream\n", cmap_stream.len()).as_bytes(),
+        );
         v.extend_from_slice(cmap_stream);
         v.extend_from_slice(b"\nendstream\nendobj\n");
         v.extend_from_slice(
             b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] \
               /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n",
         );
-        v.extend_from_slice(format!("5 0 obj\n<< /Length {} >>\nstream\n", content.len()).as_bytes());
+        v.extend_from_slice(
+            format!("5 0 obj\n<< /Length {} >>\nstream\n", content.len()).as_bytes(),
+        );
         v.extend_from_slice(content);
         v.extend_from_slice(b"\nendstream\nendobj\n%%EOF\n");
 
         let t = extract(&v).expect("应能提取");
         let all: String = t.lines().join("");
-        assert!(all.contains("中文"), "CMap 必须从 9 号对象读到（对象头数字边界）——实际：{all:?}");
+        assert!(
+            all.contains("中文"),
+            "CMap 必须从 9 号对象读到（对象头数字边界）——实际：{all:?}"
+        );
     }
 
     /// #218：非流对象不跨对象取流——`/ToUnicode N 0 R` 指向的对象 N 若是
@@ -2266,14 +2697,14 @@ mod tests {
             b"4 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /SimSun /Encoding /Identity-H \
               /DescendantFonts [6 0 R] /ToUnicode 9 0 R >>\nendobj\n",
         );
-        v.extend_from_slice(
-            b"6 0 obj\n<< /Type /Font /Subtype /CIDFontType2 >>\nendobj\n",
-        );
+        v.extend_from_slice(b"6 0 obj\n<< /Type /Font /Subtype /CIDFontType2 >>\nendobj\n");
         v.extend_from_slice(
             b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] \
               /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n",
         );
-        v.extend_from_slice(format!("5 0 obj\n<< /Length {} >>\nstream\n", content.len()).as_bytes());
+        v.extend_from_slice(
+            format!("5 0 obj\n<< /Length {} >>\nstream\n", content.len()).as_bytes(),
+        );
         v.extend_from_slice(content);
         v.extend_from_slice(b"\nendstream\nendobj\n%%EOF\n");
 
@@ -2281,7 +2712,10 @@ mod tests {
         // 期望行为：读不到 CMap → 不解出「中」（宁可缺字不错字）。
         let t = extract(&v).expect("应能提取");
         let all: String = t.lines().join("");
-        assert!(!all.contains("中"), "非流对象不得借别人的流当 CMap——实际：{all:?}");
+        assert!(
+            !all.contains("中"),
+            "非流对象不得借别人的流当 CMap——实际：{all:?}"
+        );
     }
 
     /// #218：按字体路由 CMap——多字体 CID 空间重叠时，全局合并 or_insert
@@ -2320,7 +2754,9 @@ mod tests {
             b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] \
               /Resources << /Font << /FT1 11 0 R /FT2 21 0 R >> >> /Contents 5 0 R >>\nendobj\n",
         );
-        v.extend_from_slice(format!("5 0 obj\n<< /Length {} >>\nstream\n", content.len()).as_bytes());
+        v.extend_from_slice(
+            format!("5 0 obj\n<< /Length {} >>\nstream\n", content.len()).as_bytes(),
+        );
         v.extend_from_slice(content);
         v.extend_from_slice(b"\nendstream\nendobj\n%%EOF\n");
 
@@ -2368,7 +2804,9 @@ mod tests {
             b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] \
               /Resources << /Font << /F1 11 0 R /F2 21 0 R >> >> /Contents 5 0 R >>\nendobj\n",
         );
-        v.extend_from_slice(format!("5 0 obj\n<< /Length {} >>\nstream\n", content.len()).as_bytes());
+        v.extend_from_slice(
+            format!("5 0 obj\n<< /Length {} >>\nstream\n", content.len()).as_bytes(),
+        );
         v.extend_from_slice(content);
         v.extend_from_slice(b"\nendstream\nendobj\n%%EOF\n");
 
@@ -2452,8 +2890,9 @@ mod tests {
     /// 依赖文本面干净。
     #[test]
     fn bt_et_window_unpoisons_garble_probe() {
-        let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../real-corpus/telecom/parse-input/C-zjyd-20260500552-数据库服务器-变更公告.pdf");
+        let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
+            "../../../real-corpus/telecom/parse-input/C-zjyd-20260500552-数据库服务器-变更公告.pdf",
+        );
         assert!(p.exists(), "缺少真件夹具 {}（不能静默通过）", p.display());
         let bytes = std::fs::read(&p).expect("读真件");
         let pf = parse_via_fallback(&p, "C-zjyd-20260500552-数据库服务器-变更公告.pdf")
@@ -2581,7 +3020,12 @@ mod tests {
 
     fn all_text(pdf: &[u8]) -> String {
         let t = extract(pdf).expect("提取应成功");
-        t.pages.iter().flatten().cloned().collect::<Vec<_>>().join("\n")
+        t.pages
+            .iter()
+            .flatten()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     /// #200 核心：UniGB-UCS2-H 字体的**逐字 Tj 单字串**（2 字节）此前全落
@@ -2595,7 +3039,10 @@ mod tests {
                         1 0 0 1 74 800 Tm (\x76\xee) Tj ET";
         let pdf = font_pdf("F2", UC2_FONT_DICT, content);
         let text = all_text(&pdf);
-        assert!(text.contains("本项目"), "恒等解码应还原「本项目」，实际：{text:?}");
+        assert!(
+            text.contains("本项目"),
+            "恒等解码应还原「本项目」，实际：{text:?}"
+        );
         // probe Clean 的整链路断言在 tests/pdf_cid_identity.rs（文本量过 32 字门槛）
     }
 
@@ -2608,7 +3055,10 @@ mod tests {
         let pdf = font_pdf("F1", LATIN_FONT_DICT, content);
         let text = all_text(&pdf);
         assert!(text.contains("kV"), "拉丁串应原样保留，实际：{text:?}");
-        assert!(!text.contains('\u{6556}'), "拉丁串绝不能被恒等解码成 CJK 错字");
+        assert!(
+            !text.contains('\u{6556}'),
+            "拉丁串绝不能被恒等解码成 CJK 错字"
+        );
     }
 
     /// 混排：同一页 F1 拉丁 + F2 UniGB——两套字体各按各的编码解码，互不串扰。
@@ -2651,7 +3101,10 @@ mod tests {
         assert_eq!(decode_text_string_fc(b"\x67\x2c", &EMPTY, true), "本");
         assert_eq!(decode_text_string_fc(b"\x67\x2c", &EMPTY, false), "g,");
         // 奇数长度不进恒等路（fail-safe）
-        assert_eq!(decode_text_string_fc(b"\x67\x2c\x01", &EMPTY, true), "g,\u{1}");
+        assert_eq!(
+            decode_text_string_fc(b"\x67\x2c\x01", &EMPTY, true),
+            "g,\u{1}"
+        );
     }
 
     // ---------------------------------------------------------------- #223 修 A：控制字符清洗
@@ -2665,7 +3118,10 @@ mod tests {
         // 合法排版控制保留
         assert_eq!(sanitize_line("a\tb\nc\rd"), "a\tb\nc\rd");
         // 正文零损伤
-        assert_eq!(sanitize_line("第3.2条 不接受联合体"), "第3.2条 不接受联合体");
+        assert_eq!(
+            sanitize_line("第3.2条 不接受联合体"),
+            "第3.2条 不接受联合体"
+        );
         assert_eq!(sanitize_line(""), "");
     }
 
@@ -2692,7 +3148,11 @@ mod tests {
     /// （B-cqyd 实测形态：前 4 页正常、第 5 流组全控制符——修前整份误杀）。
     #[test]
     fn paged_probe_mixed_pages_majority_clean() {
-        let pdf = font_pdf("F2", UC2_FONT_DICT, b"BT /F2 12 Tf 72 720 Td (\xb1\xbe) Tj ET");
+        let pdf = font_pdf(
+            "F2",
+            UC2_FONT_DICT,
+            b"BT /F2 12 Tf 72 720 Td (\xb1\xbe) Tj ET",
+        );
         let good = "本项目为2026年度数据中心水冷空调群控系统采购项目招标公告，本项目为2026年度数据中心水冷空调群控系统采购项目";
         let garbled: String = "\u{93}".repeat(40);
         let pages = vec![good.to_string(), good.to_string(), garbled];
@@ -2709,7 +3169,11 @@ mod tests {
     /// 全部有效页皆乱 → 仍 Garbled（fail-loud 红线：多数决不救全乱）。
     #[test]
     fn paged_probe_all_garbled_still_fails_loud() {
-        let pdf = font_pdf("F2", UC2_FONT_DICT, b"BT /F2 12 Tf 72 720 Td (\xb1\xbe) Tj ET");
+        let pdf = font_pdf(
+            "F2",
+            UC2_FONT_DICT,
+            b"BT /F2 12 Tf 72 720 Td (\xb1\xbe) Tj ET",
+        );
         let garbled: String = "SbheN\u{93}\u{94}".repeat(10);
         let pages = vec![garbled.clone(), garbled.clone(), garbled];
         let v = probe_cjk_garble_pages(&pdf, &pages);
@@ -2720,7 +3184,11 @@ mod tests {
     /// 平票（2 正 2 乱）保守判 Garbled——不放松。
     #[test]
     fn paged_probe_tie_is_conservative_garbled() {
-        let pdf = font_pdf("F2", UC2_FONT_DICT, b"BT /F2 12 Tf 72 720 Td (\xb1\xbe) Tj ET");
+        let pdf = font_pdf(
+            "F2",
+            UC2_FONT_DICT,
+            b"BT /F2 12 Tf 72 720 Td (\xb1\xbe) Tj ET",
+        );
         let good = "本项目为数据中心水冷空调群控系统采购项目招标公告内容，本项目为数据中心水冷空调群控系统采购项目";
         let garbled: String = "\u{93}\u{94}".repeat(40);
         let pages = vec![good.to_string(), good.to_string(), garbled.clone(), garbled];
@@ -2732,21 +3200,30 @@ mod tests {
     /// 无有效页（全部样本不足）→ 退化拉平判据，与 #223 之前行为逐位一致。
     #[test]
     fn paged_probe_degenerates_to_flat_when_no_valid_page() {
-        let pdf = font_pdf("F2", UC2_FONT_DICT, b"BT /F2 12 Tf 72 720 Td (\xb1\xbe) Tj ET");
+        let pdf = font_pdf(
+            "F2",
+            UC2_FONT_DICT,
+            b"BT /F2 12 Tf 72 720 Td (\xb1\xbe) Tj ET",
+        );
         // 各页 <32 非空白且合计也不足 → NoSignal
         let v = probe_cjk_garble_pages(&pdf, &["短".to_string(), "页".to_string()]);
         assert_eq!(v.verdict, CjkGarbleProbe::NoSignal);
         // 各页 <32 但合计足且 CJK 正常 → Clean（退化面 == 拉平面）
         let half: String = "本".repeat(20);
         let v2 = probe_cjk_garble_pages(&pdf, &[half.clone(), half]);
-        assert_eq!(v2.verdict, CjkGarbleProbe::Clean, "退化面与拉平判据逐位一致");
+        assert_eq!(
+            v2.verdict,
+            CjkGarbleProbe::Clean,
+            "退化面与拉平判据逐位一致"
+        );
     }
 
     /// 无 CJK 字体声明 → NoSignal（判据不适用——英文件永不触发）。
     #[test]
     fn paged_probe_no_cjk_declaration_is_no_signal() {
         let pdf = b"%PDF-1.4\n1 0 obj\nendobj\n%%EOF\n".to_vec();
-        let good = "本项目为数据中心水冷空调群控系统采购项目招标公告内容重复若干次以满足样本门槛要求";
+        let good =
+            "本项目为数据中心水冷空调群控系统采购项目招标公告内容重复若干次以满足样本门槛要求";
         let v = probe_cjk_garble_pages(&pdf, &[good.to_string(), good.to_string()]);
         assert_eq!(v.verdict, CjkGarbleProbe::NoSignal);
     }
@@ -2803,5 +3280,4 @@ mod tests {
             pages[2]
         );
     }
-
 }

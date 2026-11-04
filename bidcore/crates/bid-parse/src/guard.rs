@@ -21,6 +21,10 @@
 //! runner 侧落 `ParseStatus::Failed` + E_UNPROCESSABLE 禁引纪律，R-01）。
 
 use std::fs::File;
+
+/// 子进程类测试的共享串行锁（见 tests 模块注记）。
+#[cfg(test)]
+pub(crate) static SUBPROC_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 use std::io::Read;
 use std::path::Path;
 
@@ -387,9 +391,10 @@ mod tests {
     }
 
     // ================= T-04 子进程治理 =================
-    // 并行测试共享全局并发席（LIVE_SUBPROCS）——本组测试互斥串行，避免席位数竞态
-    #[cfg(unix)]
-    static SUBPROC_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    // 并行测试共享全局并发席（LIVE_SUBPROCS）——凡起子进程的测试统一持
+    // crate 级锁（guard::SUBPROC_TEST_LOCK）互斥串行，避免席位数竞态
+    // （#200 R2 实锤：env_preflight/engines 的测试也起子进程，仅 guard
+    // 内部互斥不够——锁提升到模块级 pub(crate) 共享）。
 
     fn sh(script: &str) -> Command {
         let mut c = Command::new("sh");

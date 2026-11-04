@@ -39,7 +39,34 @@ fn uc2_pdf(content: &[u8]) -> Vec<u8> {
     );
     v.extend_from_slice(format!("5 0 obj\n<< /Length {} >>\nstream\n", content.len()).as_bytes());
     v.extend_from_slice(content);
-    v.extend_from_slice(b"\nendstream\nendobj\n%%EOF\n");
+    v.extend_from_slice(b"\nendstream\nendobj\n");
+    // xref 桩（pdftotext 容错重建；pdf_text 兜底不依赖 xref）
+    v.extend_from_slice(b"xref\n0 7\ntrailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n0\n%%EOF\n");
+    v
+}
+
+/// Type1 拉丁字体字典（无 UniXX 声明——恒等解码资格必须为 false）。
+const LATIN_FONT_DICT: &str = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+
+/// 双字体页（F1 + F2 各自字体字典，内容流自行决定用哪个）。
+fn mixed_font_pdf(f1_dict: &str, f2_dict: &str, content: &[u8]) -> Vec<u8> {
+    let mut v = Vec::new();
+    v.extend_from_slice(b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+    v.extend_from_slice(b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
+    v.extend_from_slice(
+        b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] \
+         /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 7 0 R >>\nendobj\n",
+    );
+    v.extend_from_slice(format!("4 0 obj\n{f1_dict}\nendobj\n").as_bytes());
+    v.extend_from_slice(format!("5 0 obj\n{f2_dict}\nendobj\n").as_bytes());
+    v.extend_from_slice(
+        b"6 0 obj\n<< /Type /Font /Subtype /CIDFontType0 /BaseFont /STSong-Light \
+          /CIDSystemInfo << /Registry (Adobe) /Ordering (GB1) /Supplement 4 >> >>\nendobj\n",
+    );
+    v.extend_from_slice(format!("7 0 obj\n<< /Length {} >>\nstream\n", content.len()).as_bytes());
+    v.extend_from_slice(content);
+    v.extend_from_slice(b"\nendstream\nendobj\n");
+    v.extend_from_slice(b"xref\n0 8\ntrailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n0\n%%EOF\n");
     v
 }
 
@@ -47,12 +74,12 @@ fn uc2_pdf(content: &[u8]) -> Vec<u8> {
 /// 每串 2 字节 + Tm 逐字定位——修复前全落 Latin-1 分支的失败形态）。
 fn per_char_tj_content() -> Vec<u8> {
     let line1: &[u16] = &[
-        0x672C, 0x9879, 0x76EE, 0x4E3A, 0x5E02, 0x653F, 0x57FA, 0x7840, 0x8BBE, 0x65BD,
-        0x5EFA, 0x8BBE, 0x9879, 0x76EE, 0xFF0C, 0x4E3B, 0x8981, 0x5EFA, 0x8BBE, 0x5185,
+        0x672C, 0x9879, 0x76EE, 0x4E3A, 0x5E02, 0x653F, 0x57FA, 0x7840, 0x8BBE, 0x65BD, 0x5EFA,
+        0x8BBE, 0x9879, 0x76EE, 0xFF0C, 0x4E3B, 0x8981, 0x5EFA, 0x8BBE, 0x5185,
     ];
     let line2: &[u16] = &[
-        0x5BB9, 0x5305, 0x62EC, 0x7BA1, 0x9053, 0x6577, 0x8BBE, 0x3001, 0x9600, 0x95E8,
-        0x5B89, 0x88C5, 0x4E0E, 0x6CF5, 0x7AD9, 0x6539, 0x9020, 0x4E09, 0x90E8, 0x5206,
+        0x5BB9, 0x5305, 0x62EC, 0x7BA1, 0x9053, 0x6577, 0x8BBE, 0x3001, 0x9600, 0x95E8, 0x5B89,
+        0x88C5, 0x4E0E, 0x6CF5, 0x7AD9, 0x6539, 0x9020, 0x4E09, 0x90E8, 0x5206,
     ];
     let mut content = Vec::new();
     content.extend_from_slice(b"BT /F2 12 Tf\n");
@@ -89,7 +116,10 @@ fn form_c_cid_file_parses_clean_via_fallback() {
     let parsed = pdf_text::parse_via_fallback(&p, "form-c.pdf")
         .expect("形态 C（逐字 Tj + UniGB-UCS2-H）应经恒等解码恢复");
     let text = pdf_text::parsed_text_of(&parsed);
-    assert!(text.contains("本项目为市政基础设施建设项目"), "恒等解码应还原中文，实际：\n{text}");
+    assert!(
+        text.contains("本项目为市政基础设施建设项目"),
+        "恒等解码应还原中文，实际：\n{text}"
+    );
     assert!(text.contains("管道敷设"), "第二行同样还原，实际：\n{text}");
     assert!(
         parsed.parse_summary.contains("兜底"),
@@ -115,13 +145,14 @@ fn form_c_cid_file_parses_clean_via_fallback() {
     let _ = std::fs::remove_dir_all(p.parent().unwrap());
 }
 
-/// 坏文件仍被拦住（#169 防线零退化）：同一 UniGB-UCS2 字体声明，但码值
-/// 是 Latin Extended-A（合法 Unicode、零 CJK）——恒等解码照走、输出无
-/// CJK → 探测 Garbled → fail-loud 拒收。任何环境（有无 poppler）同判。
+/// #200 R1 fail-loud 面钉死（确定性，任何环境同判）：CID 字体在用、码值为
+/// Latin Extended-A（合法 Unicode、零 CJK、非 ASCII 占比 100%）——
+/// **无 xref 桩**让 pdftotext 必败（缺 trailer），首选路不可用是确定性的；
+/// 兜底单路输出高残渣（≥0.3）→ 无第二路互证 → fail-loud 拒收。
+/// 对照：mixed_low_cjk_ratio_page_not_misjudged 覆盖「低残渣单路采信」与
+/// 「双路互证采信」两个 Ok 面——好/坏两个方向都有测试钉住。
 #[test]
-fn garbled_cid_text_still_fails_loud() {
-    // 0x0122 起的 Latin Extended-A 码位 ×40：恒等解码输出「ĢĢĳ...)」类
-    // 零 CJK 文本——这就是「真解码失败」形态（对照：好文件解码出中文）。
+fn fallback_only_garbled_high_residue_fails_loud() {
     let mut content = Vec::new();
     content.extend_from_slice(b"BT /F2 12 Tf 72 720 Td (");
     for i in 0..40u16 {
@@ -130,14 +161,22 @@ fn garbled_cid_text_still_fails_loud() {
         content.push((u & 0xFF) as u8);
     }
     content.extend_from_slice(b") Tj ET\n");
-    let pdf = uc2_pdf(&content);
-    let p = temp_pdf(&pdf, "garbled");
+    let mut pdf = uc2_pdf(&content);
+    // 去掉 xref 桩（截到 endobj 后即止）——pdftotext 缺 trailer 必败，
+    // pdf_text 兜底不依赖 xref 照常提取（两侧能力差是确定性的）
+    let cut = pdf
+        .windows(7)
+        .rposition(|w| w == b"endobj\n")
+        .map(|i| i + 7)
+        .unwrap();
+    pdf.truncate(cut);
+    let p = temp_pdf(&pdf, "latext");
 
-    let err = bid_parse::parse_file(&p, "garbled.pdf")
-        .expect_err("声明 CJK 字体但输出零 CJK 的文件必须 fail-loud 拒收");
+    let err = bid_parse::parse_file(&p, "latext.pdf")
+        .expect_err("单路高残渣（非 ASCII 占比 1.0）必须 fail-loud");
     assert!(
-        err.contains("疑似 CJK 乱码"),
-        "拒收原因必须指明 CJK 乱码防线，实际：{err}"
+        err.contains("[pdf-fallback-only-garbled]"),
+        "失败必须带稳定标签（实际：{err}）"
     );
     let _ = std::fs::remove_dir_all(p.parent().unwrap());
 }
@@ -154,14 +193,18 @@ fn reason_hint_names_boundary_families() {
     assert!(h.contains("绕过"), "绕过指引：{h}");
 
     // ObjStm → 点名对象流边界
-    let h = pdf_text::cjk_garble_reason_hint(b"5 0 obj << /Type /ObjStm >>").expect("ObjStm 必须点名");
+    let h =
+        pdf_text::cjk_garble_reason_hint(b"5 0 obj << /Type /ObjStm >>").expect("ObjStm 必须点名");
     assert!(h.contains("/ObjStm"), "对象流点名：{h}");
     assert!(h.contains("pdfium"), "绕过首选路：{h}");
 
     // 双边界并存 → 两段都在（疑因线索全列）
     let both = b"/Encoding /GBK-EUC-H /Ordering (GB1) + /ObjStm";
     let h = pdf_text::cjk_garble_reason_hint(both).expect("双边界必须点名");
-    assert!(h.contains("GBK-EUC-H/V") && h.contains("/ObjStm"), "两族并列：{h}");
+    assert!(
+        h.contains("GBK-EUC-H/V") && h.contains("/ObjStm"),
+        "两族并列：{h}"
+    );
 
     // B5pc 繁体族
     let h = pdf_text::cjk_garble_reason_hint(b"/Encoding /B5pc-H").expect("B5pc 必须点名");
@@ -279,4 +322,98 @@ fn gbk_euc_h_pdf_rejection_names_reason_and_workaround() {
         }
     }
     let _ = std::fs::remove_dir_all(p.parent().unwrap());
+}
+
+/// #200 R1 边界①：多字体页——F2 是 CID-CJK 字体但**只声明未使用**（内容
+/// 全走 F1 拉丁字体）→ 探测不激活（判「未用」的三前提齐备：流解出、找到
+/// Tf、Tf 选用集无标记字体）→ 任何环境都正常解析。
+#[test]
+fn declared_but_unused_cid_font_not_misjudged() {
+    // 内容只用 F1；F2（UniGB-UCS2-H）在资源表里声明但从无 Tf 选用
+    let content = b"BT /F1 12 Tf 72 720 Td (Tender summary in English with enough words to be a real page) Tj ET";
+    let pdf = mixed_font_pdf(LATIN_FONT_DICT, UC2_FONT_DICT, content);
+    let p = temp_pdf(&pdf, "unused-cid");
+    let parsed = bid_parse::parse_file(&p, "unused-cid.pdf")
+        .expect("#200 R1：声明未使用的 CID 字体不得触发乱码判定");
+    let text = pdf_text::parsed_text_of(&parsed);
+    assert!(
+        text.contains("Tender summary"),
+        "英文内容原样（实际：{text}）"
+    );
+    let _ = std::fs::remove_dir_all(p.parent().unwrap());
+}
+
+/// #200 R1 边界②：中英混排低 CJK 占比页（1 个汉字 + 大段英文，占比
+/// ≈0.017 < 0.02 阈值）→ 不得因比例误杀：
+/// · 有首选路：主路与兜底输出一致 → 互证采信；
+/// · 无首选路：非 ASCII 占比 ≈0.017 < 0.3 → 残渣不成立 → 单路采信。
+#[test]
+fn mixed_low_cjk_ratio_page_not_misjudged() {
+    // 本 + 58 个英文单词的整串 Tj（两路引擎输出同一字符序列）
+    // UniGB-UCS2-H 的串必须是 UCS-2 编码：本=0x672C，ASCII 'T'=0x0054……
+    // （单字节 ASCII 直写属畸形件——恒等解码会把 ASCII 对拼成汉字，边界登记）
+    let mixed = "\u{672c} Tender document summary covering scope and period, all technical requirements listed here for the record and review";
+    let mut content = Vec::new();
+    content.extend_from_slice(b"BT /F2 12 Tf 72 720 Td (");
+    let units: Vec<u8> = mixed.encode_utf16().flat_map(|u| u.to_be_bytes()).collect();
+    content.extend_from_slice(&units);
+    content.extend_from_slice(b") Tj ET\n");
+    let pdf = uc2_pdf(&content);
+    let p = temp_pdf(&pdf, "mixed");
+    let parsed = bid_parse::parse_file(&p, "mixed.pdf")
+        .expect("#200 R1：混排低占比页不得因 CJK 比例误杀（任何环境）");
+    let text = pdf_text::parsed_text_of(&parsed);
+    assert!(
+        text.contains('本') && text.contains("Tender"),
+        "中英都应保留（实际：{text}）"
+    );
+    let _ = std::fs::remove_dir_all(p.parent().unwrap());
+}
+
+/// #200 R1 判据单元面：互证归一化 + 残渣占比 + CID 在用探测三件套。
+#[test]
+fn r1_verdict_primitives() {
+    // 互证：同内容不同空白/标点 → 互证；分叉乱码 → 不互证
+    assert!(pdf_text::texts_corroborate(
+        "This is a tender, summary!",
+        "This is a tender summary"
+    ));
+    assert!(!pdf_text::texts_corroborate("SbheNLRQ", "g,yv\u{ee}N"));
+
+    // 残渣占比：纯英文 0；GBK 被逐字节 Latin-1 化 ≈ 1.0
+    assert!(pdf_text::non_ascii_ratio("Plain English text only") < 0.01);
+    let gbk_residue: String = [0xC4u16, 0xB3, 0xCA, 0xD0]
+        .iter()
+        .map(|&b| char::from_u32(b as u32).unwrap())
+        .collect();
+    assert!(pdf_text::non_ascii_ratio(&gbk_residue) >= 0.99);
+
+    // CID 在用探测四态
+    let english = b"BT /F1 12 Tf 72 720 Td (hello) Tj ET";
+    // ① Type1-SimSun：无 CMap 标记 → 不激活
+    let t1_simsum = mixed_font_pdf(
+        "<< /Type /Font /Subtype /Type1 /BaseFont /SimSun >>",
+        UC2_FONT_DICT,
+        english,
+    );
+    assert!(
+        !pdf_text::cid_cjk_font_in_use(&t1_simsum),
+        "Type1-SimSun 不激活"
+    );
+    // ② CID 声明未使用 → 不激活（内容只用 F1）
+    let unused = mixed_font_pdf(LATIN_FONT_DICT, UC2_FONT_DICT, english);
+    assert!(!pdf_text::cid_cjk_font_in_use(&unused), "声明未使用不激活");
+    // ③ CID 实际在用 → 激活
+    let used = mixed_font_pdf(
+        LATIN_FONT_DICT,
+        UC2_FONT_DICT,
+        b"BT /F2 12 Tf 72 720 Td (x) Tj ET",
+    );
+    assert!(
+        pdf_text::cid_cjk_font_in_use(&used),
+        "Tf 选用 CID 字体应激活"
+    );
+    // ④ 内容流解不开但标记在 → 保守激活（无法排除）
+    let broken = uc2_pdf(b"broken not a stream"); // 无 stream 结构 → any_stream=false
+    assert!(pdf_text::cid_cjk_font_in_use(&broken), "流解不开时保守激活");
 }

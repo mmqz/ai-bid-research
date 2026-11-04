@@ -1,84 +1,102 @@
-//! PDF 解析：文本层（poppler pdftotext）+ 扫描层（pdftoppm → tesseract chi_sim）。
-//! 无文本层 → OCR 通道（`has_text_layer=false` + OcrLine 块）；两层皆空 → 诚实留空并说明。
+//! engines/tesseract.rs —— 扫描层 OCR 引擎（pdftoppm → tesseract chi_sim，
+//! #200 R2 自 pdf.rs 迁入）。
 //!
-//! T-04 子进程治理（guard::run_limited）：三外部命令全部受治——超时杀进程组、
-//! stdout 上限、结果五分类（超时/溢出/非零/Busy/Spawn 均**不误标成功**）；
-//! 临时 PNG 区 TmpGuard RAII 统一回收；扫描页数超 [`MAX_OCR_PAGES`] 整体显式
-//! 拒绝（不留可被误认为完整 OCR 的部分结果）。
+//! 行为口径与迁移前逐字段一致（零回归）：pdfinfo 真实页数探测、
+//! MAX_OCR_PAGES 页数门（渲染前拒绝、不留部分结果）、TmpGuard RAII 回收
+//! 渲染 PNG、单页 OCR 失败诚实降级、全失败零块 fail-loud（#80 堵漏）、
+//! summary「pdf 扫描层 OCR: N 页 M 行块（chi_sim）」。
+//!
+//! R2 新增：`probe()`（chi_sim 可用性，进程级缓存）——供仲裁器在
+//! 「文本层乱码 OCR 救援」路径决定是否值得起渲染；**扫描件主路径不走
+//! probe 门**（保持既有失败语义：环境缺件在逐页执行中暴露，消息不变）。
 
+use crate::engine::{EngineError, EngineStatus, PageText, PdfExtractor};
 use crate::guard::{
-    self, RunOutcome, TmpGuard, LIMIT_INPUT_BYTES_PDF, LIMIT_PDFTOTEXT_STDOUT,
-    LIMIT_TESSERACT_STDOUT, MAX_OCR_PAGES, TIMEOUT_PDFTOPPM, TIMEOUT_PDFTOTEXT, TIMEOUT_TESSERACT,
+    self, RunOutcome, TmpGuard, LIMIT_TESSERACT_STDOUT, MAX_OCR_PAGES, TIMEOUT_PDFTOPPM,
+    TIMEOUT_PDFTOTEXT, TIMEOUT_TESSERACT,
 };
-use crate::{Block, BlockKind, ParsedFile};
 use crate::pdf_text::sanitize_line;
+use crate::{Block, BlockKind, ParsedFile};
 use std::path::Path;
-use std::process::Command;
 
-pub fn parse(path: &Path) -> Result<ParsedFile, String> {
-    // R3-S3-2：PDF 输入字节门（docx/xlsx 有门而 PDF 曾无门——与 guard 家族对齐）
-    guard::check_input_size(path, LIMIT_INPUT_BYTES_PDF)
-        .map_err(|e| format!("pdf 防护拒绝: {e}"))?;
-    let mut text_cmd = Command::new("pdftotext");
-    text_cmd.arg("-layout").arg(path.as_os_str()).arg("-");
-    let text =
-        guard::run_limited(text_cmd, TIMEOUT_PDFTOTEXT, LIMIT_PDFTOTEXT_STDOUT).into_result()?;
-    // pdftotext 以 \f 分页且末页后常带尾随 \f——按「非空分片」计页
-    let pages = text
-        .split('\u{c}')
-        .filter(|seg| !seg.trim().is_empty())
-        .count()
-        .max(1);
-    let non_ws: usize = text.chars().filter(|c| !c.is_whitespace()).count();
+/// 扫描层 OCR 引擎。
+pub struct TesseractOcr;
 
-    let mut blocks: Vec<Block> = Vec::new();
-    let mut has_text_layer = non_ws >= 16; // 空白/仅页码层判为无文本层
-    let mut ocr_blocks = 0usize;
-    let mut summary = String::new();
-    // pages 口径：文本层 = 非空分页数；扫描层 = 实际渲染页数（P2 真实文件驱动修正：
-    // 多页扫描件的 pdftotext 空文本不得把页数错报为 1——合成夹具 B2 单页曾掩盖）
-    let mut pages = pages;
+impl PdfExtractor for TesseractOcr {
+    fn name(&self) -> &'static str {
+        "tesseract"
+    }
 
-    if has_text_layer {
-        for (pi, page) in text.split('\u{c}').enumerate() {
-            let mut line_no = 0usize;
-            for line in page.lines() {
-                let l = line.trim();
-                if l.is_empty() {
-                    continue;
+    fn probe(&self) -> EngineStatus {
+        match chi_sim_available() {
+            Ok(true) => EngineStatus::Ready,
+            Ok(false) => EngineStatus::Missing {
+                what: "tesseract 已安装但缺 chi_sim 语言数据".to_string(),
+                hint: "安装 tesseract-ocr-chi（或设 TESSDATA_PREFIX 指向含 chi_sim.traineddata 的目录）".to_string(),
+            },
+            Err(why) => EngineStatus::Missing {
+                what: format!("tesseract 无法启动: {why}"),
+                hint: "安装 tesseract-ocr 及 chi_sim 语言数据".to_string(),
+            },
+        }
+    }
+
+    fn extract(&self, path: &Path) -> Result<Vec<PageText>, EngineError> {
+        let pf = self
+            .ocr_parsed(path)
+            .map_err(|detail| EngineError::FileBroken {
+                engine: "tesseract",
+                detail,
+            })?;
+        // 按页聚合 OCR 行块（OcrLine 的定位器含页号——page 从 locator 还原）
+        let mut pages: Vec<PageText> = Vec::new();
+        for b in &pf.blocks {
+            let page = b
+                .locator
+                .split_once('页')
+                .and_then(|(head, _)| head.trim_start_matches('第').parse::<usize>().ok())
+                .unwrap_or(1);
+            let text = b.text.clone();
+            match pages.iter_mut().find(|p| p.page == page) {
+                Some(p) => {
+                    p.text.push('\n');
+                    p.text.push_str(&text);
                 }
-                line_no += 1;
-                // #223 对称防护：首选路同款行级控制字符清洗（pdftotext 经
-                // from_utf8_lossy 极少产出 C1 控制符，加了零成本兜住）
-                blocks.push(Block {
-                    idx: blocks.len(),
-                    kind: BlockKind::PdfLine,
-                    locator: format!("第{}页 行{}", pi + 1, line_no),
-                    text: collapse_spaces(&sanitize_line(l)),
-                    cells: vec![],
-                });
+                None => pages.push(PageText {
+                    page,
+                    text,
+                    confidence: 1.0,
+                    diagnostics: String::new(),
+                }),
             }
         }
-        summary = format!("pdf 文本层: {pages} 页 {} 行块", blocks.len());
-    } else {
+        Ok(pages)
+    }
+}
+
+impl TesseractOcr {
+    /// 扫描层整档解析（自旧 pdf::parse 无文本层分支逐字段迁入——零回归）。
+    pub fn ocr_parsed(&self, path: &Path) -> Result<ParsedFile, String> {
+        let mut blocks: Vec<Block> = Vec::new();
+        let mut ocr_blocks = 0usize;
+        let mut pages = 1usize; // pdftotext 分页口径的保守回退值（旧代码同款）
+        let mut summary = String::new();
         // T-04：扫描页数门——超限整体显式拒绝（渲染/OCR 成本与磁盘占用上限；
         // 拒绝整个文件，绝不产出「只 OCR 了前 N 页」的部分结果）。
-        // R3-S1-1 修正：pdftotext 对扫描件输出近空文本，非空分页数恒为 1——
-        // 门不得依赖该值；真实页数以 pdfinfo 探测为准，渲染层另加 -l 上限双保险。
-        let real_pages = probe_pdf_pages(path).unwrap_or(pages);
+        // R3-S1-1 修正：真实页数以 pdfinfo 探测为准，渲染层另加 -l 上限双保险。
+        let real_pages = probe_pdf_pages(path).unwrap_or(1);
         if real_pages > MAX_OCR_PAGES {
             return Err(format!(
                 "pdf 扫描层 {real_pages} 页超过 OCR 上限 {MAX_OCR_PAGES}（拒绝处理——不留部分结果，请拆分文件）"
             ));
         }
-        has_text_layer = false;
         // T-04：TmpGuard RAII——超时被杀/任意 Err 提前返回路径均统一回收渲染 PNG
         let tmp = TmpGuard::new("ocr").map_err(|e| format!("临时目录创建失败: {e}"))?;
         let prefix = tmp.0.join("page");
-        let mut render_cmd = Command::new("pdftoppm");
+        let mut render_cmd = std::process::Command::new("pdftoppm");
         render_cmd
             .args(["-r", "200", "-gray", "-png"])
-            .args(["-l", &real_pages.to_string()]) // 渲染上限双保险（R3-S1-1：探测与实际不一致时仍不超渲染）
+            .args(["-l", &real_pages.to_string()]) // 渲染上限双保险（R3-S1-1）
             .arg(path.as_os_str())
             .arg(&prefix);
         let render = guard::run_limited(render_cmd, TIMEOUT_PDFTOPPM, 4096);
@@ -93,7 +111,7 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
             .collect();
         pngs.sort();
         if !pngs.is_empty() {
-            pages = pngs.len(); // 扫描件页数以实际渲染张数为准（诚实页数，非文本层猜测）
+            pages = pngs.len(); // 扫描件页数以实际渲染张数为准（诚实页数）
         }
         let mut ocr_fail_pages = 0usize; // NonZeroExit 页计（环境类失败与数据面残缺的分频面）
         for (pi, png) in pngs.iter().enumerate() {
@@ -101,40 +119,33 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
                 std::path::PathBuf::from(std::env::var("TESSDATA_PREFIX").unwrap_or_else(|_| {
                     format!("{}/.tessdata", std::env::var("HOME").unwrap_or_default())
                 }));
-            let mut t_cmd = Command::new("tesseract");
+            let mut t_cmd = std::process::Command::new("tesseract");
             t_cmd
                 .arg(png.as_os_str())
                 .arg("stdout")
                 .args(["-l", "chi_sim", "--psm", "6"])
                 .env("TESSDATA_PREFIX", &tessdata);
             let ocr = guard::run_limited(t_cmd, TIMEOUT_TESSERACT, LIMIT_TESSERACT_STDOUT);
-            if !ocr.is_success() {
-                // 单页 OCR 失败：诚实降级说明（不静默、不中断整档——扫描页残缺属
-                // 数据面，parse_summary 承载原因）；超时/溢出类治理失败向上传播拒绝
-                match ocr {
-                    RunOutcome::Timeout { .. }
-                    | RunOutcome::OutputOverflow { .. }
-                    | RunOutcome::Busy { .. }
-                    | RunOutcome::Spawn { .. } => {
-                        return Err(format!("tesseract 治理失败: {}", short_err(&ocr)));
-                    }
-                    RunOutcome::NonZeroExit { stderr_head, .. } => {
-                        ocr_fail_pages += 1;
-                        summary = format!("pdf 扫描层: {pages} 页，OCR 失败（{stderr_head}）");
-                        break;
-                    }
-                    RunOutcome::Success { .. } => unreachable!(),
-                }
-            }
             let page_text = match ocr {
                 RunOutcome::Success { stdout } => stdout,
-                _ => unreachable!(),
+                RunOutcome::Timeout { .. }
+                | RunOutcome::OutputOverflow { .. }
+                | RunOutcome::Busy { .. }
+                | RunOutcome::Spawn { .. } => {
+                    return Err(format!("tesseract 治理失败: {}", short_err(&ocr)));
+                }
+                RunOutcome::NonZeroExit { stderr_head, .. } => {
+                    ocr_fail_pages += 1;
+                    summary = format!("pdf 扫描层: {pages} 页，OCR 失败（{stderr_head}）");
+                    break;
+                }
             };
             let mut line_no = 0usize;
             for line in page_text.lines() {
                 let l = line.trim();
-                if l.chars().filter(|c| !c.is_whitespace()).count() < 2 {
-                    continue; // 碎屑噪声行
+                let cleaned = sanitize_line(l);
+                if cleaned.chars().filter(|c| !c.is_whitespace()).count() < 2 {
+                    continue; // 碎屑噪声行或控制字符清洗后的空行
                 }
                 line_no += 1;
                 ocr_blocks += 1;
@@ -142,7 +153,7 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
                     idx: blocks.len(),
                     kind: BlockKind::OcrLine,
                     locator: format!("第{}页 OCR 行{}", pi + 1, line_no),
-                    text: collapse_spaces(l),
+                    text: super::poppler::collapse_spaces(&cleaned),
                     cells: vec![],
                 });
             }
@@ -163,25 +174,44 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
                  （TESSDATA_PREFIX 或 ~/.tessdata）；本文件按失败处理，不留空内容伪装成功"
             ));
         }
+        Ok(ParsedFile {
+            name: String::new(),
+            sha256: String::new(),
+            pages,
+            tables: 0,
+            has_text_layer: false,
+            ocr_blocks,
+            blocks,
+            parse_summary: summary,
+            components: vec![],
+        })
     }
-
-    let tables = blocks
-        .iter()
-        .filter(|b| b.kind == BlockKind::PdfLine && b.text.contains("  "))
-        .count(); // -layout 下列对齐的多列表征（粗粒度——PDF 表格结构归 D1 面）
-    Ok(ParsedFile {
-        name: String::new(),
-        sha256: String::new(),
-        pages,
-        tables,
-        has_text_layer,
-        ocr_blocks,
-        blocks,
-        parse_summary: summary,
-        components: vec![], // SC-02 部件账本属 docx 解析面（PDF 无 zip 部件结构）
-    })
 }
 
+/// chi_sim 可用性（进程级缓存——`tesseract --list-langs` 一次探测）。
+///
+/// 探测命令与 OCR 执行同款 TESSDATA_PREFIX 解析口径（自定义目录不漏判）。
+fn chi_sim_available() -> Result<bool, String> {
+    use std::sync::OnceLock;
+    static CACHE: OnceLock<Result<bool, String>> = OnceLock::new();
+    CACHE
+        .get_or_init(|| {
+            let tessdata =
+                std::path::PathBuf::from(std::env::var("TESSDATA_PREFIX").unwrap_or_else(|_| {
+                    format!("{}/.tessdata", std::env::var("HOME").unwrap_or_default())
+                }));
+            let mut c = std::process::Command::new("tesseract");
+            c.arg("--list-langs").env("TESSDATA_PREFIX", &tessdata);
+            match guard::run_limited(c, TIMEOUT_TESSERACT, 64 * 1024) {
+                RunOutcome::Success { stdout } => Ok(stdout.contains("chi_sim")),
+                RunOutcome::Spawn { why, .. } => Err(why),
+                _ => Ok(false), // 在位但异常退出：按「缺 chi_sim」处理（诚实可补）
+            }
+        })
+        .clone()
+}
+
+/// 治理失败短描述（自 pdf.rs 迁入，未改动）。
 fn short_err(out: &RunOutcome) -> String {
     match out {
         RunOutcome::Timeout { program, secs } => format!("子进程超时被杀（{program} {secs}s）"),
@@ -202,9 +232,9 @@ fn short_err(out: &RunOutcome) -> String {
 }
 
 /// 真实页数探测（pdfinfo，poppler 自带）——扫描件页数的诚实口径；
-/// 探测失败回退 pdftotext 分页数（保守场景由渲染 -l 上限兕底）。
+/// 探测失败回退保守值 1（渲染层 -l 上限双保险兜底）。
 fn probe_pdf_pages(path: &Path) -> Option<usize> {
-    let mut c = Command::new("pdfinfo");
+    let mut c = std::process::Command::new("pdfinfo");
     c.arg(path.as_os_str());
     let out = guard::run_limited(c, TIMEOUT_PDFTOTEXT, 64 * 1024);
     if !out.is_success() {
@@ -225,9 +255,14 @@ fn probe_pdf_pages(path: &Path) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::guard::{
+        LIMIT_PDFTOTEXT_STDOUT, MAX_OCR_PAGES, TIMEOUT_PDFTOPPM, TIMEOUT_PDFTOTEXT,
+        TIMEOUT_TESSERACT,
+    };
 
     /// 治理参数语义测试（不依赖外部 PDF 工具——CI 环境兼容）：
     /// 超时/溢出上限值是契约的一部分（变更需过组件版本矩阵审查）。
+    /// （自 pdf.rs 迁入——零回归钉子）
     #[test]
     fn governance_params_are_pinned() {
         use std::time::Duration;
@@ -241,10 +276,13 @@ mod tests {
 
     /// R3-S1-1 回归门：超页扫描件必须被页数门拒绝（绝不开始渲染）。
     /// 201 页空白扫描 PDF 由 python3+reportlab 现场生成（环境无 reportlab 则跳过）。
-    /// 生成器调用受治（PR #24 修复批次）：`run_limited` 30s 超时——旧 `.output()`
-    /// 无限期等待外部进程（Lead 指令：所有等外部进程的地方必须有超时）。
+    /// （自 pdf.rs 迁入——零回归钉子；parse 换为 engines::parse_pdf）
     #[test]
     fn oversized_scanned_pdf_rejected_before_render() {
+        // 持子进程测试锁（python3 生成 + parse_pdf 均占并发席——#200 R2 竞态治本）
+        let _g = crate::guard::SUBPROC_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
         let tmp = std::env::temp_dir().join(format!("bidparse_ocr_limit_{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
         let pdf = tmp.join("oversize_201p.pdf");
@@ -262,7 +300,7 @@ mod tests {
         match gen {
             RunOutcome::Success { .. } => {
                 let started = std::time::Instant::now();
-                let r = parse(&pdf);
+                let r = super::super::parse_pdf(&pdf, "oversize_201p.pdf");
                 match r {
                     Err(e) => {
                         assert!(e.contains("超过 OCR 上限"), "必须是页数门拒绝，实际 {e}");
@@ -280,21 +318,4 @@ mod tests {
         }
         let _ = std::fs::remove_dir_all(&tmp);
     }
-}
-
-fn collapse_spaces(s: &str) -> String {
-    let mut out = String::new();
-    let mut prev_space = false;
-    for c in s.chars() {
-        if c.is_whitespace() {
-            if !prev_space && !out.is_empty() {
-                out.push(' ');
-                prev_space = true;
-            }
-        } else {
-            out.push(c);
-            prev_space = false;
-        }
-    }
-    out.trim_end().to_string()
 }

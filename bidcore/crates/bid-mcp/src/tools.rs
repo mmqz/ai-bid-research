@@ -692,6 +692,42 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
     //      产出的同型 ParsedFile，B5 起主文件 docx 已走 bid-engine）
     let reqs = bid_parse::extract::extract_requirements(svc.parsed());
 
+    // ---- #219 第二步：抽取通路合并（Agent 标记优先 + 正则兜底补漏）
+    //
+    // 规则：被任何区间标记覆盖的块，正则产物丢弃（Agent 已看过该块并给出
+    // 结论——无论 noise/rule/review_table/requirement）；未覆盖块正则保留
+    // （兜底）；Agent 提交的关键点转 REQ-Axxxx 追加（冲突以 Agent 为准）。
+    //
+    // **无标记时严格 no-op**（GT 红线保护）：空 marks + 空 submitted →
+    // 输出与旧正则产物逐位一致（real_corpus_e2e 只走正则全链，零位移）。
+    // B3（无抽取面）不进合并面——uncovered 语义 = 「抽取面的未覆盖」。
+    let tender_files: Vec<(String, String)> = svc
+        .store()
+        .files()
+        .iter()
+        .map(|f| (f.id.clone(), f.sha256.clone()))
+        .collect();
+    let faces: Vec<bid_parse::merge::MergeFace> = svc
+        .parsed()
+        .iter()
+        .filter(|p| bid_parse::merge::has_extraction_face(&p.name))
+        .filter_map(|p| {
+            let fid = tender_files
+                .iter()
+                .find(|(_, sha)| sha == &p.sha256)
+                .map(|(fid, _)| fid.as_str())?;
+            Some(bid_parse::merge::MergeFace {
+                file_id: fid,
+                name: &p.name,
+                blocks: &p.blocks,
+                marks: svc.store().block_marks_of(fid),
+                submitted: svc.store().submitted_requirements_of(fid),
+            })
+        })
+        .collect();
+    let (reqs, merge_stats) = bid_parse::merge::merge_extraction(&faces, reqs);
+    drop(faces);
+
     // ---- 完整性校验：缺号检测（契约硬规则）
     let mut missing_sequence: Vec<Value> = Vec::new();
     let files = svc.store().files().to_vec();
@@ -747,9 +783,13 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
         }
     }
 
-    // ---- 落库（幂等合并 + 状态转换 FILES_IMPORTED → REQUIREMENTS_EXTRACTED；
+    // ---- 落库（#219 二步：整集替换 + 状态转换 FILES_IMPORTED →
+    // REQUIREMENTS_EXTRACTED；替换而非只增合并——「先 extract → Agent
+    // 标 noise → 重跑 extract」时被覆盖块上的旧正则 REQ 必须消失。
     // T-8：经服务层包装——持久化在场时写后自动落盘）
-    let (total, added) = svc.set_requirements(reqs).map_err(ToolError::from)?;
+    let before_total = svc.store().requirements().len();
+    let total = svc.replace_requirements(reqs).map_err(ToolError::from)?;
+    let added = total as isize - before_total as isize;
 
     // ---- counts 组装
     let mut by_category: std::collections::BTreeMap<&str, usize> =
@@ -779,12 +819,34 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
             break;
         }
     }
+    // #219 二步：未覆盖块提醒（正则已兜底——Agent 补标后重跑更准）
+    if merge_stats.uncovered_blocks > 0 {
+        warnings.push(format!(
+            "UNCOVERED_BLOCKS: {} 块未标记（正则已兜底补漏——用 get_coverage_report 查看后 submit_block_marks 补标，重跑 extract 更准）",
+            merge_stats.uncovered_blocks
+        ));
+    }
+    // Agent 标必选但类别不在阻断面（资格条件/否决项）——is_mandatory 接线
+    // 属后续 issue，先亮警告防静默漏洞
+    if merge_stats.agent_mandatory_not_blocking > 0 {
+        warnings.push(format!(
+            "AGENT_MANDATORY_NOT_BLOCKING: {} 条 Agent 标必选但类别不在阻断面（资格条件/否决项）——导出闸门不拦，需后续接线",
+            merge_stats.agent_mandatory_not_blocking
+        ));
+    }
 
     Ok(json!({
         "counts": {
             "total": total,
             "added": added,
             "by_category": by_category,
+        },
+        "merge": {
+            "regex_total": merge_stats.regex_total,
+            "regex_dropped_covered": merge_stats.regex_dropped_covered,
+            "agent_requirements": merge_stats.agent_requirements,
+            "uncovered_blocks": merge_stats.uncovered_blocks,
+            "coverage_complete": merge_stats.coverage_complete,
         },
         "conflicts": conflicts,
         "missing_sequence": missing_sequence,

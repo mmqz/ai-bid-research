@@ -36,6 +36,7 @@ pub mod clause;
 pub mod env_preflight;
 pub mod extract;
 pub mod guard;
+pub mod merge;
 pub mod nesting;
 pub mod numbering;
 pub mod pdf;

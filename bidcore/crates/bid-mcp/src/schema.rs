@@ -536,7 +536,7 @@ fn describe(name: &str) -> &'static str {
     match name {
         "create_bid_project" => "建项目（external_key 幂等）",
         "import_tender_files" => "导入招标文件 + 完整性对账",
-        "extract_requirements" => "六类条款抽取 + 覆盖率对账",
+        "extract_requirements" => "六类条款抽取 + 覆盖率对账；#219 二步：Agent 块标记优先——被标记块的正则产物让位（REQ-Axxxx 承接），未覆盖块正则兜底，无标记时与纯正则逐位一致",
         "get_compliance_matrix" => "只读：响应矩阵与资格三态（S-4 游标分页）",
         "list_evidence" => "只读：证据台账列表（kind/status 过滤 + 游标分页；行含 verification_tier——#217 四态可见）",
         "list_tasks" => "只读：任务分工列表（owner/status 过滤 + 游标分页）",

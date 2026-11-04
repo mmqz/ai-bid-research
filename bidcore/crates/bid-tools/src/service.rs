@@ -720,6 +720,32 @@ impl BidService {
         Ok(r)
     }
 
+    /// #219 二步：`submit_block_marks` 落库半边（marks + submitted 原子写）。
+    ///
+    /// 修 PR #227 的两个缺口：① submitted 关键点回显后丢弃不落库（合并面
+    /// 元输入缺失）；② 直改 store 不经服务层——持久化工作区下标记不落盘，
+    /// 直到下一次经包装的写操作（半个库状态风险）。
+    pub fn set_block_coverage(
+        &mut self,
+        file_id: &str,
+        marks: Vec<bid_domain::coverage::BlockMark>,
+        reqs: Vec<bid_domain::coverage::SubmittedRequirement>,
+        total_blocks: usize,
+    ) -> Result<(), ToolError> {
+        self.store
+            .set_block_coverage(file_id, marks, reqs, total_blocks)?;
+        self.auto_checkpoint()
+    }
+
+    /// #219 二步：抽取通路合并后的整集替换落库（语义见域层
+    /// `replace_requirements`——Agent 优先要求被覆盖块上的旧正则 REQ
+    /// 能从库里消失，只增不删的 set 语义做不到）。
+    pub fn replace_requirements(&mut self, reqs: Vec<Requirement>) -> Result<usize, ToolError> {
+        let r = self.store.replace_requirements(reqs)?;
+        self.auto_checkpoint()?;
+        Ok(r)
+    }
+
     /// `draft_response_section` 的前置准备面（#59 阶段 1：抽取完成后
     /// 「推导大纲 → 构建矩阵」的服务通道——MCP 12 工具面不含建纲/建矩阵
     /// 工具（外部 Agent 经 runner / 测试经本方法准备；矩阵构建会推进项目

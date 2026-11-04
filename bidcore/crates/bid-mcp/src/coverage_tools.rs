@@ -24,7 +24,8 @@ use bid_tools::service::BidService;
 const MAX_CHUNK_PAGE: u64 = 200;
 
 /// 按 file_id 找解析产物（join 键 = sha256，与 #217 locate_content 同口径）。
-fn find_parsed<'a>(
+/// #219 二步起 tools.rs 的 extract 合并面复用（pub(crate)）。
+pub(crate) fn find_parsed<'a>(
     svc: &'a BidService,
     file_id: &str,
     at: &str,
@@ -200,16 +201,19 @@ pub fn submit_block_marks(svc: &mut BidService, args: Value) -> ToolResult {
     bid_domain::coverage::validate_submitted(&marks, &reqs)
         .map_err(|e| ToolError::EUnprocessable { what: format!("{TOOL}: {}", e.to_message()) })?;
 
-    svc.store_mut()
-        .set_block_marks(&file_id, marks.clone(), total_blocks)
+    let marks_n = marks.len();
+    let reqs_n = reqs.len();
+    // #219 二步：marks + submitted 原子落库（经服务层——持久化工作区
+    // 写后自动落盘；PR #227 只存 marks 且直改 store 无 checkpoint）
+    svc.set_block_coverage(&file_id, marks, reqs, total_blocks)
         .map_err(ToolError::from)?;
 
     let report = svc.store().coverage_report(&file_id, total_blocks);
     Ok(json!({
         "project_id": project_id,
         "file_id": file_id,
-        "marks_accepted": marks.len(),
-        "requirements_accepted": reqs.len(),
+        "marks_accepted": marks_n,
+        "requirements_accepted": reqs_n,
         "total_blocks": total_blocks,
         "coverage": {
             "covered_blocks": report.covered_blocks,

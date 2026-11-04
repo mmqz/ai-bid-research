@@ -77,8 +77,10 @@ out: { counts:{total, added(可为负——整集替换语义下的诚实增量)
       **无标记时严格 no-op**：与旧正则产物逐位一致（GT 红线零位移）。
       B3（图纸目录/证据件，无抽取面）不进合并统计。
       warnings 新增：UNCOVERED_BLOCKS（未覆盖块数——正则已兜底，Agent 补标后
-      重跑更准）；AGENT_MANDATORY_NOT_BLOCKING（Agent 标必选但类别不在阻断面
-      资格条件/否决项——is_mandatory 接线属后续 issue，先亮警告防静默漏洞）。
+      重跑更准）；AGENT_MANDATORY_OFFCATEGORY（Agent 标必选且类别不在类别
+      阻断面资格条件/否决项——**已接线**：经 matrix.rs `agent_mandatory`
+      进入矩阵 blocking 面，未响应即拦起草/导出；响应或人工 receipt 覆写后
+      放行。历史名 AGENT_MANDATORY_NOT_BLOCKING 时代只亮警告不拦）。
 硬规则: 条款编号缺号 → missing_sequence 必须报告（完整性校验）；补遗与正文冲突 → 双向登记 conflicts；
       合并守恒：counts.total = regex_total - regex_dropped_covered + agent_requirements
 错误: E_PARTIAL（某文件抽取失败，其余成功）；E_STATE（未导入文件）
@@ -98,6 +100,9 @@ out: { rows:[{cmp_id, requirement:{id, clause_no, category, statement, mandatory
        counts:{total, returned, page(信息性回显), page_size(=limit)} }
 无状态副作用；任何阶段可调。行序 = 条款位置序（cmp_id CMP-0001..N，确定性稳定）；
 先过滤后分页（total 恒为过滤后总数）。
+`rows[].requirement.mandatory` = 类别阻断面（资格条件/否决项）∪ Agent 必选标记
+（params.marked_by=agent && params.mandatory=true）——与矩阵 blocking 派生同一真源
+（matrix.rs `is_mandatory`/`agent_mandatory`），工具面 mandatory 即门禁输入。
 错误: E_UNPROCESSABLE（游标与过滤器不匹配/游标损坏/limit 或 page 越界——显式拒不 clamp）
 ```
 

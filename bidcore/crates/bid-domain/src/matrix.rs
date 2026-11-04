@@ -10,8 +10,17 @@
 //! - `NOT_APPLICABLE`（不适用）：显式 override（带偏离说明——不适用必须给理由）。
 //!
 //! blocking 语义（Lead T-2 规格 + 契约 mandatory 口径对齐）：
-//! `category ∈ {资格条件, 否决项} && status == NOT_RESPONDED` → blocking=true
-//! （与 get_compliance_matrix 的 `mandatory` 判定同源——工具面的 mandatory 即本门输入）。
+//! `(category ∈ {资格条件, 否决项} || agent_mandatory(req)) && status == NOT_RESPONDED`
+//! → blocking=true（与 get_compliance_matrix 的 `mandatory` 判定同源——工具面的
+//! mandatory 即本门输入）。
+//!
+//! Agent 必选标记接线（AGENT_MANDATORY_NOT_BLOCKING 缺口的收口）：
+//! `agent_mandatory(req)` = `params.marked_by == "agent" && params.mandatory == true`
+//! （[`agent_mandatory`]）。语义前提是结构性的：`validate_submitted` 只允许
+//! requirement 挂在 Agent 判为「需响应」（verdict=requirement）的区间上——
+//! noise/规则说明区间挂 requirement 直接拒。因此带 Agent 必选标记的 REQ
+//! 必是「Agent 标必选 且 确认为需响应」的条款；正则产物无此二键，
+//! 永不进入本面（真实语料 GT 零位移）。
 //!
 //! 派生 vs 覆写：矩阵行是**派生态**（从 requirements + bindings + sections + overrides
 //! 重算，幂等）；人工裁决只经 [`DomainStore::set_matrix_override`]（不适用/偏离说明）
@@ -92,6 +101,22 @@ pub fn is_mandatory(category: &str) -> bool {
     category == "资格条件" || category == "否决项"
 }
 
+/// Agent 标必选（`submit_block_marks` 提交面 `mandatory=true` 的落库痕迹——
+/// merge.rs 转换时写入 `params.marked_by="agent"` + `params.mandatory=true`）。
+///
+/// 语义前提（结构性保证，见 [`validate_submitted`](crate::coverage::validate_submitted)）：
+/// 只有落在 Agent 判为「需响应」（verdict=requirement）区间内的块才能提交
+/// 关键点——noise/规则说明区间挂 requirement 直接拒。因此本函数命中 =
+/// 「Agent 标必选 且 确认为需响应」，正是要接进 blocking 面的人群；
+/// 正则产物（含被 veto_rule.rs 降级的规则说明）无此二键，永不受影响。
+///
+/// 非必选（mandatory=false）与缺键（正则/手造件）都返回 false——
+/// 口径与 [`is_mandatory`] 取并集后进入 [`derive_matrix_rows`] 的 blocking 派生。
+pub fn agent_mandatory(r: &Requirement) -> bool {
+    r.params.get("marked_by").and_then(|v| v.as_str()) == Some("agent")
+        && r.params.get("mandatory").and_then(|v| v.as_bool()) == Some(true)
+}
+
 fn derived_cmp_id(requirement_id: &str) -> String {
     let suffix = requirement_id.rsplit('-').next().unwrap_or("0000");
     if suffix.chars().all(|c| c.is_ascii_digit()) && !suffix.is_empty() {
@@ -156,7 +181,10 @@ pub fn derive_matrix_rows(
                 (st, None)
             }
         };
-        let blocking = is_mandatory(&r.category) && status == ResponseStatus::NotResponded;
+        // 必选面 = 类别阻断面（资格条件/否决项）∪ Agent 必选标记——
+        // 两者都只在未响应时阻断（已响应/人工覆写即放行）。
+        let blocking = (is_mandatory(&r.category) || agent_mandatory(r))
+            && status == ResponseStatus::NotResponded;
         MatrixRow {
             id: derived_cmp_id(&r.id),
             requirement_id: r.id.clone(),
@@ -381,6 +409,66 @@ mod tests {
             .collect();
         s.set_requirements(reqs).unwrap();
         s
+    }
+
+    /// Agent 路径 REQ（merge.rs 转换产物形状：params.marked_by + params.mandatory）。
+    fn agent_req(id: &str, category: &str, mandatory: bool) -> Requirement {
+        let mut r = req(id, category);
+        r.params.insert("marked_by".into(), serde_json::json!("agent"));
+        r.params.insert("mandatory".into(), serde_json::json!(mandatory));
+        r
+    }
+
+    /// Agent 必选标记接线：类别不在阻断面（资格条件/否决项）的 Agent 必选条款，
+    /// 未响应 → blocking；已响应（证据+章节）→ 放行；人工覆写 → 放行。
+    #[test]
+    fn agent_mandatory_wires_blocking_outside_category_face() {
+        let reqs = vec![
+            agent_req("REQ-0001", "商务要求", true),   // 未响应 → blocking（接线主断言）
+            agent_req("REQ-0002", "技术参数", true),   // 证据+章节 → RESPONDED → 放行
+            agent_req("REQ-0003", "评分项", true),     // 人工覆写不适用（带理由）→ 放行
+        ];
+        let bindings = vec![("EV-0001".to_string(), "REQ-0002".to_string())];
+        let sections = vec![sec("SEC-0001", 1, &["REQ-0002"])];
+        let mut overrides = HashMap::new();
+        overrides.insert("REQ-0003".to_string(), MatrixOverride {
+            requirement_id: "REQ-0003".into(),
+            status: ResponseStatus::NotApplicable,
+            deviation: Some("评分项本地化承诺不适用（人工 receipt 覆写）".into()),
+            principal: String::new(),
+            trusted: None,
+            at: 0,
+        });
+        let rows = derive_matrix_rows(&reqs, &bindings, &sections, &overrides);
+        assert!(rows[0].blocking, "Agent 必选（商务要求）未响应 → blocking（缺口收口）");
+        assert_eq!(rows[0].status, ResponseStatus::NotResponded);
+        assert!(!rows[1].blocking, "Agent 必选已响应（证据+章节）→ 放行");
+        assert_eq!(rows[1].status, ResponseStatus::Responded);
+        assert!(!rows[2].blocking, "Agent 必选经人工覆写（不适用+理由）→ 放行");
+        assert_eq!(rows[2].status, ResponseStatus::NotApplicable);
+    }
+
+    /// 非误断对照：非必选（mandatory=false）、正则形状（无 marked_by）、
+    /// 仅单键（防手造件半标记）都不进 blocking 面——真实语料 GT 零位移的域层保证。
+    #[test]
+    fn agent_mandatory_negative_face_non_mandatory_and_unmarked() {
+        let mut regex_shaped = req("REQ-0002", "商务要求");
+        regex_shaped.params.insert("mandatory".into(), serde_json::json!(true)); // 无 marked_by
+        let mut half_marked = req("REQ-0003", "其他");
+        half_marked.params.insert("marked_by".into(), serde_json::json!("agent")); // 无 mandatory
+        let reqs = vec![
+            agent_req("REQ-0001", "商务要求", false), // Agent 标非必选
+            regex_shaped,
+            half_marked,
+        ];
+        let rows = derive_matrix_rows(&reqs, &[], &[], &HashMap::new());
+        assert!(!rows[0].blocking, "Agent 非必选未响应 → 不阻断（评分/商务面不误伤）");
+        assert!(!rows[1].blocking, "正则形状（无 marked_by）→ 不受接线影响");
+        assert!(!rows[2].blocking, "仅 marked_by 无 mandatory → 不算 Agent 必选");
+        // 与类别阻断面并集不打架：类别必选 + Agent 非必选标记 → 仍按类别阻断
+        let union = vec![agent_req("REQ-0004", "否决项", false)];
+        let rows2 = derive_matrix_rows(&union, &[], &[], &HashMap::new());
+        assert!(rows2[0].blocking, "类别阻断面（否决项）不因 Agent 标非必选而放松");
     }
 
     /// 派生四态 + blocking（必选未响应 = 闸门；非必选未响应不阻断）。

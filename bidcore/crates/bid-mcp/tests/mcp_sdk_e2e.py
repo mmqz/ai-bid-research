@@ -37,6 +37,8 @@ EXPECTED_TOOLS = {
     "build_outline", "register_evidence", "bind_evidence", "record_review_gate",
     "record_addendum_waiver",
     "score_price", "score_section", "score_document",
+    # #219 全块覆盖三工具（#237 已入 main；#227 曾漏登 e2e 清单——
+    # CI 无 Python SDK 抓不到，本分支合流时与 TOOL_NAMES 25 对齐）
     "get_document_chunks", "submit_block_marks", "get_coverage_report",
     "set_matrix_override",  # #226 层 1：否决项死锁的人工出口
 }

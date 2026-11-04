@@ -31,7 +31,7 @@ const ALL_STATES: [ProjectStatus; 10] = [
 /// 「导入后任意时刻」同窗口语义，审计面写入与 record_review_gate 同款）。
 /// #219 增全块覆盖三工具；#226 增 `set_matrix_override`（尾插——矩阵已建
 /// 才有可覆写对象，MatrixReady 起放行）= 25。
-const ALL_TOOLS: [&str; 25] = [)
+const ALL_TOOLS: [&str; 25] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",

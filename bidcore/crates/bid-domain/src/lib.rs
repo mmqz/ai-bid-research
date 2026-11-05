@@ -198,6 +198,10 @@ impl ProjectStatus {
                 "search_evidence",
                 "get_bid_project_state",
                 "draft_response_section",
+                // #254 分段写入（与整稿同窗口——矩阵就绪即可续写）
+                "append_section_segment",
+                "rewrite_section_segment",
+                "list_section_segments",
                 "check_bid_quality",
                 // #80 第三批 MCP 补齐 G2/G3：证据登记绑定 + 审批门（P4 面）
                 "register_evidence",
@@ -217,6 +221,10 @@ impl ProjectStatus {
                 "search_evidence",
                 "get_bid_project_state",
                 "draft_response_section",
+                // #254 分段写入（起草主战场——长章节安全续写）
+                "append_section_segment",
+                "rewrite_section_segment",
+                "list_section_segments",
                 "validate_bid_document",
                 "export_bid_document",
                 "check_bid_quality",
@@ -234,6 +242,8 @@ impl ProjectStatus {
                 "get_coverage_report",
                 "search_evidence",
                 "get_bid_project_state",
+                // #254 只读段账本（校验期对账面——写作工具不重开）
+                "list_section_segments",
                 "validate_bid_document",
                 "export_bid_document",
                 "check_bid_quality",
@@ -253,6 +263,8 @@ impl ProjectStatus {
                 "get_coverage_report",
                 "search_evidence",
                 "get_bid_project_state",
+                // #254 只读段账本（复核期对账面）
+                "list_section_segments",
                 "validate_bid_document",
                 "export_bid_document",
                 "check_bid_quality",
@@ -270,6 +282,8 @@ impl ProjectStatus {
                 "search_evidence",
                 "get_bid_project_state",
                 "export_bid_document",
+                // #254 只读段账本（导出后追溯面）
+                "list_section_segments",
                 "check_bid_quality",
                 "record_review_gate",
                 // #184：补遗分级阻塞的逐件确认（导入后任意时刻）

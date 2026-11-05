@@ -43,6 +43,10 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         "list_tasks" => list_tasks(svc, args),
         // ---- #59 阶段 1：单章起草（契约 §6——mock 生成 + 引用回查 + CAS 写入）----
         "draft_response_section" => draft_response_section(svc, args),
+        // ---- #254 章节级增量写入（分段追加/局部修订/账本发现）----
+        "append_section_segment" => append_section_segment(svc, args),
+        "rewrite_section_segment" => rewrite_section_segment(svc, args),
+        "list_section_segments" => list_section_segments(svc, args),
         // ---- #59 阶段 2：导出（契约 §8——双前置门 + format-spec + 暗标）----
         "export_bid_document" => export_bid_document(svc, args),
         // ---- #59 阶段 3：双层校验（契约 §7——确定性规则先行 + 模型复核注入）----
@@ -4436,6 +4440,137 @@ fn record_addendum_waiver(svc: &mut BidService, args: Value) -> ToolResult {
         },
         "addendum_waivers": waivers,
         "addendum_readiness": addendum_readiness_block(svc),
+        "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
+}
+
+// ---------------------------------------------------------------- #254 分段三工具
+
+/// `append_section_segment` —— #254 章节级增量写入（长章节安全续写）。
+///
+/// 与 `draft_response_section`（整稿替换）的差异：本工具只提交**新段**
+/// （`content` = 段正文，非章节全文）；引擎按 seq 追加并合稿——**前段
+/// 不丢**。幂等：同章节同 `idem_key` 重提 → no-op（`idem_key` 缺省 =
+/// 内容指纹，同段同内容重提自动去重）。
+fn append_section_segment(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "append_section_segment";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let section_id = req_str(&args, "section_id", TOOL)?;
+    let content = req_str(&args, "content", TOOL)?;
+    let idem_key = opt_str(&args, "idem_key", TOOL)?;
+    let project_version = opt_u64(&args, "project_version", TOOL)?;
+
+    route_guard(svc, &project_id, TOOL, project_version)?;
+
+    let out = svc
+        .append_segment(&section_id, &content, idem_key.as_deref())
+        .map_err(ToolError::from)?;
+
+    Ok(json!({
+        "section_id": out.section_id,
+        "segment": {
+            "id": out.segment_id,
+            "seq": out.seq,
+            "version": out.version,
+            "chars": out.segment_chars,
+        },
+        "changed": out.changed,
+        "deduplicated": !out.changed,
+        "assembled_chars": out.assembled_chars,
+        "target_chars": out.target_chars,
+        "remaining_chars": out.remaining_chars,
+        "over_target": out.over_target,
+        "segment_count": out.segment_count,
+        "citations": out.citations,
+        "unanchored_claims": out.unanchored_claims,
+        "warnings": out.warnings,
+        "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
+}
+
+/// `rewrite_section_segment` —— #254 局部修订（改指定段，不动兄弟段）。
+///
+/// CAS：`expected_version` 与段当前 version 不匹配 → `E_CONFLICT`
+/// （并发/过期版本显式拒，无部分写入）。定位用 `segment_id`
+/// （`list_section_segments` 的回显）。
+fn rewrite_section_segment(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "rewrite_section_segment";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let segment_id = req_str(&args, "segment_id", TOOL)?;
+    let content = req_str(&args, "content", TOOL)?;
+    // CAS 对照面（可选——缺省跳过版本检查，与 project_version 的乐观
+    // 并发模式一致；并发写作面建议携带）
+    let expected_version = opt_u64(&args, "expected_version", TOOL)?
+        .map(|v| v as u32);
+    let project_version = opt_u64(&args, "project_version", TOOL)?;
+
+    route_guard(svc, &project_id, TOOL, project_version)?;
+
+    let out = svc
+        .rewrite_segment(&segment_id, &content, expected_version)
+        .map_err(ToolError::from)?;
+
+    Ok(json!({
+        "section_id": out.section_id,
+        "segment": {
+            "id": out.segment_id,
+            "seq": out.seq,
+            "version": out.version,
+            "chars": out.segment_chars,
+        },
+        "changed": out.changed,
+        "deduplicated": !out.changed,
+        "assembled_chars": out.assembled_chars,
+        "target_chars": out.target_chars,
+        "remaining_chars": out.remaining_chars,
+        "over_target": out.over_target,
+        "segment_count": out.segment_count,
+        "citations": out.citations,
+        "unanchored_claims": out.unanchored_claims,
+        "warnings": out.warnings,
+        "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
+}
+
+/// `list_section_segments` —— #254 段账本发现面（只读：段清单 + 合稿
+/// 统计 + 剩余字数——续写前的「已写到哪」对账）。
+fn list_section_segments(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "list_section_segments";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let section_id = req_str(&args, "section_id", TOOL)?;
+    let project_version = opt_u64(&args, "project_version", TOOL)?;
+
+    route_guard(svc, &project_id, TOOL, project_version)?;
+
+    let inv = svc.list_segments(&section_id).map_err(ToolError::from)?;
+    let segments: Vec<Value> = inv
+        .segments
+        .iter()
+        .map(|s| {
+            json!({
+                "id": s.id,
+                "seq": s.seq,
+                "version": s.version,
+                "chars": s.content.chars().count(),
+                "idem_key": s.idem_key,
+                "updated_at": s.created_at,
+                "preview": s.content.chars().take(40).collect::<String>(),
+            })
+        })
+        .collect();
+    Ok(json!({
+        "section_id": inv.section_id,
+        "segments": segments,
+        "assembled_chars": inv.assembled_chars,
+        "target_chars": inv.target_chars,
+        "remaining_chars": inv.remaining_chars,
+        "over_target": inv.over_target,
         "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
         "project_version": svc.store().content_version(),
         "request_id": next_request_id(),

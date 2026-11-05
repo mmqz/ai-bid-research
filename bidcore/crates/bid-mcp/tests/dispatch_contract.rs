@@ -28,7 +28,7 @@ fn tool_names_are_the_contract_twenty() {
     // get_coverage_report——全块覆盖：Agent 区间标记 + 引擎覆盖检查）= 24；
     // #226 增 1（set_matrix_override——否决项死锁的人工出口）= 25；
     // #243 增 1（recover_validating_state——历史异常态恢复出口）= 26
-    assert_eq!(TOOL_NAMES.len(), 26, "工具面必须恰为 26 个（21 + #219 全块覆盖三工具 + #226 否决项死锁出口 + #243 恢复出口）");
+    assert_eq!(TOOL_NAMES.len(), 29, "工具面必须恰为 29 个（21 + #219 全块覆盖三工具 + #226 否决项死锁出口 + #243 恢复出口 + #254 分段三工具）");
     for name in TOOL_NAMES {
         assert!(!name.is_empty());
     }
@@ -104,7 +104,7 @@ fn json_roundtrip_failure_is_typed() {
 fn tools_schema_lists_all_twenty() {
     let v = bid_mcp::tools_schema();
     let arr = v["tools"].as_array().unwrap();
-    assert_eq!(arr.len(), 26, "tools/list 必须列出全部 26 个工具");
+    assert_eq!(arr.len(), 29, "tools/list 必须列出全部 29 个工具");
     let implemented: Vec<&str> = arr
         .iter()
         .filter(|t| t["implemented"] == true)
@@ -154,6 +154,10 @@ fn tools_schema_lists_all_twenty() {
             "set_matrix_override",
             // #243：历史异常态（VALIDATING+缺章）的受支持恢复出口
             "recover_validating_state",
+            // #254 章节级增量写入三工具
+            "append_section_segment",
+            "rewrite_section_segment",
+            "list_section_segments",
         ]
     );
     // 描述面：新工具不得是 unknown（describe 遗漏即挂）
@@ -164,4 +168,9 @@ fn tools_schema_lists_all_twenty() {
     assert_ne!(ra["description"], "unknown", "record_addendum_waiver 描述必须在场: {ra}");
     let rv = arr.iter().find(|t| t["name"] == "recover_validating_state").unwrap();
     assert_ne!(rv["description"], "unknown", "recover_validating_state 描述必须在场: {rv}");
+    for t in arr.iter().filter(|t| t["name"].as_str().unwrap().starts_with("append_section")
+        || t["name"].as_str().unwrap().starts_with("rewrite_section")
+        || t["name"].as_str().unwrap().starts_with("list_section")) {
+        assert_ne!(t["description"], "unknown", "#254 分段工具描述必须在场: {t}");
+    }
 }

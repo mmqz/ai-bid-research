@@ -306,6 +306,37 @@ fn input_schema(name: &str) -> Value {
             },
             "required": ["project_id", "section_id"]
         }),
+        "append_section_segment" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid,
+                "section_id": {"type": "string", "description": "目标叶章节（SEC-xxxx）"},
+                "content": {"type": "string", "description": "段正文（本批新增内容——非章节全文；引用语法与整稿一致 [REQ-*]/[EV-*]）"},
+                "idem_key": {"type": "string", "description": "幂等键（缺省 = 内容指纹——同段同内容重提自动 no-op；网络重试场景可显式指定）"},
+                "project_version": pv
+            },
+            "required": ["project_id", "section_id", "content"]
+        }),
+        "rewrite_section_segment" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid,
+                "segment_id": {"type": "string", "description": "目标段（SEG-xxxx——list_section_segments 回显）"},
+                "content": {"type": "string", "description": "段正文（重写后的该段全文）"},
+                "expected_version": {"type": "integer", "minimum": 1, "description": "CAS 对照（段当前 version——list 回显；不匹配 E_CONFLICT；缺省跳过检查）"},
+                "project_version": pv
+            },
+            "required": ["project_id", "segment_id", "content"]
+        }),
+        "list_section_segments" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid,
+                "section_id": {"type": "string", "description": "目标叶章节（SEC-xxxx）"},
+                "project_version": pv
+            },
+            "required": ["project_id", "section_id"]
+        }),
         "validate_bid_document" => json!({
             "type": "object",
             "properties": {
@@ -574,6 +605,9 @@ fn describe(name: &str) -> &'static str {
         "list_tasks" => "只读：任务分工列表（owner/status 过滤 + 游标分页）",
         "search_evidence" => "双通道证据检索（#145 朴素实现 + #217 正文摘录面：semantic 通道检索 title/scope/subject/client/excerpt——正文含词但标题不含也能命中；exact 五字段整token/数值/日期；valid_at 过期降权×0.5；M2-b 落地时换真向量库 + cursor 游标信封）",
         "draft_response_section" => "单章起草（引用回查后写内核；输入完整性门禁——主件/补遗/附件不 READY 拒，人工确认放行走受限起草 RESTRICTED）",
+        "append_section_segment" => "追加章节分段（#254——content 是段正文非章节全文，引擎按序合稿，前段不丢；同 idem_key/同内容重提幂等 no-op；长章节分批写作的安全路径）",
+        "rewrite_section_segment" => "重写指定段（#254——局部修订不动兄弟段；expected_version CAS，过期 E_CONFLICT；定位用 list 回显的 segment_id）",
+        "list_section_segments" => "只读段账本（#254——段清单 + 合稿字数 + 剩余配额，续写前对账）",
         "validate_bid_document" => "双层校验（确定性规则 + 模型复核）",
         "export_bid_document" => "导出（含暗标模式；#117 表格接线——profile.bid_amount/price_breakdown 报价决策，六表自动注入/附表）",
         "get_bid_project_state" => "只读：项目状态与 allowed_next_tools",
@@ -629,5 +663,9 @@ fn is_implemented(name: &str) -> bool {
             | "get_coverage_report"
             // #243 校验状态安全与恢复
             | "recover_validating_state"
+            // #254 章节级增量写入三工具
+            | "append_section_segment"
+            | "rewrite_section_segment"
+            | "list_section_segments"
     )
 }

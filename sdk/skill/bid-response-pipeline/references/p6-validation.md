@@ -47,10 +47,18 @@ categories: {                      # #187 分类返回（四桶各自独立状�
 
 | 桶 | 覆盖规则 | 实现状态 |
 |---|---|---|
-| `structural` | E_SECTION_EMPTY / E_CITATION_GHOST / W_PLACEHOLDER / W_CHARS_OFF_TARGET / E_SCOPE_UNKNOWN | 已实现 |
+| `structural` | E_SECTION_EMPTY / E_CITATION_GHOST / W_PLACEHOLDER / W_CHARS_OFF_TARGET / E_SCOPE_UNKNOWN / E_CHARS_BELOW_MIN（#253：仅评分章节 BLOCKER）/ W_CHARS_BELOW_MIN（#253：行政/实质章节 MAJOR）/ E_TOTAL_CHARS_BELOW_MIN（#253：全稿总量硬门 BLOCKER） | 已实现 |
 | `semantic` | M_ 前缀模型发现（表述质量等） | **未实现**——现网恒 `not_performed` |
 | `evidence` | E_EVIDENCE_EXPIRED | 部分实现 |
 | `compliance` | E_VETO_UNRESPONDED / E_QUAL_UNMET / W_FORMAT_BASELINE | 部分实现 |
+
+**篇幅门禁分级（#253）**：① **评分章节**（绑定评分项 REQ 或被
+ScoringMapping 映射的叶）正文 < 配额 × 80% → `E_CHARS_BELOW_MIN`
+**BLOCKER**（评分主体写不够 = 直接丢分）；② 行政/实质章节短稿 →
+`W_CHARS_BELOW_MIN` **MAJOR**（不翻 ok、不拦导出——内容完整即可，
+篇幅是质量提示）；③ **全稿实写总量 < 配额总和** →
+`E_TOTAL_CHARS_BELOW_MIN` **BLOCKER**（1000 页硬指标，硬比较无容差——
+章节级 ±20% 是起草容差，产品级门不吃容差）。
 
 - `status: "not_performed"` = 该类检查**没做**（如未配置模型）——**没做 ≠ 做对了**
   （issue #9 口径），不得当成通过；

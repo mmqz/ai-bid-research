@@ -245,7 +245,9 @@ out: { findings:[{vf_id, kind:DETERMINISTIC|MODEL, rule_code, severity, section_
   模型（仅产 finding 不改稿）: 表述质量、逻辑连贯、偏离合理化、疑似过度承诺
 categories 四桶（#187——「没做 ≠ 做对了」，issue #9 口径）:
   structural（已实现）: E_SECTION_EMPTY / E_CITATION_GHOST / W_PLACEHOLDER /
-      W_CHARS_OFF_TARGET / E_SCOPE_UNKNOWN
+      W_CHARS_OFF_TARGET / E_SCOPE_UNKNOWN / E_CHARS_BELOW_MIN（#253：仅
+      评分章节 BLOCKER）/ W_CHARS_BELOW_MIN（#253：行政/实质章节 MAJOR）/
+      E_TOTAL_CHARS_BELOW_MIN（#253：全稿总量硬门 BLOCKER）
   semantic（未实现）: M_ 前缀模型发现——现网未配置模型，恒
       not_performed{reason:"no model configured"}，不得因「没发现错误」伪装
       passed；接入真实 LLM 后经服务层注入缝（validate_document_with_reviewer）
@@ -343,8 +345,12 @@ out: { artifact:{url, sha256, size}, content_version_snapshot, precheck:{blocker
        ——证据缺口不拦导出，由提交就绪面（§7 submission_readiness）
        承载，草稿可导出）；
      · 1b 审核门：三门 Approved + 全 RT DONE + #180 内容摘要绑定；
-     · 1c 写作验收门（1.0）：篇幅不足/空章节即使审核已直接批准也拒
-       （独立复算，不消费记审面）；
+     · 1c 写作验收门（1.0；#253 门禁分级）：**评分章节**篇幅不足
+       （E_CHARS_BELOW_MIN——叶绑定评分项 REQ 或被 ScoringMapping 映射）/
+       **全稿总量**不足（E_TOTAL_CHARS_BELOW_MIN——实写总量 < 配额总和，
+       1000 页硬指标硬比较无容差）/ 空章节，即使审核已直接批准也拒
+       （独立复算，不消费记审面）；行政/实质章节篇幅不足不拦导出
+       （W_CHARS_BELOW_MIN MAJOR——WARNING 语义，内容完整即可）；
      · 1d 占位证据门（#245）：活跃占位绑定存在即拒——占位/待核验材料
        不得作为已核验证据导出（与 1c 同为独立复算门、不消费记审面；
        差异面：占位有合法人工豁免通道 = NOT_APPLICABLE 覆写 + 非空偏离
@@ -474,6 +480,14 @@ out: { counts:{ sections, leaves, requirements, total_target_chars, matrix_rows,
        status: "MATRIX_READY", project_version }
 语义: 推导大纲树（确定性——REQ 类目分组 + 每叶上限）+ 矩阵首建（推进
       MATRIX_READY——draft 的硬前置）。写后自动落盘（服务层 auto_checkpoint）。
+配额（#253 第二段分层计价——按「分值/内容」分配，取代按 REQ 数均摊）:
+      · 评分轨（叶绑定评分项 REQ；#252 评分驱动大纲落地后出现）：底价
+        10,000/叶，剩余预算按分值权重（params.score）最大余数法分摊；
+      · 行政轨（is_admin_group 单一真源分类）：300 字/条；
+      · 实质轨（技术参数/服务/质量类）：2,000 字/条；
+      · 剩余让渡序：评分 → 实质 → 行政；
+      · 配额总和 == target（构造性恒等；底价不可负担的小目标退化面
+        回退按 REQ 数均摊）。
 状态: REQUIREMENTS_EXTRACTED 态可调（FilesImported/Draft → E_STATE；
       MATRIX_READY+ 重复调用 → E_STATE——重建面属「补遗后增量重抽」后续需求，
       不隐式放行）

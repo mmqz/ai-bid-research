@@ -43,8 +43,11 @@
 rows: [ { cmp_id: "CMP-0001",
           requirement: { id, clause_no, category, category_key, statement,
                          mandatory, source_anchor{file,kind,locator,excerpt}, params },
-          status: "NOT_RESPONDED|RESPONDED|PARTIAL|NOT_APPLICABLE",
+          status: "NOT_RESPONDED|RESPONDED|PARTIAL|NOT_APPLICABLE|PENDING_EVIDENCE",
           evidence: [ { ev_id, title, status, valid_until } ],
+          pending_evidence_ids: [EV-*]（#245 占位待补追踪面）,
+          evidence_required: true|false, evidence_missing: true|false（#241 裁定
+            正交标记——与 status 分账，见下）,
           blocking: true|false, draft_section_id: "SEC-…|null",
           response_policy: "default", gap: null } ]
 total / limit / cursor / next_cursor / counts{total, returned, page, page_size}
@@ -75,23 +78,43 @@ total / limit / cursor / next_cursor / counts{total, returned, page, page_size}
 `mandatory` 与 blocking 判定同源：`category ∈ {资格条件, 否决项}`。
 过滤值给契约键或中文类别名均可（双形态）。
 
-## 响应四态与 blocking 判定
+## 响应五态与 blocking 判定
 
 | status | 派生条件（引擎，单一真源） | 含义 |
 |---|---|---|
-| `RESPONDED` | 显式 override 标记，或「证据在绑 + 响应章节在位」 | 已响应 |
+| `RESPONDED` | 显式 override 标记；或「证据在绑 + 响应章节在位」；或**正文有实质响应（#241 裁定：归属章节 content 非空）且无证据无占位** | 已响应（文本事实——写了就是写了） |
 | `PARTIAL` | 有证据绑定但响应章节缺位 | 材料齐、正文未落（P5 的活） |
-| `NOT_RESPONDED` | 无证据无章节 | 未响应——**必选类即 blocking** |
+| `PENDING_EVIDENCE` | 仅占位/待核验证据在绑（#245） | 待补——占位不清阻塞，必选行仍 blocking |
+| `NOT_RESPONDED` | 无证据无章节（或章节在树但正文未写） | 未响应——**必选类即 blocking** |
 | `NOT_APPLICABLE` | 显式 override（必须带偏离说明——不适用不给理由 = 不可审计的豁免） | 不适用 |
 
-**blocking = `mandatory && NOT_RESPONDED`**（资格条件/否决项未响应）。
-评分/技术参数/商务等非必选类未完成**不阻断导出**——但 P6 的确定性规则
-（E_VETO_UNRESPONDED / E_QUAL_UNMET 等）会在校验面另算总账，别把「矩阵
-不拦」当「没风险」。
+**blocking = `mandatory && (NOT_RESPONDED | PENDING_EVIDENCE)`**（资格条件/
+否决项/Agent 标必选未响应或待补）。评分/技术参数/商务等非必选类未完成
+**不阻断导出**——但 P6 的确定性规则（E_VETO_UNRESPONDED / E_QUAL_UNMET
+等）会在校验面另算总账，别把「矩阵不拦」当「没风险」。
 
-矩阵行是**派生态**：requirements / bindings / sections 任一变化后重算
-（幂等）。P4 绑定后即时重算，`bind_evidence` 返回的 `matrix.blocking`
-与下次 `get_compliance_matrix` 查询同一真源。
+**#241 裁定（2026-11-05）：正文响应与证据缺口两分账**——
+
+```
+投标人写没写回应？ → 文本事实 → 看正文（章节 content 非空）→ RESPONDED
+能不能提交？       → 合规事实 → 看证据（evidence_missing）→ 提交就绪拦截
+```
+
+- 正文已写、无证据 → `status=RESPONDED` + `evidence_missing=true`：不冤枉
+  真响应（不再报 E_QUAL_UNMET），**也不拦导出**（草稿可导出）；
+- `evidence_required` = 资格条件（类别面）或原文含材料要求词
+  （提供/附/证明材料/证书/扫描件等，任何类别）；
+- `evidence_missing = evidence_required && 无有效证据在绑`——必选行的缺口
+  阻断**提交就绪**（validate / check_bid_quality 的 `submission_readiness`
+  面），不阻断导出；承诺型条款（无材料词）正文实写即全清；
+- 补件通道：register_evidence + bind_evidence（DRAFTING 起也可用）或
+  合法人工豁免（set_matrix_override NOT_APPLICABLE + 偏离说明 + Human
+  receipt）；普通 RESPONDED 覆写不豁免缺口。
+
+矩阵行是**派生态**：requirements / bindings / sections / **章节正文**任一
+变化后重算（幂等；P5 起草后引擎自动联建）。P4 绑定后即时重算，
+`bind_evidence` 返回的 `matrix.blocking` 与下次 `get_compliance_matrix`
+查询同一真源。
 
 ## 资格结论（Agent 侧判断面——引擎无此字段）
 
@@ -118,10 +141,11 @@ policy/资格三态字段——`get_compliance_matrix` 行内 `response_policy` 
 
 | 行情 | 动作 |
 |---|---|
-| 资格/否决行无证据（`evidence: []`） | 进 P4：register_evidence + bind_evidence——绑后重算，blocking 自然清零 |
+| 资格/否决行无证据（`evidence: []`） | 进 P4：register_evidence + bind_evidence——绑后重算，blocking 自然清零（补件在 DRAFTING/VALIDATING 也可用，#241） |
 | 证据已 EXPIRED / SUPERSEDED | 走补料流程（换证重传）——**禁绑过期待换证证据**；EXPIRING 可绑但提示换证风险 |
-| 条款确不适用（如仅对联合体一方的要求） | 需要 NOT_APPLICABLE override（必须给偏离说明）——**截至本版 main 无该 MCP 工具**（域层 `set_matrix_override` 存在、MCP 面未接线）：如实告知用户该行无法覆写，按缺证据路径处理或等待工具面补齐 |
+| 条款确不适用（如仅对联合体一方的要求） | `set_matrix_override` NOT_APPLICABLE + 偏离说明 + Human receipt（#226 已接 MCP；也是 #241 证据缺口的人工豁免通道） |
 | 技术参数行未佐证 | 不 blocking，但 P5 起草会被 readiness 闸拦（技术参数无佐证拒生成）——P4 一并绑 |
+| 正文已写但 `evidence_missing=true` | 不拦导出（草稿可导）——但提交就绪面（validate/check_bid_quality 的 `submission_readiness`）会拦：补绑证据或人工豁免后再提交 |
 
 ## 常见错误
 

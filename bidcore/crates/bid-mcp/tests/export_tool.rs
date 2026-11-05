@@ -328,13 +328,17 @@ fn export_blocked_by_unresponded_mandatory_rows() {
                 "零绑定时只有含未响应否决项的叶会拒（闸语义）: {e:?}"),
         }
     }
-    // 无绑定无覆写：矩阵必选行 NotResponded → 导出必须拒（防废标门）
+    // 无绑定无覆写：未响应必选行阻断导出（防废标门）。#241 裁定（2026-11-05）
+    // 后：资格叶正文已实写 → REQ-0001 翻 RESPONDED（不冤枉真响应——证据缺口
+    // 走 evidence_missing/提交就绪面，不拦导出）；未起草的否决叶 REQ-0002 仍
+    // NotResponded → 导出必须拒且逐行列出（闸门语义由该行承载）。
     let reply = call(&mut svc, "export_bid_document", json!({
         "project_id": pid, "format": "docx", "output_path": "out/x.docx",
     }));
     assert_eq!(err_code(&reply), "E_UNPROCESSABLE");
     let msg = format!("{reply:?}");
-    assert!(msg.contains("REQ-0001"), "逐行列出: {msg}");
+    assert!(msg.contains("REQ-0002"), "未响应否决行逐行列出: {msg}");
+    assert!(!msg.contains("REQ-0001"), "正文实写的资格行不再拦导出（#241 两分账）: {msg}");
     assert!(msg.contains("R-03/R-04"), "闸门语义: {msg}");
     // 人工覆写响应后放行（矩阵门的解除通道——NOT_APPLICABLE 不可无理由，
     // 用 Responded 覆写；#182 验签面在 MCP 工具层，域层直调用可信身份注入）

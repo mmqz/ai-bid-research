@@ -627,15 +627,15 @@ pub fn check_draft_readiness(store: &DomainStore, section_id: &str) -> DraftRead
     //      Qualification），这里补上逐条款的矩阵判定。判定与否决项同源：
     //      矩阵行 RESPONDED，或人工覆写不适用且带理由，才算已处理。
     //
-    //      裁定（PR #241 报 Lead 决策点 2，2026-11-04）：正文已响应但
-    //      没有外部证据 **不算已响应**——章节正文内容不是矩阵派生输入
-    //      （derive_matrix_rows 只认绑定/章节归属/覆写三真源）。承诺型
-    //      商务必选条款（响应形态=正文承诺，无佐证材料）的出口：绑佐证
-    //      （有则 RESPONDED），或人工覆写 RESPONDED+说明（#182 只认
-    //      Human receipt——Agent 不得以「正文写了承诺」自证已响应）；
-    //      NOT_APPLICABLE+理由留给真不适用。测试钉：readiness_check.rs
-    //      `drafted_body_without_evidence_is_not_response` /
-    //      `responded_override_with_reason_is_the_promise_form_exit`，
+    //      裁定（Lead，2026-11-05，issue #241——取代 2026-11-04 决策点 2）：
+    //      正文已响应但无外部证据 → 矩阵记 RESPONDED（文本事实——写了
+    //      就是写了）；证据缺口由 evidence_missing 正交标记 + 提交就绪面
+    //      （validate::submission_readiness）承载（合规事实），不再压进
+    //      状态面。因此正文实写后本门不再拦（再起草死锁消除）；正文
+    //      尚未落的首次起草仍需先绑佐证或人工覆写（响应账先于正文）。
+    //      测试钉：readiness_check.rs
+    //      `drafted_body_without_evidence_is_responded_not_blocking` /
+    //      `drafted_body_with_material_clause_keeps_evidence_gap`，
     //      全链 exit：agent_mandatory_gate.rs `promise_form_mandatory_...`。
     let mandatory_ids: Vec<String> = reqs
         .iter()

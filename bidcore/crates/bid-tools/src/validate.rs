@@ -656,3 +656,137 @@ pub fn placeholder_evidence_findings(store: &DomainStore) -> Vec<ValidationFindi
     }
     out
 }
+
+// ---------------------------------------------------------------- #241 裁定：提交就绪面
+
+/// 提交就绪清单项（机器可读的逐条补件面——供 Agent/Human 逐项消除）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReadinessItem {
+    pub requirement_id: String,
+    /// 矩阵行 id（CMP-xxxx——与 get_compliance_matrix 行对账）
+    pub row_id: String,
+    pub category: String,
+    /// 原文摘录（excerpt_of 同款 24 字口径——人可辨条款指代）
+    pub excerpt: String,
+    /// 人读理由（含解决出口指引）
+    pub message: String,
+}
+
+/// #241 裁定：提交就绪面（submission readiness）。
+///
+/// **Export ≠ Submission Readiness**（两分账的门禁分工）：
+/// - **导出**（草稿可导出）：矩阵 blocking 门（必选未响应/待补）+ 审核门 +
+///   写作验收门 + 占位证据门——证据缺口（正文已响应、材料未绑）**不拦**
+///   （#241 裁定：导出：不阻断，草稿可导出，见 #253 分离面）；
+/// - **提交就绪**（可正式提交）：上述门全过 **且** 证据缺口清零——
+///   「没证明材料就是废标风险」，缺口行不得进入可提交状态。
+///
+/// 阻断两清单：
+/// 1. `unresponded`：必选条款未响应（矩阵 blocking 面——否决项/资格条件/
+///    Agent 必选的 NOT_RESPONDED/PENDING_EVIDENCE，外加 PARTIAL——
+///    材料齐正文未落也不可提交，与 validate 规则 1/2 同口径，#253 验收 8
+///    「否决项未响应仍阻断 submission readiness」的正门）；
+/// 2. `evidence_missing`：必选条款证据缺口（`evidence_missing=true` 且无
+///    合法人工豁免——#241 裁定的合规事实面）。
+///
+/// 必选口径 = 类别阻断面（资格条件/否决项）∪ Agent 必选标记——与
+/// matrix.rs blocking 派生同一判定面。人工豁免通道 =
+/// [`is_legitimate_placeholder_exemption`]（NOT_APPLICABLE + 偏离说明 +
+/// 可信 Human receipt——单一真源，与占位门共用）；**普通 RESPONDED 覆写
+/// 不豁免**（PR #247 纪律同源：覆写在场 ≠ 豁免成立——人工确认响应成立
+/// 不等于材料已提交）。
+///
+/// 纯只读派生（D2 同语义）：消费 `matrix_view()` 新鲜视图（content 变化
+/// 即时反映，不依赖调用方记得重建矩阵），不落库不 bump。
+#[derive(Debug, Clone, PartialEq)]
+pub struct SubmissionReadiness {
+    pub ready: bool,
+    /// 矩阵未构建（未对账 = 流程面未完成，不可判就绪——诚实状态；清单仍
+    /// 从新鲜视图派生供参考）
+    pub not_built: bool,
+    /// 必选条款未响应清单（空 = 无）
+    pub unresponded: Vec<ReadinessItem>,
+    /// 必选条款证据缺口清单（空 = 无）
+    pub evidence_missing: Vec<ReadinessItem>,
+}
+
+impl SubmissionReadiness {
+    /// 阻断总数（两清单逐条计——同一条款可同时未响应且缺证据，两条各计
+    /// 一次：未响应是响应问题，缺证据是材料问题，解决出口不同）。
+    pub fn blockers(&self) -> usize {
+        self.unresponded.len() + self.evidence_missing.len()
+    }
+}
+
+/// 提交就绪裁决（#241 裁定——check_bid_quality / validate 响应面的素材）。
+///
+/// 返回值是导数不是源数据；解除通道是既有面（补绑证据 / 补写正文 /
+/// set_matrix_override 人工豁免）。
+pub fn submission_readiness(store: &DomainStore) -> SubmissionReadiness {
+    let not_built = store.matrix().is_empty();
+    // 新鲜派生视图（与 get_compliance_matrix 同源——12k 行量级 O(N+B+S)）
+    let view = store.matrix_view();
+    let req_by_id: std::collections::HashMap<&str, &bid_domain::Requirement> =
+        store.requirements().iter().map(|r| (r.id.as_str(), r)).collect();
+    let mut unresponded = Vec::new();
+    let mut evidence_missing = Vec::new();
+    for row in &view {
+        let Some(req) = req_by_id.get(row.requirement_id.as_str()) else {
+            continue; // 幽灵行（REQ 已删）——视图与条款集不一致的防御面
+        };
+        let mandatory = bid_domain::matrix::is_mandatory(&req.category)
+            || bid_domain::matrix::agent_mandatory(req);
+        if !mandatory {
+            continue; // 非必选的缺口/未响应是信息面（矩阵行标记可见），不阻断提交就绪
+        }
+        // 清单 1：未响应（NOT_RESPONDED/PENDING_EVIDENCE/PARTIAL——与
+        // validate 规则 1/2 的 unresponded 集合同口径）
+        if matches!(
+            row.status,
+            bid_domain::matrix::ResponseStatus::NotResponded
+                | bid_domain::matrix::ResponseStatus::Partial
+                | bid_domain::matrix::ResponseStatus::PendingEvidence
+        ) {
+            let st = row.status.as_str();
+            let hint = match row.status {
+                bid_domain::matrix::ResponseStatus::PendingEvidence =>
+                    "（占位/待核验材料不算有效证据——导入真实材料换版升级）",
+                bid_domain::matrix::ResponseStatus::Partial =>
+                    "（材料已绑但正文未落——补写响应章节）",
+                _ => "（补绑证据 / 落正文响应 / 人工覆写）",
+            };
+            unresponded.push(ReadinessItem {
+                requirement_id: row.requirement_id.clone(),
+                row_id: row.id.clone(),
+                category: req.category.clone(),
+                excerpt: excerpt_of(req),
+                message: format!(
+                    "必选条款未响应（矩阵 {st}）{hint}——未响应的否决项/资格条件是废标级风险"
+                ),
+            });
+        }
+        // 清单 2：证据缺口（#241 裁定主面）。合法人工豁免（NOT_APPLICABLE +
+        // 偏离说明 + 可信 Human receipt）清除阻断——人工裁决优先于机器判缺；
+        // 普通 RESPONDED 覆写不豁免（材料要求未满足，覆写只确认响应事实）。
+        if row.evidence_missing {
+            let exempt = store
+                .matrix_overrides()
+                .get(&row.requirement_id)
+                .map(is_legitimate_placeholder_exemption)
+                .unwrap_or(false);
+            if !exempt {
+                evidence_missing.push(ReadinessItem {
+                    requirement_id: row.requirement_id.clone(),
+                    row_id: row.id.clone(),
+                    category: req.category.clone(),
+                    excerpt: excerpt_of(req),
+                    message: format!(
+                        "必选条款要求证明材料但无有效证据在绑（正文已响应不影响缺口——文本事实与合规事实分账）；解决：补绑证据（bind_evidence）或合法人工豁免（NOT_APPLICABLE + 偏离说明 + Human receipt）"
+                    ),
+                });
+            }
+        }
+    }
+    let ready = !not_built && unresponded.is_empty() && evidence_missing.is_empty();
+    SubmissionReadiness { ready, not_built, unresponded, evidence_missing }
+}

@@ -721,10 +721,19 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
         .iter()
         .map(|f| (f.id.clone(), f.sha256.clone()))
         .collect();
+    // #250：合并面门禁与抽取分发同口径——按【业务 kind】判定，不按文件名
+    // 前缀（#196 同根因的第二处修复）。真实用户文件（无 A- 前缀）不再被
+    // filter 掉——67 条 Agent 提交与 76 个区间标记的合并消费恢复。kind
+    // 缺省（parsed 文件不在 store 登记面）时前缀兜底（夹具约定）。
     let faces: Vec<bid_parse::merge::MergeFace> = svc
         .parsed()
         .iter()
-        .filter(|p| bid_parse::merge::has_extraction_face(&p.name))
+        .filter(|p| {
+            bid_parse::merge::has_extraction_face(
+                kind_map.get(&p.name).map(String::as_str),
+                &p.name,
+            )
+        })
         .filter_map(|p| {
             let fid = tender_files
                 .iter()

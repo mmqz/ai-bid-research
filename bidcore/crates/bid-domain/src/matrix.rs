@@ -995,6 +995,8 @@ mod tests {
             sec_with_content("SEC-0001", 1, &["REQ-0001"], None),
             sec_with_content("SEC-0002", 1, &["REQ-0002"], Some("   ")),
         ];
+        let mut nodes = nodes;
+        nodes[1].order = 11; // 文档序全局唯一
         s.set_outline(nodes).unwrap();
         let _ = s.build_matrix().unwrap();
         let r1 = s.matrix().iter().find(|r| r.requirement_id == "REQ-0001").unwrap();

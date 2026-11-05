@@ -655,6 +655,9 @@ fn row(req_id: &str, section: Option<&str>, evs: &[&str], status: ResponseStatus
         response_section: section.map(String::from),
         evidence_ids: evs.iter().map(|s| s.to_string()).collect(),
         pending_evidence_ids: Vec::new(),
+        // #241 裁定正交标记：反例面只测不变式判定（不消费证据标记），缺省 false
+        evidence_required: false,
+        evidence_missing: false,
         status,
         deviation: None,
         blocking: false,

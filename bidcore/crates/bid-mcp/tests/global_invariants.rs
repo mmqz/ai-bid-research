@@ -249,11 +249,16 @@ fn check_mandatory_has_response(
     Ok(())
 }
 
-/// ③ evidence 绑定数 == matrix 已响应数（不漏不重）。
+/// ③ evidence 绑定与矩阵响应面的对账（#241 裁定后的单向语义）。
 ///
-/// RESPONDED 的派生口径是「证据在绑 **且** 章节在位」（matrix.rs）——所以绑定
-/// 台账与矩阵是同一件事的两个视图，逐条对得上才叫接线成功；绑了却不成
-/// RESPONDED = 绑定面与响应面脱节（PARTIAL 的常态是材料齐、正文未落）。
+/// RESPONDED 三来源：override / 证据在绑+章节在位 / **正文实写**（#241
+/// 裁定 2026-11-05：文本事实与合规事实分账——正文写了就是写了，证据缺口
+/// 由 evidence_missing 正交承载，不再是「凭绑定才算响应」）。因此：
+/// - **绑定 ⇒ RESPONDED**（管道末端不变式：材料在绑而状态非 RESPONDED
+///   （PARTIAL=正文未落）= 管道未完成，接线脱节）；
+/// - **RESPONDED ⇏ 绑定**（正文响应/覆写不经绑定——不再计数对齐）；
+/// - RESPONDED 必有响应来源（证据在绑 或 响应章节在位）——凭空响应仍必红；
+/// - 逐条携带对账：绑定总条数 == 矩阵行携带证据 id 总数（不漏不重）。
 fn check_evidence_bindings_vs_responded(
     bindings: &[(String, String)],
     rows: &[MatrixRow],
@@ -261,28 +266,30 @@ fn check_evidence_bindings_vs_responded(
     if bindings.is_empty() {
         return Err("③ 零绑定——对账空转（夹具或绑定面已破）".into());
     }
-    let bound: HashSet<&str> = bindings.iter().map(|(_, r)| r.as_str()).collect();
+    // 绑定 ⇒ RESPONDED（管道末端：绑定材料必须已进响应面且正文落位）
+    for (ev_id, req_id) in bindings {
+        let Some(row) = rows.iter().find(|r| r.requirement_id == *req_id) else {
+            return Err(format!(
+                "③ REQ {req_id} 有绑定（{ev_id}）但矩阵无行（绑定面与响应面接线脱节）"
+            ));
+        };
+        if row.status != ResponseStatus::Responded {
+            return Err(format!(
+                "③ REQ {req_id} 绑定 {ev_id} 但矩阵状态 {}（材料在绑而响应未完成——PARTIAL=正文未落）",
+                row.status.as_str()
+            ));
+        }
+    }
+    // RESPONDED 必有响应来源：证据在绑 或 响应章节在位（正文实写/覆写）。
+    // 正文响应的 REQ 可以无绑定（承诺型条款）——但不能既无证据又无章节。
     let responded: Vec<&MatrixRow> = rows
         .iter()
         .filter(|r| r.status == ResponseStatus::Responded)
         .collect();
-    if responded.len() != bound.len() {
-        return Err(format!(
-            "③ 绑定↔已响应 对账破：绑定 {} 条 REQ，矩阵 RESPONDED {} 行（多/少即接线脱节）",
-            bound.len(),
-            responded.len()
-        ));
-    }
     for r in &responded {
-        if !bound.contains(r.requirement_id.as_str()) {
+        if r.evidence_ids.is_empty() && r.response_section.is_none() {
             return Err(format!(
-                "③ 矩阵行 {} 标 RESPONDED 但 REQ {} 无绑定（凭空响应）",
-                r.id, r.requirement_id
-            ));
-        }
-        if r.evidence_ids.is_empty() {
-            return Err(format!(
-                "③ 矩阵行 {} 标 RESPONDED 但 evidence_ids 为空（状态派生与证据面脱节）",
+                "③ 矩阵行 {} 标 RESPONDED 但无证据无响应章节（凭空响应）",
                 r.id
             ));
         }
@@ -725,6 +732,7 @@ fn gi_invariant_checks_reject_injected_defects() {
     );
 
     // ③ 绑了 2 条但矩阵只认 1 条 RESPONDED（另一条 PARTIAL）→ 必红
+    //（#241 后语义：绑定 ⇒ RESPONDED 的单向不变式——PARTIAL=正文未落仍红）
     let b3 = vec![
         ("EV-0001".to_string(), "REQ-0001".to_string()),
         ("EV-0001".to_string(), "REQ-0002".to_string()),
@@ -746,7 +754,20 @@ fn gi_invariant_checks_reject_injected_defects() {
         check_evidence_bindings_vs_responded(&b3, &rows3_ok).is_ok(),
         "③ 全成 RESPONDED 应绿"
     );
-    // ③c 凭空 RESPONDED（REQ 无绑定）→ 必红
+    // ③b' 正文响应无绑定（承诺型——#241 裁定主面）→ 绿（旧口径误红）
+    let rows3_body = vec![
+        row("REQ-0001", Some("SEC-0002"), &["EV-0001"], ResponseStatus::Responded),
+        row("REQ-0002", Some("SEC-0002"), &[], ResponseStatus::Responded),
+    ];
+    assert!(
+        check_evidence_bindings_vs_responded(
+            &[("EV-0001".to_string(), "REQ-0001".to_string())],
+            &rows3_body
+        )
+        .is_ok(),
+        "③ 正文响应（无绑定）不再误红（#241 两分账）"
+    );
+    // ③c 凭空 RESPONDED（REQ 无绑定无章节）→ 必红
     let rows3_ghost = vec![row("REQ-0009", Some("SEC-0002"), &["EV-0001"], ResponseStatus::Responded)];
     assert!(
         check_evidence_bindings_vs_responded(
@@ -754,7 +775,17 @@ fn gi_invariant_checks_reject_injected_defects() {
             &rows3_ghost
         )
         .is_err(),
-        "③ 无绑定却 RESPONDED 必须红"
+        "③ 绑定 REQ 无行（凭空响应）必须红"
+    );
+    // ③c' 无证据无章节的凭空 RESPONDED → 必红（响应来源合法性）
+    let rows3_phantom = vec![row("REQ-0009", None, &[], ResponseStatus::Responded)];
+    assert!(
+        check_evidence_bindings_vs_responded(
+            &[("EV-0001".to_string(), "REQ-0001".to_string())],
+            &rows3_phantom
+        )
+        .is_err(),
+        "③ 无证据无章节的 RESPONDED 必须红（凭空响应）"
     );
 
     // ④ 少一项 / 硬门入列 / 重复 → 必红；恰为全部评分项 → 绿

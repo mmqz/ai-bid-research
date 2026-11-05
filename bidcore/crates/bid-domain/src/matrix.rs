@@ -6,13 +6,19 @@
 //! 状态派生（单一真源 [`derive_matrix_rows`]——工具面/导出门/持久化共用）：
 //! - `RESPONDED`（已响应）：显式 override 标记，或「证据在绑 + 章节在位」；
 //! - `PARTIAL`（部分）：有证据绑定但响应章节缺位（材料齐、正文未落）；
+//! - `PENDING_EVIDENCE`（待补，#245）：仅占位/待核验证据在绑——占位材料
+//!   不得计为有效证据（不清阻塞），但待补可见可追踪；
 //! - `NOT_RESPONDED`（未响应）：无证据无章节——**必选类（资格条件/否决项）即 blocking**；
 //! - `NOT_APPLICABLE`（不适用）：显式 override（带偏离说明——不适用必须给理由）。
 //!
-//! blocking 语义（Lead T-2 规格 + 契约 mandatory 口径对齐）：
-//! `(category ∈ {资格条件, 否决项} || agent_mandatory(req)) && status == NOT_RESPONDED`
+//! blocking 语义（Lead T-2 规格 + 契约 mandatory 口径对齐 + #245 占位面）：
+//! `(category ∈ {资格条件, 否决项} || agent_mandatory(req))
+//!   && status ∈ {NOT_RESPONDED, PENDING_EVIDENCE}`
 //! → blocking=true（与 get_compliance_matrix 的 `mandatory` 判定同源——工具面的
-//! mandatory 即本门输入）。
+//! mandatory 即本门输入）。**PENDING_EVIDENCE 保持 blocking**：占位资质
+//! 不得清除合规阻塞（#245 核心语义——「Agent 注册占位资质绑定后阻塞归零」
+//! 的缺口收口）；非必选行占位 → PENDING_EVIDENCE 不阻断（业务允许继续
+//! 写作，呈现待补状态）。
 //!
 //! Agent 必选标记接线（AGENT_MANDATORY_NOT_BLOCKING 缺口的收口）：
 //! `agent_mandatory(req)` = `params.marked_by == "agent" && params.mandatory == true`
@@ -34,7 +40,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 // ---------------------------------------------------------------- 类型面
-/// 响应状态（T-2 规格：未响应|已响应|部分|不适用）。
+/// 响应状态（T-2 规格：未响应|已响应|部分|不适用 + #245 待补）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ResponseStatus {
@@ -42,6 +48,9 @@ pub enum ResponseStatus {
     Responded,
     Partial,
     NotApplicable,
+    /// 待补（#245）：仅占位/待核验证据在绑——占位不清阻塞（必选行仍
+    /// blocking），但待补可见可追踪（`pending_evidence_ids` 随行）。
+    PendingEvidence,
 }
 
 impl ResponseStatus {
@@ -51,6 +60,7 @@ impl ResponseStatus {
             ResponseStatus::Responded => "RESPONDED",
             ResponseStatus::Partial => "PARTIAL",
             ResponseStatus::NotApplicable => "NOT_APPLICABLE",
+            ResponseStatus::PendingEvidence => "PENDING_EVIDENCE",
         }
     }
 }
@@ -63,10 +73,14 @@ pub struct MatrixRow {
     /// 响应章节（SEC id——从章节树 requirement_ids 反查）
     pub response_section: Option<String>,
     pub evidence_ids: Vec<String>,
+    /// 占位/待核验证据 id（#245——仅 PLACEHOLDER 态证据，待补可追踪面；
+    /// serde default：旧快照零位移）
+    #[serde(default)]
+    pub pending_evidence_ids: Vec<String>,
     pub status: ResponseStatus,
     /// 偏离说明（NOT_APPLICABLE 必填——不适用必须给理由，诚实状态）
     pub deviation: Option<String>,
-    /// 必选未响应 → 阻断导出（R-03/R-04 闸门）
+    /// 必选未响应/待补 → 阻断导出（R-03/R-04 闸门 + #245 占位不清阻塞）
     pub blocking: bool,
 }
 
@@ -128,19 +142,28 @@ fn derived_cmp_id(requirement_id: &str) -> String {
 
 /// 从 (requirements, bindings, sections, overrides) 派生全量矩阵行。
 ///
+/// #245 绑定三分输入：`effective`（真实且有效的证据绑定——计为响应材料）
+/// 与 `pending`（占位/待核验证据绑定——待补可见，**不计为有效证据**）。
+/// 同一 EV 同时出现在两表属调用方错误（服务层按证据 tier 唯一分流）。
+///
 /// - 行序 = requirements 序（稳定——REQ 集合幂等合并后顺序确定）；
 /// - id = `CMP-{REQ 后缀}` 派生稳定（见 [`derived_cmp_id`]）；
 /// - 12,000 行量级：全量派生 O(N+B+S)，无逐行查找平方面。
 pub fn derive_matrix_rows(
     reqs: &[Requirement],
-    bindings: &[(String, String)], // (evidence_id, requirement_id)
+    effective: &[(String, String)], // (evidence_id, requirement_id)——真实有效证据
+    pending: &[(String, String)],   // (evidence_id, requirement_id)——占位/待核验
     sections: &[OutlineNode],
     overrides: &HashMap<String, MatrixOverride>,
 ) -> Vec<MatrixRow> {
     // 绑定与章节的反查索引（一次建表，避免逐 REQ 全扫）
     let mut ev_by_req: HashMap<&str, Vec<&str>> = HashMap::new();
-    for (ev_id, req_id) in bindings {
+    for (ev_id, req_id) in effective {
         ev_by_req.entry(req_id.as_str()).or_default().push(ev_id.as_str());
+    }
+    let mut pend_by_req: HashMap<&str, Vec<&str>> = HashMap::new();
+    for (ev_id, req_id) in pending {
+        pend_by_req.entry(req_id.as_str()).or_default().push(ev_id.as_str());
     }
     // 章节层级索引（PR #24 修复批次）：旧实现 and_modify 闭包内
     // `sections.iter().find(|x| x.id == *cur)` 是 O(S)——嵌套在
@@ -166,30 +189,47 @@ pub fn derive_matrix_rows(
     }
     reqs.iter().map(|r| {
         let evs = ev_by_req.get(r.id.as_str()).cloned().unwrap_or_default();
+        let pends = pend_by_req.get(r.id.as_str()).cloned().unwrap_or_default();
         let sec = sec_by_req.get(r.id.as_str()).copied();
-        // 状态派生：override > 证据+章节
+        // 状态派生：override > 真实证据+章节 > 占位 > 缺失（#245 三分：
+        // 真实且有效 / 占位待核验 / 缺失——占位不得计为有效证据，但待补可见）
         let (status, deviation) = match overrides.get(&r.id) {
             Some(o) => (o.status, o.deviation.clone()),
             None => {
                 let has_ev = !evs.is_empty();
+                let has_pending = !pends.is_empty();
                 let has_sec = sec.is_some();
-                let st = match (has_ev, has_sec) {
-                    (true, true) => ResponseStatus::Responded,
-                    (true, false) => ResponseStatus::Partial,
-                    _ => ResponseStatus::NotResponded,
+                let st = if has_ev {
+                    // 真实证据在位——占位绑定只进 pending_evidence_ids 追踪面，
+                    // 不降级状态（真实与占位并存 = 真实为准，待补仍可追踪）
+                    if has_sec {
+                        ResponseStatus::Responded
+                    } else {
+                        ResponseStatus::Partial
+                    }
+                } else if has_pending {
+                    // 仅占位材料——待补态（章节在位与否不改变「证据未满足」）
+                    ResponseStatus::PendingEvidence
+                } else {
+                    ResponseStatus::NotResponded
                 };
                 (st, None)
             }
         };
         // 必选面 = 类别阻断面（资格条件/否决项）∪ Agent 必选标记——
-        // 两者都只在未响应时阻断（已响应/人工覆写即放行）。
+        // 未响应**或仅占位待补**时阻断（#245：占位资质不得清除合规阻塞；
+        // 已响应/部分/人工覆写即放行——真实材料在位时占位只是追踪面）。
         let blocking = (is_mandatory(&r.category) || agent_mandatory(r))
-            && status == ResponseStatus::NotResponded;
+            && matches!(
+                status,
+                ResponseStatus::NotResponded | ResponseStatus::PendingEvidence
+            );
         MatrixRow {
             id: derived_cmp_id(&r.id),
             requirement_id: r.id.clone(),
             response_section: sec.map(|s| s.to_string()),
             evidence_ids: evs.into_iter().map(|e| e.to_string()).collect(),
+            pending_evidence_ids: pends.into_iter().map(|e| e.to_string()).collect(),
             status,
             deviation,
             blocking,
@@ -229,10 +269,11 @@ impl DomainStore {
             });
         }
         let was_first_build = p.status == ProjectStatus::RequirementsExtracted;
-        let bindings: Vec<(String, String)> = self.evidence_bindings.iter()
-            .map(|b| (b.evidence_id.clone(), b.requirement_id.clone())).collect();
+        // #245 绑定分流：按证据 tier 分为有效（真实）与待补（占位）两束——
+        // 占位绑定进 pending 面（待补可见），不计为响应材料。
+        let (effective, pending) = self.split_live_bindings();
         let overrides = self.matrix_overrides.clone();
-        let rows = derive_matrix_rows(&self.requirements, &bindings, &self.sections, &overrides);
+        let rows = derive_matrix_rows(&self.requirements, &effective, &pending, &self.sections, &overrides);
         let blocking = rows.iter().filter(|r| r.blocking).count();
         let changed = rows != self.matrix;
         self.matrix = rows;
@@ -345,14 +386,38 @@ impl DomainStore {
     /// 只读派生视图（get_compliance_matrix 工具面——不落库不 bump 版本，
     /// 与 build_matrix 同一派生真源；EVIDENCE 过滤：EXPIRED/SUPERSEDED 证据不计入响应面）。
     pub fn matrix_view(&self) -> Vec<MatrixRow> {
-        let live_bindings: Vec<(String, String)> = self.evidence_bindings.iter()
-            .filter(|b| self.evidences.iter().any(|e| {
-                e.id == b.evidence_id && matches!(e.status, EvidenceStatus::Active | EvidenceStatus::Expiring)
-            }))
-            .map(|b| (b.evidence_id.clone(), b.requirement_id.clone()))
-            .collect();
+        // #245：live 绑定按 tier 分流（占位 → pending 面——待补可见不清阻塞）
+        let (effective, pending) = self.split_live_bindings();
         let overrides = self.matrix_overrides.clone();
-        derive_matrix_rows(&self.requirements, &live_bindings, &self.sections, &overrides)
+        derive_matrix_rows(&self.requirements, &effective, &pending, &self.sections, &overrides)
+    }
+
+    /// 活跃绑定按证据 tier 分流（#245 单一分流真源——build_matrix 与
+    /// matrix_view 共用，两入口口径永不分叉）。
+    ///
+    /// - 活跃面：EXPIRED/SUPERSEDED 证据的绑定两束都不进（有效性维度，
+    ///   既有语义不变——死绑定不计响应也不计待补）；
+    /// - 有效束：Active/Expiring 且**非占位**（真实证据——计为响应材料）；
+    /// - 待补束：Active/Expiring 且**占位**（PLACEHOLDER——待补可见，
+    ///   不计为有效证据，进 `pending_evidence_ids` 追踪面）。
+    fn split_live_bindings(&self) -> (Vec<(String, String)>, Vec<(String, String)>) {
+        let mut effective = Vec::with_capacity(self.evidence_bindings.len());
+        let mut pending = Vec::new();
+        for b in &self.evidence_bindings {
+            let Some(ev) = self.evidences.iter().find(|e| e.id == b.evidence_id) else {
+                continue; // 幽灵绑定（EV 已删除）——两束都不进
+            };
+            if !matches!(ev.status, EvidenceStatus::Active | EvidenceStatus::Expiring) {
+                continue; // 死绑定（EXPIRED/SUPERSEDED）——两束都不进
+            }
+            let pair = (b.evidence_id.clone(), b.requirement_id.clone());
+            if ev.is_placeholder() {
+                pending.push(pair);
+            } else {
+                effective.push(pair);
+            }
+        }
+        (effective, pending)
     }
 }
 
@@ -439,7 +504,7 @@ mod tests {
             trusted: None,
             at: 0,
         });
-        let rows = derive_matrix_rows(&reqs, &bindings, &sections, &overrides);
+        let rows = derive_matrix_rows(&reqs, &bindings, &[], &sections, &overrides);
         assert!(rows[0].blocking, "Agent 必选（商务要求）未响应 → blocking（缺口收口）");
         assert_eq!(rows[0].status, ResponseStatus::NotResponded);
         assert!(!rows[1].blocking, "Agent 必选已响应（证据+章节）→ 放行");
@@ -461,13 +526,13 @@ mod tests {
             regex_shaped,
             half_marked,
         ];
-        let rows = derive_matrix_rows(&reqs, &[], &[], &HashMap::new());
+        let rows = derive_matrix_rows(&reqs, &[], &[], &[], &HashMap::new());
         assert!(!rows[0].blocking, "Agent 非必选未响应 → 不阻断（评分/商务面不误伤）");
         assert!(!rows[1].blocking, "正则形状（无 marked_by）→ 不受接线影响");
         assert!(!rows[2].blocking, "仅 marked_by 无 mandatory → 不算 Agent 必选");
         // 与类别阻断面并集不打架：类别必选 + Agent 非必选标记 → 仍按类别阻断
         let union = vec![agent_req("REQ-0004", "否决项", false)];
-        let rows2 = derive_matrix_rows(&union, &[], &[], &HashMap::new());
+        let rows2 = derive_matrix_rows(&union, &[], &[], &[], &HashMap::new());
         assert!(rows2[0].blocking, "类别阻断面（否决项）不因 Agent 标非必选而放松");
     }
 
@@ -495,7 +560,7 @@ mod tests {
             trusted: None,
             at: 0,
         });
-        let rows = derive_matrix_rows(&reqs, &bindings, &sections, &overrides);
+        let rows = derive_matrix_rows(&reqs, &bindings, &[], &sections, &overrides);
         assert_eq!(rows.len(), 4);
         assert_eq!(rows[0].id, "CMP-0001", "id = REQ 后缀镜像派生（稳定）");
         assert_eq!(rows[0].status, ResponseStatus::NotResponded);
@@ -532,8 +597,11 @@ mod tests {
                 evidence_id: "EV-0003".into(), requirement_id: r.id,
             });
         }
-        // EV-0003 需在台账（matrix_view 活证据过滤）——build_matrix 用全量绑定（含过期证据
-        // 由 R-03 绑定时刻把关，视图层过滤），此处直接放行验证闸门翻转
+        // #245：build_matrix 经 split_live_bindings 查台账 tier 分流——
+        // 绑定指向的证据必须在台账且非占位才计为响应材料（幽灵绑定/
+        // 占位绑定不得清阻塞——「无凭据断言清零」正是本 issue 的缺口面）。
+        // 本测试验证闸门翻转，补登一件真实证据（Active + CONTENT_MATCHES）。
+        push_ev(&mut s, "EV-0003", Some(crate::evidence::VerificationTier::ContentMatches));
         s.set_matrix_override("REQ-0003".into(), ResponseStatus::Responded, None,
                               &TrustedPrincipal::human("域层测试")).ok();
         // 章节树真正落 store（PR #24 修复批次）：旧代码 `let _ = sections;`
@@ -635,5 +703,131 @@ mod tests {
         let seq_before = s.to_snapshot().id_seq;
         let _ = s.matrix_view();
         assert_eq!(s.to_snapshot().id_seq, seq_before, "只读视图零序列污染");
+    }
+
+    // ============================ #245：占位证据不清阻塞（PENDING_EVIDENCE 态） ============================
+
+    /// 构造带 tier 的台账证据（直推 evidences——绕过登记面，本组测试只验矩阵派生）。
+    fn push_ev(s: &mut DomainStore, id: &str, tier: Option<crate::evidence::VerificationTier>) {
+        s.evidences.push(crate::evidence::Evidence {
+            id: id.into(), kind: crate::evidence::EvidenceKind::Qualification,
+            title: format!("证-{id}"), source_file: "f.pdf".into(), source_sha256: id.into(),
+            locator: crate::locator::EngineLocator::PdfPageText { page: 1, text_fingerprint: "fnv64:1".into() },
+            fingerprint: format!("fnv64:{id}").to_lowercase().replace("ev-", ""),
+            valid_from: None, valid_until: None,
+            subject_name: "S".into(), scope: "".into(), version: 1,
+            status: EvidenceStatus::Active,
+            client: None, amount_wan: None, completed_on: None, fields: Default::default(),
+            excerpt: None, excerpt_locator: None, verification_tier: tier,
+        });
+    }
+
+    /// #245 核心断言：占位资质绑定后，资格条件的 blocking **不归零**——
+    /// 状态从 NOT_RESPONDED 翻为 PENDING_EVIDENCE（待补可见），但阻断保留。
+    /// 这是事故缺口（Agent 注册占位资质绑定 → 阻塞静默清零）的域层收口。
+    #[test]
+    fn placeholder_binding_keeps_mandatory_blocking() {
+        let mut s = store_with_matrix_base(5);
+        push_ev(&mut s, "EV-PH", Some(crate::evidence::VerificationTier::Placeholder));
+        // 占位证据绑到全部条款（事故形态：Agent 批量绑定占位资质）
+        for r in s.requirements().to_vec() {
+            s.evidence_bindings.push(EvidenceBinding {
+                evidence_id: "EV-PH".into(), requirement_id: r.id,
+            });
+        }
+        let (_, blocking) = s.build_matrix().unwrap();
+        assert_eq!(blocking, 2, "5 条轮转中资格条件+否决项 = 2 条必选——占位绑定后仍全部 blocking（事故缺口收口）");
+        let row = s.matrix().iter().find(|r| r.requirement_id == "REQ-0003").unwrap();
+        assert_eq!(row.status, ResponseStatus::PendingEvidence, "仅占位绑定 → 待补态（非 RESPONDED）");
+        assert!(row.blocking, "资格条件行占位绑定 → 仍阻断");
+        assert_eq!(row.pending_evidence_ids, vec!["EV-PH".to_string()], "待补面可追踪");
+        assert_eq!(row.evidence_ids.len(), 0, "占位证据不计入有效证据列");
+        // 非必选行：占位 → 待补但不阻断（业务允许继续写作）
+        let row2 = s.matrix().iter().find(|r| r.requirement_id == "REQ-0005").unwrap();
+        assert_eq!(row2.status, ResponseStatus::PendingEvidence);
+        assert!(!row2.blocking, "非必选行占位 → 待补可见不阻断");
+        // 导出门仍拒（占位绑定不清阻塞）
+        assert!(s.check_export_ready().is_err(), "占位绑定 → 矩阵门拒绝导出");
+    }
+
+    /// 真实与占位并存：真实为准（RESPONDED/PARTIAL 照常派生），占位进
+    /// 待补追踪面——既有正向流程（真实证据响应）零回归。
+    #[test]
+    fn real_evidence_dominates_placeholder_tracking() {
+        let mut s = store_with_matrix_base(5);
+        push_ev(&mut s, "EV-REAL", Some(crate::evidence::VerificationTier::ContentMatches));
+        push_ev(&mut s, "EV-PH", Some(crate::evidence::VerificationTier::Placeholder));
+        s.evidence_bindings.push(EvidenceBinding {
+            evidence_id: "EV-REAL".into(), requirement_id: "REQ-0003".into(),
+        });
+        s.evidence_bindings.push(EvidenceBinding {
+            evidence_id: "EV-PH".into(), requirement_id: "REQ-0003".into(),
+        });
+        // 章节在位（REQ-0003 → SEC）
+        let mut node = sec("SEC-0001", 1, &["REQ-0003"]);
+        node.order = 10;
+        s.set_outline(vec![node]).unwrap();
+        let _ = s.build_matrix().unwrap();
+        let row = s.matrix().iter().find(|r| r.requirement_id == "REQ-0003").unwrap();
+        assert_eq!(row.status, ResponseStatus::Responded, "真实证据+章节 → 已响应（占位不降级状态）");
+        assert!(!row.blocking, "真实材料在位 → 放行");
+        assert_eq!(row.evidence_ids, vec!["EV-REAL".to_string()], "有效证据列只含真实件");
+        assert_eq!(row.pending_evidence_ids, vec!["EV-PH".to_string()], "占位件进待补追踪面");
+    }
+
+    /// 纯占位 + 章节在位：仍是待补（章节正文不能替代证据——与 #241
+    /// 「正文已响应不算已响应」同源语义）。
+    #[test]
+    fn placeholder_with_section_still_pending() {
+        let mut s = store_with_matrix_base(5);
+        push_ev(&mut s, "EV-PH", Some(crate::evidence::VerificationTier::Placeholder));
+        s.evidence_bindings.push(EvidenceBinding {
+            evidence_id: "EV-PH".into(), requirement_id: "REQ-0003".into(),
+        });
+        let mut node = sec("SEC-0001", 1, &["REQ-0003"]);
+        node.order = 10;
+        s.set_outline(vec![node]).unwrap();
+        let _ = s.build_matrix().unwrap();
+        let row = s.matrix().iter().find(|r| r.requirement_id == "REQ-0003").unwrap();
+        assert_eq!(row.status, ResponseStatus::PendingEvidence, "占位 + 章节在位 → 仍待补");
+        assert!(row.blocking, "资格条件仍阻断");
+    }
+
+    /// 人工豁免通道不受占位影响：Human receipt 覆写 NOT_APPLICABLE（带理由）
+    /// → 待补行翻不适用、阻断解除——占位不堵死人工裁决（#182 边界保留）。
+    #[test]
+    fn human_override_still_releases_pending_row() {
+        let mut s = store_with_matrix_base(5);
+        push_ev(&mut s, "EV-PH", Some(crate::evidence::VerificationTier::Placeholder));
+        s.evidence_bindings.push(EvidenceBinding {
+            evidence_id: "EV-PH".into(), requirement_id: "REQ-0003".into(),
+        });
+        let _ = s.build_matrix().unwrap();
+        let hp = TrustedPrincipal::human("人工裁决");
+        s.set_matrix_override("REQ-0003".into(), ResponseStatus::NotApplicable,
+                              Some("集团共享资质豁免（人工 receipt）".into()), &hp).unwrap();
+        let _ = s.rebuild_matrix_for_override().unwrap();
+        let row = s.matrix().iter().find(|r| r.requirement_id == "REQ-0003").unwrap();
+        assert_eq!(row.status, ResponseStatus::NotApplicable, "人工覆写优先于派生态");
+        assert!(!row.blocking, "豁免行不阻断");
+    }
+
+    /// 旧快照兼容：#245 前的 MatrixRow JSON 无 pending_evidence_ids 字段
+    /// → serde default 空 Vec 载入零位移（升级旧数据的兼容策略）。
+    #[test]
+    fn legacy_matrix_row_snapshot_loads_without_pending_field() {
+        let legacy = serde_json::json!({
+            "id": "CMP-0003", "requirement_id": "REQ-0003",
+            "response_section": null, "evidence_ids": ["EV-0001"],
+            "status": "PARTIAL", "deviation": null, "blocking": false
+        });
+        let row: MatrixRow = serde_json::from_value(legacy).unwrap();
+        assert_eq!(row.pending_evidence_ids, Vec::<String>::new(), "旧快照待补面缺省为空");
+        assert_eq!(row.status, ResponseStatus::Partial);
+        // PENDING_EVIDENCE 序列化往返（新快照面）
+        let j = serde_json::to_string(&ResponseStatus::PendingEvidence).unwrap();
+        assert_eq!(j, "\"PENDING_EVIDENCE\"");
+        let back: ResponseStatus = serde_json::from_str(&j).unwrap();
+        assert_eq!(back, ResponseStatus::PendingEvidence);
     }
 }

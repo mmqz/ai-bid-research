@@ -9,12 +9,13 @@
 ## 调用形
 
 ```json
-{ "project_id": "…", "target_total_chars": 20000, "max_reqs_per_leaf": 8,
+{ "project_id": "…", "target_total_chars": 844000, "max_reqs_per_leaf": 8,
   "project_version": 12 }
 ```
 
-- `target_total_chars`：总目标字数（1,000..=5,000,000，缺省 20,000）——
-  长标书按实测篇幅给大值（见主 Skill「篇幅纪律」）；
+- `target_total_chars`：总目标字数（1,000..=5,000,000，缺省 844,000 ≈
+  1000 页 × 844 字符/页——与引擎单一真源 `DEFAULT_TARGET_TOTAL_CHARS`
+  同源，#253）——长标书按实测篇幅给大值（见主 Skill「篇幅纪律」）；
 - `max_reqs_per_leaf`：每叶挂载条款上限（1..=50，缺省 8）；
 - 状态窗口：**REQUIREMENTS_EXTRACTED 态可调**（FilesImported/Draft →
   E_STATE；MATRIX_READY+ 重复调用 → E_STATE——重建面属「补遗后增量重抽」

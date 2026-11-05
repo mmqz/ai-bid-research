@@ -398,7 +398,9 @@ CherryHQ/cherry-studio（AGPL-3.0，52.9k★）为 Electron **桌面客户端**�
 > docs/subagent-llm-assessment.md §四缺口 G1。
 
 ```
-in : { project_id, target_total_chars?(1000..=5000000, 缺省 20000),
+in : { project_id, target_total_chars?(1000..=5000000, 缺省 844000——单一真源
+       bid_domain::outline::DEFAULT_TARGET_TOTAL_CHARS，推导：1000 页 ×
+       实测密度 844 字符/页；#253 第一段),
        max_reqs_per_leaf?(1..=50, 缺省 8), project_version }
 out: { counts:{ sections, leaves, requirements, total_target_chars, matrix_rows, matrix_blocking },
        status: "MATRIX_READY", project_version }

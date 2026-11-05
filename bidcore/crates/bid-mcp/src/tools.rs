@@ -2394,8 +2394,9 @@ fn score_price(_svc: &mut BidService, args: Value) -> ToolResult {
 ///
 /// #186 语义降级：**规则诊断，非评标模拟**——tier 是关键词覆盖/长度/证据词
 /// 存在性的启发式档位（`diagnostic_only=true, result_kind=rule_heuristic`），
-/// 不代表评委会会给的档。item_scores 已透传 `score_rules` 细则原文
-/// （判档不消费——起草/审校对照面）；细则判档接入另见 #186 第二步。
+/// 不代表评委会会给的档。item_scores 透传 `score_rules` 细则原文 +
+/// `rule_checkpoints` 关键条件比对结果（#224 第 3 步规则层可见性——提及
+/// 性标记不改判档/估分）；完整语义判档依赖模型。
 ///
 /// 壳层职责：参数校验 → route_guard（只读诊断，MatrixReady+ 窗口）→ 前置
 /// （章节在场 + 已起草——无正文的自评是空转）→ B2 [`SectionScorer`] 只调用
@@ -2468,8 +2469,9 @@ fn score_section(svc: &mut BidService, args: Value) -> ToolResult {
 /// #186 语义降级：**规则诊断，非评标模拟**——分数与 tier 来自关键词覆盖/
 /// 长度阈值/证据词存在性启发式（`diagnostic_only=true,
 /// result_kind=rule_heuristic`），不代表评委会评分。by_item 透传 `score_rules`
-/// 细则原文（判档不消费——SCORE_RULES_RESERVED note 显式登记）；评分细则
-/// 接入（score_rules → assess）另见 #186 第二步。
+/// 细则原文与 `rule_checkpoints` 关键条件比对结果（#224 第 3 步——规则层
+/// 可见性，SCORE_RULES_CHECKPOINTS note 登记；判档/估分不变，完整语义判档
+/// 依赖模型）。
 fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
     const TOOL: &str = "score_document";
     let project_id = req_str(&args, "project_id", TOOL)?;
@@ -2639,6 +2641,9 @@ fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
                 // 价格分不逐章摊分（f(报价)）——行形状与非价格行保持一致
                 "contributions": [],
                 "score_rules": it.score_rules,
+                // 价格类不比对细则检查点（价格分 = f(报价)，无正文面）
+                "rule_checkpoints": [],
+                "rule_gaps": 0,
             }));
             continue;
         }
@@ -2690,6 +2695,24 @@ fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
                 0.0
             }
         };
+        // #224 第 3 步：细则检查点聚合面（跨章任一章提及即提及——合并语义
+        // 的单一真源在 bid_domain::scoring::merged_rule_checkpoints，与
+        // score_document notes 缺口计数同口径）。未映射/未提供正文章节 →
+        // 无比对面，检查点空集（诚实——无正文不虚构比对结果）。
+        let cp_rows: Vec<&bid_domain::scoring::ItemScore> =
+            contribs.iter().map(|(_, e)| *e).collect();
+        let merged = bid_domain::scoring::merged_rule_checkpoints(&cp_rows);
+        let rule_gaps = merged.iter().filter(|c| !c.mentioned).count();
+        let rule_checkpoints: Vec<Value> = merged
+            .iter()
+            .map(|c| {
+                json!({
+                    "text": c.text,
+                    "hits": [c.hits.0, c.hits.1],
+                    "mentioned": c.mentioned,
+                })
+            })
+            .collect();
         by_item.push(json!({
             "item_id": it.requirement_id,
             "criteria": it.criteria,
@@ -2708,9 +2731,13 @@ fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
                 "tier": e.tier.label(),
                 "coverage": e.coverage,
                 "weight_share": e.weight_share,
+                "rule_gaps": e.rule_gaps,
             })).collect::<Vec<_>>(),
-            // #186 预留面：细则原文透出（判档不消费——rule_heuristic）
+            // #186 预留面：细则原文透出（#224 第 3 步：检查点比对基准）
             "score_rules": it.score_rules,
+            // #224 第 3 步：检查点聚合面（跨章任一章提及即提及——见上方注释）
+            "rule_checkpoints": rule_checkpoints,
+            "rule_gaps": rule_gaps,
         }));
     }
     let gap = ((target - doc.total) * 100.0).round() / 100.0;

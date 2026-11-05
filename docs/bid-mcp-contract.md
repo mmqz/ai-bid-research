@@ -567,8 +567,9 @@ out: { spec:{method,max_score,budget,deviation_rule}, bid_price, others,
 > **#186 语义降级（规则诊断非评标模拟）**：本工具是关键词覆盖/长度阈值/证据词
 > 存在性的启发式诊断（`diagnostic_only=true, result_kind=rule_heuristic`），
 > **不是评标模拟**——tier 是覆盖度档位，不代表评委会会给的档。item_scores
-> 透传 `score_rules` 评分细则原文（**判档不消费**——起草/审校对照用预留面），
-> 细则判档接入后另行升级（#186 第二步，依赖 #170）。
+> 透传 `score_rules` 评分细则原文 + `rule_checkpoints` 关键条件比对结果
+> （#224 第 3 步规则层可见性——量化/资质条件提取成检查点与正文做**提及性**
+> 比对，明显未提 → 可能失分标记；**不改判档/估分**，完整语义判档依赖模型）。
 
 ```
 in : { project_id, section_id, project_version? }
@@ -577,7 +578,11 @@ out: { project_id, diagnostic_only(true), result_kind("rule_heuristic"),
        covered_items:[REQ-*], missing_items:[REQ-*], rationale（逐项可追溯）,
        item_scores:[{item_id,estimated,max,tier,coverage,is_objective,rationale,
                      weight_share（#224 摊分比——单映射 1.0）,
-                     score_rules?（细则原文——判档不消费，无则缺省）}],
+                     score_rules?（细则原文——检查点比对基准，无则缺省）,
+                     rule_checkpoints:[{text,hits:[命中组数,总组数],mentioned}]?
+                       （#224 第 3 步关键条件检查点——空/缺省 = 无细则或
+                       无可识别条件；mentioned=false = 正文明显未提）,
+                     rule_gaps（#224 明显未提的条件数——>0 = 可能失分）}],
        unmapped_scoring_items:[{req_id,criteria,weight}…]（#224 文档级告警——
        非空 = 有评分项未映射章节，总分可能偏低；价格项不入——价格分不依赖
        章节映射）, request_id }
@@ -614,9 +619,10 @@ out: { project_id, diagnostic_only(true), result_kind("rule_heuristic"),
 
 > **#186 语义降级（规则诊断非评标模拟）**：同 §14——total/tier 是规则启发式
 > 诊断结果（`diagnostic_only=true, result_kind=rule_heuristic`），**不代表
-> 评委会评分**；external Agent 不得以此为对外承诺依据。`score_rules` 为
-> **预留面**：细则原文透出（by_item），当前判档不消费——notes 以
-> SCORE_RULES_RESERVED 显式登记，接入见 #186 第二步（依赖 #170）。
+> 评委会评分**；external Agent 不得以此为对外承诺依据。`score_rules` 已被
+> #224 第 3 步**规则层消费**：细则原文透出（by_item）+ 关键条件检查点与
+> 正文比对（提及性——不改判档/估分）；notes 以 SCORE_RULES_CHECKPOINTS
+> 显式登记（含可能失分项计数），完整语义判档依赖模型（另开 issue）。
 
 ```
 in : { project_id, project_version?,
@@ -630,11 +636,15 @@ out: { project_id, diagnostic_only(true), result_kind("rule_heuristic"),
                section_id（首映射——旧键保留）,
                mapping_ids:[SEC-…]（#224 全部映射章节——多对多面）,
                weight_share（#224 首映射摊分比）,
-               contributions:[{section_id,estimated,tier,coverage,weight_share}…]
-               （#224 多对多聚合：estimated = 逐章贡献之和——与 total 计入
-               口径同源，多章不取首章；tier 多章同档→该档、异档→多章混合
-               列举；coverage 份额加权均值；价格项 contributions 恒空）,
-               score_rules（细则原文 | null——判档不消费，透出供对照）}],
+               contributions:[{section_id,estimated,tier,coverage,weight_share,
+               rule_gaps}…]（#224 多对多聚合：estimated = 逐章贡献之和——与
+               total 计入口径同源，多章不取首章；tier 多章同档→该档、异档→
+               多章混合列举；coverage 份额加权均值；rule_gaps 逐章缺口数；
+               价格项 contributions 恒空）,
+               score_rules（细则原文 | null——检查点比对基准）,
+               rule_checkpoints:[{text,hits,mentioned}…]（#224 第 3 步检查点
+               聚合面——跨章任一章提及即提及；价格项恒空数组）,
+               rule_gaps（#224 全部映射章都未提的检查点数——>0 = 可能失分）}],
        mappings:[{item_id,criteria,weight,sections:[{section_id,section_title,
                weight_share,source(RULE_PARSED|AGENT_SUBMITTED|MANUAL),
                source_anchor:{file,kind,locator,excerpt},evidence_refs:[EV-…]}]}]
@@ -645,7 +655,8 @@ out: { project_id, diagnostic_only(true), result_kind("rule_heuristic"),
        unmapped_scoring_items:[{req_id,criteria,weight}…]（#224 结构化 UNMAPPED——
        非空 = 响亮告警「有 N 个评分项未映射章节，总分可能偏低」）,
        notes[]（UNMAPPED/SECTION_MISSING/NO_PRICE_INPUT
-       /SCORE_RULES_RESERVED 诚实登记）, price_input（价格口径 echo | null）, sections_scored, request_id }
+       /SCORE_RULES_CHECKPOINTS 诚实登记——含「N 项可能失分」计数）,
+       price_input（价格口径 echo | null）, sections_scored, request_id }
 语义: B2 score_document 三段聚合（技术 = 主观叶估分和；商务 = 客观叶；价格 = B1
       实算）+ by_item 全量逐项（未覆盖 estimated=0 如实呈现）。e2e 十一件套的
       11_self-score.json 即本工具产物（scripts/e2e_bid/run_e2e_artifacts.sh）。

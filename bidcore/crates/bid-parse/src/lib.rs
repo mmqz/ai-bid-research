@@ -152,3 +152,82 @@ pub fn norm_n2(s: &str) -> String {
     let n1 = norm_n1(s);
     n1.chars().filter(|c| c.is_alphanumeric()).collect()
 }
+
+/// N3 归一化：N1 + 千分位剥离（检索判据面专用，#267）。
+///
+/// 「数据不动、匹配归一」纪律在检索判据面的延伸（先例：extract.rs 章节识别
+/// 匹配瞬间 NFKC / norm_n1 对齐面）。两个永假阴性形态：
+/// - **康熙部首**：政采 PDF 文本层用康熙部首区编码（⽇ U+2F47 ≠ 日 U+65E5），
+///   NFKC 兼容分解归一到统一汉字（N1 已覆盖）；
+/// - **千分位**：金标准 needle「20,000」与原文「20000元」形态不一致——
+///   双侧对称剥离「数字,数字」之间的逗号后比对（`1,195,800 → 1195800`）。
+///
+/// **只用于匹配瞬间**（haystack 与 needle 双侧同施），不落库、不改金标准真源。
+/// 文本逗号（「A,B」）因左右非数字不受影响。
+pub fn norm_n3(s: &str) -> String {
+    let n1 = norm_n1(s);
+    let cs: Vec<char> = n1.chars().collect();
+    let mut out = String::with_capacity(n1.len());
+    for i in 0..cs.len() {
+        let c = cs[i];
+        // 千分位逗号：前一个字符是 ASCII 数字且后一个也是 ASCII 数字 → 剥离。
+        // 连续千分位（1,195,800）每个逗号独立满足条件，一次遍历全剥离。
+        if c == ','
+            && i > 0
+            && cs[i - 1].is_ascii_digit()
+            && cs.get(i + 1).is_some_and(|n| n.is_ascii_digit())
+        {
+            continue;
+        }
+        out.push(c);
+    }
+    out
+}
+
+#[cfg(test)]
+mod norm_tests {
+    use super::*;
+
+    /// 康熙部首（⽇ U+2F47）与标准字形（日 U+65E5）N3 归一后等值——GR-005/GR-014 形态。
+    #[test]
+    fn n3_kangxi_radical_equivalence() {
+        let kangxi = "从合同签订之\u{2F47}起15\u{2F47}历天内调测完毕";
+        let standard = "从合同签订之日起15日历天内调测完毕";
+        assert_eq!(norm_n3(kangxi), norm_n3(standard));
+        // 归一结果确实含标准字形的检索判据
+        assert!(norm_n3(kangxi).contains(&norm_n3("15日历天")));
+        assert!(norm_n3("90\u{2F47}").contains(&norm_n3("90日")));
+    }
+
+    /// 千分位双侧对称剥离——GR-011（needle 20,000 / 原文 20000元）与
+    /// GR-012（1,195,800 连续千分位）形态。
+    #[test]
+    fn n3_thousands_separator_equivalence() {
+        assert_eq!(norm_n3("20,000"), norm_n3("20000"));
+        assert_eq!(norm_n3("1,195,800"), norm_n3("1195800"));
+        // 原文形态（含康熙部首+无千分位混合）与 needle 形态归一后互检
+        let raw = "本项\u{2F47}代理服务费：20000元（贰万元整）";
+        assert!(norm_n3(raw).contains(&norm_n3("20,000")));
+        // 带小数的金额不受影响（17,000.00 → 17000.00，点保留）
+        assert_eq!(norm_n3("17,000.00元"), norm_n3("17000.00元"));
+    }
+
+    /// 文本逗号保留：左右非数字的逗号是语义的一部分，不剥离。
+    #[test]
+    fn n3_text_comma_preserved() {
+        assert_eq!(norm_n3("投标人,招标人").matches(',').count(), 1);
+        // 尾随/前导逗号（非数字对）保留
+        assert_eq!(norm_n3("1,"), "1,");
+        assert_eq!(norm_n3(",2"), ",2");
+        // 中文逗号（全角）NFKC 后为「,」但左右是汉字 → 保留
+        assert_eq!(norm_n3("序号19，代理服务费"), norm_n3("序号19，代理服务费"));
+    }
+
+    /// N3 ⊇ N1：去空白与全角半角归一语义不变（回归保护）。
+    #[test]
+    fn n3_subsumes_n1_semantics() {
+        // 全角Ｍ／ｓ → 半角 M/s（NFKC）；全角％ → 半角 %
+        assert_eq!(norm_n3("30Ｍ／ｓ"), "30M/s");
+        assert_eq!(norm_n3(" 95 ％ "), "95%");
+    }
+}

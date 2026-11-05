@@ -420,14 +420,10 @@ pub fn validate_document(
     })
 }
 
+// is_drafted 的单一真源在域层（#243：`SectionStatus::is_drafted`——本模块
+// 规则 3 与域层 incomplete_leaf_ids 同源消费，防两面口径漂移）。
 fn is_drafted(s: SectionStatus) -> bool {
-    matches!(
-        s,
-        SectionStatus::Drafted
-            | SectionStatus::Validating
-            | SectionStatus::Revising
-            | SectionStatus::Accepted
-    )
+    s.is_drafted()
 }
 
 // ---------------------------------------------------------------- 1.0 写作验收 · 导出门复算面

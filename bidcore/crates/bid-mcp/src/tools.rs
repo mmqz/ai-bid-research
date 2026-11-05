@@ -58,6 +58,8 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         "record_addendum_waiver" => record_addendum_waiver(svc, args),
         // ---- #226 层 1：否决项死锁的人工出口（规则说明标 NOT_APPLICABLE）----
         "set_matrix_override" => set_matrix_override(svc, args),
+        // ---- #243：历史异常态（VALIDATING+缺章）的受支持恢复出口 ----
+        "recover_validating_state" => recover_validating_state(svc, args),
         // ---- #100 任务 3：B1/B2 接线（能得几分、该报多少价）----
         // score_price 是纯计算器（无 project 路由/状态门——报价推演面）；
         // score_section / score_document 走既有 route_guard（只读诊断）。
@@ -3602,6 +3604,56 @@ fn validate_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
         // #80 第三批外部 Agent 实测摩擦 #2：validate 会推进版本（VALIDATING
         // 转换面），响应必须回传新版本号——否则调用方后续带旧版本号 → E_CONFLICT
         // （契约 §0「响应统一携带 project_version」的承诺面）。
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    });
+    Ok(out)
+}
+
+// ---------------------------------------------------------------- #243 校验状态安全与恢复
+
+/// `recover_validating_state` —— 历史异常态（VALIDATING + 缺章）的受支持恢复。
+///
+/// 背景（#243）：旧版校验在草稿未完成/校验失败时仍无条件推进 VALIDATING，
+/// 且 VALIDATING 态禁起草 → 死锁，用户被迫杀进程手改 db.json。本工具取代
+/// 那条不受支持的路径。
+///
+/// 壳层职责：参数校验（reason 非空白）→ 三件套（路由/guard——仅
+/// VALIDATING 态放行/乐观并发）→ 转发 `BidService::recover_validating_state`
+///（域层三重约束：仅 VALIDATING / 仅缺章 / 理由非空白；审计账 + 版本 +1 +
+/// checkpoint）→ 响应组装（recovery 审计记录 + 新版本号）。
+///
+/// 重复请求/超时重试语义：恢复成功后项目在 DRAFTING，重试被 guard 拒
+///（E_STATE——状态门，非死锁态；起草面照常可用）。并发：MCP 服务串行
+/// 处理（&mut 服务态），无交错写。
+fn recover_validating_state(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "recover_validating_state";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let reason = req_str(&args, "reason", TOOL)?;
+    if reason.trim().is_empty() {
+        return Err(ToolError::EUnprocessable {
+            what: format!(
+                "{TOOL}: reason 不得为空白（审计面：不可审计的恢复不成恢复）——说明为什么需要回到起草面（如：旧版校验在缺章时误推进）"
+            ),
+        });
+    }
+    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    route_guard(svc, &project_id, TOOL, project_version)?;
+
+    let rec = svc.recover_validating_state(&reason).map_err(ToolError::from)?;
+    let out = json!({
+        // 恢复后的项目状态（恒 DRAFTING——起草面解锁）
+        "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or("UNKNOWN"),
+        // 审计记录（何时/为何/从哪到哪/当时缺哪些章）
+        "recovery": {
+            "at": rec.at,
+            "from": rec.from.as_str(),
+            "to": rec.to.as_str(),
+            "reason": rec.reason,
+            "missing_sections": rec.missing_sections,
+        },
+        // 契约 §0：响应统一携带 project_version（恢复推进了版本，后续调用
+        // 必须用新值，否则 E_CONFLICT）
         "project_version": svc.store().content_version(),
         "request_id": next_request_id(),
     });

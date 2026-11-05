@@ -26,8 +26,9 @@ fn tool_names_are_the_contract_twenty() {
     // = 21
     // #219 增 3（get_document_chunks / submit_block_marks /
     // get_coverage_report——全块覆盖：Agent 区间标记 + 引擎覆盖检查）= 24；
-    // #226 增 1（set_matrix_override——否决项死锁的人工出口）= 25
-    assert_eq!(TOOL_NAMES.len(), 25, "工具面必须恰为 25 个（21 + #219 全块覆盖三工具 + #226 否决项死锁出口）");
+    // #226 增 1（set_matrix_override——否决项死锁的人工出口）= 25；
+    // #243 增 1（recover_validating_state——历史异常态恢复出口）= 26
+    assert_eq!(TOOL_NAMES.len(), 26, "工具面必须恰为 26 个（21 + #219 全块覆盖三工具 + #226 否决项死锁出口 + #243 恢复出口）");
     for name in TOOL_NAMES {
         assert!(!name.is_empty());
     }
@@ -103,7 +104,7 @@ fn json_roundtrip_failure_is_typed() {
 fn tools_schema_lists_all_twenty() {
     let v = bid_mcp::tools_schema();
     let arr = v["tools"].as_array().unwrap();
-    assert_eq!(arr.len(), 25, "tools/list 必须列出全部 25 个工具");
+    assert_eq!(arr.len(), 26, "tools/list 必须列出全部 26 个工具");
     let implemented: Vec<&str> = arr
         .iter()
         .filter(|t| t["implemented"] == true)
@@ -119,7 +120,8 @@ fn tools_schema_lists_all_twenty() {
     // 漏登致 tools/list 误报 false——#145 测试面抓出，如实登记）→ 全部 20 实装；
     // #184：record_addendum_waiver（补遗分级阻塞的逐件人工确认）→ 21 实装；
     // #219 增 3 覆盖工具 → 24 实装；
-    // #226：set_matrix_override（否决项死锁出口）→ 25 实装
+    // #226：set_matrix_override（否决项死锁出口）→ 25 实装；
+    // #243：recover_validating_state（历史异常态恢复出口）→ 26 实装
     assert_eq!(
         implemented,
         vec![
@@ -150,6 +152,8 @@ fn tools_schema_lists_all_twenty() {
             "get_coverage_report",
             // #226 层 1：否决项死锁的人工出口
             "set_matrix_override",
+            // #243：历史异常态（VALIDATING+缺章）的受支持恢复出口
+            "recover_validating_state",
         ]
     );
     // 描述面：新工具不得是 unknown（describe 遗漏即挂）
@@ -158,4 +162,6 @@ fn tools_schema_lists_all_twenty() {
     }
     let ra = arr.iter().find(|t| t["name"] == "record_addendum_waiver").unwrap();
     assert_ne!(ra["description"], "unknown", "record_addendum_waiver 描述必须在场: {ra}");
+    let rv = arr.iter().find(|t| t["name"] == "recover_validating_state").unwrap();
+    assert_ne!(rv["description"], "unknown", "recover_validating_state 描述必须在场: {rv}");
 }

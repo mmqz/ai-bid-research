@@ -213,10 +213,10 @@ fn tools_list_declares_search_evidence_implemented() {
     let se = tools.iter().find(|t| t["name"].as_str() == Some("search_evidence")).unwrap();
     assert_eq!(se["implemented"].as_bool(), Some(true), "implemented 必须 true：{se}");
     // 声明数 = 实装数（#145 时点 20；#184 增 record_addendum_waiver → 21；
-    // #226 增 set_matrix_override → 22）
+    // #226 增 set_matrix_override → 22；#243 增 recover_validating_state → 23）
     let n_impl = tools.iter().filter(|t| t["implemented"].as_bool() == Some(true)).count();
-    assert_eq!(names.len(), 25, "TOOL_NAMES 声明数应为 25（21 + #219 全块覆盖三工具 + #226 确认面）：{names:?}");
-    assert_eq!(n_impl, 25, "实装数应与声明数一致（25）：{names:?}");
+    assert_eq!(names.len(), 26, "TOOL_NAMES 声明数应为 26（21 + #219 全块覆盖三工具 + #226 确认面 + #243 恢复出口）：{names:?}");
+    assert_eq!(n_impl, 26, "实装数应与声明数一致（26）：{names:?}");
 }
 
 /// 验收①：exact 模式 cert=ISO9001（有界短语——不误报 ISO14001）。

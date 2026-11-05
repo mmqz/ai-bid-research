@@ -49,8 +49,9 @@ use serde_json::Value;
 /// #184 增 1 个：`record_addendum_waiver`（补遗分级阻塞的逐件人工确认）；
 /// #219 增 3 个：全块覆盖三工具（get_document_chunks/submit_block_marks/
 /// get_coverage_report）；#226 增 1 个：`set_matrix_override`（否决项
-/// 死锁的人工出口）= 25。
-pub const TOOL_NAMES: [&str; 25] = [
+/// 死锁的人工出口）；#243 增 1 个：`recover_validating_state`（历史
+/// 异常态 VALIDATING+缺章的受支持恢复出口）= 26。
+pub const TOOL_NAMES: [&str; 26] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -78,6 +79,8 @@ pub const TOOL_NAMES: [&str; 25] = [
     "get_coverage_report",
     // #226 层 1：否决项死锁的人工出口
     "set_matrix_override",
+    // #243：历史异常态（VALIDATING+缺章）的受支持恢复出口
+    "recover_validating_state",
 ];
 
 /// 工具解析与分发入口（进程级全局服务态——stdio 默认传输面）。

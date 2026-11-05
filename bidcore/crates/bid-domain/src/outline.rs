@@ -74,6 +74,21 @@ impl SectionStatus {
             Accepted => "ACCEPTED",
         }
     }
+
+    /// #243：「已起草」谓词——Drafted 及其后继状态（Validating/Revising/
+    /// Accepted）。单一真源：域层 incomplete_leaf_ids（全稿完成判定）与
+    /// bid-tools validate 规则 3（E_SECTION_EMPTY 的未定稿变体）同源消费，
+    /// 防两面口径漂移。Pending/Outlining/Drafting/Failed 都是未完成
+    ///（Failed 是失败的一等结果——重试成功后才算完成）。
+    pub fn is_drafted(&self) -> bool {
+        matches!(
+            self,
+            SectionStatus::Drafted
+                | SectionStatus::Validating
+                | SectionStatus::Revising
+                | SectionStatus::Accepted
+        )
+    }
 }
 
 // ---------------------------------------------------------------- 实体

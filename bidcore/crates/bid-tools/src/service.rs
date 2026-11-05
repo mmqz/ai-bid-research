@@ -1350,8 +1350,16 @@ impl BidService {
     /// `validate_bid_document` 业务半边（#59 阶段 3——防废标最后一道关）。
     ///
     /// 纯只读诊断（不改稿不落库——BLOCKER 解除走既有面：矩阵覆写/证据补绑/
-    /// 章节 draft）；成功跑完推进项目到至少 VALIDATING（Drafting → Validating
-    /// 一步——复审语义；已在 Validating+ 者 no-op）+ checkpoint。
+    /// 章节 draft）；状态推进语义（#243 收紧）：
+    /// - **前置闸**：scope=all（全稿最终校验）要求起草完成——存在未达
+    ///   DRAFTED 的叶 → `E_DRAFT_INCOMPLETE`（missing 清单）零副作用拒，
+    ///   不跑规则、不推进、不落盘。起草期的章节级检查走 scope=sections
+    ///   （不受此闸——「起草中/章节级检查」与「全稿最终校验」分面）；
+    /// - **仅校验通过才推进**：ok=true 且 scope=all → Drafting→Validating
+    ///   （复审语义）+ checkpoint；失败（BLOCKER>0）留在原态——项目保持
+    ///   可修订、可重试（修订通道：draft_response_section / set_matrix_override /
+    ///   证据补绑），无状态变迁则不 checkpoint（纯读）；
+    /// - 已在 Validating+ 者 no-op（重验幂等）。
     ///
     /// #187：现网语义复核层未配置模型——走 [`crate::validate::NoModel`]
     /// （semantic 桶显式 NotPerformed，不伪装 Passed）。
@@ -1368,24 +1376,49 @@ impl BidService {
     /// 现网 [`Self::validate_document`] 委之以 [`crate::validate::NoModel`]；
     /// 测试 / 未来真实 LLM 面经此注入 [`crate::validate::ModelReviewer`] 实现
     /// （返回 `Some(findings)` = 已复核；`None` = 未配置 → semantic 桶
-    /// NotPerformed）。状态推进 / checkpoint 与现网面同轨。
+    /// NotPerformed）。状态推进 / checkpoint 与现网面同轨（#243：推进仅
+    /// 在「scope=all 且 ok=true」时发生，见 [`Self::validate_document`]）。
     pub fn validate_document_with_reviewer(
         &mut self,
         scope_sections: Option<&[String]>,
         model: &mut dyn crate::validate::ModelReviewer,
     ) -> Result<crate::validate::ValidationReport, ToolError> {
-        let report = crate::validate::validate_document(self.store(), scope_sections, model)?;
-        // 状态推进（合法链一步；幂等面由 advance_project_status 承担）
-        let cur = self.store().project()?.status;
-        let steps: &[bid_domain::ProjectStatus] = match cur {
-            bid_domain::ProjectStatus::Drafting => &[bid_domain::ProjectStatus::Validating],
-            _ => &[],
-        };
-        for to in steps {
-            self.store_mut().advance_project_status(*to)?;
+        // ---- #243 前置闸：全稿最终校验要求起草完成（章节级检查不受此闸）
+        if scope_sections.is_none() {
+            let missing = self.store().incomplete_leaf_ids();
+            if !missing.is_empty() {
+                return Err(ToolError::EDraftIncomplete { missing });
+            }
         }
-        self.auto_checkpoint()?;
+        let report = crate::validate::validate_document(self.store(), scope_sections, model)?;
+        // ---- 状态推进（#243：仅全稿校验通过才推进——失败留在原态可修订
+        //      重试；幂等面由 advance_project_status 承担，无变迁不 checkpoint）
+        if report.ok && scope_sections.is_none() {
+            let cur = self.store().project()?.status;
+            let steps: &[bid_domain::ProjectStatus] = match cur {
+                bid_domain::ProjectStatus::Drafting => &[bid_domain::ProjectStatus::Validating],
+                _ => &[],
+            };
+            for to in steps {
+                self.store_mut().advance_project_status(*to)?;
+            }
+            self.auto_checkpoint()?;
+        }
         Ok(report)
+    }
+
+    /// `recover_validating_state` 业务半边（#243）：历史异常态恢复。
+    ///
+    /// 域层裁决（三重约束：仅 VALIDATING / 仅缺章 / 理由非空白）见
+    /// [`DomainStore::recover_validating_to_drafting`]；本层只补持久化面
+    /// （恢复后 checkpoint——用户不再需要手改 db.json 才能续跑）。
+    pub fn recover_validating_state(
+        &mut self,
+        reason: &str,
+    ) -> Result<bid_domain::StateRecoveryRecord, ToolError> {
+        let rec = self.store_mut().recover_validating_to_drafting(reason)?;
+        self.auto_checkpoint()?;
+        Ok(rec)
     }
 
     /// format-spec 装载：`.mang/format-spec.json` 读盘 → validate；缺失 →

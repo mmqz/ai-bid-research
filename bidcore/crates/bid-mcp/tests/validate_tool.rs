@@ -202,22 +202,53 @@ fn validate_contract_shape_and_promotes_validating() {
     // 章节组）——svc_base 的 3 REQ 只出一个叶且被否决项闸拦死，进不了
     // DRAFTING。改用 grouped 夹具（追加格式 REQ → 另出一个可零绑定起草的叶）。
     let (mut svc, pid) = svc_base_grouped("shape");
-    // 缺失回报闸（#110 任务 1）：登记可用资质（不绑——未响应面留给 validate），
+    // 缺失回报闸（#110 任务 1）：登记可用资质（不绑——未响应面留给校验面），
     // 只起草就绪叶；含未响应否决项（REQ-0003）的叶拒生成、保持 Pending
     register_qual_ledger_only(&mut svc);
     let ready = draft_ready_leaves(&mut svc);
-    assert!(!ready.is_empty(), "至少资格叶可起草（进 DRAFTING）");
-    let r = validate(&mut svc, &pid);
-    assert_eq!(r["ok"], json!(false), "有 BLOCKER 时 ok=false（未响应×3 + 未起草叶）");
+    assert!(!ready.is_empty(), "至少格式叶可起草（进 DRAFTING）");
+
+    // ---- #243 前置闸：缺章（否决叶 Pending）的全稿校验 → E_DRAFT_INCOMPLETE
+    //      + missing 清单，零副作用（状态/版本不变，起草面继续可用）
+    let version_before = svc.store().content_version();
+    let reply = call(&mut svc, "validate_bid_document", json!({
+        "project_id": pid, "scope": "all",
+    }));
+    match &reply {
+        ToolReply::Err { error, .. } => match error {
+            bid_mcp::ToolError::EDraftIncomplete { missing } => {
+                assert!(!missing.is_empty(), "missing = 未完成叶清单（可操作面）");
+                assert!(
+                    missing.iter().all(|sid| ready.iter().all(|r| r != sid)),
+                    "missing 只含未起草叶（已就绪叶不在内）: {missing:?}"
+                );
+            }
+            other => panic!("缺章全稿校验应 E_DRAFT_INCOMPLETE，实际 {other}"),
+        },
+        ToolReply::Ok(out) => panic!("缺章全稿校验不得成功: {}", out.result),
+    }
+    assert_eq!(err_code(&reply), "E_DRAFT_INCOMPLETE");
+    assert_eq!(svc.store().project().unwrap().status, ProjectStatus::Drafting, "前置拒零副作用（状态不变）");
+    assert_eq!(svc.store().content_version(), version_before, "前置拒零副作用（版本不变）");
+
+    // ---- 契约形状（章节级检查面承载）：scope=sections 不受前置闸，规则 1/2
+    //      （矩阵未响应）恒全量——起草期诊断走此面
+    let r = ok_result(call(&mut svc, "validate_bid_document", json!({
+        "project_id": pid, "scope": "sections", "section_ids": ready,
+    })));
+    assert_eq!(r["ok"], json!(false), "有 BLOCKER 时 ok=false（未响应×3）");
     assert!(r["findings"].as_array().unwrap().len() >= 3, "未响应 3 条");
     assert!(r["counts"]["blocker"].as_u64().unwrap() >= 3);
     assert!(r["counts"]["deterministic"].as_u64().unwrap() >= 3);
     assert_eq!(r["counts"]["model"], json!(0), "NoModel 占位——模型面恒 0");
-    assert_eq!(r["sections_checked"].as_u64().unwrap() >= 1, true);
-    assert_eq!(r["project_status"], "VALIDATING", "DRAFTING → VALIDATING 推进");
-    // 复跑幂等（VALIDATING 态再校验——guard 允许 + 推进 no-op）
-    let r2 = validate(&mut svc, &pid);
+    assert_eq!(r["sections_checked"].as_u64().unwrap(), ready.len() as u64);
+    assert_eq!(r["project_status"], "DRAFTING", "章节级检查不推进（#243：推进仅在 scope=all 且 ok=true）");
+    // 复跑幂等（纯读诊断——同输入复校结果全等）
+    let r2 = ok_result(call(&mut svc, "validate_bid_document", json!({
+        "project_id": pid, "scope": "sections", "section_ids": ready,
+    })));
     assert_eq!(r2["counts"], r["counts"], "同输入复校结果全等（纯读诊断）");
+    assert_eq!(svc.store().content_version(), version_before, "章节级检查零落库");
 }
 
 #[test]
@@ -256,14 +287,19 @@ fn validate_after_draft_runs_and_reports() {
 #[test]
 fn rule_veto_and_qual_unresponded_are_blockers() {
     // #126 适配：同 validate_contract_shape——grouped 夹具保证有可起草叶
-    // （格式叶零绑定可起草 → 进 DRAFTING），资格+否决合并叶保持 Pending，
-    // 未响应面由 validate 从矩阵报 BLOCKER（原测试意图不变）。
+    // （格式叶零绑定可起草 → 进 DRAFTING），资格+否决合并叶保持 Pending。
+    // #243 适配：缺章态的全稿校验被前置闸拒（E_DRAFT_INCOMPLETE）；未响应
+    // 面由**章节级检查**（scope=sections）从矩阵报 BLOCKER（原测试意图不变
+    // ——规则 1/2 是全局级，恒全量）。
     let (mut svc, pid) = svc_base_grouped("veto-qual");
     // 缺失回报闸（#110 任务 1）：否决叶（REQ-0003 未响应）拒生成保持 Pending；
-    // 资格叶登记台账资质后可起草。未响应面由 validate 从矩阵报 BLOCKER
+    // 资格叶登记台账资质后可起草。未响应面由章节级校验从矩阵报 BLOCKER
     register_qual_ledger_only(&mut svc);
-    let _ = draft_ready_leaves(&mut svc);
-    let r = validate(&mut svc, &pid);
+    let ready = draft_ready_leaves(&mut svc);
+    assert!(!ready.is_empty());
+    let r = ok_result(call(&mut svc, "validate_bid_document", json!({
+        "project_id": pid, "scope": "sections", "section_ids": ready,
+    })));
     let codes: Vec<&str> = r["findings"].as_array().unwrap().iter()
         .map(|f| f["rule_code"].as_str().unwrap()).collect();
     assert!(codes.contains(&"E_VETO_UNRESPONDED"), "否决项未响应必须 BLOCKER: {codes:?}");
@@ -272,6 +308,8 @@ fn rule_veto_and_qual_unresponded_are_blockers() {
     let veto = r["findings"].as_array().unwrap().iter()
         .find(|f| f["rule_code"] == "E_VETO_UNRESPONDED").unwrap();
     assert_eq!(veto["requirement_id"], json!("REQ-0003"));
+    // 零副作用：章节级检查不推进状态
+    assert_eq!(r["project_status"], "DRAFTING");
 }
 
 // ---------------------------------------------------------------- 3. 规则 3：空章节

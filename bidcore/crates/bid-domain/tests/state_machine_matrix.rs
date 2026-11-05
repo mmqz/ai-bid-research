@@ -30,8 +30,9 @@ const ALL_STATES: [ProjectStatus; 10] = [
 /// 同族但更宽：FILES_IMPORTED+，含 Exported——与 Gate::AddendumWaiver
 /// 「导入后任意时刻」同窗口语义，审计面写入与 record_review_gate 同款）。
 /// #219 增全块覆盖三工具；#226 增 `set_matrix_override`（尾插——矩阵已建
-/// 才有可覆写对象，MatrixReady 起放行）= 25。
-const ALL_TOOLS: [&str; 25] = [
+/// 才有可覆写对象，MatrixReady 起放行）；#243 增 `recover_validating_state`
+///（尾插——仅 VALIDATING 态放行的历史异常恢复出口）= 26。
+const ALL_TOOLS: [&str; 26] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -59,6 +60,8 @@ const ALL_TOOLS: [&str; 25] = [
     "get_coverage_report",
     // #226 层 1：否决项死锁的人工出口
     "set_matrix_override",
+    // #243：历史异常态（VALIDATING+缺章）的受支持恢复出口
+    "recover_validating_state",
 ];
 
 // ---------------------------------------------------------------- 1. 前向迁移表
@@ -201,26 +204,27 @@ fn terminal_state_blocks_write_tools() {
 fn full_matrix_snapshot() {
     let grid: Vec<(ProjectStatus, &str)> = vec![
         // Draft（record_addendum_waiver 拒——导入前无件可确认）
-        // #227 后 24 工具位串 + #226 尾位（set_matrix_override）= 25 位
-        (ProjectStatus::Draft, "1100000000000010000000000"),
+        // #227 后 24 工具位串 + #226 尾位（set_matrix_override）= 25 位；
+        // #243 尾位（recover_validating_state，仅 VALIDATING 放行）= 26 位
+        (ProjectStatus::Draft, "11000000000000100000000000"),
         // FilesImported
-        (ProjectStatus::FilesImported, "0110100010000010000011110"),
+        (ProjectStatus::FilesImported, "01101000100000100000111100"),
         // RequirementsExtracted
-        (ProjectStatus::RequirementsExtracted, "0111100010000010000011110"),
+        (ProjectStatus::RequirementsExtracted, "01111000100000100000111100"),
         // MatrixReady
-        (ProjectStatus::MatrixReady, "0000111011001011011010011"),
+        (ProjectStatus::MatrixReady, "00001110110010110110100110"),
         // EvidenceBound
-        (ProjectStatus::EvidenceBound, "0000111011001011011010011"),
+        (ProjectStatus::EvidenceBound, "00001110110010110110100110"),
         // Drafting
-        (ProjectStatus::Drafting, "0000100011011111011010011"),
-        // Validating
-        (ProjectStatus::Validating, "0000100010011111011010011"),
+        (ProjectStatus::Drafting, "00001000110111110110100110"),
+        // Validating（#243 尾位 1——历史异常态恢复出口）
+        (ProjectStatus::Validating, "00001000100111110110100111"),
         // Reviewing
-        (ProjectStatus::Reviewing, "0000100010011111011010011"),
+        (ProjectStatus::Reviewing, "00001000100111110110100110"),
         // ReadyToExport
-        (ProjectStatus::ReadyToExport, "0000100010011111011010011"),
+        (ProjectStatus::ReadyToExport, "00001000100111110110100110"),
         // Exported
-        (ProjectStatus::Exported, "0000100010001111011010011"),
+        (ProjectStatus::Exported, "00001000100011110110100110"),
     ];
     assert_eq!(grid.len(), ALL_STATES.len());
 

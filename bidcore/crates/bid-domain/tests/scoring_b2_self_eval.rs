@@ -198,11 +198,14 @@ fn document_self_eval_honest_notes_and_manual_agreement() {
         "估分算式可复核：{}", t1.item_scores[0].rationale);
 }
 
-/// #186 预留面：score_rules 透传三面（树 / score_section / score_document）
-/// + **判档不消费**（同文同分——细则关键词不进覆盖度）+ 预留面 note 显式登记。
+/// #186 透传面 + #224 第 3 步规则层消费：score_rules 三面（树 / score_section
+/// / score_document）+ **判档不变**（同文同分——检查点只标记风险不改估分）
+/// + 检查点 note 显式登记。本例细则为纯描述性条款（无量化/资质条件）→
+/// 检查点空集——量化/资质条件的比对面见 scoring_rule_checkpoints.rs。
 #[test]
-fn score_rules_reserved_surface_wired_but_not_consumed() {
-    let rules = "技术方案应具有针对性、组织体系合理、进度计划可执行，并提供应急保障措施；每缺一项扣 2 分";
+fn score_rules_surface_wired_with_rule_layer_checkpoints() {
+    let rules =
+        "技术方案应具有针对性、组织体系合理、进度计划可执行，并提供应急保障措施；每缺一项扣 2 分";
     // T1 注入细则（params.score_rules —— extract.rs 评审表路径的登记形态）
     let mut reqs = scoring_table_reqs();
     reqs.iter_mut().find(|r| r.id == "T1").unwrap()
@@ -236,11 +239,27 @@ fn score_rules_reserved_surface_wired_but_not_consumed() {
         None
     );
 
-    // 面 3：score_document notes 预留面登记（不伪装「按细则评分」）
+    // 面 3：score_document notes 检查点登记（不伪装「按细则评分」——判档/估分不变）
     let ds = scorer.score_document(&[("SEC-01".to_string(), partial.clone())], None);
-    assert!(ds.notes.iter().any(|n| n.contains("SCORE_RULES_RESERVED") && n.contains("1 项")),
-        "{:?}", ds.notes);
+    assert!(
+        ds.notes
+            .iter()
+            .any(|n| n.contains("SCORE_RULES_CHECKPOINTS") && n.contains("1 项")),
+        "{:?}",
+        ds.notes
+    );
+    assert!(
+        !ds.notes.iter().any(|n| n.contains("可能失分")),
+        "描述性细则无关键条件 → 不虚报可能失分：{:?}",
+        ds.notes
+    );
     let ds_base = base_scorer.score_document(&[("SEC-01".to_string(), partial)], None);
-    assert!(!ds_base.notes.iter().any(|n| n.contains("SCORE_RULES_RESERVED")),
-        "无细则不登记：{:?}", ds_base.notes);
+    assert!(
+        !ds_base
+            .notes
+            .iter()
+            .any(|n| n.contains("SCORE_RULES_CHECKPOINTS")),
+        "无细则不登记：{:?}",
+        ds_base.notes
+    );
 }

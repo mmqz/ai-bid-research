@@ -759,6 +759,59 @@ pub struct PriceInput<'a> {
     pub others: Vec<f64>,
 }
 
+/// #224 第 3 步：从 `score_rules` 细则提取的关键条件检查点（规则层可见性）。
+///
+/// 提取（确定性手写扫描——与 [`parse_tiers`] 同纪律不引 regex）：细则按
+/// 标点切段，量化条件（数字 + 计量词——「提供 3 个以上案例」「注册资本
+/// 500 万元」）与资质限定词（一级/注册/资质/ISO/近三年…）段入册；档位行
+/// 与计分公式（数字+「分」——「每缺一项扣 2 分」）不入——那是评分口径，
+/// 不是响应条件。
+///
+/// 比对（**提及性——非满足性**）：`mentioned` = 主题词组命中 ∪ 资质词
+/// 命中 ∪「数字+同计量词」代偿（数量真伪规则层不可验，不伪装满足）。
+/// `false` = 正文明显未提该条件 → **可能失分**。检查点不参与判档/估分
+/// （`tier`/`estimated` 仍是关键词启发式——完整语义判档依赖模型，另开
+/// issue；本面只让「细则要求了什么、正文提没提」可见）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RuleCheckpoint {
+    /// 关键条件句原文（截断摘要——完整细则见 `score_rules`）
+    pub text: String,
+    /// 主题词组命中数 / 总组数（组语义同 coverage；代偿命中不计入本口径）
+    pub hits: (usize, usize),
+    /// 正文是否提及（false = 明显未提——「可能失分」标记的判定依据）
+    pub mentioned: bool,
+}
+
+/// #224 第 3 步：同一评分项跨章检查点合并（**单一真源**——score_document
+/// notes 缺口计数与 MCP by_item 聚合同口径）。
+///
+/// 合并语义：提及性任一章即真（多章分工响应是合法形态——案例库在 A 章、
+/// 人员配置在 B 章，都算已响应）；`mentioned=false` 仅当**全部**章都未提
+/// ——即「可能失分」的判定依据。命中组数取各章最大值（提及性的展示面）。
+pub fn merged_rule_checkpoints(rows: &[&ItemScore]) -> Vec<RuleCheckpoint> {
+    let mut out: Vec<RuleCheckpoint> = Vec::new();
+    for r in rows {
+        for c in &r.rule_checkpoints {
+            match out.iter_mut().find(|m| m.text == c.text) {
+                Some(m) => {
+                    m.hits = (m.hits.0.max(c.hits.0), m.hits.1.max(c.hits.1));
+                    m.mentioned = m.mentioned || c.mentioned;
+                }
+                None => out.push(c.clone()),
+            }
+        }
+    }
+    out
+}
+
+/// 跨章合并后的缺口数（全部章都未提的检查点数——>0 = 可能失分）。
+pub fn merged_rule_gaps(rows: &[&ItemScore]) -> usize {
+    merged_rule_checkpoints(rows)
+        .iter()
+        .filter(|c| !c.mentioned)
+        .count()
+}
+
 /// 单评分项的自评明细（B3 质量检查 / B4 生成循环的消费面——逐项可追溯）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ItemScore {
@@ -778,10 +831,18 @@ pub struct ItemScore {
     /// #224 多对多摊分比（本章承载的权重占比；单映射 1.0——与历史行为一致）
     #[serde(default = "default_weight_share")]
     pub weight_share: f64,
-    /// 评分细则原文（#186 预留面——ScoringItem.score_rules 透传；**判档
-    /// 不消费**，供起草/审校对照细则。None = 无细则）
+    /// 评分细则原文（#186 预留面——ScoringItem.score_rules 透传；供起草/
+    /// 审校对照细则 + #224 第 3 步检查点提取的基准。None = 无细则）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub score_rules: Option<String>,
+    /// #224 第 3 步：细则关键条件检查点比对结果（规则层可见性——见
+    /// [`RuleCheckpoint`]）。空 = 无细则 / 细则无可识别关键条件。
+    /// **不参与判档与估分**——「可能失分」是风险标记，不是扣分。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rule_checkpoints: Vec<RuleCheckpoint>,
+    /// 明显未提的关键条件数（>0 → 可能失分；rationale 与 notes 同步登记）
+    #[serde(default)]
+    pub rule_gaps: usize,
 }
 
 /// #224：旧快照/旧调用方的 weight_share 缺省面（单映射口径）。
@@ -869,6 +930,50 @@ const STRIP_CHARS: &[char] = &[
 /// 整词停用（计分副词碎片——「最多得」剥尾后形态）。
 const STOP_WORDS: &[&str] = &["最多", "最少"];
 
+// ------------------------------------------------- #224 第 3 步：score_rules 消费（规则层可见性）
+
+/// 关键条件计量词（数字后 ≤4 字窗口内出现即量化条件；触发词同时是提及
+/// 代偿判定的锚——见 [`checkpoints_for`]）。**不含「分」**——「数字+分」
+/// 是计分公式（「每缺一项扣 2 分」）非响应条件。
+const CONDITION_COUNTERS: &[char] = &[
+    '个', '名', '项', '台', '套', '人', '份', '页', '字', '家', '年', '万', '元', '%', '％', '倍',
+    '轮', '次', '册', '张', '辆', '亿',
+];
+
+/// 数字代偿的阻断计量词（无区分力——正文任何「数字+个/项/次…」都与
+/// 条件主题无关：「提供 3 个以上类似项目案例」的「个」；此类检查点由
+/// 主题词组决定，防「3 个方案」虚报已提案例条件）。其余计数词
+/// （人/名/台/套/年/万/元/%…——人员/设备/时间/金额/比例）数量形态
+/// 即主题信号，允许「数字+同计量词」代偿：「不少于 5 人」↔「配备 30 人」、
+/// 「近三年」↔「2023-2025 年」。
+const FALLBACK_BLOCKED_COUNTERS: &[char] = &['个', '项', '次', '轮', '份', '页', '张', '倍'];
+
+/// 资质限定词（词典面——单独在场即关键条件：「一级注册建造师」「ISO9001」
+/// 「近三年」；无数字形态的条件核心）。
+const QUALIFICATION_WORDS: &[&str] = &[
+    "一级",
+    "二级",
+    "三级",
+    "特级",
+    "甲级",
+    "乙级",
+    "丙级",
+    "注册",
+    "资质",
+    "许可证",
+    "认证",
+    "职称",
+    "ISO",
+    "近三年",
+    "近五年",
+    "近两年",
+    "近一年",
+];
+
+/// 检查点匹配的虚词停用（供给动词——任何标书正文都高频出现，无区分力；
+/// 命中它们不构成「提及该条件」）。
+const CHECKPOINT_FILLER_WORDS: &[&str] = &["提供", "具备", "拥有", "提交", "配备", "出具"];
+
 /// 关键词组提取（确定性——标点/空白/ASCII 数字序列切段 + 连词切 +
 /// 前导/尾随单字剥离 + 长段滑窗化）。
 ///
@@ -938,6 +1043,153 @@ fn extract_keyword_groups(criteria: &str) -> Vec<Vec<String>> {
         }
     }
     groups
+}
+
+/// 关键条件判定结果（三态——资质词触发与「非条件」不能同编为 None，
+/// 否则提取面会把资质条件段误跳过）。
+enum ConditionTrigger {
+    /// 非关键条件（描述性条款/计分公式/档位行……）
+    No,
+    /// 资质限定词触发（无计量词锚——提及性走词面直配，无数字代偿）
+    QualWord,
+    /// 量化条件触发（触发计量词——数字代偿锚）
+    Counter(char),
+}
+
+/// 关键条件判定：三路——① 近 N 年（词典 + 计量词「年」）；② 资质限定
+/// 词（无锚词）；③ 量化条件（数字 + ≤4 字窗口内计量词——「提供 3 个
+/// 以上案例」）。
+fn condition_trigger(seg: &str) -> ConditionTrigger {
+    if ["近三年", "近五年", "近两年", "近一年"]
+        .iter()
+        .any(|w| seg.contains(w))
+    {
+        return ConditionTrigger::Counter('年');
+    }
+    if QUALIFICATION_WORDS.iter().any(|w| seg.contains(w)) {
+        return ConditionTrigger::QualWord;
+    }
+    let chars: Vec<char> = seg.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i].is_ascii_digit() {
+            while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.') {
+                i += 1;
+            }
+            let window = &chars[i..(i + 4).min(chars.len())];
+            if let Some(&c) = window.iter().find(|c| CONDITION_COUNTERS.contains(c)) {
+                return ConditionTrigger::Counter(c);
+            }
+        } else {
+            i += 1;
+        }
+    }
+    ConditionTrigger::No
+}
+
+/// 检查点段的主题词组（复用 [`extract_keyword_groups`]——组语义与 coverage
+/// 同源；滤除虚词组——供给动词组命中不算提及）。
+fn checkpoint_groups(seg: &str) -> Vec<Vec<String>> {
+    extract_keyword_groups(seg)
+        .into_iter()
+        .filter(|g| {
+            !g.iter()
+                .all(|w| CHECKPOINT_FILLER_WORDS.contains(&w.as_str()))
+        })
+        .collect()
+}
+
+/// 正文「数字 + ≤4 字窗口内计量词」形态在场（提及代偿——数量类条件在
+/// 正文常以实数呈现：「不少于 5 人」↔「配备 30 人」）。
+fn content_has_digit_counter(content: &str, counter: char) -> bool {
+    let chars: Vec<char> = content.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i].is_ascii_digit() {
+            while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.') {
+                i += 1;
+            }
+            if chars[i..(i + 4).min(chars.len())].contains(&counter) {
+                return true;
+            }
+        } else {
+            i += 1;
+        }
+    }
+    false
+}
+
+/// 从细则文本提取关键条件检查点段（确定性手写扫描——与 [`parse_tiers`]
+/// 同纪律不引 regex；切分符含顿号——细则的条件列举形态）。
+///
+/// 不入：空段/档位行（[`parse_tier_segment`] 可解析——评分口径非响应
+/// 条件）/计分公式（数字+「分」——「分」不在计量词表即此效）/无可匹配
+/// 主题词段（纯度量词段——永不可能是缺口，入册只会虚警）。
+fn extract_rule_checkpoints(rules: &str) -> Vec<(String, Option<char>)> {
+    let mut out: Vec<(String, Option<char>)> = Vec::new();
+    for seg in rules.split(['；', ';', '，', ',', '\n', '。', '、']) {
+        let seg = seg.trim();
+        if seg.is_empty() || parse_tier_segment(seg).is_some() {
+            continue;
+        }
+        let counter = match condition_trigger(seg) {
+            ConditionTrigger::No => continue,
+            ConditionTrigger::QualWord => None,
+            ConditionTrigger::Counter(c) => Some(c),
+        };
+        if checkpoint_groups(seg).is_empty() {
+            continue;
+        }
+        if !out.iter().any(|(s, _)| s == seg) {
+            out.push((seg.to_string(), counter));
+        }
+    }
+    out
+}
+
+/// #224 第 3 步：单评分项的细则检查点比对（空 = 无细则/无可识别关键条件）。
+///
+/// `mentioned`（提及性——非满足性）三路合取：① 主题词组任一组命中
+/// （组语义同 coverage）；② 资质限定词在段与正文同时在场（条件核心词
+/// 直接比对——「一级注册建造师」的长句滑窗组对「持一级建造师证书」
+/// 不命中，条件词面命中）；③ 数字+同计量词代偿（非泛计量词——
+/// 「不少于 5 人」↔「配备 30 人」、「近三年」↔「2023-2025 年」）。数量
+/// 真伪规则层不可验——不伪装满足，`false` 仅表示「明显未提」。
+fn checkpoints_for(item: &ScoringItem, content: &str) -> Vec<RuleCheckpoint> {
+    let Some(rules) = item.score_rules.as_deref() else {
+        return Vec::new();
+    };
+    extract_rule_checkpoints(rules)
+        .into_iter()
+        .map(|(seg, counter)| {
+            let groups = checkpoint_groups(&seg);
+            let hits = groups
+                .iter()
+                .filter(|g| g.iter().any(|w| content.contains(w.as_str())))
+                .count();
+            let mut mentioned = hits > 0
+                || QUALIFICATION_WORDS
+                    .iter()
+                    .any(|w| seg.contains(w) && content.contains(w));
+            if !mentioned {
+                if let Some(c) = counter {
+                    // ③ 数字+同计量词代偿：主题词被数字切段吞掉/正文以实数
+                    // 回应时（「不少于 5 人」↔「配备 30 人」）组面必 miss，
+                    // 以数量形态代偿。泛计量词（个/项…）阻断——无区分力。
+                    if !FALLBACK_BLOCKED_COUNTERS.contains(&c)
+                        && content_has_digit_counter(content, c)
+                    {
+                        mentioned = true;
+                    }
+                }
+            }
+            RuleCheckpoint {
+                text: truncate_chars(seg.trim(), 60),
+                hits: (hits, groups.len()),
+                mentioned,
+            }
+        })
+        .collect()
 }
 
 /// 「数字+单位」形态计数（具体性判定的量化面——通用套话无参数，具体方案有）。
@@ -1053,6 +1305,10 @@ impl SectionScorer {
             }
             let d = self.assess(item, content);
             let tier = Self::grade(&d);
+            // #224 第 3 步：细则关键条件检查点比对（规则层可见性——只标记
+            // 风险不改判档/估分；完整语义判档依赖模型，另开 issue）
+            let rule_checkpoints = checkpoints_for(item, content);
+            let rule_gaps = rule_checkpoints.iter().filter(|c| !c.mentioned).count();
             // #224 摊分：本章该项满分 = 原满分 × weight_share（多对多分摊）
             let max_full = item.max_score.unwrap_or(0.0);
             let max = (max_full * share * 100.0).round() / 100.0;
@@ -1067,7 +1323,7 @@ impl SectionScorer {
             } else {
                 format!(" 摊分{:.0}%（满分{}×share={}）", share * 100.0, max_full, max)
             };
-            rationale_lines.push(format!(
+            let main_line = format!(
                 "[{}] 覆盖 {}/{}={:.0}% 字数 {}/{} {} 证据 {} 具体性 {} → {}（{:.1}%）{:.2}×{:.3}={:.2}（{}）{}",
                 short_id(&item.requirement_id),
                 d.hits.0, d.hits.1, d.coverage * 100.0,
@@ -1076,7 +1332,24 @@ impl SectionScorer {
                 if d.specificity { "✓" } else { "✗" },
                 tier.label(), tier.ratio() * 100.0,
                 max, tier.ratio(), estimated, obj_note, share_note
-            ));
+            );
+            rationale_lines.push(main_line.clone());
+            // #224 第 3 步：缺口响亮登记（可能失分——规则层标记；检查点
+            // 全提及时静默，不给 rationale 加噪）
+            if rule_gaps > 0 {
+                let missing_cps: Vec<&str> = rule_checkpoints
+                    .iter()
+                    .filter(|c| !c.mentioned)
+                    .map(|c| c.text.as_str())
+                    .collect();
+                rationale_lines.push(format!(
+                    "[{}] 细则检查点 {}/{} 明显未提（{}）——可能失分（规则层标记，不改判档/估分）",
+                    short_id(&item.requirement_id),
+                    rule_gaps,
+                    rule_checkpoints.len(),
+                    missing_cps.join("；")
+                ));
+            }
             if d.coverage >= 0.6 {
                 covered.push(item.requirement_id.clone());
             } else {
@@ -1089,9 +1362,11 @@ impl SectionScorer {
                 tier,
                 coverage: (d.coverage * 10000.0).round() / 10000.0,
                 is_objective: item.is_objective,
-                rationale: rationale_lines.last().unwrap().clone(),
+                rationale: main_line,
                 weight_share: *share,
                 score_rules: item.score_rules.clone(),
+                rule_checkpoints,
+                rule_gaps,
             });
         }
         let estimated: f64 = item_scores.iter().map(|s| s.estimated).sum();
@@ -1169,16 +1444,46 @@ impl SectionScorer {
                 }
             }
         }
-        // #186 预留面显式化：细则已入树但判档不消费（rule_heuristic）——
-        // 不伪装「按细则评分」（细则判档接入见 #186 第二步，依赖 #170）。
+        // #224 第 3 步：细则检查点比对登记（规则层可见性——判档/估分不变，
+        // 完整语义判档依赖模型，另开 issue；不伪装「按细则评分」）。
         let rules_n = self
             .reachable_leaves()
             .iter()
             .filter(|i| i.score_rules.is_some())
             .count();
         if rules_n > 0 {
+            // 缺口计数按评分项合并（跨章任一章提及即提及——与 by_item 聚合
+            // 同口径，见 merged_rule_checkpoints；多章映射的同一项在多章
+            // item_scores 各有一行，逐行计数会把「B 章未提但 A 章已提」
+            // 误报为可能失分）
+            let gap_items = {
+                let mut ids: Vec<&str> = Vec::new();
+                for s in &breakdown {
+                    for i in &s.item_scores {
+                        if ids.contains(&i.item_id.as_str()) {
+                            continue;
+                        }
+                        let rows: Vec<&ItemScore> = breakdown
+                            .iter()
+                            .flat_map(|s2| s2.item_scores.iter())
+                            .filter(|i2| i2.item_id == i.item_id)
+                            .collect();
+                        if merged_rule_gaps(&rows) > 0 {
+                            ids.push(i.item_id.as_str());
+                        }
+                    }
+                }
+                ids.len()
+            };
+            let gap_note = if gap_items > 0 {
+                format!(
+                    "；其中 {gap_items} 项存在明显未提的关键条件（可能失分——明细见 item_scores.rule_checkpoints）"
+                )
+            } else {
+                String::new()
+            };
             notes.push(format!(
-                "SCORE_RULES_RESERVED: {rules_n} 项已登记评分细则——当前判档为关键词启发式（rule_heuristic），细则未参与判档（预留面，接入见 #186 第二步）"
+                "SCORE_RULES_CHECKPOINTS: {rules_n} 项已登记评分细则——关键条件已提取并与正文比对（规则层可见性，判档/估分仍为关键词启发式不改分）{gap_note}"
             ));
         }
         // 价格分（B1 只调用不改）

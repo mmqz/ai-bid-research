@@ -80,7 +80,7 @@ fn svc_drafted(tag: &str, draft_all: bool, chapter_ref: Option<&str>) -> (BidSer
     // 评审表路径的登记形态）→ by_item/item_scores 透传 + 判档不消费
     req2.params.insert(
         "score_rules".to_string(),
-        serde_json::json!("技术方案应具有针对性、组织体系合理、进度计划可执行，并提供应急保障措施；每缺一项扣 2 分"),
+        serde_json::json!("技术方案应具有针对性、组织体系合理、进度计划可执行，并提供应急保障措施；提供 3 个以上类似项目案例；每缺一项扣 2 分"),
     );
     svc.set_requirements(vec![
         mk_req("REQ-0001", "评分项",
@@ -405,8 +405,24 @@ fn score_document_shapes_and_price_semantics() {
     );
     assert!(price_item["score_rules"].is_null(), "价格项无细则 → null（不虚构）：{price_item:?}");
     assert!(
-        notes.iter().any(|n| n.as_str().unwrap_or("").contains("SCORE_RULES_RESERVED")),
-        "预留面 note 显式登记（不伪装按细则评分）：{notes:?}"
+        notes
+            .iter()
+            .any(|n| n.as_str().unwrap_or("").contains("SCORE_RULES_CHECKPOINTS")),
+        "规则层检查点 note 显式登记（不伪装按细则评分）：{notes:?}"
+    );
+    // #224 第 3 步：本例技术项未映射章节（chapter_ref=None）→ 无比对面，
+    // by_item 检查点空集（诚实——不虚构比对结果）；价格行形状一致（恒空）
+    assert!(
+        tech_item["rule_checkpoints"].as_array().unwrap().is_empty(),
+        "未映射 → 无比对面 → 空检查点：{tech_item:?}"
+    );
+    assert_eq!(tech_item["rule_gaps"].as_u64(), Some(0), "无比对 → 无缺口");
+    assert!(
+        price_item["rule_checkpoints"]
+            .as_array()
+            .unwrap()
+            .is_empty(),
+        "价格行检查点恒空（价格分 = f(报价)，无正文面）：{price_item:?}"
     );
 
     // ---- 有报价（synth 4.1：平均价法 0.95、满分 30、比率）：价格计入 total
@@ -784,4 +800,158 @@ fn score_document_unmapped_structured() {
         notes.iter().any(|n| n.as_str().unwrap().contains("UNMAPPED")),
         "notes 保留 UNMAPPED 告警"
     );
+}
+
+// ---------------------------------------------------------------- #224 第 3 步：score_rules 消费（规则层可见性）
+
+/// #224 第 3 步验收（MCP 面 · 缺口侧）：细则量化条件（提供 3 个以上类似
+/// 项目案例）→ 章引用联结的评分项在 mock 正文（无案例表述）下 →
+/// by_item.rule_checkpoints[{text,hits,mentioned}] mentioned=false +
+/// rule_gaps=1 + contributions.rule_gaps 逐章在场 + notes「其中 1 项
+/// 可能失分」计数。价格行检查点恒空（f(报价) 无正文面）。
+#[test]
+fn score_document_rule_checkpoints_gap_side() {
+    let (mut svc, pid) = svc_drafted("score-cp-gap", true, Some("第四章 评标办法"));
+    let r = ok_result(call(
+        &mut svc,
+        "score_document",
+        json!({
+            "project_id": &pid,
+        }),
+    ));
+    let by_item = r["by_item"].as_array().unwrap();
+    let tech = by_item
+        .iter()
+        .find(|i| i["item_id"] == "REQ-0002")
+        .expect("技术项在 by_item");
+    let cps = tech["rule_checkpoints"].as_array().expect("检查点数组");
+    assert_eq!(
+        cps.len(),
+        1,
+        "量化条件一条入册（描述段/计分公式不入）：{cps:?}"
+    );
+    assert!(
+        cps[0]["text"].as_str().unwrap().contains("类似项目案例"),
+        "条件原文在册：{cps:?}"
+    );
+    assert_eq!(
+        cps[0]["mentioned"],
+        json!(false),
+        "mock 正文无案例表述 → 明显未提"
+    );
+    assert_eq!(tech["rule_gaps"].as_u64(), Some(1), "缺口 → 可能失分标记");
+    let contribs = tech["contributions"].as_array().unwrap();
+    assert!(!contribs.is_empty(), "章引用联结 → 有贡献行");
+    assert!(
+        contribs.iter().all(|c| c["rule_gaps"].as_u64() == Some(1)),
+        "贡献行带逐章缺口数：{contribs:?}"
+    );
+    // 价格行：检查点恒空数组（f(报价)，无正文比对面）
+    let price = by_item.iter().find(|i| i["item_id"] == "REQ-0001").unwrap();
+    assert!(
+        price["rule_checkpoints"].as_array().unwrap().is_empty(),
+        "价格行恒空"
+    );
+    assert_eq!(price["rule_gaps"].as_u64(), Some(0));
+    // notes：比对登记 + 缺口计数（可能失分——不伪装按细则评分）
+    let notes = r["notes"].as_array().unwrap();
+    let note = notes
+        .iter()
+        .find(|n| n.as_str().unwrap_or("").contains("SCORE_RULES_CHECKPOINTS"))
+        .expect("检查点 note 在场");
+    let note = note.as_str().unwrap();
+    assert!(note.contains("1 项已登记评分细则"), "登记计数：{note}");
+    assert!(note.contains("其中 1 项"), "缺口计数：{note}");
+    assert!(note.contains("可能失分"), "可能失分响亮登记：{note}");
+    // 语义降级标记保留（#209 成果不丢）
+    assert_eq!(r["diagnostic_only"], json!(true));
+    assert_eq!(r["result_kind"], "rule_heuristic");
+}
+
+/// #224 第 3 步验收（MCP 面 · 合并侧）：同一评分项跨两章（账本 0.6/0.4
+/// ——同 multi_mapping 形态），章 A 外部稿重写为**提及案例**的正文 →
+/// item 级合并 mentioned=true（跨章任一章提及即提及——多章分工响应
+/// 合法）；rule_gaps=0、notes 无「可能失分」子句（不虚报）；章 B 的
+/// contribution 仍如实带自己的缺口数（逐章可见性保留）。
+#[test]
+fn score_document_rule_checkpoints_merge_across_sections() {
+    let (mut svc, pid) = svc_drafted("score-cp-merge", true, None);
+    let leaves = leaf_ids(&svc);
+    assert!(leaves.len() >= 2, "需要 ≥2 叶（实际 {}）", leaves.len());
+    let (sec_a, sec_b) = (&leaves[0], &leaves[1]);
+    for (sec, share) in [(sec_a, 0.6), (sec_b, 0.4)] {
+        svc.store_mut()
+            .upsert_scoring_mapping(
+                "REQ-0002".into(),
+                sec.clone(),
+                share,
+                vec![],
+                bid_domain::Anchor {
+                    file: "A-招标文件.docx".into(),
+                    kind: "table".into(),
+                    locator: "第四章 评标办法 > 表 4-2 第 3 行".into(),
+                    excerpt: "技术方案完整性 20 分，详见评审细则".into(),
+                },
+                bid_domain::scoring::MappingSource::AgentSubmitted,
+            )
+            .unwrap();
+    }
+    // 章 A 外部稿重写：明确提及「类似项目案例」（mock 模板任何段落都不含
+    // 该词——确定性夹具）；章 B 保持 mock（案例未提）
+    let rd = ok_result(call(
+        &mut svc,
+        "draft_response_section",
+        json!({
+            "project_id": &pid,
+            "section_id": sec_a,
+            "content": "本章节集中响应业绩与案例要求。我方近年完成的类似项目案例覆盖医疗卫生、教育培训等多个行业领域，每个类似项目案例均可提供中标通知书与合同关键页备查，欢迎评标委员会按证据台账索引逐项核验。",
+        }),
+    ));
+    assert_eq!(rd["section_status"], "DRAFTED", "外部稿重写成功：{rd:?}");
+
+    let r = ok_result(call(
+        &mut svc,
+        "score_document",
+        json!({
+            "project_id": &pid,
+        }),
+    ));
+    let tech = r["by_item"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["item_id"] == "REQ-0002")
+        .unwrap();
+    let cps = tech["rule_checkpoints"].as_array().unwrap();
+    assert_eq!(cps.len(), 1, "一条量化条件：{cps:?}");
+    assert_eq!(
+        cps[0]["mentioned"],
+        json!(true),
+        "章 A 已提案例 → 跨章合并提及（任一章提及即提及）"
+    );
+    assert_eq!(
+        tech["rule_gaps"].as_u64(),
+        Some(0),
+        "item 级无缺口 → 不虚报可能失分"
+    );
+    // 逐章可见性：章 A 贡献行缺口 0、章 B 贡献行缺口 1（各自如实）
+    let contribs = tech["contributions"].as_array().unwrap();
+    assert_eq!(contribs.len(), 2, "两章贡献行：{contribs:?}");
+    let gaps: Vec<u64> = contribs
+        .iter()
+        .map(|c| c["rule_gaps"].as_u64().unwrap_or(u64::MAX))
+        .collect();
+    assert!(
+        gaps.contains(&0) && gaps.contains(&1),
+        "章 A 缺口 0、章 B 缺口 1（逐章如实）：{gaps:?}"
+    );
+    // notes：比对登记但无缺口子句（合并口径——B 章未提不再计可能失分）
+    let notes = r["notes"].as_array().unwrap();
+    let note = notes
+        .iter()
+        .find(|n| n.as_str().unwrap_or("").contains("SCORE_RULES_CHECKPOINTS"))
+        .expect("检查点 note 在场");
+    let note = note.as_str().unwrap();
+    assert!(note.contains("1 项已登记评分细则"), "{note}");
+    assert!(!note.contains("可能失分"), "合并后无缺口 → 不虚报：{note}");
 }

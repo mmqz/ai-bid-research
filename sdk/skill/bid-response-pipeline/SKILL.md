@@ -63,9 +63,12 @@ sections 只列可起草叶）、`score_price` / `score_section` / `score_docume
 > ⚠️ **#186 语义纪律**：两个自评工具都是**规则诊断，不是评标模拟**（输出恒带
 > `diagnostic_only=true, result_kind="rule_heuristic"`）——tier/分数是关键词
 > 覆盖/长度/证据词启发式结果，**不得**向用户承诺为「评委会会给的档位/分数」。
-> 输出中的 `score_rules`（by_item/item_scores）是评分细则**原文透出**（预留面：
-> 判档不消费——notes 的 SCORE_RULES_RESERVED 会显式登记）——可用于起草/审校
-> 对照细则，但不得声称「已按细则评分」。
+> 输出中的 `score_rules`（by_item/item_scores）是评分细则**原文**，且已被
+> #224 第 3 步做**规则层消费**：量化/资质条件提取成 `rule_checkpoints`
+> 与正文做提及性比对，明显未提 → `rule_gaps>0`（可能失分——notes 的
+> SCORE_RULES_CHECKPOINTS 显式登记）——可用于起草/审校对照与查漏，但
+> **不得**声称「已按细则评分」（判档/估分仍是关键词启发式，完整语义
+> 判档依赖模型）。
 
 人工门（`record_review_gate`——过门身份由宿主签发的 `receipt` 验签保证：
 `v1.<actor>.human.<scope>.<issued_at>.<hmac>`，HMAC-SHA256 + 24h 时效窗 +

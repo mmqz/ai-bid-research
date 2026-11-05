@@ -64,15 +64,32 @@ pub struct MergeStats {
     pub agent_mandatory_offcategory: usize,
 }
 
-/// 该文件是否有条款抽取面（与 `extract::extract_requirements` 的分发前缀对齐）。
+/// 该文件是否有条款抽取面（#250：按业务 kind 判定，与
+/// `extract::extract_requirements_with_kind` 的 #196/#199 分发口径同源——
+/// **反向清单**：仅附件/图纸/证据无条款面，其余登记 kind 一律有面）。
 ///
-/// B3（图纸目录/证据件）无正则抽取面 → 不进合并统计（uncovered 语义 =
-/// 「抽取面的未覆盖」，B3 无兜底可漏）。
-pub fn has_extraction_face(name: &str) -> bool {
-    name.starts_with("A-")
-        || name.starts_with("C-")
-        || name.starts_with("B1")
-        || name.starts_with("B2")
+/// - `kind = Some(...)`（生产路径——导入时登记，`TenderFile.kind: String`
+///   恒有值）：按业务事实判定。真实用户文件（如「光纤租赁费招标文件.docx」）
+///   与夹具文件（「A-招标文件.docx」）走**完全相同**的合并路径；
+/// - `kind = None`（夹具直调/未登记）：文件名前缀兜底（A-/C-/B1/B2）——
+///   前缀是测试夹具的命名约定，**不是生产判据**（#196 修 extract.rs 时
+///   已判定为错，本处是同一根因的第二次出现——issue #250）。
+///   B3（图纸目录/证据件）无抽取面 → 不进合并统计（uncovered 语义 =
+///   「抽取面的未覆盖」，B3 无兜底可漏）。
+///
+/// 与 extract 分发的保守性差异：extract 对「None 且无前缀」仍主抽取
+/// （fail-visible——宁多勿漏），本门禁判无面（正则产物不经覆盖过滤、
+/// 不进 uncovered 统计——no-op 保守方向）。生产路径 kind 恒登记，该
+/// 差异仅存在于直调测试面。
+pub fn has_extraction_face(kind: Option<&str>, name: &str) -> bool {
+    match kind {
+        Some("附件") | Some("图纸") | Some("证据") => false,
+        Some(_) => true,
+        None => name.starts_with("A-")
+            || name.starts_with("C-")
+            || name.starts_with("B1")
+            || name.starts_with("B2"),
+    }
 }
 
 /// 阻断面类别（is_mandatory 同源口径——matrix.rs）。

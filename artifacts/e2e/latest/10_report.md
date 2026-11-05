@@ -1,20 +1,20 @@
 # e2e 全链产物报告（#80 第二批 · 任务 B）
 
-- run-id：**e2e-20261105-190259**｜载体：synth-tender（仓库自带夹具）
-- 全链总耗时：**3183ms**（11 步）
+- run-id：**e2e-20261105-214519**｜载体：synth-tender（仓库自带夹具）
+- 全链总耗时：**2623ms**（11 步）
   - 01_建项目: 0ms
-  - 02_导入: 784ms
-  - 03_抽取: 125ms
+  - 02_导入: 706ms
+  - 03_抽取: 114ms
   - 04_建纲建矩阵: 8ms
   - 05.5_表格数据面: 0ms
-  - 05_证据绑定两门: 0ms
-  - 06_起草(mock): 503ms
+  - 05_证据绑定两门: 1ms
+  - 06_起草(mock): 488ms
   - 07_format-spec: 0ms
-  - 08_校验: 58ms
-  - 09_导出(docx+pdf): 1684ms
-  - 11_自评(score_document+score_price): 21ms
-- REQ：124 条（39 章 / 26 叶）｜mock 总字数：22079
-- 校验：ok=true blocker=0｜导出：docx 172055 字节 + pdf 641753 字节｜PDF 链 缺失 ["chi_sim.traineddata"]
+  - 08_校验: 56ms
+  - 09_导出(docx+pdf): 1232ms
+  - 11_自评(score_document+score_price): 18ms
+- REQ：124 条（39 章 / 26 叶）｜mock 总字数：22583
+- 校验：ok=true blocker=0｜导出：docx 174700 字节 + pdf 648334 字节｜PDF 链 缺失 ["chi_sim.traineddata"]
 - 起草告警：77 条
 
   - SEC-0010: 缺失回报（不阻塞）：招标包信息不完整：导入了 2 份「招标文件」类文件（A-招标文件.docx、B-技术规范书.docx）——无法确定正本，请人工确认哪份是有效版本

@@ -421,7 +421,8 @@ impl DomainStore {
     }
 }
 
-/// 证据列组装素材（契约 §4 `rows[].evidence:[{ev_id, title, status, valid_until}]`）。
+/// 证据列组装素材（契约 §4 `rows[].evidence:[{ev_id, title, status, valid_until,
+/// verification_tier}]`——#245：验证态随行回显，占位件 PLACEHOLDER 可辨）。
 pub fn evidence_column(evidences: &[Evidence], ev_ids: &[String]) -> Vec<serde_json::Value> {
     ev_ids.iter().filter_map(|id| {
         evidences.iter().find(|e| &e.id == id).map(|e| serde_json::json!({
@@ -429,6 +430,7 @@ pub fn evidence_column(evidences: &[Evidence], ev_ids: &[String]) -> Vec<serde_j
             "title": e.title,
             "status": e.status.as_str(),
             "valid_until": e.valid_until,
+            "verification_tier": e.verification_tier.map(|t| t.as_str()),
         }))
     }).collect()
 }

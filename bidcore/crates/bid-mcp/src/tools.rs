@@ -992,8 +992,11 @@ fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
                     })),
                     "params": r.params,
                 },
+                // #245：PENDING_EVIDENCE（仅占位证据在绑——待补可见不清阻塞）
+                // 随 status 面自然回显；pending_evidence_ids 是待补追踪面。
                 "status": status,
                 "evidence": evidence,
+                "pending_evidence_ids": row.map(|m| m.pending_evidence_ids.clone()).unwrap_or_default(),
                 "gap": Value::Null,
                 "response_policy": "default",
                 "draft_section_id": row.and_then(|m| m.response_section.clone()),
@@ -3773,7 +3776,8 @@ fn parse_evidence_fields(
 /// `register_evidence` —— 契约 §11-A（G2：证据登记，MATRIX_READY+）。
 ///
 /// 语义位查重/换版在域层（同 kind+title+subject+scope 的最新非 Superseded
-/// 记录：同指纹 → 幂等重放；异指纹 → 旧记录单向降级 Superseded + 签发新 EV）。
+/// 记录：同指纹+同验证态 → 幂等重放；异指纹或异验证态 → 旧记录单向降级
+/// Superseded + 签发新 EV，旧绑定迁移到新记录）。
 ///
 /// #185 缺口 1（来源验证）：来源身份由**服务端**裁决——`source_file_id` 必须
 /// 指向已导入的 TenderFile（不存在/解析失败 → 拒）；sha256 与指纹由系统从
@@ -3781,6 +3785,11 @@ fn parse_evidence_fields(
 /// `source_sha256` / `fingerprint` 显式拒绝（E_UNPROCESSABLE + 指路
 /// source_file_id——与 #182 reviewer 参数废除同款纪律：防「以为登记成功」
 /// 的假成功，不静默忽略）。
+///
+/// #245 占位声明：`placeholder: true`（可选，默认 false）= 本次登记为占位/
+/// 待核验材料（tier=PLACEHOLDER）——调用方**可以自报占位**（从低不从高的
+/// 诚实方向），但**不得自报任何已验证态**：`verification_tier` 参数显式拒
+/// （tier 只由服务端裁决；占位→真实的升级通道 = 重新登记换版，留审计痕）。
 fn register_evidence(svc: &mut BidService, args: Value) -> ToolResult {
     const TOOL: &str = "register_evidence";
     // ---- 旧来源参数显式拒绝（#185：防假成功——静默忽略会让调用方以为已登记）
@@ -3793,6 +3802,14 @@ fn register_evidence(svc: &mut BidService, args: Value) -> ToolResult {
             });
         }
     }
+    // ---- #245：验证态自报显式拒（占位→已验证只能经换版重登——受控、可审计）
+    if args.get("verification_tier").map(|v| !v.is_null()).unwrap_or(false) {
+        return Err(ToolError::EUnprocessable {
+            what: format!(
+                "{TOOL}: 参数 verification_tier 不存在（#245：验证态由服务端裁决，不接受调用方自报）——占位材料请传 placeholder=true（诚实方向）；真实证据带 locator 登记即 CONTENT_MATCHES、缺省文件级锚即 FILE_EXISTS；占位→真实升级 = 导入真实材料后重新登记（换版，旧记录留审计痕）"
+            ),
+        });
+    }
     let project_id = req_str(&args, "project_id", TOOL)?;
     let kind = parse_evidence_kind(&req_str(&args, "kind", TOOL)?, TOOL)?;
     let title = req_str(&args, "title", TOOL)?;
@@ -3802,6 +3819,16 @@ fn register_evidence(svc: &mut BidService, args: Value) -> ToolResult {
     let valid_from = opt_str(&args, "valid_from", TOOL)?;
     let valid_until = opt_str(&args, "valid_until", TOOL)?;
     let project_version = opt_u64(&args, "project_version", TOOL)?;
+    // #245 占位声明（bool，默认 false；非布尔类型响亮拒）
+    let placeholder = match args.get("placeholder") {
+        None | Some(Value::Null) => false,
+        Some(v) if v.is_boolean() => v.as_bool().unwrap(),
+        Some(_) => {
+            return Err(ToolError::EUnprocessable {
+                what: format!("{TOOL}: placeholder 须为布尔（true = 占位/待核验登记）"),
+            })
+        }
+    };
 
     // locator 可选（None = 文件级锚）；传入则须可验证（形态面本层拦，
     // 段落序/页号/指纹对账在服务层——按解析产物）
@@ -3829,6 +3856,7 @@ fn register_evidence(svc: &mut BidService, args: Value) -> ToolResult {
 
     let reg = bid_tools::service::EvidenceRegistration {
         source_file_id,
+        placeholder,
         kind,
         title,
         locator,
@@ -3850,13 +3878,29 @@ fn register_evidence(svc: &mut BidService, args: Value) -> ToolResult {
     // #217（#185 缺口 2）：四态验证面 + 正文摘录随回执返回——调用方当场
     // 可见「正文是否已被读取」（CONTENT_MATCHES + excerpt）或
     // 「只验了文件在场」（FILE_EXISTS，摘录为 null——升级路径：带 locator 重登）。
-    let (verification_tier, excerpt, excerpt_locator) = match &ev {
+    let (verification_tier, excerpt, excerpt_locator, is_placeholder) = match &ev {
         Some(e) => (
             e.verification_tier.map(|t| t.as_str()),
             e.excerpt.clone(),
             e.excerpt_locator.clone(),
+            e.is_placeholder(),
         ),
-        None => (None, None, None),
+        None => (None, None, None, false),
+    };
+
+    // #245：占位登记的回执面警示——调用方当场可见「这是占位/待核验材料，
+    // 不得当作已验证证据」（防误读：占位绑定不清合规阻塞、导出门 1d 拒）。
+    let base_hint = if deduplicated {
+        "语义位查重命中：同 key 同指纹同验证态 → 幂等重放（原 EV-id 直返，不换版）"
+    } else {
+        // #80 第三批外部 Agent 实测摩擦 #8：不得断言旧记录已降级——
+        // 首登与换版在返回面不可分（都是签发新 EV），措辞改为条件式
+        "新 EV 已签发（若为同 key 换版，旧记录已单向降级 SUPERSEDED 且既有绑定迁移到新记录；全新登记则无旧记录）"
+    };
+    let hint = if is_placeholder {
+        format!("{base_hint}；#245 占位提示：本证据为占位/待核验材料（PLACEHOLDER）——可绑定（矩阵呈现 PENDING_EVIDENCE 待补）但不清除合规阻塞、不得声称资质已具备；升级 = 导入真实材料后重新登记（换版）")
+    } else {
+        base_hint.to_string()
     };
 
     Ok(json!({
@@ -3865,15 +3909,10 @@ fn register_evidence(svc: &mut BidService, args: Value) -> ToolResult {
         "kind": kind_machine(kind),
         "status": status,
         "verification_tier": verification_tier,
+        "placeholder": is_placeholder,
         "excerpt": excerpt,
         "excerpt_locator": excerpt_locator,
-        "hint": if deduplicated {
-            "语义位查重命中：同 key 同指纹 → 幂等重放（原 EV-id 直返，不换版）"
-        } else {
-            // #80 第三批外部 Agent 实测摩擦 #8：不得断言旧记录已降级——
-            // 首登与换版在返回面不可分（都是签发新 EV），措辞改为条件式
-            "新 EV 已签发（若为同 key 换版，旧记录已单向降级 SUPERSEDED；全新登记则无旧记录）"
-        },
+        "hint": hint,
         "project_version": svc.store().content_version(),
         "request_id": next_request_id(),
     }))
@@ -3911,11 +3950,27 @@ fn bind_evidence(svc: &mut BidService, args: Value) -> ToolResult {
         .bind_evidence_batch(&ev_id, &req_ids, &bid_open_date)
         .map_err(ToolError::from)?;
 
+    // #245：占位证据绑定回执警示——blocking 面直接可见「未归零」。
+    let is_placeholder = svc
+        .store()
+        .evidence(&ev_id)
+        .map(|e| e.is_placeholder())
+        .unwrap_or(false);
+    let bind_hint = if is_placeholder {
+        format!(
+            "本证据为占位/待核验材料（PLACEHOLDER）——绑定成功但**不清除合规阻塞**（矩阵呈现 PENDING_EVIDENCE 待补，blocking={}）；升级 = 导入真实材料后 register_evidence 换版（旧绑定自动迁移）",
+            blocking
+        )
+    } else {
+        String::new()
+    };
+
     let data = json!({
         "ev_id": ev_id,
         "bound_new": bound,
         "replayed": replayed,
         "requested": req_ids.len(),
+        "placeholder": is_placeholder,
         "matrix": { "rows": rows, "blocking": blocking },
         "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
         "project_version": svc.store().content_version(),
@@ -3928,6 +3983,21 @@ fn bind_evidence(svc: &mut BidService, args: Value) -> ToolResult {
             hint: Some("逐件核对 item_errors：REQ 不存在 → 核对编号；禁绑 → 证据 EXPIRED/SUPERSEDED（续期请 register_evidence 换新版）".into()),
             data: Some(data),
         });
+    }
+    if is_placeholder {
+        // 占位绑定成功但不清阻塞——回执面向调用方点明（防误读阻塞已清零）
+        return Ok(json!({
+            "ev_id": ev_id,
+            "bound_new": bound,
+            "replayed": replayed,
+            "requested": req_ids.len(),
+            "placeholder": true,
+            "matrix": { "rows": rows, "blocking": blocking },
+            "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
+            "hint": bind_hint,
+            "project_version": svc.store().content_version(),
+            "request_id": next_request_id(),
+        }));
     }
     Ok(data)
 }

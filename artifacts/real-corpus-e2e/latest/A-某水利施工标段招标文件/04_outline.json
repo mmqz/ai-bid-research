@@ -1,0 +1,1372 @@
+{
+  "sections": [
+    {
+      "id": "SEC-0003",
+      "level": 1,
+      "parent_id": null,
+      "reqs": 122,
+      "target_chars": 10500,
+      "title": "资格与响应"
+    },
+    {
+      "id": "SEC-0004",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "资格与响应（第1块）"
+    },
+    {
+      "id": "SEC-0005",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "资格与响应（第2块）"
+    },
+    {
+      "id": "SEC-0006",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "资格与响应（第3块）"
+    },
+    {
+      "id": "SEC-0007",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "资格与响应（第4块）"
+    },
+    {
+      "id": "SEC-0008",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "资格与响应（第5块）"
+    },
+    {
+      "id": "SEC-0009",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "资格与响应（第6块）"
+    },
+    {
+      "id": "SEC-0010",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "资格与响应（第7块）"
+    },
+    {
+      "id": "SEC-0011",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "资格与响应（第8块）"
+    },
+    {
+      "id": "SEC-0012",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "资格与响应（第9块）"
+    },
+    {
+      "id": "SEC-0013",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "资格与响应（第10块）"
+    },
+    {
+      "id": "SEC-0014",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "资格与响应（第11块）"
+    },
+    {
+      "id": "SEC-0015",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "资格与响应（第12块）"
+    },
+    {
+      "id": "SEC-0016",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "资格与响应（第13块）"
+    },
+    {
+      "id": "SEC-0017",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "资格与响应（第14块）"
+    },
+    {
+      "id": "SEC-0018",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "资格与响应（第15块）"
+    },
+    {
+      "id": "SEC-0019",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "资格与响应（第16块）"
+    },
+    {
+      "id": "SEC-0020",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "资格与响应（第17块）"
+    },
+    {
+      "id": "SEC-0021",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "资格与响应（第18块）"
+    },
+    {
+      "id": "SEC-0022",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "资格与响应（第19块）"
+    },
+    {
+      "id": "SEC-0023",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "资格与响应（第20块）"
+    },
+    {
+      "id": "SEC-0024",
+      "level": 2,
+      "parent_id": "SEC-0003",
+      "reqs": 2,
+      "target_chars": 500,
+      "title": "资格与响应（第21块）"
+    },
+    {
+      "id": "SEC-0025",
+      "level": 1,
+      "parent_id": null,
+      "reqs": 27,
+      "target_chars": 2500,
+      "title": "项目基本情况"
+    },
+    {
+      "id": "SEC-0026",
+      "level": 2,
+      "parent_id": "SEC-0025",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "项目基本情况（第1块）"
+    },
+    {
+      "id": "SEC-0027",
+      "level": 2,
+      "parent_id": "SEC-0025",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "项目基本情况（第2块）"
+    },
+    {
+      "id": "SEC-0028",
+      "level": 2,
+      "parent_id": "SEC-0025",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "项目基本情况（第3块）"
+    },
+    {
+      "id": "SEC-0029",
+      "level": 2,
+      "parent_id": "SEC-0025",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "项目基本情况（第4块）"
+    },
+    {
+      "id": "SEC-0030",
+      "level": 2,
+      "parent_id": "SEC-0025",
+      "reqs": 3,
+      "target_chars": 500,
+      "title": "项目基本情况（第5块）"
+    },
+    {
+      "id": "SEC-0031",
+      "level": 1,
+      "parent_id": null,
+      "reqs": 61,
+      "target_chars": 5500,
+      "title": "其他条款"
+    },
+    {
+      "id": "SEC-0032",
+      "level": 2,
+      "parent_id": "SEC-0031",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "其他条款 1.1.5-1.2.2"
+    },
+    {
+      "id": "SEC-0033",
+      "level": 2,
+      "parent_id": "SEC-0031",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "其他条款 1.2.3-1.11"
+    },
+    {
+      "id": "SEC-0034",
+      "level": 2,
+      "parent_id": "SEC-0031",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "其他条款 1.12-10.7.1"
+    },
+    {
+      "id": "SEC-0035",
+      "level": 2,
+      "parent_id": "SEC-0031",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "其他条款 1.1-1.1.8"
+    },
+    {
+      "id": "SEC-0036",
+      "level": 2,
+      "parent_id": "SEC-0031",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "其他条款 1.1.9-1.4.2"
+    },
+    {
+      "id": "SEC-0037",
+      "level": 2,
+      "parent_id": "SEC-0031",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "其他条款 1.4.3-2.3"
+    },
+    {
+      "id": "SEC-0038",
+      "level": 2,
+      "parent_id": "SEC-0031",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "其他条款（第7块）"
+    },
+    {
+      "id": "SEC-0039",
+      "level": 2,
+      "parent_id": "SEC-0031",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "其他条款 3.5.5-4.3.3"
+    },
+    {
+      "id": "SEC-0040",
+      "level": 2,
+      "parent_id": "SEC-0031",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "其他条款（第9块）"
+    },
+    {
+      "id": "SEC-0041",
+      "level": 2,
+      "parent_id": "SEC-0031",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "其他条款 10.1-1.7.3"
+    },
+    {
+      "id": "SEC-0042",
+      "level": 2,
+      "parent_id": "SEC-0031",
+      "reqs": 1,
+      "target_chars": 500,
+      "title": "其他条款 1.4"
+    },
+    {
+      "id": "SEC-0043",
+      "level": 1,
+      "parent_id": null,
+      "reqs": 9,
+      "target_chars": 1000,
+      "title": "报价要求"
+    },
+    {
+      "id": "SEC-0044",
+      "level": 2,
+      "parent_id": "SEC-0043",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "报价要求（第1块）"
+    },
+    {
+      "id": "SEC-0045",
+      "level": 2,
+      "parent_id": "SEC-0043",
+      "reqs": 3,
+      "target_chars": 500,
+      "title": "报价要求（第2块）"
+    },
+    {
+      "id": "SEC-0046",
+      "level": 1,
+      "parent_id": null,
+      "reqs": 5,
+      "target_chars": 500,
+      "title": "项目工期要求"
+    },
+    {
+      "id": "SEC-0047",
+      "level": 2,
+      "parent_id": "SEC-0046",
+      "reqs": 5,
+      "target_chars": 500,
+      "title": "项目工期要求"
+    },
+    {
+      "id": "SEC-0048",
+      "level": 1,
+      "parent_id": null,
+      "reqs": 2,
+      "target_chars": 500,
+      "title": "质量标准要求"
+    },
+    {
+      "id": "SEC-0049",
+      "level": 2,
+      "parent_id": "SEC-0048",
+      "reqs": 2,
+      "target_chars": 500,
+      "title": "质量标准要求"
+    },
+    {
+      "id": "SEC-0050",
+      "level": 1,
+      "parent_id": null,
+      "reqs": 7,
+      "target_chars": 1000,
+      "title": "投标人资格要求"
+    },
+    {
+      "id": "SEC-0051",
+      "level": 2,
+      "parent_id": "SEC-0050",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "投标人资格要求（第1块）"
+    },
+    {
+      "id": "SEC-0052",
+      "level": 2,
+      "parent_id": "SEC-0050",
+      "reqs": 1,
+      "target_chars": 500,
+      "title": "投标人资格要求（第2块）"
+    },
+    {
+      "id": "SEC-0053",
+      "level": 1,
+      "parent_id": null,
+      "reqs": 3,
+      "target_chars": 500,
+      "title": "技术方案要求"
+    },
+    {
+      "id": "SEC-0054",
+      "level": 2,
+      "parent_id": "SEC-0053",
+      "reqs": 3,
+      "target_chars": 500,
+      "title": "技术方案要求"
+    },
+    {
+      "id": "SEC-0055",
+      "level": 1,
+      "parent_id": null,
+      "reqs": 3,
+      "target_chars": 500,
+      "title": "补遗与澄清响应"
+    },
+    {
+      "id": "SEC-0056",
+      "level": 2,
+      "parent_id": "SEC-0055",
+      "reqs": 3,
+      "target_chars": 500,
+      "title": "补遗与澄清响应"
+    },
+    {
+      "id": "SEC-0057",
+      "level": 1,
+      "parent_id": null,
+      "reqs": 16,
+      "target_chars": 1500,
+      "title": "投标与开标安排"
+    },
+    {
+      "id": "SEC-0058",
+      "level": 2,
+      "parent_id": "SEC-0057",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "投标与开标安排（第1块）"
+    },
+    {
+      "id": "SEC-0059",
+      "level": 2,
+      "parent_id": "SEC-0057",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "投标与开标安排（第2块）"
+    },
+    {
+      "id": "SEC-0060",
+      "level": 2,
+      "parent_id": "SEC-0057",
+      "reqs": 4,
+      "target_chars": 500,
+      "title": "投标与开标安排（第3块）"
+    },
+    {
+      "id": "SEC-0061",
+      "level": 1,
+      "parent_id": null,
+      "reqs": 4,
+      "target_chars": 500,
+      "title": "投标保证金"
+    },
+    {
+      "id": "SEC-0062",
+      "level": 2,
+      "parent_id": "SEC-0061",
+      "reqs": 4,
+      "target_chars": 500,
+      "title": "投标保证金"
+    },
+    {
+      "id": "SEC-0063",
+      "level": 1,
+      "parent_id": null,
+      "reqs": 3,
+      "target_chars": 500,
+      "title": "投标文件格式"
+    },
+    {
+      "id": "SEC-0064",
+      "level": 2,
+      "parent_id": "SEC-0063",
+      "reqs": 3,
+      "target_chars": 500,
+      "title": "投标文件格式"
+    },
+    {
+      "id": "SEC-0065",
+      "level": 1,
+      "parent_id": null,
+      "reqs": 3,
+      "target_chars": 500,
+      "title": "须知总则"
+    },
+    {
+      "id": "SEC-0066",
+      "level": 2,
+      "parent_id": "SEC-0065",
+      "reqs": 3,
+      "target_chars": 500,
+      "title": "须知总则"
+    },
+    {
+      "id": "SEC-0067",
+      "level": 1,
+      "parent_id": null,
+      "reqs": 4,
+      "target_chars": 500,
+      "title": "附件与图纸说明"
+    },
+    {
+      "id": "SEC-0068",
+      "level": 2,
+      "parent_id": "SEC-0067",
+      "reqs": 4,
+      "target_chars": 500,
+      "title": "附件与图纸说明"
+    },
+    {
+      "id": "SEC-0069",
+      "level": 1,
+      "parent_id": null,
+      "reqs": 1,
+      "target_chars": 500,
+      "title": "招标文件获取"
+    },
+    {
+      "id": "SEC-0070",
+      "level": 2,
+      "parent_id": "SEC-0069",
+      "reqs": 1,
+      "target_chars": 500,
+      "title": "招标文件获取"
+    },
+    {
+      "id": "SEC-0071",
+      "level": 1,
+      "parent_id": null,
+      "reqs": 1,
+      "target_chars": 500,
+      "title": "合同授予与签订"
+    },
+    {
+      "id": "SEC-0072",
+      "level": 2,
+      "parent_id": "SEC-0071",
+      "reqs": 1,
+      "target_chars": 500,
+      "title": "合同授予与签订"
+    },
+    {
+      "id": "SEC-0073",
+      "level": 1,
+      "parent_id": null,
+      "reqs": 4,
+      "target_chars": 500,
+      "title": "纪律与监督"
+    },
+    {
+      "id": "SEC-0074",
+      "level": 2,
+      "parent_id": "SEC-0073",
+      "reqs": 4,
+      "target_chars": 500,
+      "title": "纪律与监督"
+    },
+    {
+      "id": "SEC-0075",
+      "level": 1,
+      "parent_id": null,
+      "reqs": 587,
+      "target_chars": 49000,
+      "title": "商务要求"
+    },
+    {
+      "id": "SEC-0076",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第1块）"
+    },
+    {
+      "id": "SEC-0077",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第2块）"
+    },
+    {
+      "id": "SEC-0078",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第3块）"
+    },
+    {
+      "id": "SEC-0079",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第4块）"
+    },
+    {
+      "id": "SEC-0080",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第5块）"
+    },
+    {
+      "id": "SEC-0081",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第6块）"
+    },
+    {
+      "id": "SEC-0082",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第7块）"
+    },
+    {
+      "id": "SEC-0083",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第8块）"
+    },
+    {
+      "id": "SEC-0084",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第9块）"
+    },
+    {
+      "id": "SEC-0085",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第10块）"
+    },
+    {
+      "id": "SEC-0086",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第11块）"
+    },
+    {
+      "id": "SEC-0087",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第12块）"
+    },
+    {
+      "id": "SEC-0088",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第13块）"
+    },
+    {
+      "id": "SEC-0089",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第14块）"
+    },
+    {
+      "id": "SEC-0090",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第15块）"
+    },
+    {
+      "id": "SEC-0091",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第16块）"
+    },
+    {
+      "id": "SEC-0092",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第17块）"
+    },
+    {
+      "id": "SEC-0093",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第18块）"
+    },
+    {
+      "id": "SEC-0094",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第19块）"
+    },
+    {
+      "id": "SEC-0095",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第20块）"
+    },
+    {
+      "id": "SEC-0096",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第21块）"
+    },
+    {
+      "id": "SEC-0097",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第22块）"
+    },
+    {
+      "id": "SEC-0098",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第23块）"
+    },
+    {
+      "id": "SEC-0099",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第24块）"
+    },
+    {
+      "id": "SEC-0100",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第25块）"
+    },
+    {
+      "id": "SEC-0101",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第26块）"
+    },
+    {
+      "id": "SEC-0102",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第27块）"
+    },
+    {
+      "id": "SEC-0103",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第28块）"
+    },
+    {
+      "id": "SEC-0104",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第29块）"
+    },
+    {
+      "id": "SEC-0105",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第30块）"
+    },
+    {
+      "id": "SEC-0106",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第31块）"
+    },
+    {
+      "id": "SEC-0107",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第32块）"
+    },
+    {
+      "id": "SEC-0108",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第33块）"
+    },
+    {
+      "id": "SEC-0109",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第34块）"
+    },
+    {
+      "id": "SEC-0110",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第35块）"
+    },
+    {
+      "id": "SEC-0111",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第36块）"
+    },
+    {
+      "id": "SEC-0112",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第37块）"
+    },
+    {
+      "id": "SEC-0113",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第38块）"
+    },
+    {
+      "id": "SEC-0114",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第39块）"
+    },
+    {
+      "id": "SEC-0115",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第40块）"
+    },
+    {
+      "id": "SEC-0116",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第41块）"
+    },
+    {
+      "id": "SEC-0117",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第42块）"
+    },
+    {
+      "id": "SEC-0118",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第43块）"
+    },
+    {
+      "id": "SEC-0119",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第44块）"
+    },
+    {
+      "id": "SEC-0120",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第45块）"
+    },
+    {
+      "id": "SEC-0121",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第46块）"
+    },
+    {
+      "id": "SEC-0122",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第47块）"
+    },
+    {
+      "id": "SEC-0123",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第48块）"
+    },
+    {
+      "id": "SEC-0124",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第49块）"
+    },
+    {
+      "id": "SEC-0125",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第50块）"
+    },
+    {
+      "id": "SEC-0126",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第51块）"
+    },
+    {
+      "id": "SEC-0127",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第52块）"
+    },
+    {
+      "id": "SEC-0128",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第53块）"
+    },
+    {
+      "id": "SEC-0129",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第54块）"
+    },
+    {
+      "id": "SEC-0130",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第55块）"
+    },
+    {
+      "id": "SEC-0131",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第56块）"
+    },
+    {
+      "id": "SEC-0132",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第57块）"
+    },
+    {
+      "id": "SEC-0133",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第58块）"
+    },
+    {
+      "id": "SEC-0134",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第59块）"
+    },
+    {
+      "id": "SEC-0135",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第60块）"
+    },
+    {
+      "id": "SEC-0136",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第61块）"
+    },
+    {
+      "id": "SEC-0137",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第62块）"
+    },
+    {
+      "id": "SEC-0138",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第63块）"
+    },
+    {
+      "id": "SEC-0139",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第64块）"
+    },
+    {
+      "id": "SEC-0140",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第65块）"
+    },
+    {
+      "id": "SEC-0141",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第66块）"
+    },
+    {
+      "id": "SEC-0142",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第67块）"
+    },
+    {
+      "id": "SEC-0143",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第68块）"
+    },
+    {
+      "id": "SEC-0144",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第69块）"
+    },
+    {
+      "id": "SEC-0145",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第70块）"
+    },
+    {
+      "id": "SEC-0146",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第71块）"
+    },
+    {
+      "id": "SEC-0147",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第72块）"
+    },
+    {
+      "id": "SEC-0148",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第73块）"
+    },
+    {
+      "id": "SEC-0149",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第74块）"
+    },
+    {
+      "id": "SEC-0150",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第75块）"
+    },
+    {
+      "id": "SEC-0151",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第76块）"
+    },
+    {
+      "id": "SEC-0152",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第77块）"
+    },
+    {
+      "id": "SEC-0153",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第78块）"
+    },
+    {
+      "id": "SEC-0154",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第79块）"
+    },
+    {
+      "id": "SEC-0155",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第80块）"
+    },
+    {
+      "id": "SEC-0156",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第81块）"
+    },
+    {
+      "id": "SEC-0157",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第82块）"
+    },
+    {
+      "id": "SEC-0158",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第83块）"
+    },
+    {
+      "id": "SEC-0159",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第84块）"
+    },
+    {
+      "id": "SEC-0160",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第85块）"
+    },
+    {
+      "id": "SEC-0161",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第86块）"
+    },
+    {
+      "id": "SEC-0162",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第87块）"
+    },
+    {
+      "id": "SEC-0163",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第88块）"
+    },
+    {
+      "id": "SEC-0164",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第89块）"
+    },
+    {
+      "id": "SEC-0165",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第90块）"
+    },
+    {
+      "id": "SEC-0166",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第91块）"
+    },
+    {
+      "id": "SEC-0167",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第92块）"
+    },
+    {
+      "id": "SEC-0168",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第93块）"
+    },
+    {
+      "id": "SEC-0169",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第94块）"
+    },
+    {
+      "id": "SEC-0170",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第95块）"
+    },
+    {
+      "id": "SEC-0171",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第96块）"
+    },
+    {
+      "id": "SEC-0172",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 6,
+      "target_chars": 500,
+      "title": "商务要求（第97块）"
+    },
+    {
+      "id": "SEC-0173",
+      "level": 2,
+      "parent_id": "SEC-0075",
+      "reqs": 5,
+      "target_chars": 500,
+      "title": "商务要求（第98块）"
+    }
+  ]
+}

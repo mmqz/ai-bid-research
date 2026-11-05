@@ -654,6 +654,7 @@ fn row(req_id: &str, section: Option<&str>, evs: &[&str], status: ResponseStatus
         requirement_id: req_id.into(),
         response_section: section.map(String::from),
         evidence_ids: evs.iter().map(|s| s.to_string()).collect(),
+        pending_evidence_ids: Vec::new(),
         status,
         deviation: None,
         blocking: false,

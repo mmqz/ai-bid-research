@@ -284,8 +284,9 @@ fn tool_face_remains_twenty_with_draft_implemented() {
     // #145 时点 20；#184 增 record_addendum_waiver（补遗分级阻塞的逐件
     // 人工确认）→ 21；#219 增 3 覆盖工具 → 24；#226 增 set_matrix_override
     // （否决项死锁出口）→ 25；#243 增 recover_validating_state（历史
-    // 异常态恢复出口）→ 26
-    assert_eq!(arr.len(), 26, "工具面保持 26 个（21 + #219 三工具 + #226 死锁出口 + #243 恢复出口）");
+    // 异常态恢复出口）→ 26；#254 增分段三工具（append/rewrite/list
+    // section_segment）→ 29
+    assert_eq!(arr.len(), 29, "工具面保持 29 个（21 + #219 三工具 + #226 死锁出口 + #243 恢复出口 + #254 分段三工具）");
     let draft = arr.iter().find(|t| t["name"] == "draft_response_section").unwrap();
     assert_eq!(draft["implemented"], json!(true));
     // #145 任务 1：search_evidence 已接线——原「不得提前标实现」守卫随之撤销

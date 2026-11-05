@@ -74,12 +74,13 @@ fn content_fingerprint(content: &str) -> String {
 
 /// pre-flight 引用检查：段的全部引用 ⊆ 章节已知 REQ/EV 集合？
 /// 违例 → E_UNPROCESSABLE（整段拒收，零副作用——不剔除，保不变量）。
+/// 入参 `input` 由调用方先行装配（build_section_input 同时承担章节存在
+/// 性/叶校验/空响应面——与 draft_section 同序，E_NOTFOUND 优先于 readiness）。
 fn preflight_citations(
-    svc: &BidService,
+    input: &crate::draft::SectionDraftInput,
     section_id: &str,
     content: &str,
 ) -> Result<Vec<String>, ToolError> {
-    let (input, _warnings) = build_section_input(svc.store(), section_id, None, None, None)?;
     let known: std::collections::HashSet<String> = input
         .requirements
         .iter()
@@ -129,15 +130,18 @@ impl BidService {
                 reason: format!("{section_id} 段内容不得为空白（空段无提交意义）"),
             });
         }
-        // ---- 1. readiness 闸（与 draft_section 同口径）
+        // ---- 1. 章节定位 + 输入装配（E_NOTFOUND / 结构节点 / 空响应面——
+        //         与 draft_section 同序，存在性错误优先于 readiness 阻塞）
+        let (input, _) = build_section_input(self.store(), section_id, None, None, None)?;
+        // ---- 2. readiness 闸（与 draft_section 同口径）
         let readiness = crate::readiness::check_draft_readiness(self.store(), section_id);
         if !readiness.ready {
             return Err(ToolError::EUnprocessable {
                 reason: format!("章节 {section_id} {}", readiness.to_message()),
             });
         }
-        // ---- 2. pre-flight 引用检查（未知引用整段拒——零副作用）
-        preflight_citations(self, section_id, content)?;
+        // ---- 3. pre-flight 引用检查（未知引用整段拒——零副作用）
+        preflight_citations(&input, section_id, content)?;
         // ---- 3. 幂等键缺省 = 内容指纹
         let key = idem_key
             .map(str::to_string)
@@ -188,14 +192,15 @@ impl BidService {
                 reason: format!("{segment_id} 重写内容不得为空白"),
             });
         }
-        // 段定位（章节归属先查——pre-flight 需要章节上下文）
+        // 段定位（章节归属先查——pre-flight 需要章节上下文；E_NOTFOUND 优先）
         let section_id = self
             .store()
             .section_segment(segment_id)?
             .section_id
             .clone();
+        let (input, _) = build_section_input(self.store(), &section_id, None, None, None)?;
         // ---- pre-flight（新内容的引用必须全合法——零副作用拒）
-        preflight_citations(self, &section_id, content)?;
+        preflight_citations(&input, &section_id, content)?;
         // ---- 域层重写（CAS：过期 version → E_CONFLICT 无部分写入）
         let SegmentChange { segment, changed } = self.store_mut().rewrite_section_segment(
             segment_id,

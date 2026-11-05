@@ -12,7 +12,7 @@
     "purchaser_addr": "黑龙江省大兴安岭地区松岭区小扬气镇松岭大街26号",
     "agent_org": "黑龙江蓝江项目管理有限公司",
     "procurement_method": "公开招标（综合评分法）",
-    "budget_cny": 1195800.00,
+    "budget_cny": 1195800.0,
     "bid_open_at": "2026-10-12 09:00:00",
     "contract_period_days": 365,
     "accept_consortium": false,
@@ -86,18 +86,120 @@
   },
   "known_failure_baseline": {
     "note": "当前真实现状的固化（issue #251 §5）：不是待修复后删掉的断言。修复后主动更新为通过并在 PR 说明原因；本清单之外的失败=新缺陷，必须红灯。",
+    "scope": "issue 记载口径 = TF-0003 docx 全链路（lead 2026-11-05 真实运行，295 REQ / 97 页产物）。层1 PDF 单件路径（TF-0002）的实测基线见 layer1_pdf_baseline——两条路径口径不同，分别固化。",
     "items": [
-      { "id": "tech_req_count", "expect": ">=11", "actual": 1, "detail": "技术参数类 REQ 仅 1 条（REQ-0164 表头行），11 条核心技术要求丢失" },
-      { "id": "biz_req_count", "expect": ">=13", "actual": 0, "detail": "商务要求类 REQ 0 条（类别不存在）" },
-      { "id": "scoring_mapped", "expect": "6/6", "actual": "0/6", "detail": "评分项无章节映射（全部悬空）" },
-      { "id": "param_integrity_wanhaolu", "expect": "可检索", "actual": "不可检索", "detail": "「完好率≥95%」在抽取结果中不可检索" },
-      { "id": "param_integrity_360min", "expect": "可检索", "actual": "不可检索", "detail": "「≤360分钟」不可检索" },
-      { "id": "param_integrity_295_30m", "expect": "可检索", "actual": "不可检索", "detail": "「295条 30M/s」不可检索" },
-      { "id": "outline_block_titles", "expect": "0 处", "actual": 30, "detail": "大纲含「（第N块）」无语义标题 30 处" },
-      { "id": "money_values_lost", "expect": "数值完整", "actual": "丢失", "detail": "保证金 17,000 / 代理费 20,000 / 限价 1,195,800 数值丢失" },
-      { "id": "export_pages", "expect": ">=1000", "actual": 97, "detail": "导出页数 97（应 ≥1000）" },
-      { "id": "scoring_pages_ratio", "expect": ">=60%", "actual": "0%", "detail": "评分章节页数占比 0%（应 ≥60%）" }
+      {
+        "id": "tech_req_count",
+        "expect": ">=11",
+        "actual": 1,
+        "detail": "技术参数类 REQ 仅 1 条（REQ-0164 表头行），11 条核心技术要求丢失"
+      },
+      {
+        "id": "biz_req_count",
+        "expect": ">=13",
+        "actual": 0,
+        "detail": "商务要求类 REQ 0 条（类别不存在）"
+      },
+      {
+        "id": "scoring_mapped",
+        "expect": "6/6",
+        "actual": "0/6",
+        "detail": "评分项无章节映射（全部悬空）"
+      },
+      {
+        "id": "param_integrity_wanhaolu",
+        "expect": "可检索",
+        "actual": "不可检索",
+        "detail": "「完好率≥95%」在抽取结果中不可检索"
+      },
+      {
+        "id": "param_integrity_360min",
+        "expect": "可检索",
+        "actual": "不可检索",
+        "detail": "「≤360分钟」不可检索"
+      },
+      {
+        "id": "param_integrity_295_30m",
+        "expect": "可检索",
+        "actual": "不可检索",
+        "detail": "「295条 30M/s」不可检索"
+      },
+      {
+        "id": "outline_block_titles",
+        "expect": "0 处",
+        "actual": 30,
+        "detail": "大纲含「（第N块）」无语义标题 30 处"
+      },
+      {
+        "id": "money_values_lost",
+        "expect": "数值完整",
+        "actual": "丢失",
+        "detail": "保证金 17,000 / 代理费 20,000 / 限价 1,195,800 数值丢失"
+      },
+      {
+        "id": "export_pages",
+        "expect": ">=1000",
+        "actual": 97,
+        "detail": "导出页数 97（应 ≥1000）"
+      },
+      {
+        "id": "scoring_pages_ratio",
+        "expect": ">=60%",
+        "actual": "0%",
+        "detail": "评分章节页数占比 0%（应 ≥60%）"
+      }
     ]
+  },
+  "layer1_pdf_baseline": {
+    "note": "2026-11-05 本机实测（Linux，poppler 通道）：TF-0002 原件单件 PDF 路径。防回归门=实测值不得更差；数字变更时更新本表并在 PR 说明原因。",
+    "measured_at": "2026-11-05",
+    "req_total": 297,
+    "category_counts": {
+      "其他": 115,
+      "否决项": 45,
+      "技术参数": 11,
+      "格式要求": 96,
+      "评分项": 9,
+      "资格条件": 21,
+      "商务要求": 0
+    },
+    "retrievable_hits_of_16": 4,
+    "retrievable_miss_list": [
+      "50M/s",
+      "95%",
+      "360分钟",
+      "15日历天",
+      "0.2dB",
+      "松岭区",
+      "验收要求",
+      "17,000",
+      "20,000",
+      "1,195,800",
+      "不缴纳",
+      "90日"
+    ],
+    "retrievable_hit_list": [
+      "295条",
+      "30M/s",
+      "双电源",
+      "不接受"
+    ],
+    "outline_nodes": 40,
+    "outline_leaves": 23,
+    "outline_block_titles": 7,
+    "scoring_items_total": 54,
+    "scoring_hard_gate": 45,
+    "scoring_with_weight": 1,
+    "scoring_mappings": 0,
+    "findings": [
+      "PDF 路径技术参数已达 11 条（issue 目标值），但 docx 全链路仅 1——两条路径的表格抽取形态不同（TF-0003 修复版 docx 的表格结构劣于 PDF 原件），#250 修复时以此为对照",
+      "技术参数数量达标但参数值仍丢：16 锚点中 12 个 MISS（含完好率 95%、360分钟、15日历天、0.2dB、三个金额）——表格行碎片化，数量与数值完整性是两个缺陷面",
+      "商务要求类别 0 条在两条路径一致——商务要求表（第18页）整表未被识别为需求",
+      "大纲 40 节点含 7 处「（第N块）」；「服务方案/质量保证/应急方案」等评分章节零出现——85 分主体无对应位置在 PDF 路径同样成立",
+      "scoring_items 54 条 = 45 否决硬门 + 9 条评分项（对应评分表 6 技术项 + 业绩 + 价格 + 1 子项——细节待层2 对账）；但 9 条评分项仅 1 条带 weight——评分分值大量丢失是独立缺陷面（评分表真值 8 项带分）",
+      "纯 Rust 兜底通道（rust_fallback）对本件输出乱码（实测 63 页 3144 行 cjk=0——字体形态在兜底甜区外）——层1 引擎面在无 poppler 环境（Windows CI）按 issue #9 纪律 SKIP，层0 静态面永远跑"
+    ],
+    "scoring_non_hard": 9
   },
   "license_note": "招标文件为依法必须公开的政府采购文件（法定公开媒介发布），评测用途引用——与 real-corpus/PROVENANCE.md 口径一致。"
 }

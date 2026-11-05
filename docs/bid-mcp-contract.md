@@ -91,11 +91,15 @@ out: { counts:{total, added(可为负——整集替换语义下的诚实增量)
 ```
 in : { project_id, filters:{category?, status?}, cursor?, limit?, page? }
      category: 契约键（qualification|veto|scoring|tech_param|commercial|format|other）或中文类别名；
-     status  : NOT_RESPONDED|RESPONDED|PARTIAL|NOT_APPLICABLE（T-2 四态派生）；
+     status  : NOT_RESPONDED|RESPONDED|PARTIAL|NOT_APPLICABLE|PENDING_EVIDENCE
+               （T-2+#245 五态派生——PENDING_EVIDENCE = 仅占位/待核验证据
+               在绑：待补可见、必选行仍 blocking）；
      cursor  : opaque 游标（与 filters+project_id 绑定，优先于 page）；limit: 1..=1000（缺省 100）；
      page    : 兼容旧调用（映射 offset=(page-1)*limit；page≥1，0 → E_UNPROCESSABLE）
 out: { rows:[{cmp_id, requirement:{id, clause_no, category, statement, mandatory, source_anchor, params},
-              evidence:[{ev_id, title, status, valid_until}], gap, response_policy, draft_section_id}],
+              evidence:[{ev_id, title, status, valid_until, verification_tier}],
+              pending_evidence_ids:[EV-*]（#245 占位/待核验证据待补追踪面）,
+              gap, response_policy, draft_section_id, blocking}],
        total(过滤后总数), limit, cursor(本次生效), next_cursor: string|null,
        counts:{total, returned, page(信息性回显), page_size(=limit)} }
 无状态副作用；任何阶段可调。行序 = 条款位置序（cmp_id CMP-0001..N，确定性稳定）；
@@ -113,8 +117,9 @@ in : { project_id, filters:{kind?, status?}, cursor?, limit? }
                （或对应中文展示名——与矩阵 category 双形态口径一致）；
      status  : ACTIVE|EXPIRING|EXPIRED|SUPERSEDED（T-1 台账状态）
 out: { items:[{id:EV-*, kind(snake_case 机器形态), title, status, subject_name, valid_until,
-            verification_tier(FILE_EXISTS|CONTENT_MATCHES|null——#217 四态可见：
-            null = 旧记录登记于四态面之前)}],
+            verification_tier(PLACEHOLDER|FILE_EXISTS|CONTENT_MATCHES|null——
+            #217+#245 五态可见：null = 旧记录登记于四态面之前；
+            PLACEHOLDER = 占位/待核验——不得当作已验证证据)}],
        total(过滤后总数), limit, cursor(本次生效), next_cursor: string|null }
 无状态副作用；任何阶段可调。行序 = id 字典序（确定全序）；先过滤后分页。
 错误: E_UNPROCESSABLE（非法 kind/status、游标与过滤器不匹配、limit 越界）；E_NOTFOUND（项目路由）
@@ -219,8 +224,11 @@ categories 四桶（#187——「没做 ≠ 做对了」，issue #9 口径）:
       not_performed{reason:"no model configured"}，不得因「没发现错误」伪装
       passed；接入真实 LLM 后经服务层注入缝（validate_document_with_reviewer）
       变为 passed/failed
-  evidence（部分实现）: E_EVIDENCE_EXPIRED（效期面；深度复核后续 PR）
-  compliance（部分实现）: E_VETO_UNRESPONDED / E_QUAL_UNMET /
+  evidence（部分实现）: E_EVIDENCE_EXPIRED（效期面）+ E_EVIDENCE_PLACEHOLDER
+      （#245：占位/待核验证据仍绑定——BLOCKER，占位不得冒充已核验证据）
+      + E_CITATION_PLACEHOLDER（#245：正文引用占位 EV——BLOCKER，引用面冒充）
+  compliance（部分实现）: E_VETO_UNRESPONDED / E_QUAL_UNMET
+      （#245：PENDING_EVIDENCE 待补行计入未响应面，消息携带待补注记） /
       W_FORMAT_BASELINE（暗标禁字等后续阶段）
   ok 语义（#187 厘清）: ok=true 只意味着「已执行桶中 BLOCKER == 0」，不是
       「整本标书已通过审核」；not_performed 不把 ok 翻 false（能力缺席不是
@@ -288,6 +296,17 @@ out: { artifact:{url, sha256, size}, content_version_snapshot, precheck:{blocker
      自身/导出推进一律 bump——必误报）：过门后导入无关件、状态推进、
      不改正文重复导出均不受影响；#180 前旧快照的空摘要记录跳过判定
      （宽容载入，旧数据的洞保留——重新过门即补上绑定）。
+     **四前置门全量清单（#245 补齐 1d）**：
+     · 1a 矩阵门：blocking 行清零（必选未响应**或 PENDING_EVIDENCE 待补**
+       ——占位绑定不清阻塞）；
+     · 1b 审核门：三门 Approved + 全 RT DONE + #180 内容摘要绑定；
+     · 1c 写作验收门（1.0）：篇幅不足/空章节即使审核已直接批准也拒
+       （独立复算，不消费记审面）；
+     · 1d 占位证据门（#245）：活跃占位绑定存在即拒——占位/待核验材料
+       不得作为已核验证据导出（与 1c 同为独立复算门、不消费记审面；
+       差异面：占位有人工豁免通道 = set_matrix_override Human receipt +
+       偏离说明，篇幅不足没有——只能补写）。解决通道：①导入真实材料
+       重新登记（换版升级，绑定自动迁移）；②人工覆写豁免。
 状态: → READY_TO_EXPORT → EXPORTED
 ```
 
@@ -411,7 +430,7 @@ out: { counts:{ sections, leaves, requirements, total_target_chars, matrix_rows,
 幂等: 推导确定性（同输入同树）；状态机面不重入（见上）
 ```
 
-## 11-A. register_evidence（#80 第三批 · G2；#185 缺口 1 来源验证；#217 四态 + 正文摘录）
+## 11-A. register_evidence（#80 第三批 · G2；#185 缺口 1 来源验证；#217 四态 + 正文摘录；#245 占位态）
 
 ```
 in : { project_id, kind(qualification|performance|personnel|certificate|product_doc|
@@ -419,23 +438,30 @@ in : { project_id, kind(qualification|performance|personnel|certificate|product_
        title, source_file_id(TF-*——必填，须为 import_tender_files 回执
                         per_file[].file_id 指向的已导入文件),
        subject_name, scope?, valid_from?, valid_until?(ISO 日期),
+       placeholder?(bool——#245：true = 占位/待核验登记，默认 false),
        locator?({ kind: docx_paragraph|pdf_page_text, ...指纹字段 }——
                传入则与该文件解析产物对账：段落序/页号在范围内且
                text_fingerprint 与实际内容一致；缺省 = 文件级锚),
        client?, amount_wan?, completed_on?, fields?(#147 结构化字段),
        project_version }
 out: { ev_id: "EV-*", deduplicated, kind(snake_case), status,
-       verification_tier(FILE_EXISTS|CONTENT_MATCHES——#217 四态面),
-       excerpt(正文摘录——CONTENT_MATCHES 时非空；FILE_EXISTS 为 null),
+       verification_tier(PLACEHOLDER|FILE_EXISTS|CONTENT_MATCHES——
+                        #217+#245 五态面),
+       placeholder(bool——占位/待核验标记),
+       excerpt(正文摘录——CONTENT_MATCHES 时非空；FILE_EXISTS 为 null；
+               PLACEHOLDER 可携带（占位指向回溯面）),
        excerpt_locator(人话定位：《文件》第 N 页 / 《文件》正文段 N),
-       hint, project_version }
+       hint(占位登记带警示文案——不清合规阻塞/不得声称已具备/升级路径),
+       project_version }
 语义: **来源身份由服务端验证（#185）**：source_file_id 查 TenderFile
       （不存在 → E_NOTFOUND；解析失败件 → E_UNPROCESSABLE 禁引）→ 解析
       产物按库内 sha 对账 → locator 验证 → sha256 与指纹**由系统生成**
       （带 locator → fnv64:<定位文本哈希>；文件级锚 → sha256:<库内 sha>），
       不接受调用方自报。语义位查重在域层（同 kind+title+subject+scope
-      最新非 SUPERSEDED 记录：同指纹 → 幂等重放回原 id；异指纹 →
-      旧记录单向降级 SUPERSEDED + 签发新 EV）。locator 缺省 =
+      最新非 SUPERSEDED 记录：同指纹**且同验证态** → 幂等重放回原 id；
+      异指纹或异验证态 → 旧记录单向降级 SUPERSEDED + 签发新 EV，
+      **旧记录既有绑定迁移到新记录**（语义位响应面跟随当前版本，
+      #245：占位→真实的升级路径由此承载））。locator 缺省 =
       MarkdownBlock{ block_id: "mcp-registered:<文件名>" }——诚实标记
       「经登记面、无引擎定位器」（审计可辨识，不冒充引擎抽取）。
 
@@ -447,11 +473,30 @@ out: { ev_id: "EV-*", deduplicated, kind(snake_case), status,
         excerpt_locator 人话定位），draft/search/导出面直接消费；
       · SEMANTIC_SUPPORT / HUMAN_CONFIRMED：**预留态**（枚举先立面）——
         达成路径分别为 M2-b 语义比对服务与 #182 TrustedPrincipal receipt
-        人工确认链路，当前不可经登记面设置（服务端只裁决前两态）。
+        人工确认链路，当前不可经登记面设置（服务端只裁决前三态）。
+
+      **#245 占位/待核验态（PLACEHOLDER——占位资质不得冒充已核验证据）**：
+      · `placeholder: true` → tier 强制 PLACEHOLDER（即便 locator 对账
+        通过也不升格——「文件里有这段文本」≠「资质真实具备」；摘录照记，
+        作为占位指向的回溯面）；
+      · 调用方**可以自报占位**（从低不从高的诚实方向），但**不得自报任何
+        已验证态**（verification_tier 参数不存在，传入即拒）；
+      · 占位证据**可绑定**（矩阵行呈现 PENDING_EVIDENCE 待补 +
+        pending_evidence_ids 追踪面），但**不清除合规阻塞**（必选行仍
+        blocking）、不计为有效证据（资格章节就绪不满足——无证硬写拦）、
+        导出门 1d 独立复算拒（即使审核已直接批准）；
+      · 起草面：mock/LLM 生成器对占位证据输出【待补：...】占位文案——
+        不引用 [EV-xxxx] 编号、不声称已具备/已满足；
+      · 升级路径（受控、可审计）：导入真实材料后**重新登记**（同语义位
+        异指纹/异验证态 → 换版：旧占位记录 SUPERSEDED 留审计痕 + 绑定
+        迁移到新记录）——无原地迁移通道即无非法迁移通道；人工豁免走
+        set_matrix_override（Human receipt + 偏离说明）。
 状态: MATRIX_READY+（P4 面——矩阵就绪后登记）
 错误: E_NOTFOUND（source_file_id 不存在）；E_UNPROCESSABLE（kind/日期/fields
       非法；**旧参数 source_file / source_sha256 / fingerprint 已废除——传入
-      即拒**，文案指路 source_file_id；解析失败件/无解析产物；locator 形态
+      即拒**，文案指路 source_file_id；**#245：verification_tier 参数不存在
+      ——传入即拒**（验证态由服务端裁决，自报拒）；placeholder 非布尔；
+      解析失败件/无解析产物；locator 形态
       不支持（xlsx/docx_table_cell/markdown_block/canvas 无对账面）或越界
       /指纹不匹配）
 ```
@@ -463,13 +508,20 @@ out: { ev_id: "EV-*", deduplicated, kind(snake_case), status,
 >
 > #217 域层不变量：`CONTENT_MATCHES 必须携带非空 excerpt`（空摘录的内容
 > 一致声明是无凭据强声明）；`excerpt 与 verification_tier 不可拆`。
+>
+> #245 背景：2026-11-05 真实客户端运行中，Agent 注册占位资质并绑定到
+> 大量矩阵行，阻塞数因此归零，被误读为真实资质已满足。占位态落地后：
+> 占位绑定 → PENDING_EVIDENCE（待补可见）+ blocking 保留（绝不静默清零），
+> validate 报 E_EVIDENCE_PLACEHOLDER / E_QUAL_UNMET（BLOCKER），导出被
+> 1a 矩阵门或 1d 占位证据门拒绝（即使三门全批）。
 
 ## 11-B. bind_evidence（#80 第三批 · G2）
 
 ```
 in : { project_id, ev_id, requirement_ids:[REQ-*](非空), bid_open_date, project_version }
-out: { ev_id, bound_new, replayed, requested, matrix:{ rows, blocking },
-       status, project_version }
+out: { ev_id, bound_new, replayed, requested, placeholder(bool——#245),
+       matrix:{ rows, blocking }, status, project_version,
+       hint?(占位绑定时携带警示——不清除合规阻塞) }
 bid_open_date 语义（#80 第三批外部 Agent 实测摩擦 #5）：证据有效性的裁决基准日
        ——工程口径取【开标日】（评标时刻的有效性，不是 create 的 bid_deadline
        递交截止日；两者通常相近但语义不同。无独立开标日真源时，用招标文件
@@ -477,7 +529,9 @@ bid_open_date 语义（#80 第三批外部 Agent 实测摩擦 #5）：证据有�
 语义: 逐条绑定（REQ 不存在 → 逐件 E_NOTFOUND；EXPIRED/SUPERSEDED 禁绑 → 逐件
       E_UNPROCESSABLE——R-03，开标日视角即时裁决；重复绑定 → 幂等重放）+
       绑后矩阵重算（行内证据即时可见——不重算会让 get_compliance_matrix 看到
-      陈旧行）。部分失败 → E_PARTIAL（item_errors 逐件定位 + data 携带成功面
+      陈旧行）。**#245：占位证据可绑（待补可见的载体），但绑定不清除合规
+      阻塞**——必选行 PENDING_EVIDENCE 仍 blocking，回执 blocking 面与 hint
+      直接可见。部分失败 → E_PARTIAL（item_errors 逐件定位 + data 携带成功面
       ——与 import_tender_files 同款「错误码不吞成功面」）。
 状态: MATRIX_READY+
 ```

@@ -35,11 +35,41 @@
 - `kind` 七种：`qualification | performance | personnel | certificate |
   product_doc | solution_module | contract`（或对应中文展示名）；
 - 语义位查重：同 `kind+title+subject+scope` 的最新非 SUPERSEDED 记录——
-  同指纹 → 幂等重放回原 EV-id；异指纹 → 旧记录单向降级 SUPERSEDED + 签发
-  新 EV（证书换版就这么处理）；
+  同指纹**且同验证态** → 幂等重放回原 EV-id；异指纹或异验证态 → 旧记录
+  单向降级 SUPERSEDED + 签发新 EV，**旧记录既有绑定自动迁移到新记录**
+  （证书换版就这么处理；#245：占位→真实升级同路径）；
 - 切块即入 EV 台账：`import_tender_files` 的切块已自动注册 EV——**后续
   register 签发的 EV-id 从已有计数后继，不是从 EV-0001 起**；
-- 返回 `{ ev_id, deduplicated, status, hint }`——`deduplicated: true` 即重放。
+- 返回 `{ ev_id, deduplicated, status, verification_tier, placeholder, hint }`
+  ——`deduplicated: true` 即重放。
+
+### 占位/待核验登记（#245——占位资质不得冒充已核验证据）
+
+```json
+{ "project_id": "…", "kind": "qualification", "title": "iso9001 质量管理体系认证",
+  "source_file_id": "TF-0002", "subject_name": "投标人", "scope": "…",
+  "placeholder": true }
+```
+
+**真实证据 vs 占位材料的区别（必读）**：
+
+| 维度 | 真实证据（CONTENT_MATCHES / FILE_EXISTS） | 占位材料（PLACEHOLDER） |
+|---|---|---|
+| 声明方式 | 带 locator 登记即得 / 缺省文件级锚 | `placeholder: true`（可自报——从低不从高） |
+| 矩阵作用 | 绑定 → RESPONDED/PARTIAL，blocking 清零 | 绑定 → **PENDING_EVIDENCE 待补**，必选行 **blocking 保留** |
+| 起草作用 | 生成器引用实料（依据 [EV-*]…具备可核验支撑） | 生成器落【待补：...】占位——**不引用编号、不声称已具备** |
+| validate | — | E_EVIDENCE_PLACEHOLDER / E_QUAL_UNMET（BLOCKER） |
+| 导出 | 过门 | **1d 占位证据门拒（即使三门全批）** |
+| 升级 | — | 导入真实材料重新登记（同语义位换版：旧记录留痕 + 绑定迁移） |
+
+Agent 纪律：
+1. **不得自报已验证**：`verification_tier` 参数不存在（传入即拒）——
+   验证态由服务端裁决；占位→真实没有原地迁移通道，只有换版重登；
+2. 占位绑定回执会明示「不清除合规阻塞」——不要把 blocking 未归零当作
+   绑定失败去重试，那是占位语义的诚实呈现；
+3. 事故教训（2026-11-05）：批量注册占位资质并绑定全部矩阵行曾被误读为
+   「阻塞已清零/真实资质已满足」——占位绑定只产生待补面，导出前必须
+   升级为真实证据或人工豁免（set_matrix_override + Human receipt）。
 
 ## 绑定面（bind_evidence）
 
@@ -58,8 +88,9 @@
   通常相近但语义不同；无独立开标日真源时用招标文件载明的开标日期；
 - EXPIRED / SUPERSEDED 证据禁绑（开标日视角即时裁决 → 逐件
   E_UNPROCESSABLE）——**不要试图绑过期待换证的证据**，先走补料流程；
-- 绑后矩阵即时重算：返回 `matrix.blocking` 应清零（资格/否决/技术参数行
-  全部有证据时）；
+- 绑后矩阵即时重算：返回 `matrix.blocking`——真实证据绑齐时清零；
+  **占位证据（#245）绑定不清零**（必选行 PENDING_EVIDENCE 仍 blocking，
+  回执 `placeholder: true` + hint 警示）；
 - 重复绑定幂等重放；部分失败 → E_PARTIAL（item_errors 逐件定位 + data 携
   带成功面）。
 

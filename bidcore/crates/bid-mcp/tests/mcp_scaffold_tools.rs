@@ -591,3 +591,34 @@ fn scaffold_guards_and_error_paths() {
 
     println!("[mcp-scaffold] 错误路径面 ✅ E_STATE×4 / E_UNPROCESSABLE×8（含 #185 旧参数显式拒 ×3）/ E_PARTIAL×2（含 R-03 禁绑 + 逐件定位）");
 }
+
+/// #253 第一段：MCP 缺省建纲——不传 `target_total_chars` 时配额总和必须等于
+/// domain 单一真源常量（850,000 ≈ 1007 页），不再是本地硬编码的 20,000
+/// （24 页陷阱）。三层一致的第三层（domain Default 见 bid-domain outline.rs；
+/// schema 描述见 dispatch_contract.rs）。
+#[test]
+fn build_outline_default_total_chars_is_domain_constant() {
+    let ws = std::env::temp_dir().join(format!("mcp-scaffold-default-253-{}", std::process::id()));
+    let (mut svc, pid, _fid_a) = prepared(&ws, "mcp-scaffold-default-253");
+
+    // 不传 target_total_chars——Agent 读 schema 后最常见的不传路径
+    let bo = ok(call(
+        &mut svc,
+        "build_outline",
+        json!({ "project_id": &pid }),
+    ));
+    assert_eq!(bo["status"], json!("MATRIX_READY"), "建纲后状态: {bo:?}");
+    let total = bo["counts"]["total_target_chars"]
+        .as_u64()
+        .expect("counts.total_target_chars 必须在场");
+    assert_eq!(
+        total,
+        bid_domain::outline::DEFAULT_TARGET_TOTAL_CHARS as u64,
+        "MCP 缺省建纲配额总和必须等于 domain 常量（issue #253 三层一致）"
+    );
+    assert!(
+        total >= 844_000,
+        "缺省配额必须满足 1000 页硬指标（844 字/页 → ≥844,000）: {total}"
+    );
+    let _ = std::fs::remove_dir_all(&ws);
+}

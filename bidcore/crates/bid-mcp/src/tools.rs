@@ -3653,7 +3653,11 @@ fn build_outline(svc: &mut BidService, args: Value) -> ToolResult {
     }
 
     let spec = bid_domain::outline::OutlineSpec {
-        target_total_chars: target_total_chars.unwrap_or(20_000).min(u32::MAX as u64) as u32,
+        // issue #253 第一段：缺省值不再本地硬编码 20,000（24 页陷阱），统一引用
+        // bid-domain 的单一真源常量（850,000 ≈ 1007 页，满足 1000 页硬指标）
+        target_total_chars: target_total_chars
+            .unwrap_or(bid_domain::outline::DEFAULT_TARGET_TOTAL_CHARS as u64)
+            .min(u32::MAX as u64) as u32,
         max_reqs_per_leaf: max_reqs_per_leaf.unwrap_or(8) as usize,
     };
     let (n_sections, n_rows, n_blocking) = svc

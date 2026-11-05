@@ -104,6 +104,16 @@ pub struct OutlineNode {
 }
 
 // ---------------------------------------------------------------- 纯逻辑面
+/// 建纲目标总字数的**单一真源默认值**（issue #253 第一段：三层默认值统一）。
+///
+/// 推导：实测产物密度 844 字符/页（97 页 PDF / 81,850 字符反推），用户硬指标
+/// 「总篇幅 ≥ 1000 页」→ 目标总字数下限 = 1000 × 844 = 844,000。
+/// 取 **850,000**（≈ 1007 页）：落在 issue 给出的 844,000～866,000 论证区间内，
+/// 对下限留 ~0.7% 余量（密度为单次实测，存在样本误差），且为整五万好记的数。
+/// 取代旧值 1,000,000（超区间上限 15%，会连带抬高每章配额，与 #253 配额
+/// 按评分权重重构的方向冲突）。
+pub const DEFAULT_TARGET_TOTAL_CHARS: u32 = 850_000;
+
 /// 派生参数：`max_reqs_per_leaf` 决定分片粒度（验收口径：12,000 REQ / 500 章 ≈ 24）。
 #[derive(Debug, Clone, Copy)]
 pub struct OutlineSpec {
@@ -113,8 +123,12 @@ pub struct OutlineSpec {
 
 impl Default for OutlineSpec {
     fn default() -> Self {
-        // 1,000,000 字 / (12,000 REQ ÷ 24) ≈ 500 章——批次 v3 §零 的规模口径
-        OutlineSpec { target_total_chars: 1_000_000, max_reqs_per_leaf: 24 }
+        // 850,000 字 ≈ 1007 页（844 字符/页）——满足 1000 页硬指标；单一真源见
+        // [`DEFAULT_TARGET_TOTAL_CHARS`]（issue #253：MCP/schema 层引用而非重写）
+        OutlineSpec {
+            target_total_chars: DEFAULT_TARGET_TOTAL_CHARS,
+            max_reqs_per_leaf: 24,
+        }
     }
 }
 
@@ -919,6 +933,33 @@ mod tests {
         assert_eq!(reqs_of(&s1), reqs_of(&s2));
         // 配额和恰等于目标（最大余数法无下限触发时）
         assert_eq!(s1.outline_total_chars(), 100_000, "最大余数法：总和恰等于目标");
+    }
+
+    /// #253 第一段：建纲默认总字数的**单一真源**——常量满足 1000 页硬指标、
+    /// `Default` 引用常量（不另写数字）、默认规格建纲后配额总和恰等于常量
+    /// （最大余数法不缩水）。MCP 缺省与 schema 描述的对偶断言分别在
+    /// bid-mcp tests（mcp_scaffold_tools / dispatch_contract）——三层一致。
+    #[test]
+    fn default_target_total_chars_is_single_source_of_truth() {
+        // 硬指标下限：1000 页 × 实测密度 844 字符/页 = 844,000
+        assert!(
+            DEFAULT_TARGET_TOTAL_CHARS >= 844_000,
+            "默认总字数 {} 必须满足 1000 页硬指标（844 字/页 → ≥844,000）",
+            DEFAULT_TARGET_TOTAL_CHARS
+        );
+        // 单一真源：Default 与常量一致（MCP/schema 层引用同一常量）
+        assert_eq!(
+            OutlineSpec::default().target_total_chars,
+            DEFAULT_TARGET_TOTAL_CHARS
+        );
+        // 最大余数法：默认规格建纲后，叶配额总和恰等于默认目标
+        let mut s = store_with_reqs(50);
+        s.derive_and_set_outline(OutlineSpec::default()).unwrap();
+        assert_eq!(
+            s.outline_total_chars(),
+            DEFAULT_TARGET_TOTAL_CHARS as u64,
+            "默认规格建纲后配额总和必须恰等于 DEFAULT_TARGET_TOTAL_CHARS"
+        );
     }
 
     // ==================== #100 任务 1：其他类语义分组 ====================

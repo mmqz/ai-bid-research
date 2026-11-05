@@ -159,3 +159,33 @@ fn tools_schema_lists_all_twenty() {
     let ra = arr.iter().find(|t| t["name"] == "record_addendum_waiver").unwrap();
     assert_ne!(ra["description"], "unknown", "record_addendum_waiver 描述必须在场: {ra}");
 }
+
+/// #253 第一段：build_outline 的 schema 描述与 domain 常量同步。
+///
+/// description 由 `DEFAULT_TARGET_TOTAL_CHARS` 格式化生成（schema.rs 不得
+/// 硬编码数字）——常量变更时描述随动，Agent 读 schema 即得真默认。
+/// 三层一致的第二层（domain Default 见 bid-domain outline.rs；MCP 缺省
+/// 建纲见 mcp_scaffold_tools.rs）。
+#[test]
+fn build_outline_schema_default_matches_domain_constant() {
+    let v = bid_mcp::tools_schema();
+    let t = v["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["name"] == "build_outline")
+        .expect("build_outline 必须在 tools/list");
+    let desc = t["inputSchema"]["properties"]["target_total_chars"]["description"]
+        .as_str()
+        .unwrap_or_else(|| panic!("target_total_chars 描述必须在场: {t:?}"));
+    let expect = format!("缺省 {}", bid_domain::outline::DEFAULT_TARGET_TOTAL_CHARS);
+    assert!(
+        desc.contains(&expect),
+        "schema 描述必须含「{expect}」（与 domain 常量同步，不得硬编码）: {desc}"
+    );
+    // 描述里不得再出现旧口径的 20,000 / 20000
+    assert!(
+        !desc.contains("20000") && !desc.contains("20,000"),
+        "旧默认 20,000（24 页陷阱）必须清除: {desc}"
+    );
+}

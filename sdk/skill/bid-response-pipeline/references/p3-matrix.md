@@ -17,6 +17,11 @@
   1000 页 × 844 字符/页——与引擎单一真源 `DEFAULT_TARGET_TOTAL_CHARS`
   同源，#253）——长标书按实测篇幅给大值（见主 Skill「篇幅纪律」）；
 - `max_reqs_per_leaf`：每叶挂载条款上限（1..=50，缺省 8）；
+- **配额分配**（#253 第二段——引擎自动分层计价，不按条款数均摊）：
+  评分章节（有分值的）按分值权重吃大头；行政条款（资格/格式/合同/
+  须知类）300 字/条；技术参数等实质响应 2,000 字/条；剩余让渡给评分
+  章节。**不要按「条款数 × 均值」心算各章篇幅**——用 get_outline 读
+  每叶 `target_chars`（配额总和恒等于 `target_total_chars`）；
 - 状态窗口：**REQUIREMENTS_EXTRACTED 态可调**（FilesImported/Draft →
   E_STATE；MATRIX_READY+ 重复调用 → E_STATE——重建面属「补遗后增量重抽」
   的后续需求，不隐式放行）；

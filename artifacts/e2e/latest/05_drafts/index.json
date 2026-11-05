@@ -60,7 +60,7 @@
     },
     {
       "attempt": 1,
-      "chars": 424,
+      "chars": 514,
       "citations": [
         "REQ-0108",
         "REQ-0113"
@@ -69,7 +69,7 @@
     },
     {
       "attempt": 1,
-      "chars": 432,
+      "chars": 527,
       "citations": [
         "REQ-0112"
       ],
@@ -77,7 +77,7 @@
     },
     {
       "attempt": 1,
-      "chars": 402,
+      "chars": 541,
       "citations": [
         "REQ-0116",
         "REQ-0117"
@@ -86,7 +86,7 @@
     },
     {
       "attempt": 1,
-      "chars": 422,
+      "chars": 512,
       "citations": [
         "REQ-0118",
         "REQ-0119"
@@ -95,7 +95,7 @@
     },
     {
       "attempt": 1,
-      "chars": 445,
+      "chars": 535,
       "citations": [
         "REQ-0123",
         "REQ-0124"

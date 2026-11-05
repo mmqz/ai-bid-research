@@ -389,23 +389,28 @@ pub fn generate_mock(input: &SectionDraftInput) -> String {
         )
     });
 
-    // ⑤ 填充到 target ±20%（不足时循环补句；超出时截到下限——确定性两向）
+    // ⑤ 填充到目标量（#253 第二段：mock 面向 target 起草——总篇幅门按
+    //    硬指标把关全稿总量；带内语义见 pad_to_target 文档）
     pad_to_target(paras, input.target_chars)
 }
 
 /// 段落拼装 + 字数控制（chars().count() 中文口径）。
 ///
-/// 下限 = target × 80%，上限 = target × 120%（Lead 验收线 ±20%）。
+/// 填充基准 = target 本值（#253 第二段：总篇幅门 `E_TOTAL_CHARS_BELOW_MIN`
+/// 按硬指标把关全稿总量——mock 面向**目标量**起草而非 −20% 下限，否则
+/// 全带下限起草的 mock 稿恒触总篇幅门）。章节级验收带仍是 target ×
+/// [80%, 120%]（Lead 验收线 ±20%——本函数产出 ∈ [target, target+一句 filler]，
+/// 带内偏上沿；超带由 validate `W_CHARS_OFF_TARGET` MINOR 提示，不阻断）。
 /// target = 0 的退化面：跳过填充（内容完整性优先于字数——诚实不伪装）。
 fn pad_to_target(paras: Vec<String>, target: u32) -> String {
     let joined = |v: &[String]| v.join("\n\n");
     if target == 0 {
         return joined(&paras);
     }
-    let lower = target as f64 * 0.80;
+    let floor = f64::from(target);
     let mut v = paras;
     let mut i = 0usize;
-    while (joined(&v).chars().count() as f64) < lower {
+    while (joined(&v).chars().count() as f64) < floor {
         v.push(FILLER_SENTENCES[i % FILLER_SENTENCES.len()].to_string());
         i += 1;
         if i > 10_000 {

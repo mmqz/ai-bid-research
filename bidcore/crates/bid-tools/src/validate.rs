@@ -19,9 +19,12 @@
 //!      授权占位形态不同源——后者是 #245 起草面的合规形态，不误报）；
 //!   7. `W_CHARS_OFF_TARGET`（MINOR）：字数**超出**配额 +20% 之外（与 draft
 //!      生成带对称——同口径可对账）；
-//!   7b. `E_CHARS_BELOW_MIN`（BLOCKER）：正文低于配额 −20% 容差下限
-//!      （1.0 写作验收：最低篇幅不达标 → 整份标书不得报告达标/导出——
-//!      下限与 draft `pad_to_target` 的 80% 同口径，见规则 4 内注）；
+//!   7b. `E_CHARS_BELOW_MIN`（BLOCKER，**仅评分章节**）：正文低于配额 −20%
+//!      容差下限（#253 门禁分级：评分主体写不够 = 直接丢分；下限与 draft
+//!      `pad_to_target` 的 80% 同口径）；行政/实质章节 → `W_CHARS_BELOW_MIN`
+//!      （MAJOR——issue #253 的 WARNING 语义：不翻 ok、不拦导出）；
+//!   7c. `E_TOTAL_CHARS_BELOW_MIN`（BLOCKER，文档级）：全稿实写总量 <
+//!      `outline_total_chars()`（1000 页硬指标——产品级硬比较无容差）；
 //!   8. `W_FORMAT_BASELINE`（MINOR）：格式条款零命中按工程基线（Lead
 //!      「不准硬编码」的降级告知面）。
 //! - **第二层（模型复核，可选）**——[`ModelReviewer`] trait 注入（表述质量/
@@ -263,10 +266,11 @@ pub fn validate_document(
         //      [80%, 120%]，Lead 验收线 ±20%）。
         //
         // 【1.0 写作验收】下界与上界分治：
-        // - **下界 BLOCKER**（`E_CHARS_BELOW_MIN`）：篇幅不足 = 偷工减料——
-        //   响应覆盖度不足以支撑评审，不得把整份标书报告为达标（ok 翻
-        //   false）；经 record_review 派生 RT 后导出门（export_allowed
-        //   的「全 RT DONE」面）拒导出——防废标的最后一关。
+        // - **下界分轨**（#253 第二段门禁分级）：**评分章节** BLOCKER
+        //   （`E_CHARS_BELOW_MIN`——评分主体写不够 = 直接丢分，不得把整份
+        //   标书报告为达标）；**行政/实质章节** `W_CHARS_BELOW_MIN` MAJOR
+        //   （issue #253 的 WARNING 语义——不翻 ok、不拦导出，内容完整度
+        //   由规则 3 / 矩阵 / 绑定面把关）；
         // - **上界 MINOR**（`W_CHARS_OFF_TARGET` 原样）：超出只是提示（页数
         //   超限风险由人裁），不阻断——与旧口径兼容，避免过度收紧。
         // - `target_chars == 0`（无配额的叶）不判：没有目标就没有带外；
@@ -276,7 +280,11 @@ pub fn validate_document(
             let chars = content.chars().count();
             let target = f64::from(node.target_chars);
             if (chars as f64) < target * 0.80 {
-                structural_f.push(chars_below_min(node, chars));
+                if is_scoring_leaf(node, store) {
+                    structural_f.push(chars_below_min(node, chars));
+                } else {
+                    structural_f.push(chars_below_min_advisory(node, chars));
+                }
             } else if (chars as f64) > target * 1.20 {
                 structural_f.push(ValidationFinding {
                     rule_code: "W_CHARS_OFF_TARGET".into(),
@@ -416,6 +424,12 @@ pub fn validate_document(
         });
     }
 
+    // ---- 规则 4 文档级（#253 验收 7）：总篇幅门（全局级——恒全量，
+    //      scope 局部复审不缩小它的视野：全稿总量是产品级硬指标）
+    if let Some(f) = total_chars_below_min(store) {
+        structural_f.push(f);
+    }
+
     // ---- #187 四桶归位（Passed / Failed；semantic 未配置 → NotPerformed）
     let into_result =
         |v: Vec<ValidationFinding>| if v.is_empty() { CheckResult::Passed } else { CheckResult::Failed(v) };
@@ -505,7 +519,8 @@ fn section_empty_not_drafted(node: &bid_domain::outline::OutlineNode) -> Validat
     }
 }
 
-/// 规则 4 下界 BLOCKER 的 finding 构造（共用，同上）。
+/// 规则 4 下界 BLOCKER 的 finding 构造（共用，同上）——**仅评分章节**
+/// （#253 第二段门禁分级：评分主体写不够 = 直接丢分，BLOCKER 不得达标/导出）。
 fn chars_below_min(
     node: &bid_domain::outline::OutlineNode,
     chars: usize,
@@ -517,9 +532,84 @@ fn chars_below_min(
         section_id: Some(node.id.clone()),
         requirement_id: None,
         message: format!(
-            "章节「{}」正文 {} 字低于最低篇幅 {:.0}（目标 {} 的 −20% 容差下限）——篇幅不足不得达标/导出，补写后重校",
+            "评分章节「{}」正文 {} 字低于最低篇幅 {:.0}（目标 {} 的 −20% 容差下限）——评分主体篇幅不足不得达标/导出，补写后重校",
             node.title, chars, target * 0.80, node.target_chars,
         ),
+    }
+}
+
+/// 规则 4 下界的行政/实质面（#253 第二段门禁分级）。
+///
+/// issue #253 的「WARNING」在本词表的映射 = `W_CHARS_BELOW_MIN` **MAJOR**：
+/// 进 errors 面可见，但不翻 `ok`（仅 BLOCKER 翻）、不拦导出——行政/实质
+/// 章节的内容完整度由 E_SECTION_EMPTY / 矩阵 / 章节绑定面把关，篇幅只作
+/// 质量提示（「内容完整即可，不强制篇幅」）。
+fn chars_below_min_advisory(
+    node: &bid_domain::outline::OutlineNode,
+    chars: usize,
+) -> ValidationFinding {
+    let target = f64::from(node.target_chars);
+    ValidationFinding {
+        rule_code: "W_CHARS_BELOW_MIN".into(),
+        severity: "MAJOR",
+        section_id: Some(node.id.clone()),
+        requirement_id: None,
+        message: format!(
+            "行政/实质章节「{}」正文 {} 字低于目标 {} 的 −20% 容差下限（#253：篇幅不强制，内容完整即可——补写可提升评审阅读体验）",
+            node.title, chars, node.target_chars,
+        ),
+    }
+}
+
+/// 叶是否评分承载章节（#253 门禁分级的分类面——与配额三轨的
+/// [`bid_domain::outline`] 评分轨同源判定：绑定评分项 REQ，或被
+/// ScoringMapping 映射为被评章节）。
+///
+/// 双信号容错：#252 评分驱动大纲落地前 REQ 绑定是主信号；落地后若结构
+/// 改用映射面（ScoringMapping.section_id），账本信号兜底——两信号任一
+/// 命中即按评分章节的 BLOCKER 口径把关（fail-strict：分值主体不得漏管）。
+fn is_scoring_leaf(
+    node: &bid_domain::outline::OutlineNode,
+    store: &DomainStore,
+) -> bool {
+    let scoring_req: bool = node.requirement_ids.iter().any(|rid| {
+        store.requirements().iter().any(|r| r.id == *rid && r.category == "评分项")
+    });
+    let mapped: bool = store.scoring_mappings().iter().any(|m| m.section_id == node.id);
+    scoring_req || mapped
+}
+
+/// 文档级总篇幅门（#253 验收 7：总篇幅 < 1000 页 → BLOCKER——用户硬指标）。
+///
+/// 阈值 = `outline_total_chars()`（配额总和，单一真源；默认 844,000 =
+/// 1000 页 × 844 字符/页）：**硬比较无容差**——章节级 ±20% 容差是起草
+/// 容差（迭代中可短写），产品级门是硬指标（导出的标书必须达到目标总量；
+/// 若容忍 −20%，全带下限起草的标书只有 800 页，违背用户硬要求）。
+fn total_chars_below_min(store: &DomainStore) -> Option<ValidationFinding> {
+    let target = store.outline_total_chars();
+    if target == 0 {
+        return None; // 无配额不判（与规则 4 的 target_chars == 0 同口径）
+    }
+    // 正文只住叶（set_section_content 拒结构节点）——非空 content 即叶实写面
+    let actual: u64 = store
+        .sections()
+        .iter()
+        .filter(|n| n.content.as_deref().map(|c| !c.trim().is_empty()).unwrap_or(false))
+        .map(|n| n.content.as_deref().map(|c| c.chars().count() as u64).unwrap_or(0))
+        .sum();
+    if actual < target {
+        Some(ValidationFinding {
+            rule_code: "E_TOTAL_CHARS_BELOW_MIN".into(),
+            severity: "BLOCKER",
+            section_id: None,
+            requirement_id: None,
+            message: format!(
+                "全稿正文字数 {actual} 低于总篇幅目标 {target}（1000 页硬指标，现状约 {} 页）——总篇幅不足不得达标/导出，逐章补写后重校",
+                actual / 844,
+            ),
+        })
+    } else {
+        None
     }
 }
 
@@ -533,10 +623,13 @@ fn chars_below_min(
 /// **独立复算**写作验收硬线，不消费记审面（reviews / RT / gate_approved
 /// 均不看）——fail-closed。
 ///
-/// 复算范围 = 写作验收 BLOCKER 两条（与 validate 同规则同构造器，无
-/// scope 恒全量叶）：
+/// 复算范围 = 写作验收 BLOCKER 面（无 scope 恒全量叶；#253 第二段后）：
 /// - 规则 3 `E_SECTION_EMPTY`：必写叶无正文 / 未达 DRAFTED；
-/// - 规则 4 下界 `E_CHARS_BELOW_MIN`：正文 < target×80%。
+/// - 规则 4 下界 `E_CHARS_BELOW_MIN`：**评分章节**正文 < target×80%
+///   （行政/实质章节降为 W_CHARS_BELOW_MIN MAJOR——不拦导出，
+///   #253 门禁分级：内容完整即可，不强制篇幅）；
+/// - 规则 4 文档级 `E_TOTAL_CHARS_BELOW_MIN`：全稿实写总量 <
+///   `outline_total_chars()`（1000 页硬指标——产品级硬比较无容差）。
 ///
 /// **不在**此面的规则及其理由：上界 `W_CHARS_OFF_TARGET` 是 MINOR 提示
 /// 不阻断导出；矩阵/否决/资格面有关 1a 矩阵门；证据效期/引用幽灵走
@@ -565,10 +658,15 @@ pub fn writing_acceptance_findings(store: &DomainStore) -> Vec<ValidationFinding
         }
         if node.target_chars > 0 {
             let chars = node.content.as_deref().unwrap_or("").chars().count();
-            if (chars as f64) < f64::from(node.target_chars) * 0.80 {
+            if (chars as f64) < f64::from(node.target_chars) * 0.80
+                && is_scoring_leaf(node, store)
+            {
                 out.push(chars_below_min(node, chars));
             }
         }
+    }
+    if let Some(f) = total_chars_below_min(store) {
+        out.push(f);
     }
     out
 }

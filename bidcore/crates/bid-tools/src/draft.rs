@@ -720,6 +720,31 @@ impl super::service::BidService {
         }
 
         // ---- 4. CAS 写入（同内容 no-op——幂等面）
+        // #254 整稿 ↔ 分段联动：该章节有段账本且合稿 ≠ 本次整稿内容 →
+        // 账本重置为单段（内容 = 整稿正文）——旧账与新正文不一致就是陈账，
+        // 不静默保留（合稿 == 整稿内容时不动：no-op 语义幂等）。
+        {
+            let ledger_nonempty = !self
+                .store()
+                .list_section_segments(section_id)
+                .is_empty();
+            if ledger_nonempty {
+                let merged = self.store().assemble_section_segments(section_id);
+                if merged.as_deref() != Some(content.as_str()) {
+                    let fingerprint = {
+                        use sha2::{Digest, Sha256};
+                        let mut h = Sha256::new();
+                        h.update(content.as_bytes());
+                        format!("full:{:016x}", u64::from_le_bytes(
+                            h.finalize()[..8].try_into().expect("sha256 ≥ 8 bytes"),
+                        ))
+                    };
+                    self.store_mut().reset_section_segments_to_single(
+                        section_id, &content, &fingerprint,
+                    )?;
+                }
+            }
+        }
         let (attempt, chars) = self.store_mut().set_section_content(section_id, content.clone())?;
 
         // ---- 5. 章节推进 DRAFTED（合法链补齐；no-op 路径零副作用）
@@ -795,7 +820,7 @@ pub struct DraftOutcome {
 
 /// 章节推进 DRAFTED 的合法链补齐（PENDING → OUTLINING → DRAFTING → DRAFTED；
 /// 已在/已过 DRAFTED → no-op——与 assemble_all::advance_to 同语义）。
-fn advance_section_to_drafted(store: &mut DomainStore, section_id: &str) -> Result<(), ToolError> {
+pub(crate) fn advance_section_to_drafted(store: &mut DomainStore, section_id: &str) -> Result<(), ToolError> {
     use SectionStatus::*;
     let cur = store.sections().iter().find(|n| n.id == section_id)
         .ok_or_else(|| ToolError::ENotFound { what: format!("section {section_id} 不存在") })?
@@ -819,7 +844,7 @@ fn advance_section_to_drafted(store: &mut DomainStore, section_id: &str) -> Resu
 /// guard_tool（壳层）已保证项目在 MatrixReady+；此处防御性穷举——
 /// 前段态（Draft/FilesImported/RequirementsExtracted）直达本函数即状态机
 /// 错误（透传，不猜测），Drafting+ 已越过者 no-op。
-fn advance_project_to_drafting(store: &mut DomainStore) -> Result<(), ToolError> {
+pub(crate) fn advance_project_to_drafting(store: &mut DomainStore) -> Result<(), ToolError> {
     use bid_domain::ProjectStatus::*;
     let cur = store.project()?.status;
     let steps: &[bid_domain::ProjectStatus] = match cur {

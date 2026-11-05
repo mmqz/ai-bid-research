@@ -59,9 +59,10 @@ fn tr(idx: usize, locator: &str, cells: &[&str]) -> Block {
 
 /// #250 核心：kind 优先——登记 kind 的文件无论文件名带不带前缀，
 /// 门禁判定完全相同（真实文件名与夹具文件名走同一合并路径）。
+/// #271：「格式模板」移入无面组（官方填空模板非条款源）。
 #[test]
 fn kind_gate_takes_precedence_over_prefix() {
-    let main_kinds = ["招标文件", "补遗", "答疑", "评分办法", "格式模板"];
+    let main_kinds = ["招标文件", "补遗", "答疑", "评分办法"];
     for kind in main_kinds {
         for name in [
             "光纤租赁费招标文件-文本修复版v5w.docx", // 真实用户文件名（无前缀）
@@ -75,11 +76,12 @@ fn kind_gate_takes_precedence_over_prefix() {
     }
 }
 
-/// 附件/图纸/证据无条款面：即使文件名带主文件前缀也不进合并统计
-/// （kind 是登记的业务事实，优先于夹具前缀——#196 同口径）。
+/// 附件/图纸/证据/格式模板无条款面：即使文件名带主文件前缀也不进合并统计
+/// （kind 是登记的业务事实，优先于夹具前缀——#196 同口径；#271 格式模板
+/// 同入——官方填空模板非条款源）。
 #[test]
 fn attachment_kinds_have_no_face_even_with_main_prefix() {
-    for kind in ["附件", "图纸", "证据"] {
+    for kind in ["附件", "图纸", "证据", "格式模板"] {
         assert!(!has_extraction_face(Some(kind), "A-招标文件.docx"), "kind={kind}");
         assert!(!has_extraction_face(Some(kind), "图纸目录.pdf"));
     }

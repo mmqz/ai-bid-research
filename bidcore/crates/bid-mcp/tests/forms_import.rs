@@ -140,6 +140,14 @@ fn nm_forms_identified_not_requirements() {
         "per_file 应含格式模板 kind 回显"
     );
 
+    // 全链面（REQ 抽取/关联/矩阵）依赖 PDF 文本层——无 poppler 的环境
+    // （CI，#9 纪律）主件抽不出文本层，REQ=0 是环境差异不是业务失败。
+    // 导入面断言（上面清单/kind）不依赖 poppler，已在所有环境跑过。
+    if bid_parse::env_preflight::skip_if_env_missing("forms-import-nm-fullchain", &["pdftotext"]) {
+        let _ = std::fs::remove_dir_all(&ws);
+        return;
+    }
+
     // 面 1：主件正常抽取（附件不产 REQ——source_file 全部来自主件）
     let ex = ok(
         &mut svc,

@@ -128,6 +128,8 @@ project_version 恒为本次完成后最新值，直接传给下一个工具。
 - ❌ 对 parse FAILED 文件内容作答（禁引纪律）
 - ❌ 暗标项目在正文出现公司名/敏感字样（P6 确定性扫描拦截）
 - ❌ 静默吞掉 warnings（必须转述用户或登记 finding）
+- ❌ 分批写作用 `draft_response_section` 逐批提交（整稿替换会**静默丢前批**——
+  分批必须走 `append_section_segment`，见 §篇幅纪律 #254 修订）
 
 ## 阶段细节（渐进披露）
 
@@ -137,6 +139,7 @@ project_version 恒为本次完成后最新值，直接传给下一个工具。
 - `references/p2-extract.md`——七类产物定义、条款类型判定边界、参数槽位表
 - `references/p3-matrix.md`——建纲/矩阵用法、四态与 blocking 判定、资格结论推导、blocking 行排查表
 - `references/p4-evidence.md`——证据登记/绑定面、有效期核对法、补料清单模板
+- `references/p5b-segments.md`——章节分段写入三工具（#254：长章节分批写作的引擎对偶面——append/rewrite/list、幂等与 CAS、恢复流程）
 - `references/p6-validation.md`——确定性规则清单与模型检查范围、WAIVED 审批话术
 - `references/p7-review.md`——四道审门与 receipt 验签、RevisionTask 闭环、质量复核收口清单
 - `references/p8-export.md`——导出双前置门、六表七件对账、暗标与幂等、产物验证
@@ -147,6 +150,7 @@ project_version 恒为本次完成后最新值，直接传给下一个工具。
 | 姿势 | 用法 | 适用 |
 |---|---|---|
 | **external（推荐给外部 Agent）** | `draft_response_section(generator="external", content="<你写的正文全文>")` | 使用方 Agent 框架自己生成正文（有自己的模型/免费额度）；引擎不生成只提交——引用回查/CAS/落盘/校验与其他模式同路径 |
+| **分段写入（长章节必用，#254）** | `append_section_segment(content="<本批段文>")` 逐批追加；`rewrite_section_segment` 局部修订；`list_section_segments` 对账恢复 | 章节目标 > 4000 字的**任何**场景——真增量（前批不丢）、幂等重试、断点续写。细则见 [`references/p5b-segments.md`](references/p5b-segments.md) |
 | auto / mock / real | `generator` 缺省（auto=有 key 走真实 LLM、无 key 降级 mock）/ `"mock"`（确定性）/ `"real"`（无 key 响亮拒） | 不带自己模型的宿主；mock 用于 e2e 与复算 |
 
 external 模式细则：`content` 在场即 external 语义（`generator` 可省）；与
@@ -166,35 +170,86 @@ external 正文两条硬纪律（引擎引用回查的实测执行面）：**引
 最大一节「定期巡检方案」236 页 ≈ 15.7 万字）。任何模型一次都写不完一节——
 必须按批推进。
 
-### 三个数字（draft_response_section 返回的 `quota`）
+### 三个数字（分段工具与 `draft_response_section` 返回的 `quota`）
 
-每写完一章，返回体里带：
+每写完一章/一批，返回体里带：
 
 | 字段 | 含义 | 你怎么用 |
 |---|---|---|
 | `target_chars` | 本节目标字数 | 总量基准 |
-| `written_chars` | 本节已写字数（含重写后的全量） | 当前进度 |
+| `written_chars` | 本节已写字数（**合稿口径**——含全部段） | 当前进度 |
 | `remaining` | 还差多少 | **决定下一批写多少** |
 | `min_segments` | 按 4000 字/批折算**总共要几批** | 规划节奏 |
 | `remaining_segments` | **还要几批** | 剩 0 = 可以收尾 |
 | `progress_pct` | 完成度百分比（>100 = 超配额） | 判断是否该压缩 |
 
-### 硬规则
+### 硬规则（#254 修订：分批必须走分段工具，不是反复整稿提交）
 
-1. **单批 ≤ 4000 字**。超过就分段：写一批 → `draft_response_section` 提交
-   → 看 `quota.remaining` → 写下一批。**不要一次生成整节**（超过 4000 字后
-   模型开始重复句式、丢失前文约束）。
-2. **`progress_pct` ≥ 90% → 停止扩写，转入收尾**（补漏项、核对覆盖度）。
-3. **`progress_pct` ≥ 100% → 硬停**。再写就是浪费——超配额反而拉低评审印象。
-4. **`progress_pct` < 60% 但已无内容可写 → 调 `check_bid_quality` 看
+1. **单批 ≤ 4000 字，且分批必须用 `append_section_segment`**。
+   写一批 → `append_section_segment` 提交**该批内容**（引擎按序追加，
+   前批不丢）→ 看 `remaining_chars` / `remaining_segments` → 写下一批。
+   **禁止**「写一批 → `draft_response_section` 提交 → 写下一批」——
+   `draft_response_section` 的 `content` 是**整节全文，提交即整稿替换**，
+   旧指引会让前一批内容被静默丢弃（真实事故：SEC-0006 九次重提，
+   5628→12201→…→5868 字越写越短直至崩溃）。
+2. **`draft_response_section` 只用于两种场景**：整节能一次写完（≤ 4000 字）
+   的小章节；或对已分段章节做**整章重写**（重提不同内容会把段账本重置为
+   单段——账本与正文始终一致，但旧段修订历史不保留）。
+3. **改中间某一批** → `rewrite_section_segment`（`segment_id` 来自
+   `list_section_segments` 回显；带 `expected_version` 做 CAS，过期报
+   `E_CONFLICT`——说明有并发写作，先 `list` 对账再改）。**不要**为改
+   一段而重提整稿。
+4. **续写前先 `list_section_segments`**——重启/断点后从这里恢复：
+   段清单 + 合稿字数 + 剩余配额一目了然，接着 `append` 即可（seq 自动
+   接续）。
+5. **`progress_pct` ≥ 90% → 停止扩写，转入收尾**（补漏项、核对覆盖度）。
+6. **`progress_pct` ≥ 100% → 硬停**。再写就是浪费——超配额反而拉低评审印象。
+7. **`progress_pct` < 60% 但已无内容可写 → 调 `check_bid_quality` 看
    `uncovered_requirements`**，缺口才是该写的内容。
-5. **每批写完立刻 `save_version`**（message 写明「第 N/M 批」）——断了能续。
+8. **每批写完立刻 `save_version`**（message 写明「第 N/M 批」）——断了能续。
+
+### 幂等与失败重试（分段路径的容错面）
+
+- `append_section_segment` 的 `idem_key` 缺省 = 内容指纹：**同段同内容
+  重提 = no-op**（`deduplicated: true`，账面零变动）——网络超时后放心
+  重发，不会重复追加；
+- 段里引用的 `[REQ-*]` / `[EV-*]` 必须是该章节绑定的条目：未知引用**整段
+  拒收**（`E_UNPROCESSABLE`，点名哪个 id 幻觉）——分段路径不做自动剔除，
+  修正引用后重提。
 
 ### 为什么是 4000 字
 
 模型上下文窗口的「有效生成区」远小于「可读区」：一次生成超过 ~4000 字后，
 后半段开始重复前半段的句式、丢掉开头设定的约束（真实招标文件实测：单次
 生成 8000 字的章节，后半段与前文重复率 > 0.3，触发跨章查重）。
+
+### 端到端示例（分段写 → 恢复 → 合稿 → 校验导出）
+
+```jsonc
+// ① 首批（seq 自动 = 1）
+append_section_segment { "section_id": "SEC-0006", "content": "…本批 ≤4000 字…",
+                         "idem_key": "SEC-0006/batch-1" }
+→ { "segment": { "seq": 1 }, "assembled_chars": 3800, "remaining_chars": 28471 }
+
+// ② 后续批（seq 自动接续；quota.remaining_segments 告诉你还剩几批）
+append_section_segment { … "content": "…下一批…" }
+→ { "segment": { "seq": 2 }, … }
+
+// ③ 中途要改第 1 批（局部修订，不动其他批）
+list_section_segments { "section_id": "SEC-0006" }        // 拿 segment_id/version
+rewrite_section_segment { "segment_id": "SEG-0007", "content": "…修订后全文…",
+                          "expected_version": 1 }
+
+// ④ 断点/重启恢复（服务重启后段全在）
+list_section_segments { "section_id": "SEC-0006" }
+→ { "segments": [ …seq 1..N… ], "assembled_chars": 29000, "remaining_chars": 3271 }
+append_section_segment { … }   // 接着写
+
+// ⑤ 全部批次完成 → 章节正文 = 全部段按序拼接（合稿）；validate/export
+//    与整稿路径完全一致（E_CHARS_BELOW_MIN 按合稿计算，单段不判门）
+validate_bid_document { "project_id": "…", "scope": "sections", "section_ids": ["SEC-0006"] }
+export_bid_document   { "project_id": "…" }
+```
 
 ### 与跨章查重的关系
 

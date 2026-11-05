@@ -182,8 +182,11 @@ C：324000/437≈741）——换算节篇幅时统一按 **≈670 字/页** 估�
 
 - 15.7 万字的一节 = **40 批 × 4000 字**（见 SKILL.md §篇幅纪律）；
 - 3 万字的一节 = 8 批；
-- 单节超过 4000 字就别指望一次生成：写完一批 → `draft_response_section` →
-  读 `quota.remaining` / `remaining_segments` → 写下一批 → `save_version`；
+- 单节超过 4000 字就别指望一次生成：写完一批 →
+  `append_section_segment`（提交**本批段文**，前批不丢）→
+  读 `remaining_chars` / `remaining_segments` → 写下一批 → `save_version`。
+  ⚠ 不要用 `draft_response_section` 分批提交——它是整稿替换，会静默丢前批
+  （#254 真实事故：九次重提越写越短）；
 - 分批不按字数硬切，按**节内小节**切：一个三级标题一批（约 3000-4000 字），
   天然避免跨批重复。
 

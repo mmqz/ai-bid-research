@@ -87,6 +87,12 @@ pub enum ToolError {
     EUnprocessable { reason: String },
     /// 部分条目失败
     EPartial { item_errors: Vec<String> },
+    /// #243：全稿最终校验前置拒——起草未完成（存在未达 DRAFTED 的叶章节）。
+    ///
+    /// 零副作用通道（不跑规则/不推进状态/不落版本/不动审核记录）；
+    /// `missing` = 未完成叶的 section_id 清单（可操作：逐叶补起草后重校，
+    /// 或走 scope=sections 做章节级检查）。
+    EDraftIncomplete { missing: Vec<String> },
 }
 
 impl ToolError {
@@ -97,6 +103,7 @@ impl ToolError {
             ToolError::ENotFound { .. } => "E_NOTFOUND",
             ToolError::EUnprocessable { .. } => "E_UNPROCESSABLE",
             ToolError::EPartial { .. } => "E_PARTIAL",
+            ToolError::EDraftIncomplete { .. } => "E_DRAFT_INCOMPLETE",
         }
     }
 }
@@ -221,7 +228,26 @@ impl ProjectStatus {
                 // #226：起草期照样要能翻案（发现某条是规则说明 → 标不适用）
                 "set_matrix_override",
             ],
-            Validating | Reviewing | ReadyToExport => &[
+            Validating => &[
+                "get_compliance_matrix",
+                "get_coverage_report",
+                "search_evidence",
+                "get_bid_project_state",
+                "validate_bid_document",
+                "export_bid_document",
+                "check_bid_quality",
+                "record_review_gate",
+                // #184：补遗分级阻塞的逐件确认（导入后任意时刻）
+                "record_addendum_waiver",
+                "score_section",
+                "score_document",
+                // #226：导出前复核期同样可翻案（这里是 blocking 最后能解的地方）
+                "set_matrix_override",
+                // #243：历史异常态（VALIDATING + 缺章——旧版校验误推进所致）
+                // 的受支持恢复出口；三重约束见 recover_validating_to_drafting
+                "recover_validating_state",
+            ],
+            Reviewing | ReadyToExport => &[
                 "get_compliance_matrix",
                 "get_coverage_report",
                 "search_evidence",
@@ -348,6 +374,28 @@ pub struct AddendumWaiverRecord {
     pub trusted: Option<TrustedPrincipal>,
 }
 
+/// #243 状态恢复审计记录（VALIDATING → DRAFTING 的唯一受支持回退边）。
+///
+/// 历史缺陷（#243 之前的 main）：全局校验在草稿未完成/校验失败时仍无条件
+/// 推进 VALIDATING，而 VALIDATING 态禁起草 → 项目死锁，用户只能终止进程
+/// 并手工改 db.json 的状态字段。本记录是受支持恢复通道的审计面——每次
+/// 恢复都留底（何时/为何/从哪到哪/当时缺哪些章）。恢复通道的三重约束
+/// 与状态不变量（章节树/矩阵/审核记录不动）见
+/// [`DomainStore::recover_validating_to_drafting`]。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StateRecoveryRecord {
+    /// 恢复时刻（unix epoch 秒）
+    pub at: u64,
+    /// 恒 VALIDATING（恢复的唯一起点）
+    pub from: ProjectStatus,
+    /// 恒 DRAFTING（恢复的唯一终点——起草面解锁）
+    pub to: ProjectStatus,
+    /// 恢复理由（非空白——不可审计的恢复不成恢复）
+    pub reason: String,
+    /// 恢复时的未完成叶快照（SEC-* 清单——审计面：恢复针对的缺章事实）
+    pub missing_sections: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Requirement {
     pub id: String,       // REQ-xxxx
@@ -415,6 +463,9 @@ pub struct DomainStore {
     /// [`DomainStore::upsert_scoring_mapping`]，派生联结见
     /// [`DomainStore::scoring_items`]）
     scoring_mappings: Vec<scoring::ScoringMapping>,
+    /// #243 状态恢复审计账（VALIDATING → DRAFTING 的留底——追加式审计
+    /// 日志，见 [`DomainStore::recover_validating_to_drafting`]）
+    state_recoveries: Vec<StateRecoveryRecord>,
     /// 幂等键 → 首次结果 JSON（同 key 重放返回首次结果，不重复执行）
     idempotency: HashMap<String, serde_json::Value>,
     id_seq: u64,
@@ -441,6 +492,7 @@ impl DomainStore {
             block_marks: HashMap::new(),
             submitted_requirements: HashMap::new(),
             scoring_mappings: vec![],
+            state_recoveries: vec![],
             idempotency: HashMap::new(),
             id_seq: 0,
         }
@@ -614,6 +666,85 @@ impl DomainStore {
             p.content_version += 1;
         }
         Ok(())
+    }
+
+    // ------------------------------------------------------------ #243 校验状态安全与恢复
+    /// #243：全稿「起草未完成」判定——未达 DRAFTED 的叶章节清单。
+    ///
+    /// 「已起草」口径与 validate 规则 3 同源（[`SectionStatus::is_drafted`]：
+    /// Drafted/Validating/Revising/Accepted；Pending/Outlining/Drafting/Failed
+    /// 都是未完成——Failed 是失败的一等结果，重试成功后才算完成）。
+    /// 返回序 = 章节树文档序（确定性）。
+    pub fn incomplete_leaf_ids(&self) -> Vec<String> {
+        let parents: std::collections::HashSet<&str> = self
+            .sections
+            .iter()
+            .filter_map(|n| n.parent_id.as_deref())
+            .collect();
+        self.sections
+            .iter()
+            .filter(|n| !parents.contains(&n.id[..]) && !n.status.is_drafted())
+            .map(|n| n.id.clone())
+            .collect()
+    }
+
+    /// #243 状态恢复审计账（追加式——查询面返回全部记录）。
+    pub fn state_recoveries(&self) -> &[StateRecoveryRecord] {
+        &self.state_recoveries
+    }
+
+    /// #243 受支持的状态恢复：VALIDATING → DRAFTING（唯一回退边，有审计）。
+    ///
+    /// 通道三重约束（不是任意状态写入）：
+    /// 1. 仅 VALIDATING 态可恢复——前段态无死锁面；Reviewing+ 属审核/导出
+    ///    阶段，语义不同，不在本通道；
+    /// 2. 仅草稿未完成（存在未 DRAFTED 叶）可恢复——这正是历史缺陷制造的
+    ///    异常态（校验误推进 + 起草被锁死）；草稿完整的 VALIDATING 是健康
+    ///    态（校验已过），恢复通道拒之；
+    /// 3. 理由必填非空白——每次恢复都落 [`StateRecoveryRecord`] 审计账
+    ///    （何时/为何/从哪到哪/当时缺哪些章）。
+    ///
+    /// 效果：status → DRAFTING（起草面解锁）+ content_version + 1 + 审计
+    /// 入账。**不动**章节树/矩阵/审核记录（恢复是状态面动作，内容面
+    /// 原样——恢复前后的不变量由 #243 测试锁定）。拒绝路径零副作用。
+    pub fn recover_validating_to_drafting(
+        &mut self,
+        reason: &str,
+    ) -> Result<StateRecoveryRecord, ToolError> {
+        let cur = self.project()?.status;
+        if cur != ProjectStatus::Validating {
+            return Err(ToolError::EState {
+                current: cur,
+                attempted: "recover_validating_to_drafting",
+            });
+        }
+        let missing = self.incomplete_leaf_ids();
+        if missing.is_empty() {
+            return Err(ToolError::EUnprocessable {
+                reason: "草稿已完整（全部叶达 DRAFTED）——当前 VALIDATING 是健康态（校验已过），不构成恢复条件（#243 恢复通道仅服务历史异常的 VALIDATING+缺章态）".into(),
+            });
+        }
+        if reason.trim().is_empty() {
+            return Err(ToolError::EUnprocessable {
+                reason: "恢复理由不得为空白（审计面：不可审计的恢复不成恢复）".into(),
+            });
+        }
+        let rec = StateRecoveryRecord {
+            at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0),
+            from: ProjectStatus::Validating,
+            to: ProjectStatus::Drafting,
+            reason: reason.trim().to_string(),
+            missing_sections: missing,
+        };
+        if let Some(p) = self.project.as_mut() {
+            p.status = ProjectStatus::Drafting;
+            p.content_version += 1; // 状态变更即版本变更（与 advance_project_status 同口径）
+        }
+        self.state_recoveries.push(rec.clone());
+        Ok(rec)
     }
 
     // ------------------------------------------------------------ import_tender_files（契约 §2）
@@ -1048,6 +1179,10 @@ pub struct StoreSnapshot {
     /// 旧版一致；schema_version 不 bump，见头注释加性演进纪律）
     #[serde(default)]
     pub scoring_mappings: Vec<scoring::ScoringMapping>,
+    /// #243 状态恢复审计账（加性迁移——旧快照无此字段 → 空集合加载；
+    /// schema_version 不 bump，见头注释的加性演进纪律）
+    #[serde(default)]
+    pub state_recoveries: Vec<StateRecoveryRecord>,
     #[serde(default)]
     pub idempotency: BTreeMap<String, serde_json::Value>,
     #[serde(default)]
@@ -1082,6 +1217,7 @@ impl DomainStore {
                 .into_iter()
                 .collect(),
             scoring_mappings: self.scoring_mappings.clone(),
+            state_recoveries: self.state_recoveries.clone(),
             // HashMap → BTreeMap：持久化 DTO 要求跨进程字节一致（HashMap 迭代序不确定）
             idempotency: self.idempotency.clone().into_iter().collect(),
             id_seq: self.id_seq,
@@ -1372,7 +1508,8 @@ impl DomainStore {
                 || !snap.revision_tasks.is_empty()
                 || !snap.addendum_waivers.is_empty()
                 || !snap.file_roles.is_empty()
-                || !snap.scoring_mappings.is_empty())
+                || !snap.scoring_mappings.is_empty()
+                || !snap.state_recoveries.is_empty())
         {
             return Err(un("快照有数据但无项目（孤儿集合——拒绝加载半个库）".into()));
         }
@@ -1395,6 +1532,7 @@ impl DomainStore {
             block_marks: snap.block_marks.into_iter().collect(),
             submitted_requirements: snap.submitted_requirements.into_iter().collect(),
             scoring_mappings: snap.scoring_mappings,
+            state_recoveries: snap.state_recoveries,
             idempotency: snap.idempotency.into_iter().collect(),
             id_seq: snap.id_seq,
         })
@@ -1423,6 +1561,7 @@ fn tool_name(tool: &str) -> &'static str {
         "bind_evidence" => "bind_evidence",
         "record_review_gate" => "record_review_gate",
         "record_addendum_waiver" => "record_addendum_waiver",
+        "recover_validating_state" => "recover_validating_state",
         _ => "unknown_tool",
     }
 }
@@ -1717,5 +1856,258 @@ mod tests {
         s.upsert_file("A-招标文件.docx", "招标文件", "sha-w", 1, 0, 5, 0, ParseStatus::Ok, "")
             .unwrap();
         assert!(s.guard_tool("record_addendum_waiver").is_ok());
+    }
+
+    // ------------------------------------------------------------ #243 校验状态安全与恢复
+
+    /// #243 夹具：两叶大纲（一章两节）+ 项目推进到指定状态。
+    /// SEC-0003/SEC-0004 是叶（父 SEC-0002），REQ-0001/0002 挂两叶。
+    fn store_with_outline_243(advance_to: ProjectStatus) -> DomainStore {
+        use outline::{OutlineNode, SectionStatus};
+        let mut s = store_with_files();
+        s.set_requirements(vec![
+            Requirement {
+                id: "REQ-0001".into(),
+                category: "格式要求".into(),
+                clause_no: None,
+                anchors: vec![Anchor {
+                    file: "A-招标文件.docx".into(),
+                    kind: "para".into(),
+                    locator: "第一章/1.1".into(),
+                    excerpt: "正文用仿宋三号字".into(),
+                }],
+                params: HashMap::new(),
+                source_file: "A-招标文件.docx".into(),
+            },
+            Requirement {
+                id: "REQ-0002".into(),
+                category: "技术参数".into(),
+                clause_no: None,
+                anchors: vec![Anchor {
+                    file: "A-招标文件.docx".into(),
+                    kind: "para".into(),
+                    locator: "第二章/2.1".into(),
+                    excerpt: "设备功率不低于 100kW".into(),
+                }],
+                params: HashMap::new(),
+                source_file: "A-招标文件.docx".into(),
+            },
+        ])
+        .unwrap();
+        let mk = |id: &str, pid: Option<&str>, title: &str, level: u8, order: u32, target: u32, reqs: Vec<&str>| OutlineNode {
+            id: id.into(),
+            parent_id: pid.map(str::to_string),
+            title: title.into(),
+            level,
+            order,
+            requirement_ids: reqs.into_iter().map(str::to_string).collect(),
+            target_chars: target,
+            status: SectionStatus::Pending,
+            dirty: false,
+            content: None,
+            content_attempt: 0,
+        };
+        s.set_outline(vec![
+            mk("SEC-0001", None, "技术标", 1, 1, 200, vec!["REQ-0001", "REQ-0002"]),
+            mk("SEC-0002", Some("SEC-0001"), "响应正文", 2, 2, 200, vec!["REQ-0001", "REQ-0002"]),
+            mk("SEC-0003", Some("SEC-0002"), "格式响应", 3, 3, 100, vec!["REQ-0001"]),
+            mk("SEC-0004", Some("SEC-0002"), "参数响应", 3, 4, 100, vec!["REQ-0002"]),
+        ])
+        .unwrap();
+        // 手写 SEC-0001..0004 不经 next_id 签发——restore 的水位校验要求
+        // id_seq ≥ 最大后缀（4）。补两个哑件把序列抬到位（快照往返测试面）。
+        s.upsert_file("B-哑件1.docx", "附件", "sha-dummy-1", 1, 0, 1, 0, ParseStatus::Ok, "").unwrap();
+        s.upsert_file("B-哑件2.docx", "附件", "sha-dummy-2", 1, 0, 1, 0, ParseStatus::Ok, "").unwrap();
+        // 合法链推进到目标态（状态机本身不校验草稿完成度——#243 的前置
+        // 闸在服务层 validate；这正是历史缺陷能发生的原因，也是测试构造
+        // 历史异常态的通道）
+        for to in [
+            ProjectStatus::MatrixReady,
+            ProjectStatus::EvidenceBound,
+            ProjectStatus::Drafting,
+            ProjectStatus::Validating,
+            ProjectStatus::Reviewing,
+            ProjectStatus::ReadyToExport,
+            ProjectStatus::Exported,
+        ] {
+            if s.project().unwrap().status == advance_to {
+                break;
+            }
+            s.advance_project_status(to).unwrap();
+        }
+        assert_eq!(s.project().unwrap().status, advance_to);
+        s
+    }
+
+    #[test]
+    fn draft_incomplete_error_serializes_with_code_and_missing() {
+        // 契约字面量 + missing 清单序列化形状。域层错误是外标签 serde
+        //（无 tag="code"——那是 mcp 镜像 error.rs 的线形状，由 bid-mcp 测试
+        // 钉）；这里钉域层形状（code() 字面量 + 变体名 + missing 清单）。
+        let e = ToolError::EDraftIncomplete {
+            missing: vec!["SEC-0003".into(), "SEC-0004".into()],
+        };
+        assert_eq!(e.code(), "E_DRAFT_INCOMPLETE");
+        let j = serde_json::to_value(&e).unwrap();
+        assert_eq!(
+            j["E_DRAFT_INCOMPLETE"]["missing"],
+            serde_json::json!(["SEC-0003", "SEC-0004"]),
+            "missing 清单随变体携带（可操作面）"
+        );
+    }
+
+    #[test]
+    fn incomplete_leaf_ids_reports_undrafted_leaves_in_doc_order() {
+        use outline::SectionStatus;
+        let mut s = store_with_outline_243(ProjectStatus::Drafting);
+        // 全 Pending：两叶都未完成
+        assert_eq!(s.incomplete_leaf_ids(), vec!["SEC-0003", "SEC-0004"]);
+        // SEC-0003 起草完成（经合法链 Pending→Outlining→Drafting→Drafted）
+        for to in [SectionStatus::Outlining, SectionStatus::Drafting, SectionStatus::Drafted] {
+            s.advance_section_status("SEC-0003", to).unwrap();
+        }
+        assert_eq!(s.incomplete_leaf_ids(), vec!["SEC-0004"], "只报未完成叶");
+        // SEC-0004 失败（Failed——失败的一等结果，也算未完成）
+        for to in [SectionStatus::Outlining, SectionStatus::Drafting, SectionStatus::Failed] {
+            s.advance_section_status("SEC-0004", to).unwrap();
+        }
+        assert_eq!(
+            s.incomplete_leaf_ids(),
+            vec!["SEC-0004"],
+            "Failed 仍未完成（重试成功后才算）"
+        );
+        // SEC-0004 重试成功 → 全部完成
+        for to in [SectionStatus::Drafting, SectionStatus::Drafted] {
+            s.advance_section_status("SEC-0004", to).unwrap();
+        }
+        assert!(s.incomplete_leaf_ids().is_empty(), "全叶 DRAFTED+ → 完成");
+        // 结构节点（SEC-0001/0002 非叶）永不出现在清单
+    }
+
+    #[test]
+    fn recover_validating_to_drafting_happy_path_with_audit() {
+        use outline::SectionStatus;
+        // 历史异常态：VALIDATING + SEC-0004 未完成（旧版校验误推进所致）
+        let mut s = store_with_outline_243(ProjectStatus::Validating);
+        for to in [SectionStatus::Outlining, SectionStatus::Drafting, SectionStatus::Drafted] {
+            s.advance_section_status("SEC-0003", to).unwrap();
+        }
+        let sec4_before = s
+            .sections()
+            .iter()
+            .find(|n| n.id == "SEC-0004")
+            .cloned()
+            .unwrap();
+        let reviews_before = s.reviews().to_vec();
+        let version = s.content_version();
+
+        let rec = s
+            .recover_validating_to_drafting("历史异常态：旧版校验在缺章时误推进 VALIDATING")
+            .unwrap();
+        // 状态与版本
+        assert_eq!(s.project().unwrap().status, ProjectStatus::Drafting, "回退到 DRAFTING（起草面解锁）");
+        assert_eq!(s.content_version(), version + 1, "状态变更即版本变更");
+        // 审计账（何时/为何/从哪到哪/缺哪些章）
+        assert!(rec.at > 0, "恢复时刻落钟");
+        assert_eq!(rec.from, ProjectStatus::Validating);
+        assert_eq!(rec.to, ProjectStatus::Drafting);
+        assert!(!rec.reason.trim().is_empty());
+        assert_eq!(rec.missing_sections, vec!["SEC-0004"], "缺章快照入审计");
+        assert_eq!(s.state_recoveries().len(), 1);
+        assert_eq!(s.state_recoveries()[0].missing_sections, rec.missing_sections);
+        // 不变量：章节树/审核记录原样（恢复是状态面动作）
+        let sec4_after = s
+            .sections()
+            .iter()
+            .find(|n| n.id == "SEC-0004")
+            .cloned()
+            .unwrap();
+        assert_eq!(sec4_before, sec4_after, "章节内容/状态原样");
+        assert_eq!(s.reviews(), reviews_before.as_slice(), "审核记录原样");
+        // 起草面解锁：guard 放行 draft_response_section
+        assert!(s.guard_tool("draft_response_section").is_ok());
+    }
+
+    #[test]
+    fn recover_channel_rejects_wrong_state_complete_draft_and_blank_reason() {
+        use outline::SectionStatus;
+        // ① 非 VALIDATING 态（DRAFTING）→ E_STATE
+        let mut s = store_with_outline_243(ProjectStatus::Drafting);
+        let e = s.recover_validating_to_drafting("理由").unwrap_err();
+        assert!(matches!(e, ToolError::EState { .. }), "DRAFTING 无死锁面: {e:?}");
+        // ② VALIDATING 但草稿完整 → E_UNPROCESSABLE（健康态不构成恢复条件）
+        let mut s = store_with_outline_243(ProjectStatus::Validating);
+        for sid in ["SEC-0003", "SEC-0004"] {
+            for to in [SectionStatus::Outlining, SectionStatus::Drafting, SectionStatus::Drafted] {
+                s.advance_section_status(sid, to).unwrap();
+            }
+        }
+        let e = s.recover_validating_to_drafting("理由").unwrap_err();
+        assert!(matches!(e, ToolError::EUnprocessable { .. }), "健康 VALIDATING 拒恢复: {e:?}");
+        assert_eq!(s.project().unwrap().status, ProjectStatus::Validating, "拒绝零副作用");
+        // ③ 理由空白 → E_UNPROCESSABLE（不可审计的恢复不成恢复）
+        let mut s = store_with_outline_243(ProjectStatus::Validating);
+        let e = s.recover_validating_to_drafting("   ").unwrap_err();
+        assert!(matches!(e, ToolError::EUnprocessable { .. }), "空白理由拒: {e:?}");
+        assert_eq!(s.project().unwrap().status, ProjectStatus::Validating, "拒绝零副作用");
+        assert!(s.state_recoveries().is_empty(), "拒绝不入审计账");
+    }
+
+    #[test]
+    fn recover_is_repeat_safe_second_call_hits_state_gate() {
+        use outline::SectionStatus;
+        let mut s = store_with_outline_243(ProjectStatus::Validating);
+        for to in [SectionStatus::Outlining, SectionStatus::Drafting, SectionStatus::Drafted] {
+            s.advance_section_status("SEC-0003", to).unwrap();
+        }
+        s.recover_validating_to_drafting("首次恢复").unwrap();
+        // 重复请求/超时重试：第二次调用 → E_STATE（项目已在 DRAFTING，
+        // 可继续起草——不会落在无法恢复的状态）
+        let e = s.recover_validating_to_drafting("重复请求").unwrap_err();
+        assert!(matches!(e, ToolError::EState { .. }), "重复恢复被状态门拒: {e:?}");
+        assert_eq!(s.state_recoveries().len(), 1, "审计账不重复");
+        assert!(s.guard_tool("draft_response_section").is_ok(), "项目仍可起草");
+    }
+
+    #[test]
+    fn state_recoveries_snapshot_roundtrip_and_legacy_load() {
+        use outline::SectionStatus;
+        let mut s = store_with_outline_243(ProjectStatus::Validating);
+        for to in [SectionStatus::Outlining, SectionStatus::Drafting, SectionStatus::Drafted] {
+            s.advance_section_status("SEC-0003", to).unwrap();
+        }
+        s.recover_validating_to_drafting("快照往返").unwrap();
+        // 往返全保真
+        let snap = s.to_snapshot();
+        assert_eq!(snap.state_recoveries.len(), 1);
+        let restored = DomainStore::restore(snap).unwrap();
+        assert_eq!(restored.state_recoveries(), s.state_recoveries());
+        assert_eq!(restored.project().unwrap().status, ProjectStatus::Drafting, "恢复后的状态随快照走");
+        // 旧快照（无 state_recoveries 字段）→ serde(default) 空集合加载
+        let mut json = serde_json::to_value(s.to_snapshot()).unwrap();
+        json.as_object_mut().unwrap().remove("state_recoveries");
+        let old_snap: StoreSnapshot = serde_json::from_value(json).unwrap();
+        let old_store = DomainStore::restore(old_snap).unwrap();
+        assert!(old_store.state_recoveries().is_empty());
+    }
+
+    #[test]
+    fn validating_allows_recovery_tool_and_drafting_keeps_draft() {
+        // 工具面矩阵（#243 增量）：VALIDATING 放行 recover_validating_state；
+        // DRAFTING 不放行（本就可起草，无需恢复）；Reviewing+ 不放行（审核/导出
+        // 阶段语义不同——不在本通道）。
+        let s = store_with_outline_243(ProjectStatus::Validating);
+        assert!(s.guard_tool("recover_validating_state").is_ok());
+        let s = store_with_outline_243(ProjectStatus::Drafting);
+        assert!(matches!(
+            s.guard_tool("recover_validating_state"),
+            Err(ToolError::EState { .. })
+        ));
+        assert!(s.guard_tool("draft_response_section").is_ok(), "DRAFTING 起草面不受影响");
+        let s = store_with_outline_243(ProjectStatus::Reviewing);
+        assert!(matches!(
+            s.guard_tool("recover_validating_state"),
+            Err(ToolError::EState { .. })
+        ));
     }
 }

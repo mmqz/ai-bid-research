@@ -35,6 +35,12 @@ pub enum ToolError {
     },
     /// 该工具在 M0 骨架期未落地——**不表示失败，表示能力尚未接线**。
     UnimplementedInternal { tool: String, milestone: String },
+    /// #243：全稿最终校验前置拒——起草未完成（存在未达 DRAFTED 的叶）。
+    /// 零副作用（状态/版本/审核记录均不变）；`missing` = 未完成叶的
+    /// section_id 清单（可操作：逐叶补起草，或改 scope=sections 章节级检查）。
+    EDraftIncomplete {
+        missing: Vec<String>,
+    },
 }
 
 impl ToolError {
@@ -47,6 +53,7 @@ impl ToolError {
             Self::EUnprocessable { .. } => "E_UNPROCESSABLE",
             Self::EPartial { .. } => "E_PARTIAL",
             Self::UnimplementedInternal { .. } => "UNIMPLEMENTED_INTERNAL",
+            Self::EDraftIncomplete { .. } => "E_DRAFT_INCOMPLETE",
         }
     }
 
@@ -71,6 +78,12 @@ impl std::fmt::Display for ToolError {
             Self::UnimplementedInternal { tool, milestone } => {
                 write!(f, "UNIMPLEMENTED_INTERNAL: {tool} 待 {milestone} 接线")
             }
+            Self::EDraftIncomplete { missing } => write!(
+                f,
+                "E_DRAFT_INCOMPLETE: 起草未完成（{} 个叶未达 DRAFTED：{}）——先补起草再全稿校验，或改用 scope=sections 章节级检查",
+                missing.len(),
+                missing.join("、")
+            ),
         }
     }
 }
@@ -99,6 +112,7 @@ impl From<bid_domain::ToolError> for ToolError {
                 hint: None,
                 data: None,
             },
+            D::EDraftIncomplete { missing } => Self::EDraftIncomplete { missing },
         }
     }
 }

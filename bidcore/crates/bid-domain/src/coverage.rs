@@ -93,6 +93,13 @@ pub struct SubmittedRequirement {
     /// 是否必选（漏响应会废标）。
     #[serde(default)]
     pub mandatory: bool,
+    /// ★实质性条款（#276——招标文件★号/「实质性条款」样板句声明，一条
+    /// 不响应即响应无效）。语义正交于 `mandatory`：mandatory 是响应完备性
+    /// 口径（必选），substantive 是招标人明示的**废标线**——★必非必选
+    /// （如★技术参数），必选也未必★。落库 `params.star`（与 #280 抽取面
+    /// 及 songling 金标准 #251 `star` 字段同键口径）。
+    #[serde(default)]
+    pub substantive: bool,
 }
 
 /// 覆盖检查结果。
@@ -341,6 +348,7 @@ mod tests {
             statement: "某要求".into(),
             category: None,
             mandatory: false,
+            substantive: false,
         }];
         assert!(matches!(
             validate_submitted(&marks, &reqs),
@@ -356,6 +364,7 @@ mod tests {
             statement: "   ".into(),
             category: None,
             mandatory: false,
+            substantive: false,
         }];
         assert!(matches!(
             validate_submitted(&marks, &reqs),
@@ -371,6 +380,7 @@ mod tests {
             statement: "某要求".into(),
             category: None,
             mandatory: false,
+            substantive: false,
         }];
         // rule 区间不允许挂 requirement——规则说明不需要响应
         assert!(validate_submitted(&marks, &reqs).is_err());
@@ -386,6 +396,7 @@ mod tests {
             statement: "某要求".into(),
             category: Some("乱写的类别".into()),
             mandatory: false,
+            substantive: false,
         }];
         assert!(matches!(
             validate_submitted(&marks, &reqs),
@@ -398,6 +409,7 @@ mod tests {
                 statement: "某要求".into(),
                 category: Some(c.to_string()),
                 mandatory: false,
+                substantive: false,
             }];
             assert!(validate_submitted(&marks, &reqs).is_ok(), "合法类别被拒：{c}");
         }

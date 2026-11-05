@@ -1343,6 +1343,8 @@ impl DomainStore {
             max_suffix(snap.revision_tasks.iter().map(|t| t.id.clone())),
             // #224 SM-xxxx 入水位（store 签发命名空间）
             max_suffix(snap.scoring_mappings.iter().map(|m| m.id.clone())),
+            // #254 SEG-xxxx 入水位（store 签发命名空间——防重启后重签碰撞）
+            max_suffix(snap.segments.iter().map(|s| s.id.clone())),
             snap.project
                 .as_ref()
                 .map(|p| max_suffix([p.id.clone()].into_iter()))
@@ -1520,11 +1522,8 @@ impl DomainStore {
                 || !snap.addendum_waivers.is_empty()
                 || !snap.file_roles.is_empty()
                 || !snap.scoring_mappings.is_empty()
-<<<<<<< HEAD
-                || !snap.state_recoveries.is_empty())
-=======
+                || !snap.state_recoveries.is_empty()
                 || !snap.segments.is_empty())
->>>>>>> 65f3e80 (feat(#254 域层): SectionSegment 分段账本——append/rewrite/reset + 快照加性迁移)
         {
             return Err(un("快照有数据但无项目（孤儿集合——拒绝加载半个库）".into()));
         }
@@ -1553,6 +1552,20 @@ impl DomainStore {
                 )));
             }
         }
+        // #254 幂等面：同章节内 idem_key 重复 = 重放将命中错误段（幂等键
+        // 唯一性是 append 语义的地基），拒载。
+        {
+            let mut seen: std::collections::HashSet<(String, String)> =
+                std::collections::HashSet::new();
+            if let Some(bad) = snap.segments.iter().find(|s| {
+                !seen.insert((s.section_id.clone(), s.idem_key.clone()))
+            }) {
+                return Err(un(format!(
+                    "章节 {} 内段幂等键 {} 重复（segment {}——幂等面破坏，拒载）",
+                    bad.section_id, bad.idem_key, bad.id
+                )));
+            }
+        }
         Ok(Self {
             project: snap.project,
             files: snap.files,
@@ -1572,11 +1585,8 @@ impl DomainStore {
             block_marks: snap.block_marks.into_iter().collect(),
             submitted_requirements: snap.submitted_requirements.into_iter().collect(),
             scoring_mappings: snap.scoring_mappings,
-<<<<<<< HEAD
             state_recoveries: snap.state_recoveries,
-=======
             segments: snap.segments,
->>>>>>> 65f3e80 (feat(#254 域层): SectionSegment 分段账本——append/rewrite/reset + 快照加性迁移)
             idempotency: snap.idempotency.into_iter().collect(),
             id_seq: snap.id_seq,
         })

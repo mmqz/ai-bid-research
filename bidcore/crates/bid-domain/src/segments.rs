@@ -163,12 +163,26 @@ impl DomainStore {
 
     /// 重写指定段（同内容 no-op；不同内容 → `version`+1，其余段不动）。
     /// 账本与正文同进退：改后按合稿同步 `set_section_content`。
+    ///
+    /// CAS（#254 验收 4——并发/过期版本写入明确拒绝且无部分写入）：
+    /// `expected_version` 与段当前 version 不匹配 → `E_CONFLICT`。
+    /// 校验全过才落账（段内容 / 合稿正文 / content_version 均不动）。
     pub fn rewrite_section_segment(
         &mut self,
         segment_id: &str,
         content: String,
+        expected_version: Option<u32>,
     ) -> Result<SegmentChange, ToolError> {
         let segment = self.section_segment(segment_id)?;
+        // 过期版本显式拒（并发写作面——拿旧 version 覆盖新账 = 丢修订）
+        if let Some(exp) = expected_version {
+            if segment.version != exp {
+                return Err(ToolError::EConflict {
+                    expected: u64::from(exp),
+                    got: u64::from(segment.version),
+                });
+            }
+        }
         if segment.content == content {
             let seg = segment.clone();
             return Ok(SegmentChange { segment: seg, changed: false });
@@ -349,7 +363,7 @@ mod tests {
         s.append_section_segment("SEC-0001", "乙".into(), "k2").unwrap();
         s.append_section_segment("SEC-0001", "丙".into(), "k3").unwrap();
         let r = s
-            .rewrite_section_segment(&a.segment.id, "甲改".into())
+            .rewrite_section_segment(&a.segment.id, "甲改".into(), None)
             .unwrap();
         assert!(r.changed && r.segment.version == 2, "不同内容 → version+1");
         assert_eq!(
@@ -359,7 +373,7 @@ mod tests {
         );
         // 同内容重写 = no-op（version 不动）
         let again = s
-            .rewrite_section_segment(&a.segment.id, "甲改".into())
+            .rewrite_section_segment(&a.segment.id, "甲改".into(), None)
             .unwrap();
         assert!(!again.changed && again.segment.version == 2);
     }
@@ -439,4 +453,57 @@ mod tests {
             "甲\n\n乙"
         );
     }
+
+/// #254 验收 4（CAS）：过期 version 重写 → E_CONFLICT 且无部分写入
+/// （段内容 / 合稿正文 / content_version 三面全不动）。
+#[test]
+fn rewrite_with_stale_version_is_conflict_and_atomic() {
+    let mut s = store_with_leaf(None);
+    s.append_section_segment("SEC-0001", "段一".into(), "k1").unwrap();
+    let a = s.append_section_segment("SEC-0001", "段二".into(), "k2").unwrap();
+    // 并发写作已把段二推到 version 2
+    s.rewrite_section_segment(&a.segment.id, "段二 v2".into(), Some(1)).unwrap();
+    // stale 基线（v2 已合法落账）
+    let before_content = s.sections.iter().find(|n| n.id == "SEC-0001")
+        .unwrap().content.clone().unwrap();
+    let before_version = s.project().unwrap().content_version;
+    // 拿旧 version 1 再写 → E_CONFLICT
+    let err = s
+        .rewrite_section_segment(&a.segment.id, "段二 v3（stale）".into(), Some(1))
+        .err().expect("过期 version 必须拒");
+    assert_eq!(err.code(), "E_CONFLICT", "显式 CAS 拒: {err:?}");
+    // 无部分写入：三面全不动
+    let seg = s.section_segment(&a.segment.id).unwrap();
+    assert_eq!(seg.content, "段二 v2", "段内容不动");
+    assert_eq!(seg.version, 2, "version 不动");
+    assert_eq!(
+        s.sections.iter().find(|n| n.id == "SEC-0001").unwrap().content.as_deref(),
+        Some(before_content.as_str()),
+        "合稿正文不动"
+    );
+    assert_eq!(s.project().unwrap().content_version, before_version,
+        "content_version 不动（零副作用）");
+}
+
+/// 坏快照拒载面补充：(section, idem_key) 重复 = 幂等面破坏，拒载；
+/// SEG id 水位低于账本 = 重启后 id 重签碰撞，拒载。
+#[test]
+fn restore_rejects_idem_dup_and_id_watermark_regression() {
+    // idem_key 重复（同章节两段同 key——重放将命中错误段）
+    let mut s = store_with_leaf(None);
+    s.append_section_segment("SEC-0001", "a".into(), "k1").unwrap();
+    s.append_section_segment("SEC-0001", "b".into(), "k2").unwrap();
+    let mut snap = s.to_snapshot();
+    snap.segments[1].idem_key = "k1".into();
+    let err = DomainStore::restore(snap).err().expect("idem 重复必须拒载");
+    assert_eq!(err.code(), "E_UNPROCESSABLE", "{err:?}");
+
+    // SEG id 水位：id_seq 低于账本最大 SEG 后缀 → 拒
+    let mut s2 = store_with_leaf(None);
+    s2.append_section_segment("SEC-0001", "a".into(), "k1").unwrap();
+    let mut snap = s2.to_snapshot();
+    snap.id_seq = 0;
+    let err = DomainStore::restore(snap).err().expect("水位破坏必须拒载");
+    assert_eq!(err.code(), "E_UNPROCESSABLE", "{err:?}");
+}
 }

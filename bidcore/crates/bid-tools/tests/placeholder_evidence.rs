@@ -320,7 +320,106 @@ fn placeholder_is_not_usable_evidence() {
     assert_eq!(ph.status.as_str(), "ACTIVE", "占位状态面仍 Active（有效期维度正交）");
 }
 
-// ================================================================ 升级路径
+// ================================================================ 验证规则 + 导出门 1d
+
+/// validate 规则面：占位绑定 → E_QUAL_UNMET（带待补注记）+ E_EVIDENCE_
+/// PLACEHOLDER（绑定面 BLOCKER）；正文引用占位 EV → E_CITATION_PLACEHOLDER。
+#[test]
+fn validate_reports_placeholder_binding_and_citation() {
+    let mut svc = matrix_ready_service("validate");
+    if svc.store().files().is_empty() {
+        return;
+    }
+    let ev_id = register(&mut svc, "资质占位（验证面）", true);
+    let req_id = svc.store().requirements()[0].id.clone(); // REQ-0001 资格条件
+    let (_, _, _, _, _) = svc.bind_evidence_batch(&ev_id, &[req_id.clone()], "2026-11-15").unwrap();
+
+    // 章节正文直接引用占位 EV（冒充面——E_CITATION_PLACEHOLDER 的触发形态）
+    let section_id = leaf_of(&svc, &req_id);
+    let citing = format!("本章节依据 [{ev_id}] 声明我方已具备相应资质条件。");
+    svc.store_mut().set_section_content(&section_id, citing).unwrap();
+
+    let report = bid_tools::validate::validate_document(svc.store(), None, &mut bid_tools::validate::NoModel).unwrap();
+    let all: Vec<&bid_tools::validate::ValidationFinding> = report
+        .findings
+        .iter()
+        .filter(|f| f.severity == "BLOCKER")
+        .collect();
+    let codes: Vec<&str> = all.iter().map(|f| f.rule_code.as_str()).collect();
+    assert!(codes.contains(&"E_QUAL_UNMET"), "资格条件占位绑定 → E_QUAL_UNMET（矩阵态面）: {codes:?}");
+    assert!(codes.contains(&"E_EVIDENCE_PLACEHOLDER"), "占位绑定 → E_EVIDENCE_PLACEHOLDER（绑定面）: {codes:?}");
+    assert!(codes.contains(&"E_CITATION_PLACEHOLDER"), "正文引用占位 EV → E_CITATION_PLACEHOLDER: {codes:?}");
+    // E_QUAL_UNMET 消息携带待补语义（人工可辨）
+    let qual = all.iter().find(|f| f.rule_code == "E_QUAL_UNMET").unwrap();
+    assert!(qual.message.contains("占位/待核验证据不满足响应"), "消息带待补注记: {}", qual.message);
+    assert!(!report.ok, "BLOCKER > 0 → ok=false");
+    // 【待补：...】授权占位形态不触发 W_PLACEHOLDER（词表口径 TODO/待补充/【占位】）
+    let mut ph_content = "【待补：资质证明材料尚未核验——待真实材料登记后替换。】".to_string();
+    ph_content.push_str(&"补充说明。".repeat(60)); // 拉长避免 E_CHARS_BELOW_MIN 干扰断言面
+    svc.store_mut().set_section_content(&section_id, ph_content).unwrap();
+    let report2 = bid_tools::validate::validate_document(svc.store(), None, &mut bid_tools::validate::NoModel).unwrap();
+    let wp: Vec<&bid_tools::validate::ValidationFinding> = report2
+        .findings
+        .iter()
+        .filter(|f| f.rule_code == "W_PLACEHOLDER")
+        .collect();
+    assert!(wp.is_empty(), "【待补：...】授权占位形态不触发 W_PLACEHOLDER（词表不同源）: {:?}",
+        wp.iter().map(|f| f.message.clone()).collect::<Vec<_>>());
+}
+
+/// 导出门 1d 真源：placeholder_evidence_findings——非必选行占位绑定也报
+/// （1a 矩阵门只拦必选行；1d 覆盖任何类别）；人工覆写 REQ 豁免（不报）；
+/// 升级换版后清空。
+#[test]
+fn placeholder_gate_findings_cover_override_and_upgrade() {
+    let mut svc = matrix_ready_service("gate-1d");
+    if svc.store().files().is_empty() {
+        return;
+    }
+    let ev_id = register(&mut svc, "资质占位（门面）", true);
+    let reqs: Vec<String> = svc.store().requirements().iter().map(|r| r.id.clone()).collect();
+    let (_, _, _, _, _) = svc.bind_evidence_batch(&ev_id, &reqs, "2026-11-15").unwrap();
+
+    // 全部条款占位绑定 → 1d 真源非空（含非必选行）
+    let findings = bid_tools::validate::placeholder_evidence_findings(svc.store());
+    assert_eq!(findings.len(), 3, "3 条 REQ（资格/否决/评分）占位绑定全报——非必选行也在 1d 面: {:?}",
+        findings.iter().map(|f| f.requirement_id.clone()).collect::<Vec<_>>());
+
+    // 人工覆写豁免：REQ-0003（评分项）被 Human receipt 覆写 → 不再进门
+    use bid_domain::TrustedPrincipal;
+    svc.store_mut()
+        .set_matrix_override("REQ-0003".into(), bid_domain::matrix::ResponseStatus::NotApplicable,
+                             Some("评分项豁免（人工 receipt + 偏离说明）".into()),
+                             &TrustedPrincipal::human("245-裁决"))
+        .unwrap();
+    let findings2 = bid_tools::validate::placeholder_evidence_findings(svc.store());
+    assert_eq!(findings2.len(), 2, "覆写行豁免（人工裁决通道）");
+
+    // 升级换版清空：真实登记（同语义位异 tier → 换版 + 绑定迁移）
+    let tf = svc.store().files().first().cloned().unwrap();
+    let (ev_real, _) = svc
+        .register_evidence_verified(reg(&tf.id, None, "资质占位（门面）", false))
+        .unwrap();
+    let findings3 = bid_tools::validate::placeholder_evidence_findings(svc.store());
+    assert!(findings3.is_empty(), "换版升级后绑定迁移 → 1d 门清空: {:?}",
+        findings3.iter().map(|f| f.requirement_id.clone()).collect::<Vec<_>>());
+    let _ = ev_real;
+}
+
+/// 叶章节定位辅助（REQ → 最深层承载章节）。
+fn leaf_of(svc: &BidService, req_id: &str) -> String {
+    let sections = svc.store().sections();
+    let has_child: std::collections::HashSet<&str> = sections
+        .iter()
+        .filter_map(|n| n.parent_id.as_deref())
+        .collect();
+    sections
+        .iter()
+        .filter(|n| !has_child.contains(n.id.as_str()) && n.requirement_ids.iter().any(|r| r == req_id))
+        .map(|n| n.id.clone())
+        .next()
+        .expect("REQ 应有叶章节承载")
+}
 
 /// 占位 → 真实升级全路径（服务层半边）：真实材料登记（同语义位异指纹 →
 /// 换版）→ 旧占位记录 Superseded + 绑定迁移到新记录 → 矩阵按真实证据派生。

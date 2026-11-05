@@ -1163,11 +1163,16 @@ impl BidService {
     /// `export_bid_document` 业务半边（#59 阶段 2 + #117 任务 1 表格接线）。
     ///
     /// 步骤：
-    /// 1. **三前置门**（防废标的最后关口——fail-closed）：
-    ///    a. 矩阵 blocking 行清零（`check_export_ready`——必选未响应不得导出）；
+    /// 1. **四前置门**（防废标的最后关口——fail-closed）：
+    ///    a. 矩阵 blocking 行清零（`check_export_ready`——必选未响应/待补不得
+    ///       导出，#245 后 PENDING_EVIDENCE 必选行也在此面）；
     ///    b. 审核 BLOCKER findings 清零（`export_allowed`——T-7 闸门）；
     ///    c. 写作验收复算（1.0——`writing_acceptance_findings`：篇幅不足/
     ///       空章节即使审核已直接批准也不得导出，见该函数门禁语义注记）；
+    ///    d. 占位证据复算（#245——`placeholder_evidence_findings`：活跃占位
+    ///       绑定存在即拒——占位材料不得冒充已核验证据导出；人工豁免通道
+    ///       = matrix_overrides（Human receipt），与 1c 同为独立复算门、
+    ///       不消费记审面）。
     /// 2. format-spec 解析：`.mang/format-spec.json` 在场 → 读盘校验；
     ///    缺失 → `derive_from_requirements`（从格式条款提取；零命中 → 基线
     ///    + warning，Lead 铁律「不硬编码」的降级面）；
@@ -1226,6 +1231,31 @@ impl BidService {
                 reason: format!(
                     "写作验收门未过：{} 处 BLOCKER（{detail}）——篇幅不足/空章节即使审核已批准也不得导出（导出门独立复算，不消费记审面）；补写后 validate 复核、重走 pre_export_confirm",
                     wa.len(),
+                ),
+            });
+        }
+        // ---- 1d. 占位证据门（#245——导出时点独立复算，fail-closed）：
+        //      活跃占位绑定存在 → 占位材料不得冒充已核验证据导出。与 1c
+        //      同款纪律：不消费记审面（审核直接批准也不放行）；差异面是
+        //      人工豁免通道——占位缺失可经 matrix_overrides（Human receipt
+        //      + 偏离说明）豁免，篇幅不足没有该通道（只能补写）。
+        let ph = crate::validate::placeholder_evidence_findings(self.store());
+        if !ph.is_empty() {
+            let detail = ph
+                .iter()
+                .map(|f| {
+                    format!(
+                        "{}@{}",
+                        f.rule_code,
+                        f.requirement_id.as_deref().unwrap_or("PROJECT")
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("、");
+            return Err(ToolError::EUnprocessable {
+                reason: format!(
+                    "占位证据门未过：{} 处 BLOCKER（{detail}）——占位/待核验材料不得作为已核验证据导出（即使审核已批准）；导入真实材料重新登记（换版升级）或人工覆写豁免后重导",
+                    ph.len(),
                 ),
             });
         }

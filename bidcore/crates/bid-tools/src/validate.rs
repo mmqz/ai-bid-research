@@ -9,8 +9,14 @@
 //!   4. `E_CITATION_GHOST`（BLOCKER）：章节引用了不存在的 REQ/EV；
 //!   5. `E_EVIDENCE_EXPIRED`（BLOCKER）：绑定证据已失效（EXPIRED/
 //!      SUPERSEDED——bind 时拒了，但 `apply_validity` 可后置翻转，真实风险）；
+//!   5b. `E_EVIDENCE_PLACEHOLDER`（BLOCKER，#245）：占位/待核验证据仍绑定
+//!      在条款上——占位材料不得冒充已核验证据（规则 1/2 的 PENDING_EVIDENCE
+//!      态覆盖矩阵面，本规则覆盖绑定面：非必选行的占位绑定也在此报）；
+//!   5c. `E_CITATION_PLACEHOLDER`（BLOCKER，#245）：章节正文引用了占位/
+//!      待核验证据——占位不得作为资质证明引用（正文层面的冒充面）；
 //!   6. `W_PLACEHOLDER`（MAJOR）：占位符残留（borrow check.rs 的
-//!      PLACEHOLDER_MARKERS 口径——TODO/待补充/【占位】）；
+//!      PLACEHOLDER_MARKERS 口径——TODO/待补充/【占位】；与【待补：...】
+//!      授权占位形态不同源——后者是 #245 起草面的合规形态，不误报）；
 //!   7. `W_CHARS_OFF_TARGET`（MINOR）：字数**超出**配额 +20% 之外（与 draft
 //!      生成带对称——同口径可对账）；
 //!   7b. `E_CHARS_BELOW_MIN`（BLOCKER）：正文低于配额 −20% 容差下限
@@ -196,13 +202,15 @@ pub fn validate_document(
         });
     }
 
-    // ---- 规则 1/2：否决项/资格条件矩阵行（全局级——恒全量）
+    // ---- 规则 1/2：否决项/资格条件矩阵行（全局级——恒全量）。
+    //      #245：PENDING_EVIDENCE（仅占位证据在绑）计入未响应面——占位
+    //      资质不满足资格/否决响应（消息携带待补语义，人工可辨）。
     for row in store.matrix() {
         let req = store.requirements().iter().find(|r| r.id == row.requirement_id);
         let Some(req) = req else { continue };
         let unresponded = matches!(
             row.status,
-            ResponseStatus::NotResponded | ResponseStatus::Partial
+            ResponseStatus::NotResponded | ResponseStatus::Partial | ResponseStatus::PendingEvidence
         );
         if !unresponded {
             continue;
@@ -212,13 +220,18 @@ pub fn validate_document(
             "资格条件" => ("E_QUAL_UNMET", "资格条件"),
             _ => continue, // 其他类别的未响应是导出门（blocking）面，不是 validate 的 errors 面
         };
+        let pending_note = if row.status == ResponseStatus::PendingEvidence {
+            "（占位/待核验证据不满足响应——待补真实材料）"
+        } else {
+            ""
+        };
         compliance_f.push(ValidationFinding {
             rule_code: code.into(),
             severity: "BLOCKER",
             section_id: None,
             requirement_id: Some(row.requirement_id.clone()),
             message: format!(
-                "{cat}「{}」未响应（矩阵状态 {}）——未响应的否决项是废标级风险",
+                "{cat}「{}」未响应（矩阵状态 {}）{pending_note}——未响应的否决项是废标级风险",
                 excerpt_of(req), row.status.as_str(),
             ),
         });
@@ -298,6 +311,17 @@ pub fn validate_document(
         // 与 OutlineNode.requirement_ids 双源；此处用 REQ 绑定面 + 章内引用）
         let known_req: HashSet<&str> = store.requirements().iter().map(|r| &r.id[..]).collect();
         let known_ev: HashSet<&str> = store.evidences().iter().map(|e| &e.id[..]).collect();
+        // #245：占位/待核验证据 id 集（活跃面——Superseded/Expired 的占位件
+        // 由规则 8 的失效面报，不双报）
+        let placeholder_ev: HashSet<&str> = store
+            .evidences()
+            .iter()
+            .filter(|e| {
+                e.is_placeholder()
+                    && matches!(e.status, EvidenceStatus::Active | EvidenceStatus::Expiring)
+            })
+            .map(|e| &e.id[..])
+            .collect();
         for id in crate::draft::scan_citations(content) {
             let known = known_req.contains(&id[..]) || known_ev.contains(&id[..]);
             if !known {
@@ -308,6 +332,19 @@ pub fn validate_document(
                     requirement_id: None,
                     message: format!(
                         "章节「{}」引用了不存在的 {id}（幻觉引用——废标级：评标查证无此件）",
+                        node.title,
+                    ),
+                });
+            } else if placeholder_ev.contains(&id[..]) {
+                // 规则 5c（#245）：占位证据被正文引用 = 冒充已核验——即使
+                // id 存在（非 ghost），占位材料也不得作为资质证明援引。
+                evidence_f.push(ValidationFinding {
+                    rule_code: "E_CITATION_PLACEHOLDER".into(),
+                    severity: "BLOCKER",
+                    section_id: Some(node.id.clone()),
+                    requirement_id: None,
+                    message: format!(
+                        "章节「{}」引用了占位/待核验证据 {id}——占位材料不得作为资质证明援引（#245：不得声称已具备）；改为【待补：...】占位说明，真实材料登记换版后再引用",
                         node.title,
                     ),
                 });
@@ -340,6 +377,16 @@ pub fn validate_document(
                 });
             }
         }
+    }
+
+    // ---- 规则 5b（#245）：占位/待核验证据仍绑定——占位不得冒充已核验证据。
+    //      与规则 1/2 的分工：规则 1/2 只覆盖资格/否决类的矩阵态（全局面）；
+    //      本规则覆盖**绑定面**（任何类别的 REQ）——非必选行的占位绑定
+    //      （矩阵 PENDING_EVIDENCE 不阻断写作）也在此报 BLOCKER：导出前
+    //      必须解决（补真实材料换版，或人工覆写豁免——被覆写的 REQ 不报，
+    //      人工裁决通道是 overrides 表，见 placeholder_evidence_findings）。
+    for f in placeholder_evidence_findings(store) {
+        evidence_f.push(f);
     }
 
     // ---- 规则 5：格式基线告知（Lead「不准硬编码」的降级面——只读复算；
@@ -533,4 +580,46 @@ fn excerpt_of(req: &bid_domain::Requirement) -> String {
     let ex = req.anchors.first().map(|a| a.excerpt.as_str()).unwrap_or("");
     let cut: String = ex.chars().take(24).collect();
     if cut.is_empty() { req.id.clone() } else { cut }
+}
+
+/// #245 占位证据独立复算（导出门 1d 的真源——validate 规则 5b 同款）。
+///
+/// 语义（与 1c 写作验收门对称的 fail-closed 门禁）：
+/// - 活跃占位绑定（PLACEHOLDER 且 Active/Expiring）存在 → 占位材料不得
+///   冒充已核验证据导出——**即使审核已直接批准**（三门全 Approved、零
+///   findings 零 RT）也仍拒绝：记审面是流程事实不是核验事实，本门不消费
+///   reviews/RT（PR #242 1c 门同款纪律）；
+/// - **人工裁决通道**（与 1c 的差异面——占位缺失有人工豁免出口，篇幅不足
+///   没有）：REQ 已被人工覆写（`matrix_overrides` 在场，#182 只认 Human
+///   receipt）→ 不计入门——豁免留痕可回溯；
+/// - 解决通道：①补真实材料重新登记（换版：占位记录 Superseded + 绑定迁移
+///   → 本门自然清空）；②人工覆写豁免（带偏离说明）。
+///
+/// 返回空 vec = 过门；非空 = BLOCKER 清单（导出面逐条点名拒）。
+pub fn placeholder_evidence_findings(store: &DomainStore) -> Vec<ValidationFinding> {
+    let mut out = Vec::new();
+    for b in store.evidence_bindings() {
+        // 人工覆写的 REQ 不计（豁免通道——覆写只认 Human receipt，域层已拦）
+        if store.matrix_overrides().contains_key(&b.requirement_id) {
+            continue;
+        }
+        let Some(ev) = store.evidences().iter().find(|e| e.id == b.evidence_id) else {
+            continue;
+        };
+        // 只看活跃占位件：Superseded（已换版升级——绑定已迁移，理论上不会
+        // 走到）与 Expired（失效面由规则 8 报）不在本门。
+        if ev.is_placeholder() && matches!(ev.status, EvidenceStatus::Active | EvidenceStatus::Expiring) {
+            out.push(ValidationFinding {
+                rule_code: "E_EVIDENCE_PLACEHOLDER".into(),
+                severity: "BLOCKER",
+                section_id: None,
+                requirement_id: Some(b.requirement_id.clone()),
+                message: format!(
+                    "占位/待核验证据 {}（{}）仍绑定在 {} 上——占位材料不得作为已核验证据导出（#245）；解决：导入真实材料重新登记（换版升级），或人工覆写豁免（Human receipt + 偏离说明）",
+                    ev.id, ev.title, b.requirement_id,
+                ),
+            });
+        }
+    }
+    out
 }

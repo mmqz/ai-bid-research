@@ -171,6 +171,65 @@ fn layer0_outline_expected_structure() {
     assert_eq!(q["admin_sections_char_share_max"].as_f64().unwrap(), 0.25);
 }
 
+/// 层0：金标准 needle 形态自洽（#267 全量形态风险扫描的固化）。
+///
+/// 2026-11-05 扫描结论（16/16 needle）：
+/// - 每条 needle 的 N3 形态都能在**自身 excerpt** 的 N3 形态中检索到——
+///   金标准数据自洽；层1 的 11 MISS 根因全部是「值不在抽取锚点面」
+///   （#266 值行装配，B 面），不是判据形态问题；
+/// - needle 全部使用标准字形/半角（判据是人写的检索目标——原文才是
+///   康熙部首/全角形态的载体，由 norm_n3 匹配瞬间归一相遇）；
+/// - 松岭 excerpt 实测含 19 种康熙部首字符（⾦×11 / ⽇×5 / ⼤×5 …）——
+///   部首归一是通用必要，不止 GR-005 一处。
+///
+/// 本断言防未来金标准再造「needle 形态与摘录脱节」的假阴性
+/// （纯静态——CI 无 poppler 也永远跑，与层0 其它面同口径）。
+#[test]
+fn layer0_golden_needle_form_selfcheck() {
+    let gr = load_json("expected/requirements.reviewed.json");
+    let is_kangxi = |c: char| ('\u{2F00}'..='\u{2FD5}').contains(&c);
+    let is_fullwidth = |c: char| ('\u{FF01}'..='\u{FF5E}').contains(&c);
+
+    let mut kangxi_kinds: std::collections::BTreeMap<char, usize> = Default::default();
+    for r in gr["requirements"].as_array().unwrap() {
+        let id = r["id"].as_str().unwrap();
+        let excerpt = bid_parse::norm_n3(r["excerpt"].as_str().unwrap());
+
+        // excerpt 原文（归一前）的康熙部首分布登记
+        for c in r["excerpt"].as_str().unwrap().chars() {
+            if is_kangxi(c) {
+                *kangxi_kinds.entry(c).or_default() += 1;
+            }
+        }
+
+        let needles = r["retrieval_needles"].as_array().unwrap();
+        assert!(!needles.is_empty(), "{id} retrieval_needles 非空");
+        for n in needles {
+            let needle = n.as_str().unwrap();
+            // 判据纪律：标准字形 + 半角（原文形态由 N3 匹配瞬间归一）
+            assert!(
+                !needle.chars().any(is_kangxi),
+                "{id} needle「{needle}」含康熙部首——判据必须用标准字形"
+            );
+            assert!(
+                !needle.chars().any(is_fullwidth),
+                "{id} needle「{needle}」含全角字符——判据必须用半角"
+            );
+            // 自洽：needle 的 N3 形态可检索于自身 excerpt 的 N3 形态
+            assert!(
+                excerpt.contains(&bid_parse::norm_n3(needle)),
+                "{id} needle「{needle}」N3 形态不在自身 excerpt 中——金标准检索判据与摘录脱节"
+            );
+        }
+    }
+
+    // 19 种康熙部首字符的形态分布快照（分布变化 = fixture 原件替换，
+    // 必须在 PR 说明并重扫全部 needle——防静默漂移）
+    assert_eq!(kangxi_kinds.len(), 19, "松岭 excerpt 康熙部首种类数（2026-11-05 扫描基线）");
+    assert_eq!(kangxi_kinds.get(&'\u{2F47}'), Some(&5), "⽇ U+2F47 出现 5 次（GR-005/GR-014 形态锚）");
+    assert_eq!(kangxi_kinds.get(&'\u{2FA6}'), Some(&11), "⾦ U+2FA6 出现 11 次（金额语境高发）");
+}
+
 // ---------------------------------------------------------------- 层1：PDF 引擎基线
 
 /// 建一次引擎态（层1 四个测试共享的初始化——每测试独立跑，状态零共享）。

@@ -63,6 +63,7 @@ pub mod principal;
 pub mod review;
 pub mod scoring;
 pub mod coverage;
+pub mod segments;
 
 pub use principal::{ActorType, TrustedPrincipal};
 
@@ -466,6 +467,10 @@ pub struct DomainStore {
     /// #243 状态恢复审计账（VALIDATING → DRAFTING 的留底——追加式审计
     /// 日志，见 [`DomainStore::recover_validating_to_drafting`]）
     state_recoveries: Vec<StateRecoveryRecord>,
+    /// #254 章节正文分段账本（SEG-xxxx——合稿 = 有序段拼接，正文单一真相
+    /// 仍在 `OutlineNode.content`；账本与正文同进退的不变量与写入面见
+    /// [`DomainStore::append_section_segment`]）
+    segments: Vec<segments::SectionSegment>,
     /// 幂等键 → 首次结果 JSON（同 key 重放返回首次结果，不重复执行）
     idempotency: HashMap<String, serde_json::Value>,
     id_seq: u64,
@@ -493,6 +498,7 @@ impl DomainStore {
             submitted_requirements: HashMap::new(),
             scoring_mappings: vec![],
             state_recoveries: vec![],
+            segments: vec![],
             idempotency: HashMap::new(),
             id_seq: 0,
         }
@@ -1183,6 +1189,10 @@ pub struct StoreSnapshot {
     /// schema_version 不 bump，见头注释的加性演进纪律）
     #[serde(default)]
     pub state_recoveries: Vec<StateRecoveryRecord>,
+    /// #254 章节正文分段（加性迁移——旧快照无此字段 → 空集合加载：
+    /// 无分段账本时正文仍以 `OutlineNode.content` 为真相，行为与旧版一致）
+    #[serde(default)]
+    pub segments: Vec<segments::SectionSegment>,
     #[serde(default)]
     pub idempotency: BTreeMap<String, serde_json::Value>,
     #[serde(default)]
@@ -1218,6 +1228,7 @@ impl DomainStore {
                 .collect(),
             scoring_mappings: self.scoring_mappings.clone(),
             state_recoveries: self.state_recoveries.clone(),
+            segments: self.segments.clone(),
             // HashMap → BTreeMap：持久化 DTO 要求跨进程字节一致（HashMap 迭代序不确定）
             idempotency: self.idempotency.clone().into_iter().collect(),
             id_seq: self.id_seq,
@@ -1509,9 +1520,38 @@ impl DomainStore {
                 || !snap.addendum_waivers.is_empty()
                 || !snap.file_roles.is_empty()
                 || !snap.scoring_mappings.is_empty()
+<<<<<<< HEAD
                 || !snap.state_recoveries.is_empty())
+=======
+                || !snap.segments.is_empty())
+>>>>>>> 65f3e80 (feat(#254 域层): SectionSegment 分段账本——append/rewrite/reset + 快照加性迁移)
         {
             return Err(un("快照有数据但无项目（孤儿集合——拒绝加载半个库）".into()));
+        }
+        // #254 分段账本引用完整性：id 唯一；section_id 必须存在于章节树
+        // （孤儿段 = 凭空正文，拒）；同一章节内 seq 唯一（合稿顺序的确定性）。
+        if let Some(e) = dup_in(snap.segments.iter().map(|s| s.id.clone()).collect(), "segments") {
+            return Err(un(e));
+        }
+        if let Some(bad) = snap.segments.iter().find(|s| {
+            !snap.sections.iter().any(|n| n.id == s.section_id)
+        }) {
+            return Err(un(format!(
+                "segment {} 引用的章节 {} 不存在（孤儿段——半个账本，拒载）",
+                bad.id, bad.section_id
+            )));
+        }
+        {
+            let mut seen: std::collections::HashSet<(String, u32)> =
+                std::collections::HashSet::new();
+            if let Some(bad) = snap.segments.iter().find(|s| {
+                !seen.insert((s.section_id.clone(), s.seq))
+            }) {
+                return Err(un(format!(
+                    "章节 {} 内段序号 {} 重复（segment {}——合稿顺序不确定，拒载）",
+                    bad.section_id, bad.seq, bad.id
+                )));
+            }
         }
         Ok(Self {
             project: snap.project,
@@ -1532,7 +1572,11 @@ impl DomainStore {
             block_marks: snap.block_marks.into_iter().collect(),
             submitted_requirements: snap.submitted_requirements.into_iter().collect(),
             scoring_mappings: snap.scoring_mappings,
+<<<<<<< HEAD
             state_recoveries: snap.state_recoveries,
+=======
+            segments: snap.segments,
+>>>>>>> 65f3e80 (feat(#254 域层): SectionSegment 分段账本——append/rewrite/reset + 快照加性迁移)
             idempotency: snap.idempotency.into_iter().collect(),
             id_seq: snap.id_seq,
         })

@@ -1,0 +1,88 @@
+{
+  "url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/244",
+  "repository_url": "https://api.github.com/repos/mmqz/ai-bid-research",
+  "labels_url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/244/labels{/name}",
+  "comments_url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/244/comments",
+  "events_url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/244/events",
+  "html_url": "https://github.com/mmqz/ai-bid-research/issues/244",
+  "id": 6214444386,
+  "node_id": "I_kwDOVUcs988AAAABcmjlYg",
+  "number": 244,
+  "title": "P1: 建纲前闭环处置全块覆盖盲区",
+  "user": {
+    "login": "mmqz",
+    "id": 260861911,
+    "node_id": "U_kgDOD4xv1w",
+    "avatar_url": "https://avatars.githubusercontent.com/u/260861911?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/mmqz",
+    "html_url": "https://github.com/mmqz",
+    "followers_url": "https://api.github.com/users/mmqz/followers",
+    "following_url": "https://api.github.com/users/mmqz/following{/other_user}",
+    "gists_url": "https://api.github.com/users/mmqz/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/mmqz/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/mmqz/subscriptions",
+    "organizations_url": "https://api.github.com/users/mmqz/orgs",
+    "repos_url": "https://api.github.com/users/mmqz/repos",
+    "events_url": "https://api.github.com/users/mmqz/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/mmqz/received_events",
+    "type": "User",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "labels": [
+    {
+      "id": 12804443241,
+      "node_id": "LA_kwDOVUcs988AAAAC-zRMaQ",
+      "url": "https://api.github.com/repos/mmqz/ai-bid-research/labels/bug",
+      "name": "bug",
+      "color": "d73a4a",
+      "default": true,
+      "description": "Something isn't working",
+      "archived_at": null,
+      "archived_by": null
+    }
+  ],
+  "state": "open",
+  "locked": false,
+  "assignees": [
+
+  ],
+  "milestone": null,
+  "comments": 0,
+  "created_at": "2026-11-05T00:57:42Z",
+  "updated_at": "2026-11-05T00:57:42Z",
+  "closed_at": null,
+  "assignee": null,
+  "author_association": "OWNER",
+  "active_lock_reason": null,
+  "sub_issues_summary": {
+    "total": 0,
+    "completed": 0,
+    "percent_completed": 0
+  },
+  "issue_dependencies_summary": {
+    "blocked_by": 0,
+    "total_blocked_by": 0,
+    "blocking": 0,
+    "total_blocking": 0
+  },
+  "body": "## 背景\r\n\r\n#219/#227/#237 已建立全块覆盖报告、Agent 标注优先与正则兜底；但历史真实语料运行仍报告有未覆盖块。仅生成 `coverage_report` 或一条 warning，不足以证明所有可能含要求的内容已审阅。反过来，也不能要求所有 PDF 块都必须变成 REQ——目录、页眉、噪声等应能被明确排除并留下依据。\r\n\r\n## 目标\r\n\r\n在构建正式大纲前，对所有输入块形成可审计的覆盖处置闭环：每块要么有最终条款，要么被明确归类为非要求/噪声/不适用；仍可能包含要求但未覆盖的块必须触发补标/复查，不得静默进入起草。\r\n\r\n## 范围\r\n\r\n1. 在当前 main 重跑现有真实语料并记录最新 coverage 基线；确认历史的未覆盖数字是否仍存在，不沿用过期数字作为当前事实。\r\n2. 将未覆盖项区分为“尚未判定”“已判定为要求并生成 REQ”“已判定为非要求/噪声（含原因）”。记录块 ID、文件/页/区间和判定来源。\r\n3. 提供可重复的补漏流程：对尚未判定或疑似要求的块可由 Agent 补标并重跑合并；重跑应幂等、保留审计记录，不制造重复/幽灵 REQ。\r\n4. 在 `build_outline` 前接入覆盖处置检查：尚有未判定或高风险要求候选时给出可操作阻断及清单；已明确排除的块允许继续，并在报告中可查。\r\n5. 更新 Skill 编排，让 Agent 在覆盖报告未闭环时先补漏/分类，而不是继续建纲和起草。\r\n\r\n## 验收条件\r\n\r\n- 对真实语料生成覆盖处置报告；所有未覆盖块都有稳定 ID 和处置状态，明确区分“已排除”与“遗漏待审”。\r\n- 人为保留一个疑似要求但未判定块时，建纲被阻止并指明该块；补标后重跑，REQ 进入最终集合，建纲可以继续。\r\n- 人为保留一个明确的页眉/目录噪声排除项时，不误阻断，排除理由可追溯。\r\n- 重启后处置状态持久化；重复补标/重跑幂等；Agent 标记优先和正则兜底的既有语义、GT 红线不回归。\r\n- 产物只提交摘要/报告，不提交大体积中间文件；最新 Windows CI 全绿，真实语料验证如实报告运行环境和 SKIP 项。\r\n- 基于最新 main 独立分支，逐 commit push，提交 PR，不自行合并。\r\n\r\n## 边界\r\n\r\n不重做 #219/#227/#237 的标注合并架构，不重做 #216 输入完整性门，也不改变 #241 的必选阻断策略。本 Issue 补的是覆盖报告到建纲之间的审阅/补漏闭环。",
+  "closed_by": null,
+  "reactions": {
+    "url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/244/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "timeline_url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/244/timeline",
+  "performed_via_github_app": null,
+  "state_reason": null,
+  "pinned_comment": null
+}

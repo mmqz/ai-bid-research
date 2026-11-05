@@ -1,0 +1,99 @@
+{
+  "url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/243",
+  "repository_url": "https://api.github.com/repos/mmqz/ai-bid-research",
+  "labels_url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/243/labels{/name}",
+  "comments_url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/243/comments",
+  "events_url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/243/events",
+  "html_url": "https://github.com/mmqz/ai-bid-research/issues/243",
+  "id": 6214403502,
+  "node_id": "I_kwDOVUcs988AAAABcmhFrg",
+  "number": 243,
+  "title": "P0: 起草中校验无副作用并支持状态恢复",
+  "user": {
+    "login": "mmqz",
+    "id": 260861911,
+    "node_id": "U_kgDOD4xv1w",
+    "avatar_url": "https://avatars.githubusercontent.com/u/260861911?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/mmqz",
+    "html_url": "https://github.com/mmqz",
+    "followers_url": "https://api.github.com/users/mmqz/followers",
+    "following_url": "https://api.github.com/users/mmqz/following{/other_user}",
+    "gists_url": "https://api.github.com/users/mmqz/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/mmqz/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/mmqz/subscriptions",
+    "organizations_url": "https://api.github.com/users/mmqz/orgs",
+    "repos_url": "https://api.github.com/users/mmqz/repos",
+    "events_url": "https://api.github.com/users/mmqz/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/mmqz/received_events",
+    "type": "User",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "labels": [
+    {
+      "id": 12804443241,
+      "node_id": "LA_kwDOVUcs988AAAAC-zRMaQ",
+      "url": "https://api.github.com/repos/mmqz/ai-bid-research/labels/bug",
+      "name": "bug",
+      "color": "d73a4a",
+      "default": true,
+      "description": "Something isn't working",
+      "archived_at": null,
+      "archived_by": null
+    },
+    {
+      "id": 12932245590,
+      "node_id": "LA_kwDOVUcs988AAAADAtJoVg",
+      "url": "https://api.github.com/repos/mmqz/ai-bid-research/labels/P0",
+      "name": "P0",
+      "color": "ededed",
+      "default": false,
+      "description": null,
+      "archived_at": null,
+      "archived_by": null
+    }
+  ],
+  "state": "open",
+  "locked": false,
+  "assignees": [
+
+  ],
+  "milestone": null,
+  "comments": 0,
+  "created_at": "2026-11-05T00:54:08Z",
+  "updated_at": "2026-11-05T00:54:08Z",
+  "closed_at": null,
+  "assignee": null,
+  "author_association": "OWNER",
+  "active_lock_reason": null,
+  "sub_issues_summary": {
+    "total": 0,
+    "completed": 0,
+    "percent_completed": 0
+  },
+  "issue_dependencies_summary": {
+    "blocked_by": 0,
+    "total_blocked_by": 0,
+    "blocking": 0,
+    "total_blocking": 0
+  },
+  "body": "## 背景\r\n\r\n2026-11-05 的一次真实客户端运行日志显示：全稿尚未完成时调用了全局 `validate_bid_document`，随后项目进入 `VALIDATING`，后续章节起草/修订无法继续。恢复时曾终止 MCP 子进程并直接修改持久化 `db.json` 的状态字段；重连后才继续操作。该恢复方式绕过域层状态机，不应成为用户恢复流程。\r\n\r\n此为用户运行记录，尚需在当前 `main` 上复现并核对。请先判断问题属于工具/API 状态迁移缺少保护、Agent 编排调用顺序错误，还是两者兼有。不要假定历史日志中的状态行为仍与当前 `main` 完全一致。\r\n\r\n## 目标\r\n\r\n使起草期间的误触发校验无副作用、最终校验失败后可修订重试，并提供受支持的恢复路径；禁止要求用户手工编辑 `db.json`。\r\n\r\n## 范围\r\n\r\n1. 复现并定位 `validate_bid_document` 在章节未完成时的行为及其状态迁移。\r\n2. 将“起草中/章节级检查”与“全稿最终校验”区分开。起草未完成时，全局校验应返回明确的缺章信息，且不得改变项目状态或版本。\r\n3. 最终校验失败后，项目必须保持可修订、可重试；明确状态迁移与并发/重复调用语义。\r\n4. 如项目已处于不完整的 `VALIDATING` 状态，提供受支持且有审计记录的恢复办法；不得提供无约束的任意状态写入。\r\n5. 更新 MCP 契约及 Skill/流程说明，明确何时可调用全局校验、如何从失败中恢复。\r\n6. 保持 PR #242 已合并的篇幅验收和导出门禁语义，不得通过放宽质量门解决此问题。\r\n\r\n## 验收条件\r\n\r\n- 部分章节状态下调用全局校验：返回可操作的 `DRAFT_INCOMPLETE`（或等价错误码）和缺失章节清单；项目状态、版本、审核记录均不发生变化。\r\n- 全稿校验失败：仍可修订并再次校验；修复后可正常进入导出流程。\r\n- 上述行为在服务层、MCP 工具层和持久化重启后均有回归测试。\r\n- 重复请求、超时重试及并发调用不会把项目留在无法恢复的状态。\r\n- 提供从历史异常 `VALIDATING` 状态恢复的受支持方案，并测试恢复前后的状态不变量与审计记录。\r\n- 真实或合成端到端测试覆盖“未完成校验被拒绝 → 继续起草 → 完成全稿 → 校验 → 导出”的完整顺序。\r\n- 最新 Windows CI 全绿；交付独立分支和 PR，代理不得自行合并。\r\n\r\n## 不在本 Issue 范围\r\n\r\nAgent 标注合并/覆盖、证据来源可信度、Agent 必选阻断及最低篇幅验收已由近期合并 PR 覆盖；不要重复实现这些功能。MCP 客户端自动重连属于客户端仓库，除非确认标书 MCP 服务端需要增加恢复接口，否则不在本仓库扩展客户端职责。\r\n\r\n## 工程纪律\r\n\r\n基于最新 `main` 建独立分支；每个可交付 commit 后立即 push；提交 PR 并报告 head、实际 diff、测试及最新 CI；不得直接推送 `main`，不得自行合并。",
+  "closed_by": null,
+  "reactions": {
+    "url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/243/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "timeline_url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/243/timeline",
+  "performed_via_github_app": null,
+  "state_reason": null,
+  "pinned_comment": null
+}

@@ -1,0 +1,49 @@
+[
+  {
+    "url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/comments/6606936423",
+    "html_url": "https://github.com/mmqz/ai-bid-research/issues/203#issuecomment-6606936423",
+    "issue_url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/203",
+    "id": 6606936423,
+    "node_id": "IC_kwDOVUcs988AAAABic3ZZw",
+    "user": {
+      "login": "mmqz",
+      "id": 260861911,
+      "node_id": "U_kgDOD4xv1w",
+      "avatar_url": "https://avatars.githubusercontent.com/u/260861911?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/mmqz",
+      "html_url": "https://github.com/mmqz",
+      "followers_url": "https://api.github.com/users/mmqz/followers",
+      "following_url": "https://api.github.com/users/mmqz/following{/other_user}",
+      "gists_url": "https://api.github.com/users/mmqz/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/mmqz/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/mmqz/subscriptions",
+      "organizations_url": "https://api.github.com/users/mmqz/orgs",
+      "repos_url": "https://api.github.com/users/mmqz/repos",
+      "events_url": "https://api.github.com/users/mmqz/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/mmqz/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "created_at": "2026-11-03T14:49:30Z",
+    "updated_at": "2026-11-03T14:49:30Z",
+    "body": "## R1-F（SDK）+ R1-H（scripts/CI）静态走查完成（代理 C 分工面）\n\n按 #203 修订 5 的分工（代理 C = sdk+scripts+CI）先行完成两个模块的静态走查。**说明：审计批次的 8 项前置 issue 尚未全关（#199 未合并），本走查是分工面的预清材料，非审计批次正式启动。**\n\n### 结果概览\n\n**发现 17 条：P0=0，P1=5，P2=12**（SDK 9 / CI 3 / scripts 5）。每条按 PLAN 附§5 的 10 字段登记（源文件:行号/风险等级/复现/失败测试建议/修复建议/回归），完整报告 340 行已备（可按需入库 `docs/audit/findings/`——R7 规划位）。\n\n### P1 五条（标题）\n\n| ID | 标题 | 状态 |\n|---|---|---|\n| AUDIT-SDK-001 | 人工门参数文档滞后于 #182 receipt 验签（SKILL.md/p1-import.md 仍教被拒的 `human:` 前缀） | **PR #235 已修**（含 p4/p1 同族三处） |\n| AUDIT-SDK-002 | minimal_flow.py 示例断裂：四门必死（缺 receipt+传废参）+ 乐观并发静默失效（project_version 顶层取值恒 None） | open |\n| AUDIT-SDK-003 | checklist.py P6 判据与真实线格式不符恒 FAIL：契约 §0 信封 `{ok,tool,data,request_id,project_version}` vs 实现只输出 3 键（余内嵌 data）——checklist/--dump-version/minimal_flow 三处同根因 | open |\n| AUDIT-CI-001 | CI 覆盖面缺口：单 workflow/单平台（windows cargo check），SDK pytest / run_tests / Web-UI / Mutation 零接线 | open |\n| AUDIT-CI-002 | SKIP 计为 passed 的假绿设计（#9 机制 + run_e2e.sh exit 0 + mcp_sdk_e2e 默认跳过） | open |\n\n### 核心判断\n\n1. **最重的两处都是「响亮失败」而非静默污染**（文档教废参 → E_UNPROCESSABLE；示例断在第一门），故无 P0。\n2. **AUDIT-SDK-003 需要拍板方向**：契约 §0 的信封描述与实现三方漂移（checklist/minimal_flow/契约四处互相矛盾）——修实现（信封补 request_id/project_version 顶层键）还是修文档（§0 改为 3 键口径）？牵动面不同，建议 Lead 定夺后单开 issue。\n3. **正面核验（无发现）**：SDK 无幽灵工具名（提及的 20 工具全在 TOOL_NAMES 21 内）；evidence/*.json 9 份留档经 mcp transport 重录复算 447 checks 全过、与当前 schema 零漂移；checklist P0-P5/P8 判据键名逐一吻合。\n4. **scripts 诚实纪律整体良好**（SEMUL 自标注/失败件强制落盘/set -euo pipefail）；问题集中在判分算法 ≥3 份复制、历史脚本绑机器绝对路径、Mutation 缺席。\n\n### 建议处置\n\n- SDK-001 → PR #235 合并即闭环\n- SDK-002/003 → 契约方向拍板后一个小 PR（minimal_flow + checklist + 契约 §0 三处一起修）\n- CI-001/002 → R6 CI 重建的第一批料（linux job + SDK pytest + SKIP 五状态分离——#203 修订 6 的 bid-parse 试点时一并做）\n\n完整报告（17 条全字段）我本地留存，如需入库开 `docs/audit/findings/R1F-R1H.md` PR 即可。",
+    "author_association": "OWNER",
+    "pin": null,
+    "reactions": {
+      "url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/comments/6606936423/reactions",
+      "total_count": 0,
+      "+1": 0,
+      "-1": 0,
+      "laugh": 0,
+      "hooray": 0,
+      "confused": 0,
+      "heart": 0,
+      "rocket": 0,
+      "eyes": 0
+    },
+    "performed_via_github_app": null,
+    "minimized": null
+  }
+]

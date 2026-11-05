@@ -491,6 +491,19 @@ fn input_schema(name: &str) -> Value {
             },
             "required": ["project_id", "requirement_id", "status", "receipt"]
         }),
+        // #243：历史异常态（VALIDATING+缺章）的受支持恢复出口。
+        // 域层三重约束（仅 VALIDATING / 仅缺章 / 理由非空白）+ 审计账——
+        // 不是任意状态写入；重复请求被状态门拒（E_STATE，非死锁态）。
+        "recover_validating_state" => json!({
+            "type": "object",
+            "description": "历史异常态恢复（#243）：项目滞留在 VALIDATING 且存在未起草叶（旧版校验误推进所致）时，回到 DRAFTING 解锁起草面。三重约束：仅 VALIDATING 态、仅缺章、理由必填；每次恢复落审计记录（何时/为何/从哪到哪/缺哪些章）。恢复后携带新 project_version——后续调用用新值",
+            "properties": {
+                "project_id": pid,
+                "reason": {"type": "string", "description": "恢复理由（必填非空白——不可审计的恢复不成恢复；如：旧版校验在缺章时误推进 VALIDATING）"},
+                "project_version": pv
+            },
+            "required": ["project_id", "reason"]
+        }),
         "record_addendum_waiver" => json!({
             "type": "object",
             "description": "招标包输入件不就绪的逐件人工确认（#184 补遗分级阻塞 + 地图 P0-1 扩面到主件/附件）：任一输入件不处 READY（FAILED/OCR_PENDING）时 draft_response_section 被拒；人工继续必须逐件确认到具体 file_id（非全局布尔）。确认即审计面（file_id/reason/at/principal + actor）；放行后起草标 RESTRICTED（受限起草，不静默当完整输入）",
@@ -571,6 +584,7 @@ fn describe(name: &str) -> &'static str {
         "record_review_gate" => "三门记审（G3——matrix/outline/pre_export；#182 receipt 验签——人工确认由宿主签发 receipt 提供）",
         "record_addendum_waiver" => "补遗逐件人工确认（#184——分级阻塞的免责面；#182 receipt 验签（签域绑定 file_id）；FILES_IMPORTED+）",
         "set_matrix_override" => "人工覆写条款响应状态（#226——否决项死锁出口；NOT_APPLICABLE 必带理由；覆写即重算矩阵；MATRIX_READY+）",
+        "recover_validating_state" => "历史异常态恢复（#243——VALIDATING+缺章回 DRAFTING；三重约束 + 审计账；仅 VALIDATING 态）",
         "score_price" => "价格分试算 + 最优报价反推（#100 任务 3——纯计算器，B1 五方法只调用不改）",
         "score_section" => "章节自评（#100 任务 3——四维规则判定；#224 多对多映射按 weight_share 摊分；unmapped_scoring_items 文档级告警）",
         "score_document" => "整本自评（#100 任务 3——技术/商务/价格三段 + by_item 逐项（#224 多映射 estimated=逐章贡献之和、contributions 逐章明细）；#224 mappings 映射报告（章节/权重/来源/原文锚——只认生效映射，同节 inert 账本行不归因）+ unmapped_scoring_items；没报价 → price null）",
@@ -612,5 +626,7 @@ fn is_implemented(name: &str) -> bool {
             | "get_document_chunks"
             | "submit_block_marks"
             | "get_coverage_report"
+            // #243 校验状态安全与恢复
+            | "recover_validating_state"
     )
 }

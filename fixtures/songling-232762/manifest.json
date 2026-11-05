@@ -201,5 +201,25 @@
     ],
     "scoring_non_hard": 9
   },
+  "scoring_outline_baseline": {
+    "note": "#252 评分驱动大纲断言面的固化基线（三态门：实测==基线 → FAIL 横幅锁定现状；更差 → 红灯；达成 → IMPROVED 要求更新+PR 说明）。预期形态锚 = expected/outline.expected.json（6 L1 + 20 L2 + 业绩/价格位）。实测环境：Linux poppler 通道，derive_and_set_outline 默认 spec（target 844,000）。",
+    "measured_at": "2026-11-05",
+    "scoring_l1_chapters": 0,
+    "scoring_l2_details": 0,
+    "independent_slots": 1,
+    "scoring_mapped_6": 0,
+    "quota_scoring_share": 0.0,
+    "quota_admin_share": 0.875,
+    "quota_scoring_l2_floor": 0,
+    "coverage_key_params_in_sections": 1,
+    "findings": [
+      "L1 全集 17 组全部是类目/主题机械分组：资格与响应、其他条款（二次分组后）、技术参数等——6 个评分章节（服务方案/重点难点/保密工作/服务承诺/质量保证/应急方案）零出现，85 分技术标主体在大纲零对应位置（issue #252 核心矛盾在 PDF 单件路径复现）",
+      "independent_slots=1 是巧合命中：「报价要求」主题组（「其他」类 THEME_RULES 二次分组产物）含「报价」关键词，不是真正的价格评审响应位（报价文件/开标一览表）；业绩位 0——独立响应位实际未建立",
+      "quota_admin_share=0.875（738,499/844,000）：行政类 L1（资格与响应/格式/合同/须知类主题组）占 87.5%；非行政中间组（技术参数/服务与售后要求/技术方案要求/质量标准要求）合计仅 12.5%——评分主体 0%",
+      "coverage_key_params=1/3：「295」在章节绑定集可检索（REQ 面命中的技术参数 REQ 被绑定进「技术参数」组）；「95%」「360分钟」MISS——REQ 抽取面 12/16 MISS（#250 表格碎片化）传导到绑定面，绑定覆盖依赖 #250 修复",
+      "否决/资格响应位 66/66 全部被章节绑定（防回归门，当前绿）——#121 P0-1「资格与响应」组的既有成果，#252 重构不得丢失",
+      "outline_total_chars=844,000 恒等达成（derive 配额总和=target）；总量门当前绿，#253 分配重构时防回归"
+    ]
+  },
   "license_note": "招标文件为依法必须公开的政府采购文件（法定公开媒介发布），评测用途引用——与 real-corpus/PROVENANCE.md 口径一致。"
 }

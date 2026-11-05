@@ -117,7 +117,7 @@ fn same_sha_reimport_as_addendum_registers_role_with_conflict_warning() {
     }
 
     // 首次导入：附件
-    let r1 = import_files(&mut store, &mut parsed, &[spec(path.clone(), "tender-attachment.pdf", "附件")]);
+    let r1 = import_files(&mut store, &mut parsed, &[spec(path.clone(), "tender-attachment.pdf", "附件")], None);
     assert_eq!(r1.item_failures, 0);
     assert_eq!(r1.new_records, 1);
     assert_eq!(store.files().len(), 1);
@@ -125,7 +125,7 @@ fn same_sha_reimport_as_addendum_registers_role_with_conflict_warning() {
     let version_after_first = store.content_version();
 
     // 二次导入：同 SHA、不同 kind + 不同名（补遗）——验收 A / C
-    let r2 = import_files(&mut store, &mut parsed, &[spec(path, "补遗-03.pdf", "补遗")]);
+    let r2 = import_files(&mut store, &mut parsed, &[spec(path, "补遗-03.pdf", "补遗")], None);
     assert_eq!(r2.item_failures, 0, "同 SHA 异身份导入不失败（验收 C：告警不失败）");
     assert_eq!(r2.new_records, 0);
     let o = &r2.per_file[0];
@@ -167,11 +167,11 @@ fn identical_reimport_is_pure_noop_without_warning() {
         return;
     }
 
-    import_files(&mut store, &mut parsed, &[spec(path.clone(), "tender-attachment.pdf", "附件")]);
+    import_files(&mut store, &mut parsed, &[spec(path.clone(), "tender-attachment.pdf", "附件")], None);
     let fid = store.files()[0].id.clone();
     let version = store.content_version();
 
-    let r2 = import_files(&mut store, &mut parsed, &[spec(path, "tender-attachment.pdf", "附件")]);
+    let r2 = import_files(&mut store, &mut parsed, &[spec(path, "tender-attachment.pdf", "附件")], None);
     assert_eq!(r2.item_failures, 0);
     let o = &r2.per_file[0];
     assert!(o.deduplicated);
@@ -200,7 +200,7 @@ fn addendum_role_release_l3_not_provided_blocker() {
         return;
     }
     // 同一份内容：先附件、后补遗（#188 事故形态的忠实重演）
-    import_files(&mut store, &mut parsed, &[spec(path.clone(), "tender-attachment.pdf", "附件")]);
+    import_files(&mut store, &mut parsed, &[spec(path.clone(), "tender-attachment.pdf", "附件")], None);
     let r1 = check_draft_readiness(&store, "SEC-0001");
     assert!(
         r1.blockers.iter().any(|b| matches!(b, Blocker::MissingAddendum { reason, .. }
@@ -208,7 +208,7 @@ fn addendum_role_release_l3_not_provided_blocker() {
         "附件身份不算补遗（阻塞仍在——不虚构）：{:?}",
         r1.blockers
     );
-    import_files(&mut store, &mut parsed, &[spec(path, "补遗-03.pdf", "补遗")]);
+    import_files(&mut store, &mut parsed, &[spec(path, "补遗-03.pdf", "补遗")], None);
     let r2 = check_draft_readiness(&store, "SEC-0001");
     assert!(
         !r2.blockers.iter().any(|b| matches!(b, Blocker::MissingAddendum { .. })),

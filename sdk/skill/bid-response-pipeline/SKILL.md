@@ -19,7 +19,7 @@ description: >
 | 阶段 | 动作 | 允许工具 | 完成判据（停止条件） | 恢复点 |
 |---|---|---|---|---|
 | P0 建项 | 建投标项目 | `create_bid_project` | project_id 返回且 deadline 未过 | 幂等 external_key 重入 |
-| P1 导入 | 逐类导入+核对 | `import_tender_files` | totals.parse_failed=0 且部分失败件已重试或经用户确认降级；**补遗件必须全部 READY**（addendum_readiness.not_ready 非空 → 修复重传，或经用户逐件确认 record_addendum_waiver 后放行——见下方「补遗分级门」）；**统计数字必须向用户复述** | sha256 幂等；失败件单补 |
+| P1 导入 | 逐类导入+核对 | `import_tender_files` | totals.parse_failed=0 且部分失败件已重试或经用户确认降级；**补遗件必须全部 READY**（addendum_readiness.not_ready 非空 → 修复重传，或经用户逐件确认 record_addendum_waiver 后放行——见下方「补遗分级门」）；**统计数字必须向用户复述**；`.doc` 旧格式件：有转换器自动转换（`CONVERTED_FROM_DOC` 标注），报「不支持 .doc 且无转换器」时按 p1-import.md「遇到 .doc 无转换器」节自查自转、转不了如实告知（禁止跳过/编造/假装处理，#270） | sha256 幂等；失败件单补 |
 | P2 抽条款 | Agent 标记优先抽取+冲突确认 | `get_document_chunks` → `submit_block_marks` → `extract_requirements` | merge.coverage_complete=true（或 uncovered 块已由正则兜底且用户知情）；missing_sequence 为空（缺号必须解释）；conflicts 逐条向用户确认口径 | 标记整集替换；重跑 extract 重算合并（Agent 优先） |
 | P3 矩阵 | 建纲+矩阵+资格判断 | `build_outline` → `get_compliance_matrix` | build_outline 返回 MATRIX_READY；资格/否决行 policy 全填；资格三态结论（eligible/conditional/not_eligible）向用户报告；**not_eligible → 停止流程，只产审查报告** | 矩阵只读（get_compliance_matrix），随时重查 |
 | P4 证据 | 登记+绑定证据、补缺清单 | `register_evidence` / `bind_evidence` / `list_evidence` / `search_evidence`* | 每条必选项≥1 条 OK 证据；EXPIRED 禁绑；缺失项形成补料清单交用户；bind 后 matrix.blocking=0 | 缺料→等待用户补充后仅补跑受影响行 |

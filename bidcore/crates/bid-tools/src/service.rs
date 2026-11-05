@@ -283,7 +283,11 @@ pub fn import_files(
     store: &mut DomainStore,
     parsed: &mut Vec<ParsedFile>,
     specs: &[ImportSpec],
+    convert_dir: Option<&std::path::Path>,
 ) -> ImportReport {
+    // #270：convert_dir = .doc→docx 转换产物目录（有工作区的调用方传
+    // `<ws>/.mang/convert/`；无工作区形态（runner 批处理）传 None → 服务层
+    // 降级系统 temp——两种位置都不写用户目录。
     let mut report = ImportReport {
         per_file: Vec::with_capacity(specs.len()),
         item_failures: 0,
@@ -365,14 +369,24 @@ pub fn import_files(
         // （自研 docx/xlsx 解析已删——引擎是 OOXML 读面单一真源；B3-3 r3 差分
         // 验收 EQ+ED 91.57%，A 件等抽样 100% EQ）；pdf 引擎优先（pdfium 文本层）
         // + 旧路径回退（pdftotext/OCR 补遗链——`parse_file` B4 后仅剩 pdf 面，
-        // 见 bid-parse/src/lib.rs 模块头）；.xls/.ods 等其它扩展名 → `parse_file`
-        // 显式拒绝（「不支持的文件类型」——zip 容器载具不误解析）。
+        // 见 bid-parse/src/lib.rs 模块头）；.doc（#270）→ 环境转换通道（Word COM
+        // / LibreOffice 任一：有则自动转 docx 解析+标注，无则引导报错——两层
+        // 设计详见文末 #270 区块）；.xls/.ods 等其它扩展名 → `parse_file` 显式
+        // 拒绝（「不支持的文件类型」——zip 容器载具不误解析）。
         // 已知引擎缺口登记不伪装：域剥离边界（mdcore#40）——详见
         // docs/b3-3-r3-acceptance-report.md（嵌套表 mdcore#39 已修复）。
         let ext = file_extension(&spec.upload_ref, &spec.filename);
+        let mut converted_note: Option<&'static str> = None;
         let parsed_result = match ext.as_str() {
             "docx" => {
-                bid_engine::parse_docx_via_engine(&spec.upload_ref).map_err(|e| e.to_string())
+                // #270 顺带修复：.doc 直接改名 .docx（OLE2 容器）原报
+                // 「container corrupt: Could not find EOCD」误导用户以为文件
+                // 损坏——路由面前置魔数识别 + 旧格式引导（PK 头异常仍走引擎）
+                if is_ole_container(&spec.upload_ref) {
+                    Err(docx_lie_message())
+                } else {
+                    bid_engine::parse_docx_via_engine(&spec.upload_ref).map_err(|e| e.to_string())
+                }
             }
             "xlsx" => {
                 bid_engine::parse_xlsx_via_engine(&spec.upload_ref).map_err(|e| e.to_string())
@@ -381,6 +395,12 @@ pub fn import_files(
             // 无 pdfium（EngineFailed）回退旧 pdftotext/OCR 路径（映射表 §3）
             "pdf" => bid_engine::parse_pdf_via_engine(&spec.upload_ref)
                 .or_else(|_| parse_file(&spec.upload_ref, &spec.filename)),
+            // #270：.doc（Word 97-2003）——两层设计：有转换器自动转换（sha 记
+            // 原件 + 响应面标注），无转换器引导报错（Skill 侧接管）
+            "doc" => {
+                converted_note = Some("CONVERTED_FROM_DOC");
+                import_doc_converted(&spec.upload_ref, &spec.filename, &sha, convert_dir)
+            }
             _ => parse_file(&spec.upload_ref, &spec.filename),
         };
         match parsed_result {
@@ -427,6 +447,15 @@ pub fn import_files(
                 // 解析失败禁引（R-01）：failed 件不进 parsed 累积（不入抽取/索引面）
                 parsed.push(p);
                 let mut warnings = Vec::new();
+                // #270：.doc 经转换解析的响应面标注（per_file.warnings 透出——
+                // 与 parse_summary 落库标注双通道，Agent/用户任一面可见）
+                if let Some(note) = converted_note {
+                    debug_assert_eq!(note, "CONVERTED_FROM_DOC");
+                    warnings.push(format!(
+                        "CONVERTED_FROM_DOC: 本件经 .doc→.docx 转换后解析（转换器：{}；sha256 记原件，转换产物在工作区内部不外泄）",
+                        doc_converter_name()
+                    ));
+                }
                 if let Some(exp) = spec.expected_pages {
                     if exp != pages as u64 {
                         warnings.push(format!(
@@ -1155,7 +1184,13 @@ impl BidService {
                 expected_pages: spec.expected_pages,
             });
         }
-        let report = import_files(&mut self.store, &mut self.parsed, &resolved);
+        // #270：.doc 转换产物落工作区内部位 <ws>/.mang/convert/（不写用户目录；
+        // 无持久化工作区形态 → None → 服务层降级系统 temp）
+        let convert_dir = self
+            .workspace_dir()
+            .map(|ws| ws.join(".mang").join("convert"));
+        let report =
+            import_files(&mut self.store, &mut self.parsed, &resolved, convert_dir.as_deref());
         self.auto_checkpoint()?;
         Ok(report)
     }
@@ -1902,6 +1937,365 @@ fn convert_to_pdf_lo(docx: &std::path::Path, out_pdf: &std::path::Path) -> Resul
     // 产物一起删掉，「成功但产物缺失」的实测根因；rename 返回后产物已安全）
     let _ = std::fs::remove_dir_all(&profile);
     Ok(())
+}
+
+// ---------------------------------------------------------------- #270：.doc 导入通道
+//
+// 两层设计（issue #270 指令原文：「检查环境自动转换，没有环境让 AI 用 skill 自处理」）：
+//   引擎侧：.doc → 检查环境（Word COM / LibreOffice 任一）
+//           有 → 自动转换 docx → 正常解析（用户无感，响应面标注「经转换」）
+//           无 → 明确报错 + 两项检测结果 + 三种解决方式（Agent 按 Skill 指引自处理）
+//   转换通道与 PDF 导出面（convert_to_pdf）同模式：Word COM 优先（投标用户
+//   「有 Office 无 LO」是常态），LibreOffice 兜底；不引入新依赖。
+
+/// #270 测试注入缝：置 `BID_NO_DOC_CONVERTER=1` 强制视为「无转换器」
+/// （issue 测试节建议的环境变量模拟——CI 有 soffice 的环境也能测无转换器
+/// 报错面；**不在测试体内 set_var**，由子进程 env 注入，避并行竞态）。
+fn doc_converter_forced_off() -> bool {
+    std::env::var_os("BID_NO_DOC_CONVERTER")
+        .map(|v| v == "1")
+        .unwrap_or(false)
+}
+
+/// .doc→docx 转换通道是否可用（Word COM 或 LibreOffice 任一在场——与
+/// [`pdf_converter_available`] 同原则：只查 soffice 会把「有 Office 无 LO」
+/// 的投标用户误判为不可用）。
+#[must_use]
+pub fn doc_converter_available() -> bool {
+    if doc_converter_forced_off() {
+        return false;
+    }
+    #[cfg(windows)]
+    {
+        if word_com_available() {
+            return true;
+        }
+    }
+    soffice_available()
+}
+
+/// 两通道探测明细（供无转换器报错的「检测结果」面——逐项可用性+原因）。
+#[cfg(windows)]
+fn doc_converter_probe() -> (bool, String, bool, String) {
+    let ok = word_com_available();
+    let reason = if ok {
+        "可用".to_string()
+    } else {
+        "注册表无 WINWORD.EXE（App Paths）——未安装 Microsoft Office".to_string()
+    };
+    if ok {
+        return (true, reason, false, "未探测（Word COM 已可用）".to_string());
+    }
+    let (lo, lo_reason) = doc_lo_probe();
+    (false, reason, lo, lo_reason)
+}
+
+/// 非 Windows：Word COM 通道不适用，只探测 LibreOffice。
+#[cfg(not(windows))]
+fn doc_converter_probe() -> (bool, String, bool, String) {
+    let (lo, lo_reason) = doc_lo_probe();
+    (false, "非 Windows 环境，Word COM 通道不适用".to_string(), lo, lo_reason)
+}
+
+fn doc_lo_probe() -> (bool, String) {
+    if which_software("soffice").is_some() || which_software("libreoffice").is_some() {
+        (true, "可用".to_string())
+    } else {
+        (false, "soffice/libreoffice 不在 PATH——未安装 LibreOffice".to_string())
+    }
+}
+
+/// 当前可用的 .doc 转换通道名（响应面标注用）。
+#[must_use]
+pub fn doc_converter_name() -> &'static str {
+    #[cfg(windows)]
+    {
+        if word_com_available() {
+            return "Microsoft Word COM";
+        }
+    }
+    if soffice_available() {
+        return "LibreOffice headless";
+    }
+    "（无可用通道）"
+}
+
+/// 无转换器时的完整引导报错（issue #270 文案模板——Agent 按此走 Skill 侧流程）。
+fn doc_unsupported_message() -> String {
+    let (w, w_reason, l, l_reason) = doc_converter_probe();
+    format!(
+        "不支持直接解析 .doc（Word 97-2003 旧格式），且本机未检测到可用的转换器。\n\
+         \n\
+         检测结果：\n\
+         \x20 Word COM:    {w_mark}（{w_reason}）\n\
+         \x20 LibreOffice: {l_mark}（{l_reason}）\n\
+         \n\
+         请任选一种方式处理后重新导入：\n\
+         \x20 1. 安装 Microsoft Office 或 LibreOffice（免费，任一即可）\n\
+         \x20 2. 自行转换后导入 .docx：\n\
+         \x20    Word 打开 → 另存为 → .docx\n\
+         \x20    或  soffice --headless --convert-to docx --outdir /tmp \"<文件>.doc\"\n\
+         \x20 3. 请用户提供 .docx 版本",
+        w_mark = if w { "可用" } else { "不可用" },
+        l_mark = if l { "可用" } else { "不可用" },
+    )
+}
+
+/// docx 产物校验（存在 + PK 魔数）——复用判定/转换后防「空文件伪装产物」。
+fn docx_artifact_valid(path: &std::path::Path) -> bool {
+    let mut magic = [0u8; 4];
+    use std::io::Read;
+    std::fs::File::open(path)
+        .and_then(|mut f| f.read_exact(&mut magic))
+        .is_ok()
+        && &magic == b"PK\x03\x04"
+}
+
+/// .doc→docx 总入口：Word COM 优先，LibreOffice 兜底（与 [`convert_to_pdf`] 同序）。
+fn convert_doc_to_docx(doc: &std::path::Path, out_docx: &std::path::Path) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        if word_com_available() {
+            match convert_doc_to_docx_word(doc, out_docx) {
+                Ok(()) => return Ok(()),
+                Err(e) => {
+                    // Word 失败不弃——续试 LO（COM 权限/占用等场景，同 PDF 面策略）
+                    let lo = convert_doc_to_docx_lo(doc, out_docx);
+                    return match lo {
+                        Ok(()) => Ok(()),
+                        Err(lo_err) => Err(format!(
+                            "Word COM 与 LibreOffice 均失败 —— Word: {e}；LibreOffice: {lo_err}"
+                        )),
+                    };
+                }
+            }
+        }
+    }
+    convert_doc_to_docx_lo(doc, out_docx)
+}
+
+/// Word COM 自动化 .doc→.docx（Windows 专属——与 [`convert_to_pdf_word`] 同模式：
+/// UTF-8 BOM PowerShell 脚本防中文路径 GBK 乱码、try_wait 循环 30s 超时防占用
+/// 挂起、taskkill 清 WINWORD 残留、ReleaseComObject 释放 COM 引用）。
+/// `SaveAs2(path, 16)` 的 16 = `wdFormatDocumentDefault`（.docx）。
+#[cfg(windows)]
+fn convert_doc_to_docx_word(doc: &std::path::Path, out_docx: &std::path::Path) -> Result<(), String> {
+    /// Word COM 单次转换超时（秒）。冷启动 12s + 转换余量（PDF 面同款取值）。
+    const WORD_COM_TIMEOUT_SECS: u64 = 30;
+    let script = format!(
+        "$word = $null\r\n\
+         $doc = $null\r\n\
+         try {{\r\n\
+         \x20 $word = New-Object -ComObject Word.Application\r\n\
+         \x20 $word.Visible = $false\r\n\
+         \x20 $word.DisplayAlerts = 0\r\n\
+         \x20 $doc = $word.Documents.Open('{}', $false, $true)\r\n\
+         \x20 $doc.SaveAs2('{}', 16)\r\n\
+         \x20 $doc.Close(0)\r\n\
+         }} finally {{\r\n\
+         \x20 if ($doc) {{ try {{ [System.Runtime.InteropServices.Marshal]::ReleaseComObject($doc) | Out-Null }} catch {{}} }}\r\n\
+         \x20 if ($word) {{ try {{ $word.Quit() }} catch {{}} ; try {{ [System.Runtime.InteropServices.Marshal]::ReleaseComObject($word) | Out-Null }} catch {{}} }}\r\n\
+         }}\r\n",
+        doc.display(),
+        out_docx.display()
+    );
+    // UTF-8 BOM：PowerShell 5.1 无 BOM 按 GBK 解析——中文路径必乱码（PDF 面实测坑）
+    let mut bytes = vec![0xEF, 0xBB, 0xBF];
+    bytes.extend_from_slice(script.as_bytes());
+    let script_path = std::env::temp_dir().join(format!(
+        "bid-doc2docx-{}-{}.ps1",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0),
+    ));
+    std::fs::write(&script_path, &bytes).map_err(|e| format!("脚本写入失败: {e}"))?;
+    let mut child = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass"])
+        .arg("-File")
+        .arg(&script_path)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| {
+            let _ = std::fs::remove_file(&script_path);
+            format!("powershell 启动失败: {e}")
+        })?;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(WORD_COM_TIMEOUT_SECS);
+    let timed_out = loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break false,
+            Ok(None) => {
+                if std::time::Instant::now() >= deadline {
+                    break true;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(200));
+            }
+            Err(_) => break false,
+        }
+    };
+    if timed_out {
+        let _ = child.kill();
+        let _ = child.wait();
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/IM", "WINWORD.EXE"])
+            .output();
+        let _ = std::fs::remove_file(&script_path);
+        return Err(format!(
+            "Word COM 超时（{WORD_COM_TIMEOUT_SECS}s）——Word 可能被其他文档占用或弹出了对话框；已清理残留"
+        ));
+    }
+    let output = child
+        .wait_with_output()
+        .map_err(|e| format!("收集 powershell 输出失败: {e}"))?;
+    let _ = std::fs::remove_file(&script_path);
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "Word COM 退出码 {:?}: {}",
+            output.status.code(),
+            stderr.chars().take(400).collect::<String>()
+        ));
+    }
+    if !docx_artifact_valid(out_docx) {
+        return Err("Word COM 声称成功但产物缺失或非 docx（PK 魔数校验失败）".into());
+    }
+    Ok(())
+}
+
+/// .doc→.docx（LibreOffice headless——与 [`convert_to_pdf_lo`] 同模式：profile
+/// 隔离防并发锁死、产物名 {stem}.docx 先落转换目录再原子 rename、PK 魔数校验）。
+fn convert_doc_to_docx_lo(doc: &std::path::Path, out_docx: &std::path::Path) -> Result<(), String> {
+    let soffice = which_software("soffice")
+        .or_else(|| which_software("libreoffice"))
+        .ok_or_else(|| "soffice/libreoffice 不在 PATH（环境缺失）".to_string())?;
+    if let Some(dir) = out_docx.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| format!("输出目录创建失败: {e}"))?;
+    }
+    let profile = std::env::temp_dir().join(format!(
+        "bid-soffice-doc2docx-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0),
+    ));
+    let conv_out = profile.join("out");
+    std::fs::create_dir_all(&conv_out).map_err(|e| format!("转换目录创建失败: {e}"))?;
+    // file:/// 三斜杠（两斜杠是 host 形式会被静默忽略 → 共享默认 profile → 锁冲突）
+    let profile_url = format!("file:///{}", profile.display());
+    let status = std::process::Command::new(&soffice)
+        .arg("--headless")
+        .arg("--norestore")
+        .arg(format!("-env:UserInstallation={profile_url}"))
+        .arg("--convert-to")
+        .arg("docx")
+        .arg("--outdir")
+        .arg(&conv_out)
+        .arg(doc)
+        .output()
+        .map_err(|e| format!("soffice 启动失败: {e}"))?;
+    let stdout = String::from_utf8_lossy(&status.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&status.stderr).into_owned();
+    if !status.status.success() {
+        let _ = std::fs::remove_dir_all(&profile);
+        return Err(format!(
+            "soffice 退出码 {:?}（stdout: {}；stderr: {}）",
+            status.status.code(),
+            stdout.chars().take(300).collect::<String>(),
+            stderr.chars().take(300).collect::<String>()
+        ));
+    }
+    let stem = doc.file_stem().and_then(|s| s.to_str()).unwrap_or("标书");
+    let produced = conv_out.join(format!("{stem}.docx"));
+    if !produced.is_file() {
+        let ls = std::fs::read_dir(&conv_out)
+            .ok()
+            .map(|rd| {
+                rd.filter_map(|e| e.ok())
+                    .map(|e| e.file_name().to_string_lossy().into_owned())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            })
+            .unwrap_or_default();
+        let _ = std::fs::remove_dir_all(&profile);
+        return Err(format!(
+            "soffice 声称成功但产物缺失（期望 {}；outdir 内容: [{}]；stdout: {}）",
+            produced.display(),
+            ls,
+            stdout.chars().take(300).collect::<String>()
+        ));
+    }
+    if !docx_artifact_valid(&produced) {
+        let _ = std::fs::remove_dir_all(&profile);
+        return Err("产物不是 docx（PK 魔数校验失败）——soffice 可能输出了错误格式".into());
+    }
+    std::fs::rename(&produced, out_docx).map_err(|e| format!("产物搬移失败: {e}"))?;
+    let _ = std::fs::remove_dir_all(&profile);
+    Ok(())
+}
+
+/// OLE2/CFB 容器魔数（Word 97-2003 旧格式 .doc 的二进制签名）。
+const OLE_MAGIC: [u8; 8] = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
+
+/// 扩展名 .docx 的文件实际是 OLE2 容器（.doc 改名而来）→ 识别 + 友好引导
+/// （#270 顺带修复：原来直接喂 zip 引擎报「container corrupt: Could not find
+/// EOCD」——用户误以为文件损坏）。语义边界：这是**路由面的格式识别与友好
+/// 报错**，不改变「按扩展名路由」的既有设计（PK 头异常内容仍走引擎响亮失败）。
+fn is_ole_container(path: &std::path::Path) -> bool {
+    let mut magic = [0u8; 8];
+    use std::io::Read;
+    std::fs::File::open(path)
+        .and_then(|mut f| f.read_exact(&mut magic))
+        .is_ok()
+        && magic == OLE_MAGIC
+}
+
+/// .doc 改名 .docx 的引导报错（区别于「容器损坏」——文件没坏，是格式旧）。
+fn docx_lie_message() -> String {
+    "该文件扩展名是 .docx，但内容是 OLE2 容器（Word 97-2003 旧格式 .doc 的二进制\
+     签名）——疑似 .doc 直接改名而来，docx 引擎（zip 容器）无法解析。文件本身未损坏。\
+     请任选其一：① 以 .doc 扩展名重新导入（本机有转换器时引擎将自动转换）；\
+     ② 用 Word 打开另存为 .docx 后导入；③ soffice --headless --convert-to docx \
+     --outdir /tmp \"<文件>\"".to_string()
+}
+
+/// .doc 导入的转换+解析半边（#270）：
+/// 1. 无转换器 → 引导报错（Skill 侧接管）；
+/// 2. 转换产物落 `convert_dir`（有工作区传 `<ws>/.mang/convert/`，`None` 时
+///    降级系统 temp——不写用户目录）；产物名 `{原件 sha 前 16 位}.docx`——
+///    同件重导不重转（幂等），PK 头校验失败自动重转；
+/// 3. **sha256 记原件**（覆写转换产物的 ParsedFile.sha256/name——引擎对传入
+///    字节自算 sha 是转换产物的，不覆写会破坏「累积面与落库面同源」不变量）；
+/// 4. parse_summary 前缀标注「经转换」（落库面；warnings 面由调用方补）。
+fn import_doc_converted(
+    doc: &std::path::Path,
+    filename: &str,
+    orig_sha: &str,
+    convert_dir: Option<&std::path::Path>,
+) -> Result<bid_parse::ParsedFile, String> {
+    if !doc_converter_available() {
+        return Err(doc_unsupported_message());
+    }
+    let dir = convert_dir
+        .map(|d| d.to_path_buf())
+        .unwrap_or_else(|| std::env::temp_dir().join("bid-doc-convert"));
+    let target = dir.join(format!("{}.docx", &orig_sha[..16.min(orig_sha.len())]));
+    if !docx_artifact_valid(&target) {
+        convert_doc_to_docx(doc, &target)?;
+    }
+    let mut p = bid_engine::parse_docx_via_engine(&target).map_err(|e| e.to_string())?;
+    // 不变量覆写：累积面（parsed[]）与落库面（upsert_file 的 sha）必须同源——
+    // 都是原件的。name 用 spec.filename（块定位/抽取锚定以它为标签）。
+    p.sha256 = orig_sha.to_string();
+    p.name = filename.to_string();
+    p.parse_summary = format!(
+        "[.doc→.docx 经 {} 转换后解析] {}",
+        doc_converter_name(),
+        p.parse_summary
+    );
+    Ok(p)
 }
 
 /// 当前时刻（unix epoch 秒——#188 FileRole 登记时刻；时钟不可用时 0，

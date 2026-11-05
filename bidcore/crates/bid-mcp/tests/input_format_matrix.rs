@@ -205,6 +205,9 @@ fn truncated_docx_is_item_failure() {
 ///
 /// 这条钉的是「路由按扩展名而非嗅探」的**已知设计**：真出问题时
 /// 用户要看到明确失败，而不是被静默当成 xlsx 解析成功。
+/// （#270 例外增强：PK/OLE 魔数仅用于 .doc 改名 .docx 的**友好报错**——
+/// 见 doc_import.rs `doc_renamed_docx_reports_ole_not_corrupt`；其余异常
+/// 内容仍按扩展名路由、引擎响亮失败，本测试行为不变。）
 #[test]
 fn lying_extension_fails_loudly() {
     let ws = temp_ws("liar");

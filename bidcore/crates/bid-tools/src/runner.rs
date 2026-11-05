@@ -51,7 +51,9 @@ fn import_files(ctx: &mut Ctx, files_dir: &Path, rels: &[(&str, &str)]) -> Resul
             expected_pages: None,
         })
         .collect();
-    let report = crate::service::import_files(&mut ctx.store, &mut ctx.parsed, &specs);
+    // #270：runner 形态无持久化工作区 → convert_dir=None（.doc 转换产物由
+    // 服务层降级落系统 temp——不写用户目录）
+    let report = crate::service::import_files(&mut ctx.store, &mut ctx.parsed, &specs, None);
     for o in &report.per_file {
         match (o.file_id.as_deref(), o.parse_status, o.deduplicated) {
             // 幂等重放：sha256 命中 → no-op（与原实现同口径：dedup 优先于失败面呈现）

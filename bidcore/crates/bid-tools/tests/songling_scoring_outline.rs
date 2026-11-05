@@ -18,7 +18,7 @@
 //!
 //! 一条命令重跑：`cargo test -p bid-tools --test songling_scoring_outline`。
 
-use bid_domain::outline::OutlineSpec;
+use bid_domain::outline::{is_admin_group, OutlineSpec};
 use bid_parse::env_preflight::{skip_if_env_missing, skip_if_fixture_missing, POPPLER_TEXT_TOOLS};
 use bid_parse::extract::extract_requirements;
 use bid_tools::service::{BidService, ImportSpec};
@@ -82,15 +82,11 @@ fn expected_chapters() -> Vec<(String, f64, Vec<String>)> {
         .collect()
 }
 
-/// 行政章节判定关键词（issue #252 评论：「行政章节（资格/格式/合同）配额合计 ≤ 25%」）。
-///
-/// 口径：资格与响应 / 格式要求 / 合同文本 / 须知 / 公告 / 商务响应位 / 其他条款 /
-/// 补遗澄清 / 纪律 / 附件 / 获取 / 开标——招标文件的自述性、程序性内容。
-/// 技术参数响应**不在**此列（双轨硬约束：技术参数进服务方案，算评分主体）。
-const ADMIN_L1_KEYWORDS: &[&str] = &[
-    "资格", "格式", "合同", "须知", "公告", "商务", "其他条款", "补遗", "澄清",
-    "纪律", "附件", "获取", "开标", "报价", "业绩", "投标文件",
-];
+// 行政分类（#253 第二段）：改用域层单一真源 `bid_domain::outline::is_admin_group`
+// （ADMIN_GROUP_KEYWORDS——配额三轨/门禁分级/本基线测试三处共用，防口径
+// 漂移；域层面比旧测试面多「保证金」：投标保证金组 = 程序性提交要求）。
+// 口径：行政章节 = 资格/格式/合同/须知/公告等招标文件自述性、程序性内容；
+// 技术参数响应**不在**列（双轨硬约束：技术参数进服务方案，算评分主体）。
 
 // ---------------------------------------------------------------- 三态门（#251 gate 的双向扩展）
 
@@ -467,7 +463,7 @@ fn pdf_engine_outline_quota_distribution() {
     let l1: Vec<&bid_domain::outline::OutlineNode> =
         sections.iter().filter(|s| s.level == 1).collect();
     let is_scoring = |t: &str| chapters.iter().any(|(ct, _, _)| t.contains(ct.as_str()));
-    let is_admin = |t: &str| ADMIN_L1_KEYWORDS.iter().any(|k| t.contains(k));
+    let is_admin = |t: &str| is_admin_group(t);
     let scoring_chars: u64 = l1
         .iter()
         .filter(|s| is_scoring(&s.title))

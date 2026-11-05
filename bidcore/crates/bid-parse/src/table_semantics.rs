@@ -597,7 +597,11 @@ fn assemble_pdf_sem_rows(
                     }
                 } else {
                     no_row_streak += 1;
-                    if no_row_streak >= 2 || cur.is_none() {
+                    // 首行前的缓冲：danqing 布局把行1内容印在标签上方（跨行
+                    // 单元格先行出现）——表头后最多 3 行非行文本不终结区域
+                    //（跳过、不入消费集）；首行之后连续 2 行非行文本终结。
+                    let lead_ok = cur.is_none() && no_row_streak <= 3;
+                    if !lead_ok && no_row_streak >= 2 {
                         break;
                     }
                 }

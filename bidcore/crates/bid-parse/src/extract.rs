@@ -97,8 +97,16 @@ fn extract_dispatch(
         // 只有明确无条款面的 kind（附件/图纸/证据）才跳过，其余登记
         // kind（含未来新增）一律主抽取——默认可见（fail-visible），
         // 与工具面 ZERO_REQUIREMENTS 兜底告警配套。
+        // 【#271】「格式模板」加入无条款面清单：格式件是**投标人填写的
+        // 官方模板**（声明函/偏离表/承诺书——填空表非条款源），条款真源
+        // 始终是主件（招标文件格式章 REQ 已携带「按格式N填写」要求）。
+        // 模板内容不产 REQ/不进矩阵；解析产物仍进 parsed 累积（块面可经
+        // get_document_chunks 读——起草时可参考模板结构）。
         let kind = kind_of(&f.name);
-        let is_attachment = matches!(kind.as_deref(), Some("附件") | Some("图纸") | Some("证据"));
+        let is_attachment = matches!(
+            kind.as_deref(),
+            Some("附件") | Some("图纸") | Some("证据") | Some("格式模板")
+        );
         let is_b1 = matches!(kind.as_deref(), Some("报价文件")) || f.name.starts_with("B1");
         let is_b2 = matches!(kind.as_deref(), Some("扫描件")) || f.name.starts_with("B2");
         if is_attachment {

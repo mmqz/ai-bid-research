@@ -798,14 +798,24 @@ pub fn tender_gaps(store: &DomainStore) -> Vec<String> {
 /// MCP 壳的 kind 枚举里没有它，只有受信内部导入面会用）。
 const FILE_KIND_EVIDENCE: &str = "证据";
 
+/// 格式模板的业务类别字面量（#271：附件格式件——官方填空模板）。
+const FILE_KIND_FORM_TEMPLATE: &str = "格式模板";
+
 /// 是否招标包输入件（输入完整性判定的覆盖面：主件/补遗/附件/图纸/
-/// 评分办法/格式模板——一切非证据类导入件）。
+/// 评分办法——非证据类导入件）。
 ///
 /// 证据源文件不在面：证据的可用性由证据系统自己的生命周期裁决
 /// （状态 Active/Expiring、有效期、换版），把「证据源文件解析失败」
 /// 混进「招标包输入不完整」会让两套阻塞语义打架——前者该报在证据面。
+///
+/// #271：**格式模板同样不在面**——模板是参考件（起草时可读取结构），
+/// 条款真源始终是主件格式章 REQ（「按格式N填写」）。模板解析失败
+/// （如嵌套 zip/扫描版）不应阻塞起草：模板信息丢失不改变做标正确性，
+/// 阻塞反而会让「27 个模板中 1 个坏件」卡死整个标（内蒙古文件集实测
+/// 形态：nm-property-mgmt 附件含嵌套 zip）。模板失败登记仍在库内
+/// 可见（forms_manifest 的 parse_status），只是不产生 blocker。
 pub fn is_tender_package_file(f: &bid_domain::TenderFile) -> bool {
-    f.kind != FILE_KIND_EVIDENCE
+    !matches!(f.kind.as_str(), FILE_KIND_EVIDENCE | FILE_KIND_FORM_TEMPLATE)
 }
 
 /// 项目级输入完整性（地图 P0-1——「全部就绪才允许完整起草」的可计算判据）。

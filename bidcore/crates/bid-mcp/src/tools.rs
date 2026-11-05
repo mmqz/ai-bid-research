@@ -471,6 +471,8 @@ fn import_tender_files(svc: &mut BidService, args: Value) -> ToolResult {
             let mut entry = json!({
                 "file_id": fid,
                 "filename": o.filename,
+                "kind": svc.store().files().iter().find(|f| f.id == *fid)
+                    .map(|f| f.kind.as_str()).unwrap_or(""),
                 "sha256": o.sha256,
                 "pages": o.pages,
                 "tables": o.tables,
@@ -553,7 +555,30 @@ fn import_tender_files(svc: &mut BidService, args: Value) -> ToolResult {
             f.name, f.reason,
         ));
     }
-    let data = json!({
+    // ---- #271：格式件清单（kind=格式模板 的库内登记——附件/ 下官方模板
+    // 逐件可见，Agent 起草时可按 file_id 读模板结构；与 addendum_readiness
+    // 同级形态。模板解析失败仍在清单内可见（parse_status），但不阻塞
+    // 起草（readiness 不在面）。
+    let forms_items: Vec<Value> = svc
+        .store()
+        .files()
+        .iter()
+        .filter(|f| f.kind == "格式模板")
+        .map(|f| json!({
+            "file_id": f.id, "name": f.name,
+            "parse_status": parse_status_str(f.parse_status),
+            "pages": f.pages, "tables": f.tables,
+        }))
+        .collect();
+    let forms_manifest = if forms_items.is_empty() {
+        Value::Null
+    } else {
+        json!({
+            "count": forms_items.len(),
+            "items": forms_items,
+        })
+    };
+    let mut data = json!({
         "file_ids": file_ids,
         "per_file": per_file,
         "totals": {
@@ -583,6 +608,10 @@ fn import_tender_files(svc: &mut BidService, args: Value) -> ToolResult {
         "request_id": next_request_id(),
         "warnings": warnings,
     });
+    // #271：格式件清单条件透出（无格式件时键省略——黑龙江形态零扰动）
+    if !forms_items.is_empty() {
+        data["forms_manifest"] = forms_manifest;
+    }
 
     if report.item_failures > 0 {
         // 契约 §2 错误面：E_PARTIAL（部分文件 parse FAILED；失败件内容全程禁引）。
@@ -754,7 +783,7 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
             })
         })
         .collect();
-    let (reqs, merge_stats) = bid_parse::merge::merge_extraction(&faces, reqs);
+    let (mut reqs, merge_stats) = bid_parse::merge::merge_extraction(&faces, reqs);
     drop(faces);
 
     // ---- 完整性校验：缺号检测（契约硬规则）
@@ -812,6 +841,45 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
         }
     }
 
+    // ---- #271：格式件与 REQ 关联（尽力而为）——格式件名（去扩展名、≥4 字
+    // 守卫）出现在 REQ 锚文里 → params.form_file_id / form_name。条款真源
+    // 始终是主件格式章 REQ（「按格式N填写技术偏离表」），关联让起草面能
+    // 直接定位官方模板（get_document_chunks 读结构），不再全库猜。
+    // 匹配不到就不关联（best-effort，不失败）。
+    let form_files: Vec<(String, String)> = svc
+        .store()
+        .files()
+        .iter()
+        .filter(|f| f.kind == "格式模板")
+        .map(|f| (f.id.clone(), f.name.clone()))
+        .collect();
+    let mut forms_linked = 0usize;
+    if !form_files.is_empty() {
+        for r in reqs.iter_mut() {
+            let anchor_text: String =
+                r.anchors.iter().map(|a| a.excerpt.as_str()).collect();
+            let mentions_form = r.category == "格式要求"
+                || anchor_text.contains("格式")
+                || anchor_text.contains("偏离表")
+                || anchor_text.contains("一览表")
+                || anchor_text.contains("声明函");
+            if !mentions_form {
+                continue;
+            }
+            for (fid, fname) in &form_files {
+                let stem = fname.rsplit_once('.').map(|(s, _)| s).unwrap_or(fname);
+                if stem.chars().count() >= 4 && anchor_text.contains(stem) {
+                    r.params
+                        .insert("form_file_id".to_string(), json!(fid));
+                    r.params
+                        .insert("form_name".to_string(), json!(fname));
+                    forms_linked += 1;
+                    break;
+                }
+            }
+        }
+    }
+
     // ---- 落库（#219 二步：整集替换 + 状态转换 FILES_IMPORTED →
     // REQUIREMENTS_EXTRACTED；替换而非只增合并——「先 extract → Agent
     // 标 noise → 重跑 extract」时被覆盖块上的旧正则 REQ 必须消失。
@@ -827,6 +895,11 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
         *by_category.entry(category_key(&r.category)).or_insert(0) += 1;
     }
     let mut warnings: Vec<String> = Vec::new();
+    if forms_linked > 0 {
+        warnings.push(format!(
+            "FORMS_LINKED: {forms_linked} 条格式类 REQ 已关联官方格式模板（params.form_file_id——起草时可经 get_document_chunks 读取模板结构，#271）"
+        ));
+    }
     if !missing_sequence.is_empty() {
         warnings.push(format!(
             "MISSING_SEQUENCE: {} 处条款缺号（完整性校验面——详见 missing_sequence）",

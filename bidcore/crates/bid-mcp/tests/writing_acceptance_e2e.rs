@@ -341,9 +341,15 @@ fn writing_acceptance_full_flow_docx_out() {
 
 // ---------------------------------------------------------------- 2. 篇幅不足拒绝达标/导出
 
-/// 短稿闭环：validate 拒达标（ok=false + E_CHARS_BELOW_MIN BLOCKER）→
+/// 短稿闭环：validate 拒达标（ok=false；#253 门禁分级后 BLOCKER 面 =
+/// E_TOTAL_CHARS_BELOW_MIN 全稿总量硬门 + 短稿叶 W_CHARS_BELOW_MIN MAJOR）→
 /// PreExportConfirm Rejected 派生 RT → 导出双拒（未过门 E_STATE；门过了
 /// RT 未关单仍 E_UNPROCESSABLE）→ 补写回带内 → 关 RT → 重审 → 导出成功。
+///
+/// #253 语义更新：短稿叶（corpus-A 无评分章节）的章节级码从
+/// E_CHARS_BELOW_MIN BLOCKER 改为 W_CHARS_BELOW_MIN MAJOR（不逐章阻断）；
+/// 「篇幅不足不得达标/导出」的硬线由 E_TOTAL_CHARS_BELOW_MIN（全稿总量
+/// < 配额总和，1000 页硬指标）承担——原验收命题不变，把关面上收。
 #[test]
 fn writing_acceptance_short_draft_blocked_from_export() {
     if !corpus_ready("wa-short") {
@@ -361,7 +367,10 @@ fn writing_acceptance_short_draft_blocked_from_export() {
         assert_eq!(r["section_status"], "DRAFTED");
     }
 
-    // ⑥' 一叶改短稿（测试特权——服务面直调自定义生成器，模拟 LLM 偷工）
+    // ⑥' 全叶改短稿（测试特权——服务面直调自定义生成器，模拟 LLM 偷工）。
+    //    #253 后总门语义：小目标纲（本夹具 6,000）的叶配额 ~500 级，单叶
+    //    缺口可被其余叶的带内超写互偿（总量不必然塌）；全叶短稿保证
+    //    E_TOTAL_CHARS_BELOW_MIN 确定性触发——RT 闭环走总门 BLOCKER 面
     struct Tiny;
     impl bid_tools::draft::SectionGenerator for Tiny {
         fn generate(&mut self, i: &bid_tools::draft::SectionDraftInput)
@@ -374,24 +383,33 @@ fn writing_acceptance_short_draft_blocked_from_export() {
             })
         }
     }
+    for sid in &leaves {
+        svc.draft_section(sid, None, None, Some("超短稿"), &mut Tiny).unwrap();
+    }
     let victim = leaves[0].clone();
     let victim_target: u64 = u64::from(
         svc.store().sections().iter().find(|n| n.id == victim).unwrap().target_chars,
     );
     assert!(victim_target > 0, "被测叶须有配额");
-    svc.draft_section(&victim, None, None, Some("超短稿"), &mut Tiny).unwrap();
 
-    // ⑦ validate：整份标书不得报告达标（ok=false）+ E_CHARS_BELOW_MIN BLOCKER
+    // ⑦ validate：整份标书不得报告达标（ok=false）。#253 门禁分级：
+    //    短稿叶（非评分）→ W_CHARS_BELOW_MIN MAJOR；全稿总量不足 →
+    //    E_TOTAL_CHARS_BELOW_MIN BLOCKER（1000 页硬指标硬比较）
     let r = ok_result(call(&mut svc, "validate_bid_document", json!({
         "project_id": &pid, "scope": "all",
     })));
     assert_eq!(r["ok"], json!(false), "篇幅不足时整份标书不得报告达标: {}", r["errors"]);
     let errors = r["errors"].as_array().unwrap();
+    let total_gate = errors
+        .iter()
+        .find(|e| e["rule_code"] == "E_TOTAL_CHARS_BELOW_MIN")
+        .expect("E_TOTAL_CHARS_BELOW_MIN 必须在 errors 面（全稿总量硬门）");
+    assert_eq!(total_gate["severity"], "BLOCKER");
     let low = errors
         .iter()
-        .find(|e| e["rule_code"] == "E_CHARS_BELOW_MIN")
-        .expect("E_CHARS_BELOW_MIN 必须在 errors 面");
-    assert_eq!(low["severity"], "BLOCKER");
+        .find(|e| e["rule_code"] == "W_CHARS_BELOW_MIN")
+        .expect("W_CHARS_BELOW_MIN 必须在 errors 面（短稿叶 MAJOR）");
+    assert_eq!(low["severity"], "MAJOR");
     assert_eq!(low["section_id"].as_str().unwrap(), victim, "锚到短稿章节");
 
     // ⑦' PreExportConfirm Rejected（携带 BLOCKER finding——服务面）→ RT 派生
@@ -436,11 +454,13 @@ fn writing_acceptance_short_draft_blocked_from_export() {
         "拒导出时不得留半成品产物"
     );
 
-    // ---- 修复闭环：补写回带内（mock 重起草）→ validate 复绿
+    // ---- 修复闭环：全叶补写回带内（mock 重起草——面向目标量）→ validate 复绿
     //      （VALIDATING 态 MCP draft 被状态机拒——服务面直调是测试特权，
     //      合法窗口：advance_project_to_drafting 对 Drafting+ no-op）
-    svc.draft_section(&victim, None, None, Some("补写至配额带内"), &mut bid_tools::draft::MockGenerator)
-        .unwrap();
+    for sid in &leaves {
+        svc.draft_section(sid, None, None, Some("补写至配额带内"), &mut bid_tools::draft::MockGenerator)
+            .unwrap();
+    }
     let r = ok_result(call(&mut svc, "validate_bid_document", json!({
         "project_id": &pid, "scope": "all",
     })));
@@ -477,7 +497,9 @@ fn writing_acceptance_short_draft_blocked_from_export() {
 ///
 /// - 面A：全叶短稿 + PreExportConfirm 直接批准（零 findings）→ 记审面
 ///   全绿（三门过 + 零 RT，断言锁死）→ 导出仍拒（E_UNPROCESSABLE，拒因
-///   点名写作验收门 / E_CHARS_BELOW_MIN）→ 零半成品；
+///   点名写作验收门 / E_TOTAL_CHARS_BELOW_MIN——#253 后全稿总量硬门是
+///   篇幅把关的 BLOCKER 面；corpus-A 无评分章节，章节级 E_CHARS_BELOW_MIN
+///   不在场）→ 零半成品；
 /// - 面B：补写回带内 → validate 复绿 → 重走 pre_export_confirm（#180 新
 ///   摘要）→ 导出 EXPORTED（门禁不是死锁：修好就能出厂）；
 /// - 面C：空叶 + 直接批准 → 同门拒，点名 E_SECTION_EMPTY（必写叶无
@@ -530,7 +552,7 @@ fn writing_acceptance_export_independent_of_review_approval() {
     assert_eq!(err_code(&reply), "E_UNPROCESSABLE", "篇幅不足即使直接批准也拒: {reply:?}");
     let et = err_text(&reply);
     assert!(et.contains("写作验收门"), "拒因点名写作验收门: {et}");
-    assert!(et.contains("E_CHARS_BELOW_MIN"), "拒因点名篇幅下限规则: {et}");
+    assert!(et.contains("E_TOTAL_CHARS_BELOW_MIN"), "拒因点名全稿总量硬门: {et}");
     assert!(!ws.join("out/投标文件-直接批准.docx").exists(), "拒导出时不得留半成品");
 
     // ---- 面B：补写回带内 → validate 复绿 → 重走确认门 → 导出成功

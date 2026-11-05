@@ -99,6 +99,10 @@ in : { project_id, filters:{category?, status?}, cursor?, limit?, page? }
 out: { rows:[{cmp_id, requirement:{id, clause_no, category, statement, mandatory, source_anchor, params},
               evidence:[{ev_id, title, status, valid_until, verification_tier}],
               pending_evidence_ids:[EV-*]（#245 占位/待核验证据待补追踪面）,
+              evidence_required: bool, evidence_missing: bool（#241 裁定正交标记——
+                与 status 分账：正文实写即 RESPONDED（文本事实），材料要求与
+                缺口由这两列承载（合规事实）；evidence_missing=true 的必选
+                行阻断提交就绪但不拦导出）,
               gap, response_policy, draft_section_id, blocking}],
        total(过滤后总数), limit, cursor(本次生效), next_cursor: string|null,
        counts:{total, returned, page(信息性回显), page_size(=limit)} }
@@ -107,6 +111,10 @@ out: { rows:[{cmp_id, requirement:{id, clause_no, category, statement, mandatory
 `rows[].requirement.mandatory` = 类别阻断面（资格条件/否决项）∪ Agent 必选标记
 （params.marked_by=agent && params.mandatory=true）——与矩阵 blocking 派生同一真源
 （matrix.rs `is_mandatory`/`agent_mandatory`），工具面 mandatory 即门禁输入。
+状态派生（#241 裁定，2026-11-05）：正文有实质响应（归属章节 content 非空）且
+无有效证据无占位 → **RESPONDED**（写了就是写了——文本事实）；证据缺口由
+evidence_missing 正交承载，由提交就绪面（validate/check_bid_quality 的
+submission_readiness）拦截，不压进状态面。
 错误: E_UNPROCESSABLE（游标与过滤器不匹配/游标损坏/limit 或 page 越界——显式拒不 clamp）
 ```
 
@@ -212,14 +220,34 @@ out: { findings:[{vf_id, kind:DETERMINISTIC|MODEL, rule_code, severity, section_
          semantic:   {status:"passed"} | {status:"failed", findings:[…]}
                    | {status:"not_performed", reason:"no model configured"},
          evidence:   {status:"passed"} | {status:"failed", findings:[…]},
-         compliance: {status:"passed"} | {status:"failed", findings:[…]} } }
+         compliance: {status:"passed"} | {status:"failed", findings:[…]} },
+       submission_readiness:{ #241 裁定（2026-11-05）——提交就绪面（纯加法；与 ok 分账）
+         ready: bool, not_built: bool, blockers: usize,
+         unresponded_count, evidence_missing_count,
+         unresponded:[{requirement_id, row_id, category, excerpt, message}],
+         evidence_missing:[{requirement_id, row_id, category, excerpt, message}] } }
+提交就绪语义（#241 裁定——Export ≠ Submission Readiness）：
+  · 正文已响应但无外部证据 → 矩阵 RESPONDED（文本事实——写了就是写了，
+    不再报 E_QUAL_UNMET/E_VETO_UNRESPONDED 冤枉真响应）；证据缺口由
+    evidence_missing 清单承载（合规事实——没证明材料就是废标风险），
+    ready=false（不得正式提交）但**不拦导出**（草稿可导出，见 §8）；
+  · ok=true 只表示已执行检查零 BLOCKER，不等于可提交——就绪裁决看
+    submission_readiness.ready；
+  · 阻断两清单：unresponded（必选未响应/PARTIAL/待补——含 #253 验收 8
+    否决项面）+ evidence_missing（必选条款证据缺口）；
+  · 解决出口：补绑证据（register_evidence/bind_evidence——状态窗口
+    MATRIX_READY..READY_TO_EXPORT，#241 后 DRAFTING 起亦可用）或合法
+    人工豁免（set_matrix_override NOT_APPLICABLE + 偏离说明 + Human
+    receipt；普通 RESPONDED 覆写不豁免缺口）。
 规则分层（R-07 规则分界；原引审计问题 Q7）:
   确定性（代码断言，先行、必跑）: 报价 vs 控制价/预算、工期 vs 招标要求、资质有效期 vs 开标日、
       页数/字数上限（Word 渲染口径）、必填格式项、签章位存在性、暗标禁字清单扫描、条款引用完整性
   模型（仅产 finding 不改稿）: 表述质量、逻辑连贯、偏离合理化、疑似过度承诺
 categories 四桶（#187——「没做 ≠ 做对了」，issue #9 口径）:
   structural（已实现）: E_SECTION_EMPTY / E_CITATION_GHOST / W_PLACEHOLDER /
-      W_CHARS_OFF_TARGET / E_SCOPE_UNKNOWN
+      W_CHARS_OFF_TARGET / E_SCOPE_UNKNOWN / E_CHARS_BELOW_MIN（#253：仅
+      评分章节 BLOCKER）/ W_CHARS_BELOW_MIN（#253：行政/实质章节 MAJOR）/
+      E_TOTAL_CHARS_BELOW_MIN（#253：全稿总量硬门 BLOCKER）
   semantic（未实现）: M_ 前缀模型发现——现网未配置模型，恒
       not_performed{reason:"no model configured"}，不得因「没发现错误」伪装
       passed；接入真实 LLM 后经服务层注入缝（validate_document_with_reviewer）
@@ -312,10 +340,17 @@ out: { artifact:{url, sha256, size}, content_version_snapshot, precheck:{blocker
      （宽容载入，旧数据的洞保留——重新过门即补上绑定）。
      **四前置门全量清单（#245 补齐 1d）**：
      · 1a 矩阵门：blocking 行清零（必选未响应**或 PENDING_EVIDENCE 待补**
-       ——占位绑定不清阻塞）；
+       ——占位绑定不清阻塞。#241 裁定（2026-11-05）：正文有实质响应
+       （归属章节 content 非空）且无有效证据无占位 → RESPONDED 不阻断
+       ——证据缺口不拦导出，由提交就绪面（§7 submission_readiness）
+       承载，草稿可导出）；
      · 1b 审核门：三门 Approved + 全 RT DONE + #180 内容摘要绑定；
-     · 1c 写作验收门（1.0）：篇幅不足/空章节即使审核已直接批准也拒
-       （独立复算，不消费记审面）；
+     · 1c 写作验收门（1.0；#253 门禁分级）：**评分章节**篇幅不足
+       （E_CHARS_BELOW_MIN——叶绑定评分项 REQ 或被 ScoringMapping 映射）/
+       **全稿总量**不足（E_TOTAL_CHARS_BELOW_MIN——实写总量 < 配额总和，
+       1000 页硬指标硬比较无容差）/ 空章节，即使审核已直接批准也拒
+       （独立复算，不消费记审面）；行政/实质章节篇幅不足不拦导出
+       （W_CHARS_BELOW_MIN MAJOR——WARNING 语义，内容完整即可）；
      · 1d 占位证据门（#245）：活跃占位绑定存在即拒——占位/待核验材料
        不得作为已核验证据导出（与 1c 同为独立复算门、不消费记审面；
        差异面：占位有合法人工豁免通道 = NOT_APPLICABLE 覆写 + 非空偏离
@@ -332,7 +367,11 @@ out: { artifact:{url, sha256, size}, content_version_snapshot, precheck:{blocker
 ```
 in : { project_id }
 out: { project_id, summary:{total, drafted, failed, pending, uncovered_req_total, out_of_band,
-       unanchored_total}, needs_human:[SEC-*], sections:[{section_id, title, status, chars,
+       unanchored_total}, needs_human:[SEC-*],
+       submission_readiness:{ #241 裁定（2026-11-05）——提交就绪面（与 §7 同源同构：
+         ready/not_built/blockers/unresponded_count/evidence_missing_count/
+         unresponded[]/evidence_missing[]——单一出口，两工具面永不分叉）},
+       sections:[{section_id, title, status, chars,
        target_chars, within_band, requirement_ids, covered_reqs, uncovered_reqs, ghost_reqs,
        cited_evs, uncited_evs, unknown_citations, unanchored_claims, error, needs_human}],
        artifact:{path, size}|null, warnings[] }
@@ -441,6 +480,14 @@ out: { counts:{ sections, leaves, requirements, total_target_chars, matrix_rows,
        status: "MATRIX_READY", project_version }
 语义: 推导大纲树（确定性——REQ 类目分组 + 每叶上限）+ 矩阵首建（推进
       MATRIX_READY——draft 的硬前置）。写后自动落盘（服务层 auto_checkpoint）。
+配额（#253 第二段分层计价——按「分值/内容」分配，取代按 REQ 数均摊）:
+      · 评分轨（叶绑定评分项 REQ；#252 评分驱动大纲落地后出现）：底价
+        10,000/叶，剩余预算按分值权重（params.score）最大余数法分摊；
+      · 行政轨（is_admin_group 单一真源分类）：300 字/条；
+      · 实质轨（技术参数/服务/质量类）：2,000 字/条；
+      · 剩余让渡序：评分 → 实质 → 行政；
+      · 配额总和 == target（构造性恒等；底价不可负担的小目标退化面
+        回退按 REQ 数均摊）。
 状态: REQUIREMENTS_EXTRACTED 态可调（FilesImported/Draft → E_STATE；
       MATRIX_READY+ 重复调用 → E_STATE——重建面属「补遗后增量重抽」后续需求，
       不隐式放行）
@@ -510,7 +557,8 @@ out: { ev_id: "EV-*", deduplicated, kind(snake_case), status,
         迁移到新记录）——无原地迁移通道即无非法迁移通道；合法人工豁免
         = NOT_APPLICABLE 覆写 + 非空偏离说明 + 可信 Human receipt
         （#247 审核收紧：Responded 等普通状态覆写不豁免占位门）。
-状态: MATRIX_READY+（P4 面——矩阵就绪后登记）
+状态: MATRIX_READY..READY_TO_EXPORT（#241 裁定扩窗同 §11-B——DRAFTING 起亦可
+      登记/换版（占位升级、缺口补件的登记面）；EXPORTED 终态仍拒）
 错误: E_NOTFOUND（source_file_id 不存在）；E_UNPROCESSABLE（kind/日期/fields
       非法；**旧参数 source_file / source_sha256 / fingerprint 已废除——传入
       即拒**，文案指路 source_file_id；**#245：verification_tier 参数不存在
@@ -552,7 +600,11 @@ bid_open_date 语义（#80 第三批外部 Agent 实测摩擦 #5）：证据有�
       阻塞**——必选行 PENDING_EVIDENCE 仍 blocking，回执 blocking 面与 hint
       直接可见。部分失败 → E_PARTIAL（item_errors 逐件定位 + data 携带成功面
       ——与 import_tender_files 同款「错误码不吞成功面」）。
-状态: MATRIX_READY+
+状态: MATRIX_READY..READY_TO_EXPORT（#241 裁定（2026-11-05）扩窗：DRAFTING/
+      VALIDATING/REVIEWING/READY_TO_EXPORT 亦可用——validate/check_bid_quality
+      在这些状态输出 evidence_missing 清单，「见缺口→补件→就绪」的解决出口
+      不能断在最后一步（与 #226 set_matrix_override 同款窗口理由；#245 占位
+      换版升级同样依赖）。EXPORTED 终态仍拒——终态不改数据不变量。）
 ```
 
 ## 12. record_review_gate（#80 第三批 · G3；#131 增第四门；#182 receipt 验签）

@@ -170,6 +170,25 @@ fn write_tools_gated_by_state() {
     // validate_bid_document：DRAFTING 才许校验
     assert!(!ProjectStatus::MatrixReady.allowed_tools().contains(&"validate_bid_document"));
     assert!(ProjectStatus::Drafting.allowed_tools().contains(&"validate_bid_document"));
+    // #241 裁定：证据补件通道在缺口可发现的全程可用——validate/
+    // check_bid_quality 输出 evidence_missing 清单的状态（DRAFTING 到
+    // READY_TO_EXPORT）都必须能补件（与 #226 set_matrix_override 同款窗口
+    // 理由）；终态 EXPORTED 仍拒（终态不改数据的不变量）。
+    for s in [
+        ProjectStatus::MatrixReady,
+        ProjectStatus::EvidenceBound,
+        ProjectStatus::Drafting,
+        ProjectStatus::Validating,
+        ProjectStatus::Reviewing,
+        ProjectStatus::ReadyToExport,
+    ] {
+        assert!(s.allowed_tools().contains(&"bind_evidence"),
+            "{s:?} 必须放行 bind_evidence（#241 补件通道）");
+        assert!(s.allowed_tools().contains(&"register_evidence"),
+            "{s:?} 必须放行 register_evidence（#241/#245 换版升级通道）");
+    }
+    assert!(!ProjectStatus::Exported.allowed_tools().contains(&"bind_evidence"),
+        "终态仍拒（terminal_state_blocks_write_tools 不变量）");
 }
 
 /// 终态（Exported）**不得**再放行写面工具——只允许只读/幂等面。
@@ -213,30 +232,29 @@ fn terminal_state_blocks_write_tools() {
 #[test]
 fn full_matrix_snapshot() {
     let grid: Vec<(ProjectStatus, &str)> = vec![
+        // 29 工具位串（ALL_TOOLS 顺序）。合并说明（2026-11-05 三方并集）：
+        //   #254 尾插三位 append/rewrite/list（与整稿同窗口）；
+        //   #241 在 DRAFTING..READY_TO_EXPORT 翻 5/6 位（register/bind evidence——
+        //        证据补件通道）。两个 PR 各自改位串矩阵，本表为两者并集。
         // Draft（record_addendum_waiver 拒——导入前无件可确认）
-        // #227 后 24 工具位串 + #226 尾位（set_matrix_override）= 25 位；
-        // #243 尾位（recover_validating_state，仅 VALIDATING 放行）= 26 位；
-        // #254 尾插三位（append/rewrite/list）= 29 位：append/rewrite/list
-        // 在 MATRIX_READY..DRAFTING 与整稿同窗口；VALIDATING+ 仅 list（只读
-        // 段账本——校验/复核/导出后追溯面）。
         (ProjectStatus::Draft, "11000000000000100000000000000"),
         // FilesImported
         (ProjectStatus::FilesImported, "01101000100000100000111100000"),
         // RequirementsExtracted
         (ProjectStatus::RequirementsExtracted, "01111000100000100000111100000"),
-        // MatrixReady（#254：尾三位 111——分段写入与整稿同窗口）
+        // MatrixReady（#254 尾三位 111——分段写入与整稿同窗口）
         (ProjectStatus::MatrixReady, "00001110110010110110100110111"),
         // EvidenceBound
         (ProjectStatus::EvidenceBound, "00001110110010110110100110111"),
-        // Drafting（#254：尾三位 111——起草主战场）
-        (ProjectStatus::Drafting, "00001000110111110110100110111"),
-        // Validating（#243 尾位 1；#254 尾三位 001——仅只读 list）
-        (ProjectStatus::Validating, "00001000100111110110100111001"),
-        // Reviewing（#254：001——仅只读 list）
-        (ProjectStatus::Reviewing, "00001000100111110110100110001"),
-        // ReadyToExport（#254：001——仅只读 list）
-        (ProjectStatus::ReadyToExport, "00001000100111110110100110001"),
-        // Exported（#254：001——导出后追溯面仅只读 list）
+        // Drafting（#254 尾三位 111；#241 5/6 位翻 1——证据补件主战场）
+        (ProjectStatus::Drafting, "00001110110111110110100110111"),
+        // Validating（#243 尾区位 1；#254 尾三 001；#241 5/6 位翻 1）
+        (ProjectStatus::Validating, "00001110100111110110100111001"),
+        // Reviewing（#254 尾三 001；#241 5/6 位翻 1）
+        (ProjectStatus::Reviewing, "00001110100111110110100110001"),
+        // ReadyToExport（同上）
+        (ProjectStatus::ReadyToExport, "00001110100111110110100110001"),
+        // Exported（终态不变量：终态不改数据——#241 不被括进来；#254 仅只读 list）
         (ProjectStatus::Exported, "00001000100011110110100110001"),
     ];
     assert_eq!(grid.len(), ALL_STATES.len());

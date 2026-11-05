@@ -1,0 +1,253 @@
+{
+ "fixture_set": "real-tender-batch2",
+ "spec_version": "v1",
+ "collected_at": "2026-11-05",
+ "purpose": "异源对照批次——验证引擎是否只认黑龙江模板（batch1 内部 Jaccard 0.95-0.96）",
+ "source": {
+  "channel": "微信文件传输（用户提供）",
+  "original_dir": "E:\\xwechat_files\\wxid_e8b2ebugrctq22_bc66\\msg\\file\\2026-11",
+  "forms": [
+   "独立 pdf",
+   "独立 doc",
+   "独立 docx",
+   "文件集.zip（含主件 + 附件目录）"
+  ]
+ },
+ "license_note": "招标文件为依法必须公开的政府采购文件（法定公开媒介发布），评测用途引用",
+ "cross_platform_finding": {
+  "hlj_vs_nm_jaccard": 0.028,
+  "hlj_internal_jaccard": "0.95-0.96",
+  "hlj_chapter_union": 61,
+  "nm_chapter_union": 13,
+  "intersection": [
+   "第一章投标邀请",
+   "第二章投标人须知"
+  ],
+  "conclusion": "三套完全不同的模板骨架（黑龙江章-节 / 内蒙古章-节但章名全异 / 询价数字编号）"
+ },
+ "tenders": [
+  {
+   "id": "doc-medical",
+   "title": "国家区域医疗中心建设项目-深部微波治疗仪等医疗设备采购项目公开招标文件-第2包",
+   "platform": "未知",
+   "region": "未知",
+   "origin": "微信独立文件",
+   "main_file": "国家区域医疗中心建设项目-深部微波治疗仪等医疗设备采购项目公开招标文件-第2包.doc",
+   "format": "doc",
+   "bytes": 552309,
+   "sha256": "ac8f48b77c017e647e8330a2c48dd49ee11a1d6c3c8d70b545dfbc99162b7302",
+   "pages": null,
+   "chars": null,
+   "cjk": null,
+   "cjk_ratio": null,
+   "toc_entries": null,
+   "star_count": null,
+   "l2_chapters": [],
+   "probes": null,
+   "attachment_count": 0,
+   "attachments_sample": [],
+   "known_gaps": [
+    ".doc 不被引擎支持（parse_file 拒绝；改名 docx 报「容器损坏」——见 #270）"
+   ]
+  },
+  {
+   "id": "docx-jlyh",
+   "title": "JLYHDH-2026-ZC122 医养结合机构能力提升（三次）",
+   "platform": "吉林",
+   "region": "吉林",
+   "origin": "微信独立文件",
+   "main_file": "JLYHDH-2026-ZC122医养结合机构能力提升（三次）.docx",
+   "format": "docx",
+   "bytes": 265912,
+   "sha256": "5dc231ecfff3f9a6af7f1664391e10d3419c665d24ead5ae0e302fe7221ab73b",
+   "pages": null,
+   "chars": null,
+   "cjk": null,
+   "cjk_ratio": null,
+   "toc_entries": null,
+   "star_count": null,
+   "l2_chapters": [],
+   "probes": null,
+   "attachment_count": 0,
+   "attachments_sample": [],
+   "known_gaps": []
+  },
+  {
+   "id": "hlj-inquiry",
+   "title": "询价招标（专门面向中小企业）",
+   "platform": "未知",
+   "region": "未知",
+   "origin": "微信独立文件",
+   "main_file": "询价招标(专门面向中小企业).pdf",
+   "format": "pdf",
+   "bytes": 615782,
+   "sha256": "70137a850afe5e5706f0f98a8667bc89f3ef3476a1a757c1afa6ff86d525a433",
+   "pages": 78,
+   "chars": 43530,
+   "cjk": 32294,
+   "cjk_ratio": 0.742,
+   "toc_entries": 66,
+   "star_count": 0,
+   "l2_chapters": [
+    "1.适用范围",
+    "2.说明",
+    "2.1基本定义",
+    "3.供应商资格要求",
+    "4.政府采购政策",
+    "5.投标费用",
+    "6.其他说明",
+    "7.询价文件构成",
+    "8.询价文件的澄清和修改",
+    "9.响应文件的语言和计量单位"
+   ],
+   "probes": {
+    "has_zhang_structure": false,
+    "has_qianfubiao": false,
+    "has_pingbiaobanfa": false,
+    "has_zonghepingfen": false
+   },
+   "attachment_count": 0,
+   "attachments_sample": [],
+   "known_gaps": []
+  },
+  {
+   "id": "nm-health-terminal",
+   "title": "基本公共卫生智慧签约随访平台终端设备购置(二次)（询价）",
+   "platform": "内蒙古赤峰（CFZCYBS）",
+   "region": "内蒙古",
+   "origin": "微信文件集.zip",
+   "main_file": "基本公共卫生智慧签约随访平台终端设备购置(二次)询价通知书（CFZCYBS-X-H-260068-120261028001）.pdf",
+   "format": "pdf",
+   "bytes": 545329,
+   "sha256": "26a5a795b90c9dd6305951e772ae450c3620a68681f05e4e44ee62e70565470e",
+   "pages": 44,
+   "chars": 37149,
+   "cjk": 24963,
+   "cjk_ratio": 0.672,
+   "toc_entries": 97,
+   "star_count": 12,
+   "l2_chapters": [
+    "目录",
+    "第一章询价邀请",
+    "第二章供应商须知",
+    "第三章采购内容与技术要求",
+    "第四章供应商应当提交的资格、资信证明文件",
+    "第五章评审",
+    "第六章合同与验收",
+    "第七章响应文件格式与要求"
+   ],
+   "probes": {
+    "has_zhang_structure": false,
+    "has_qianfubiao": false,
+    "has_pingbiaobanfa": false,
+    "has_zonghepingfen": false
+   },
+   "attachment_count": 26,
+   "attachments_sample": [
+    "中小企业声明函.docx",
+    "主要商务要求承诺书.docx",
+    "依法缴纳税收和社会保障资金的良好记录的相关材料.docx",
+    "关于符合本国产品标准的声明函.pdf",
+    "其他材料.docx",
+    "具备履行合同所必需设备和专业技术能力的声明函.docx"
+   ],
+   "known_gaps": [
+    "含 26 个附件格式件，引擎当前只处理主件（见 #271）"
+   ]
+  },
+  {
+   "id": "nm-lib-mongolian",
+   "title": "图书馆蒙古文、藏文、满文等多语种古籍采购",
+   "platform": "内蒙古政采（NMGZCS）",
+   "region": "内蒙古",
+   "origin": "微信文件集.zip",
+   "main_file": "图书馆蒙古文、藏文、满文等多语种古籍采购招标文件（NMGZCS-G-H-26099520261105001）.pdf",
+   "format": "pdf",
+   "bytes": 1214599,
+   "sha256": "afbbec226159ff5b56f99fe1a43a77e3496c82de9591f0c9cf199398b343a662",
+   "pages": 249,
+   "chars": 152817,
+   "cjk": 77333,
+   "cjk_ratio": 0.506,
+   "toc_entries": 97,
+   "star_count": 1283,
+   "l2_chapters": [
+    "目录",
+    "第一章投标邀请",
+    "第二章投标人须知",
+    "第三章招标内容与技术要求",
+    "第四章投标人应当提交的资格、资信证明文件",
+    "第五章评标",
+    "第六章合同与验收",
+    "第七章响应文件格式与要求"
+   ],
+   "probes": {
+    "has_zhang_structure": false,
+    "has_qianfubiao": false,
+    "has_pingbiaobanfa": false,
+    "has_zonghepingfen": true
+   },
+   "attachment_count": 24,
+   "attachments_sample": [
+    "中小企业声明函.docx",
+    "主要商务要求承诺书.docx",
+    "依法缴纳税收和社会保障资金的良好记录的相关材料.docx",
+    "其他材料.docx",
+    "具备履行合同所必需设备和专业技术能力的声明函.docx",
+    "具有独立承担民事责任的能力证明文件.docx"
+   ],
+   "known_gaps": [
+    "含 24 个附件格式件，引擎当前只处理主件（见 #271）"
+   ]
+  },
+  {
+   "id": "nm-property-mgmt",
+   "title": "物业管理服务项目",
+   "platform": "内蒙古通辽（TLSZC）",
+   "region": "内蒙古",
+   "origin": "微信文件集.zip",
+   "main_file": "物业管理服务项目招标文件（TLSZC-G-F-26008620261105001）.pdf",
+   "format": "pdf",
+   "bytes": 721754,
+   "sha256": "50b02c908925f94df18840feae6a01848094a345d7d28af403b06aa3e081f915",
+   "pages": 61,
+   "chars": 52955,
+   "cjk": 35804,
+   "cjk_ratio": 0.676,
+   "toc_entries": 97,
+   "star_count": 2,
+   "l2_chapters": [
+    "目录",
+    "第一章投标邀请",
+    "第二章投标人须知",
+    "第三章招标内容与技术要求",
+    "第四章投标人应当提交的资格、资信证明文件",
+    "第五章评标",
+    "第六章合同与验收",
+    "第七章响应文件格式与要求"
+   ],
+   "probes": {
+    "has_zhang_structure": false,
+    "has_qianfubiao": false,
+    "has_pingbiaobanfa": false,
+    "has_zonghepingfen": true
+   },
+   "attachment_count": 22,
+   "attachments_sample": [
+    "中小企业声明函.docx",
+    "主要商务要求承诺书.docx",
+    "其他材料.docx",
+    "具备履行合同所必需设备和专业技术能力的声明函.docx",
+    "具有独立承担民事责任的能力证明文件.docx",
+    "包(1)_分项报价表.pdf"
+   ],
+   "known_gaps": [
+    "含 22 个附件格式件，引擎当前只处理主件（见 #271）"
+   ]
+  }
+ ],
+ "expected_baselines": {
+  "note": "待 #269 黑盒考验实跑后固化",
+  "status": "PENDING"
+ }
+}

@@ -147,6 +147,48 @@ impl Default for OutlineSpec {
 /// 叶节点配额下限（防零配额退化——低于此值的章节失去独立调度意义）。
 const MIN_LEAF_CHARS: u32 = 500;
 
+/// 行政条款的每条配额（#253 第二段——分层计价）。
+///
+/// 依据（Lead 区间 200-500 字/条的中值）：行政条款（资格/格式/合同/须知…）
+/// 的响应形态是「确认话术 + 附件指引」（「我方完全接受招标文件第 6.1 条
+/// 约定」「营业执照：见附件 X」），一段自然长度 150-250 字，取 300 留冗余。
+/// **行政内容是合规驱动不是篇幅驱动**——写得再长也不加分，按条计价天然
+/// 封顶（#253 验收：单个行政条款配额 ≤ 500 字）。
+pub const ADMIN_CHARS_PER_REQ: u32 = 300;
+
+/// 非评分实质条款（技术参数/服务/质量类响应）的每条配额（#253 第二段）。
+///
+/// 依据：点对点响应的实质段落（参数对照 + 偏差说明 + 实施口径）一条一
+/// 段展开约 1,500-2,500 字，取 2,000。此类内容有实义但**不直接承载分值**
+/// ——覆盖度由矩阵/章节绑定面把关，篇幅只保「一条参数能说清怎么响应」。
+/// 评分承载的参数展开（双轨硬约束：技术参数进服务方案）由评分轨的分值
+/// 权重体现，不在此轨重复计价。
+pub const BODY_CHARS_PER_REQ: u32 = 2_000;
+
+/// 评分细则叶的配额下限（#253 验收 4：单个评分细则条目配额 ≥ 10,000 字）。
+///
+/// 评分细则是「需要展开的真题目」（整体服务方案/质量保证体系……）——
+/// 10,000 字 ≈ 2.5 个起草批次（#254 分段写入按 4,000 字/批），低于此值
+/// 无法展开论证；高于此值部分按分值权重分摊。
+pub const MIN_SCORING_LEAF_CHARS: u32 = 10_000;
+
+/// 行政组关键词（#253 第二段**单一真源**——配额分类、校验门分级
+/// （W_CHARS_BELOW_MIN）、#263 songling 基线测试共用的判定面）。
+///
+/// 口径（issue #253：行政章节 = 资格/格式/合同/须知/公告等招标文件的
+/// 自述性、程序性内容）：对**组标题**做包含匹配。技术参数/服务方案等
+/// 实质响应组不在列（评分主体由分值驱动，非评分实质由内容驱动）。
+/// 「保证金」是对 #263 测试面的补充（投标保证金组 = 程序性提交要求）。
+pub const ADMIN_GROUP_KEYWORDS: &[&str] = &[
+    "资格", "格式", "合同", "须知", "公告", "商务", "其他条款", "补遗", "澄清",
+    "纪律", "附件", "获取", "开标", "报价", "业绩", "投标文件", "保证金",
+];
+
+/// 组标题是否行政类（#253 分层配额/门禁分级的分类面——单一真源）。
+pub fn is_admin_group(title: &str) -> bool {
+    ADMIN_GROUP_KEYWORDS.iter().any(|k| title.contains(k))
+}
+
 /// 兜底组名（章节与主题都推不出的「其他」条款——叶标题退化为条款号区间，
 /// 不再裸「（第N块）」）。
 const OTHER_FALLBACK_GROUP: &str = "其他条款";
@@ -367,6 +409,169 @@ fn chapter_heading(seg: &str) -> Option<String> {
     None
 }
 
+/// 配额三轨（#253 第二段——分层计价的分类面）。
+///
+/// 叶级判定（[`derive_outline`]）：绑定「评分项」REQ → [`Track::Scoring`]；
+/// 组名行政类（[`is_admin_group`]）→ [`Track::Admin`]；其余 → [`Track::Body`]。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Track {
+    /// 评分轨：细则下限 + 分值权重分摊（#252 落地后出现）。
+    Scoring,
+    /// 行政轨：资格/格式/合同/须知类——按条计价，篇幅不驱动。
+    Admin,
+    /// 实质轨：非评分的技术/服务/质量响应——按条计价，覆盖度另由矩阵把关。
+    Body,
+}
+
+/// 最大余数法分摊剩余预算（#253 第二段——确定性：整数权重无浮点漂移；
+/// 整除余量按权重余项最大者分配，并列按文档序；全零权重 → 均摊）。
+///
+/// `idxs` 参与叶下标；`weights` 与 `idxs` 对齐（调用方预放大为整数）；
+/// `surplus` 恒分尽——Σ增量 == surplus（守恒的构造性保证）。
+fn distribute_surplus(quotas: &mut [u64], idxs: &[usize], weights: &[u64], surplus: u64) {
+    if idxs.is_empty() || surplus == 0 {
+        return;
+    }
+    let n = idxs.len() as u64;
+    let total_w: u64 = weights.iter().sum();
+    let mut shares = vec![0u64; idxs.len()];
+    if total_w == 0 {
+        // 均摊：前 surplus % n 个 +1（文档序确定性）
+        let base = surplus / n;
+        let mut extra = (surplus % n) as usize;
+        for s in shares.iter_mut() {
+            *s = base;
+        }
+        for s in shares.iter_mut() {
+            if extra == 0 {
+                break;
+            }
+            *s += 1;
+            extra -= 1;
+        }
+    } else {
+        // 整数最大余数：base = surplus × w / total，余项 = surplus × w % total
+        let mut int_sum = 0u64;
+        let mut remainders: Vec<(u64, usize)> = Vec::with_capacity(idxs.len());
+        for (k, &w) in weights.iter().enumerate() {
+            let prod = surplus.saturating_mul(w);
+            shares[k] = prod / total_w;
+            remainders.push((prod % total_w, k));
+            int_sum += shares[k];
+        }
+        let mut rem = surplus.saturating_sub(int_sum);
+        remainders.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+        for &(_, k) in remainders.iter() {
+            if rem == 0 {
+                break;
+            }
+            shares[k] += 1;
+            rem -= 1;
+        }
+    }
+    for (k, &i) in idxs.iter().enumerate() {
+        quotas[i] += shares[k];
+    }
+}
+
+/// #253 第二段：分层配额的纯计算面（[`derive_outline`] 的配额段——单测直测）。
+///
+/// 输入按叶对齐：`tracks` 三轨分类、`weights` 分值权重（×1000 整数）、
+/// `counts` 每叶 REQ 数；输出每叶配额（Σ ≈ target，见守恒注记）。
+///
+/// 三步：
+/// 1. **底价**：评分轨 [`MIN_SCORING_LEAF_CHARS`]/叶；行政/实质轨
+///    单价 × 条数（[`MIN_LEAF_CHARS`] 叶下限保护）；
+/// 2. **让渡**（底价可负担时）：剩余预算 → 评分轨（按分值权重）→
+///    实质轨（按条数）→ 行政轨（按条数）—— [`distribute_surplus`] 恒分尽；
+/// 3. **回退**（底价和 > target 的小目标退化面）：历史「按 REQ 数最大
+///    余数法」整树均摊——守恒与下限语义不变（#199 回归锁继续有效）。
+fn allocate_quotas(tracks: &[Track], weights: &[u64], counts: &[u64], target: u32) -> Vec<u64> {
+    let target = u64::from(target);
+    let sum_counts: u64 = counts.iter().sum();
+    // 底价：评分轨 = 细则下限/叶；行政/实质轨 = 单价 × 条数（叶下限保护）
+    let mut quotas: Vec<u64> = tracks
+        .iter()
+        .zip(counts.iter())
+        .map(|(t, &c)| match t {
+            Track::Scoring => u64::from(MIN_SCORING_LEAF_CHARS),
+            Track::Admin => (u64::from(ADMIN_CHARS_PER_REQ) * c).max(u64::from(MIN_LEAF_CHARS)),
+            Track::Body => (u64::from(BODY_CHARS_PER_REQ) * c).max(u64::from(MIN_LEAF_CHARS)),
+        })
+        .collect();
+    let base_sum: u64 = quotas.iter().sum();
+    if base_sum <= target {
+        // 剩余预算让渡：评分轨（按分值权重）→ 实质轨（按条数）→ 行政轨（按条数）
+        let surplus = target - base_sum;
+        let (idxs, w): (Vec<usize>, Vec<u64>) =
+            if tracks.iter().any(|t| *t == Track::Scoring) {
+                let idxs: Vec<usize> = tracks
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, t)| **t == Track::Scoring)
+                    .map(|(i, _)| i)
+                    .collect();
+                let w: Vec<u64> = idxs.iter().map(|&i| weights[i]).collect();
+                (idxs, w)
+            } else if tracks.iter().any(|t| *t == Track::Body) {
+                let idxs: Vec<usize> = tracks
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, t)| **t == Track::Body)
+                    .map(|(i, _)| i)
+                    .collect();
+                let w: Vec<u64> = idxs.iter().map(|&i| counts[i]).collect();
+                (idxs, w)
+            } else {
+                let idxs: Vec<usize> = (0..tracks.len()).collect();
+                let w: Vec<u64> = idxs.iter().map(|&i| counts[i]).collect();
+                (idxs, w)
+            };
+        distribute_surplus(&mut quotas, &idxs, &w, surplus);
+    } else {
+        // 底价和超过 target（小目标退化面）→ 回退历史「按 REQ 数最大余数法」
+        quotas = counts
+            .iter()
+            .map(|&c| (target * c / sum_counts).max(u64::from(MIN_LEAF_CHARS)))
+            .collect();
+    }
+    // 守恒修正（回退路径的下限抬高可能超额；新路径构造上恒等，此环为 no-op）：
+    // 差额按 REQ 占比回补/扣减（简单二次均衡，保总和 ≈ target）
+    let quota_sum: u64 = quotas.iter().sum();
+    if quota_sum != target {
+        let diff = target.abs_diff(quota_sum);
+        let step: u32 = if quota_sum < target { 1 } else { 0 }; // 1 = 加，0 = 减
+        let mut remaining = diff;
+        // 【#199 审查修复】触底判定改为「整轮零进展」，废弃旧判据
+        // `i > len*4 && remaining == diff`：旧判据只在【从未扣减】时成立——
+        // 一旦部分扣减后全部触底，remaining < diff 且不再变化，守卫永假 →
+        // 死循环（100% CPU 空转）。实测触发：叶片增多使下限和超过
+        // target、且大叶片头寸 < 差额时（e2e_artifacts 在 #199 分发扩大
+        // 抽取面后必现）。加法模式每轮必有进展，不从此口退出。
+        loop {
+            let before = remaining;
+            for q in quotas.iter_mut() {
+                if remaining == 0 {
+                    break;
+                }
+                if step == 1 {
+                    *q += 1;
+                    remaining -= 1;
+                } else if *q > u64::from(MIN_LEAF_CHARS) {
+                    *q -= 1;
+                    remaining -= 1;
+                }
+            }
+            // 一轮零进展 = 能减的已全部触底（target 过小）——接受偏差
+            // （验收容差 ±10% 兜底）。空叶表亦安全（首轮即零进展退出）。
+            if remaining == 0 || remaining == before {
+                break;
+            }
+        }
+    }
+    quotas
+}
+
 /// 从 REQ 清单推导章节树（纯函数——确定性：按组首现序 + id 序，无隐藏随机性）。
 /// 该 REQ 类目是否属于【标书正文】（#121 P0-1）。
 ///
@@ -411,13 +616,11 @@ pub fn needs_response_section(category: &str) -> bool {
 /// - 业绩/价格 → 独立响应位 L1 叶（证明材料/报价文件——不混进技术正文）；
 /// - 技术参数等经 L2_ROUTES 多对多路由进评分章节（双轨：原组绑定保留）；
 /// - L1 文档序按第七章格式位次（硬约束②：资格→报价→行政→技术支撑→
-///   评分主体→业绩→残余）；
-/// - 配额按分类预算（评分 65% 按分值 / 技术支撑 10% / 行政 20% / 残余
-///   5%，缺类归一化——论证见 scoring_outline::QuotaPolicy）。
+///   评分主体→业绩→残余）。
 ///
 /// **评分表不在场**（corpus-A docx / synth 路径）：既有类目分组行为
-/// 逐位保留（「其他」二次分组 #100 / 配额按 REQ 数的 #253 前口径）——
-/// 仅多块组标题从「（第N块）」改为条款号/页码区间（硬约束④无条件）。
+/// 逐位保留（「其他」二次分组 #100）——仅多块组标题从「（第N块）」改为
+/// 条款号/页码区间（硬约束④无条件）。
 ///
 /// 叶块标题（多块组）：条款号区间优先（「格式要求（条款 11.1-16.3）」），
 /// 页码区间兜底（「否决情形响应（原文第2-24页）」），计数兜底殿后——
@@ -426,6 +629,21 @@ pub fn needs_response_section(category: &str) -> bool {
 /// 「资格与响应」组语义分叶（#121 P0-1 的响应提纲 + #252 硬约束④）：
 /// 资格证明材料响应（资格条件）/ 否决情形响应（否决项）——两类响应
 /// 话术分叶，同一 L1 下。
+///
+/// 配额（#253 第二段：分层计价——按「分值/内容」分配，取代按 REQ 数均摊；
+/// #252 评分驱动大纲落地后评分轨在本结构上**可达**——#253 在旧分组面上
+/// 的「评分轨不出现」注释由本 PR 兑现）：
+/// - **评分轨**（评分 L2 细则叶）：底价 [`MIN_SCORING_LEAF_CHARS`]，剩余
+///   预算按分值权重（章分值 ÷ 细则数 ×1000——章内均摊 + 章间按分值，
+///   与 `quota_253_scoring_weight_allocation` 单测口径一致）最大余数法分摊；
+/// - **行政轨**（[`is_admin_group`]）：[`ADMIN_CHARS_PER_REQ`] × 条数；
+/// - **实质轨**（其余）：[`BODY_CHARS_PER_REQ`] × 条数；
+/// - 槽位（业绩/价格表格位）固定配额先扣（表格位篇幅固定，不参与分值
+///   驱动让渡）；
+/// - 剩余预算自动让渡（#253 正文）：评分轨 → 实质轨 → 行政轨——1000 页
+///   硬指标下，余量只有投到分值承载章节才有边际回报；
+/// - 底价和超过 target（小目标退化面）→ 整体回退「按 REQ 数最大余数法」
+///   （历史行为——守恒与 [`MIN_LEAF_CHARS`] 下限语义不变，#199 回归锁有效）。
 ///
 /// `next_id` 签名器由调用方注入（store 传 `self.next_id`；测试传计数闭包）——
 /// 派生逻辑与 id 序列解耦。
@@ -502,8 +720,6 @@ pub fn derive_outline_with_mappings(
         group: String,
         title: String,
         req_ids: Vec<String>,
-        class: crate::scoring_outline::GroupClass,
-        weight: f64, // 类内配额权重（行政/技术/残余 = REQ 数）
     }
     let chunk_size = spec.max_reqs_per_leaf.max(1);
     let mut leaves: Vec<LeafDraft> = Vec::new();
@@ -517,7 +733,6 @@ pub fn derive_outline_with_mappings(
         let n_chunks = rs.chunks(chunk_size).count();
         for (ci, chunk) in rs.chunks(chunk_size).enumerate() {
             let req_ids: Vec<String> = chunk.iter().map(|r| r.id.clone()).collect();
-            let weight = req_ids.len() as f64;
             // 「其他条款」兜底组：单块也带区间（#100 既有约定——「其他条款 9.0-9.2」）
             let title = if n_chunks == 1 && group != OTHER_FALLBACK_GROUP {
                 sub.to_string()
@@ -528,11 +743,11 @@ pub fn derive_outline_with_mappings(
                 group: group.to_string(),
                 title,
                 req_ids,
-                class: crate::scoring_outline::classify_group(group),
-                weight,
             });
         }
     }
+    // ---------------------------------------------------------------- 评分面
+    // 叶块清单落盘（组 → 叶）：响应组语义分叶 + 常规组直落。
     for (g, rs) in &groups {
         if *g == RESPONSE_GROUP {
             // 语义分叶：资格证明（资格条件）vs 否决情形（否决项）
@@ -550,7 +765,6 @@ pub fn derive_outline_with_mappings(
             push_group_leaves(&mut leaves, g, g, rs, chunk_size);
         }
     }
-    // ---------------------------------------------------------------- 评分面
     let scoring_build = crate::scoring_outline::build_scoring_sections(reqs);
     let mut mappings: Vec<crate::scoring_outline::MappingIntent> = Vec::new();
     let mut scoring_nodes: Vec<OutlineNode> = Vec::new();
@@ -562,9 +776,21 @@ pub fn derive_outline_with_mappings(
         mappings.extend(mintents);
     }
     // ---------------------------------------------------------------- 配额
-    // 统一账：legacy 叶配额（0..n_leaf）+ 评分 L2/槽位配额（评分节点序）。
-    // 恒等守恒的调整循环作用于统一账（#199 触底判定——整轮零进展即接受偏差）。
-    let target = u64::from(spec.target_total_chars);
+    // 统一账：legacy 叶（0..n_leaf）+ 评分 L2/槽位配额位（n_leaf..）。
+    // 【#253 第二段 × #252 融合】分层计价扩展到统一账——评分驱动大纲
+    // 落地后评分轨在本结构上可达（#253 在旧分组面上「评分轨不出现」的
+    // 前置注释由 #252 兑现）：
+    //   - legacy 叶 → [`is_admin_group`] ? [`Track::Admin`] : [`Track::Body`]
+    //     （评分 REQ 不进类目分组——`is_body_category` 过滤面，legacy 恒无
+    //     Scoring 轨）；
+    //   - 评分 L2 → [`Track::Scoring`]，分值权重 = 章分值 ÷ 细则数 ×1000
+    //     （章内均摊 + 章间按分值——与 `quota_253_scoring_weight_allocation`
+    //     单测口径一致；不取「L2 绑定 REQ 的 score 之和」——每个 L2 都
+    //     绑定章行 REQ，直接求和会让权重 ∝ 章分值 × 细则数，跨章失真）；
+    //   - 槽位（业绩/价格表格位）→ 固定配额先扣（表格位篇幅固定，不参与
+    //     分值驱动的剩余让渡——#252 表格位语义保留）。
+    // 守恒：allocate_quotas(target − 槽位总额) 构造性恒等 + 槽位固定值
+    // → 统一账总和 == target（#199 回归锁继续有效）。
     let n_leaf = leaves.len();
     // 评分节点中「配额承载位」= L2 节点 + 槽位叶（L1 聚合位事后由子和重算）
     let scoring_quota_slots: Vec<usize> = scoring_nodes
@@ -577,133 +803,50 @@ pub fn derive_outline_with_mappings(
         })
         .map(|(i, _)| i)
         .collect();
-    let mut all_quotas: Vec<u32> = vec![MIN_LEAF_CHARS; n_leaf + scoring_quota_slots.len()];
-    if scoring_build.is_some() {
-        let policy = crate::scoring_outline::QuotaPolicy::default();
-        use crate::scoring_outline::GroupClass as GC;
-        let ck = |c: GC| -> u8 {
-            match c {
-                GC::Scoring => 0,
-                GC::TechSupport => 1,
-                GC::Admin | GC::Slot => 2,
-                GC::Residual => 3,
-            }
-        };
-        // 类权重（legacy 叶）+ 在场判定（评分树恒在场；行政含槽位）
-        let mut class_weight = [0f64; 4];
-        for l in &leaves {
-            class_weight[ck(l.class) as usize] += l.weight;
-        }
-        let admin_slots = scoring_build.as_ref().map(|b| b.slots.len()).unwrap_or(0) as u64;
-        let present: f64 = [
-            (0usize, policy.scoring_share), // 评分树恒在场（build_some 即有章节）
-            (1, policy.tech_support_share),
-            (2, policy.admin_share),
-            (3, policy.residual_share),
-        ]
+    let n_slots = scoring_build.as_ref().map(|b| b.slots.len()).unwrap_or(0) as u64;
+    let slot_total = n_slots * u64::from(crate::scoring_outline::SLOT_FIXED_CHARS);
+    let effective_target = u64::from(spec.target_total_chars).saturating_sub(slot_total);
+    // 三轨输入（统一账叶序：legacy 叶 → 评分 L2——scoring_nodes 构建序）
+    let n_scoring_l2 = scoring_quota_slots
         .iter()
-        .filter(|(k, _)| {
-            class_weight[*k] > 0.0 || (*k == 0) || (*k == 2 && admin_slots > 0)
-        })
-        .map(|(_, s)| *s)
-        .sum();
-        let mut class_budget = [0u64; 4];
-        let shares: [(usize, f64); 4] = [
-            (0usize, policy.scoring_share),
-            (1, policy.tech_support_share),
-            (2, policy.admin_share),
-            (3, policy.residual_share),
-        ];
-        for (k, share) in shares {
-            let in_field = class_weight[k] > 0.0 || (k == 0) || (k == 2 && admin_slots > 0);
-            if !in_field {
-                continue;
-            }
-            let mut budget = (target as f64 * share / present).round() as u64;
-            if k == 2 {
-                // 行政预算先付槽位固定配额（表格位），余量归行政叶
-                budget = budget.saturating_sub(admin_slots * policy.slot_fixed_chars);
-            }
-            class_budget[k] = budget;
-        }
-        // legacy 叶配额：类预算 × 类内权重占比
-        for (i, l) in leaves.iter().enumerate() {
-            let k = ck(l.class) as usize;
-            let wsum = class_weight[k];
-            let q = if wsum > 0.0 {
-                (class_budget[k] as f64 * l.weight / wsum) as u32
-            } else {
+        .filter(|&&i| scoring_nodes[i].level == 2)
+        .count();
+    let mut tracks: Vec<Track> = Vec::with_capacity(n_leaf + n_scoring_l2);
+    let mut weights: Vec<u64> = vec![0; n_leaf + n_scoring_l2];
+    let mut counts: Vec<u64> = Vec::with_capacity(n_leaf + n_scoring_l2);
+    for l in &leaves {
+        tracks.push(if is_admin_group(&l.group) {
+            Track::Admin
+        } else {
+            Track::Body
+        });
+        counts.push(l.req_ids.len() as u64);
+    }
+    if let Some(build) = &scoring_build {
+        for ch in &build.chapters {
+            let n_l2 = ch.l2_titles.len();
+            // 章分值均摊到细则（×1000 整数——两位小数分值无损；零细则跳过）
+            let w = if n_l2 == 0 {
                 0
-            };
-            all_quotas[i] = q.max(MIN_LEAF_CHARS);
-        }
-        // 评分 L2：章节预算 ∝ 分值，章内均摊（细则子分均匀形态——
-        // 「每具备一项得N分」）；槽位固定配额
-        let scoring_budget = class_budget[0];
-        if let Some(build) = &scoring_build {
-            let total_score: f64 = build.chapters.iter().map(|c| c.score).sum();
-            let mut qi = n_leaf;
-            let mut node_i = 0usize;
-            for ch in &build.chapters {
-                let ch_budget = if total_score > 0.0 {
-                    (scoring_budget as f64 * ch.score / total_score) as u64
-                } else {
-                    0
-                };
-                let n_l2 = ch.l2_titles.len().max(1) as u64;
-                let per = (ch_budget / n_l2).max(MIN_LEAF_CHARS as u64) as u32;
-                for _ in 0..ch.l2_titles.len() {
-                    all_quotas[qi] = per;
-                    qi += 1;
-                }
-                node_i += 1 + ch.l2_titles.len();
-                let _ = node_i;
-            }
-            for _ in 0..build.slots.len() {
-                all_quotas[qi] = policy.slot_fixed_chars as u32;
-                qi += 1;
-            }
-        }
-    } else {
-        // 既有口径（#253 前）：全量按 REQ 数最大余数法
-        let sum_counts: f64 = leaves.iter().map(|l| l.weight).sum();
-        for (i, l) in leaves.iter().enumerate() {
-            let q = if sum_counts > 0.0 {
-                (target as f64 * l.weight / sum_counts) as u32
             } else {
-                0
+                (ch.score * 1000.0 / n_l2 as f64).round() as u64
             };
-            all_quotas[i] = q.max(MIN_LEAF_CHARS);
+            for _ in 0..n_l2 {
+                tracks.push(Track::Scoring);
+                weights[tracks.len() - 1] = w;
+                counts.push(1);
+            }
         }
     }
-    // 恒等守恒调整（统一账）
-    let quota_sum: u64 = all_quotas.iter().map(|q| u64::from(*q)).sum();
-    if quota_sum != target && !all_quotas.is_empty() {
-        let diff = target.abs_diff(quota_sum);
-        let step: u32 = if quota_sum < target { 1 } else { 0 };
-        let mut remaining = diff;
-        loop {
-            let before = remaining;
-            for q in all_quotas.iter_mut() {
-                if remaining == 0 {
-                    break;
-                }
-                if step == 1 {
-                    *q += 1;
-                    remaining -= 1;
-                } else if *q > MIN_LEAF_CHARS {
-                    *q -= 1;
-                    remaining -= 1;
-                }
-            }
-            if remaining == 0 || remaining == before {
-                break;
-            }
-        }
+    let mut quotas: Vec<u64> =
+        allocate_quotas(&tracks, &weights, &counts, effective_target as u32);
+    // 槽位固定配额（统一账尾——守恒：slots + effective_target == target）
+    for _ in 0..n_slots {
+        quotas.push(u64::from(crate::scoring_outline::SLOT_FIXED_CHARS));
     }
     // 评分节点配额回写（L2/槽位）；L1 聚合位 = 子和
     for (qi, node_i) in scoring_quota_slots.iter().enumerate() {
-        scoring_nodes[*node_i].target_chars = all_quotas[n_leaf + qi];
+        scoring_nodes[*node_i].target_chars = quotas[n_leaf + qi] as u32;
     }
     {
         let mut i = 0usize;
@@ -733,14 +876,14 @@ pub fn derive_outline_with_mappings(
         let parent_id = next_id("SEC");
         // 聚合面（子并集 / 配额和）
         let mut agg_reqs: Vec<String> = Vec::new();
-        let mut agg_chars: u32 = 0;
+        let mut agg_chars: u64 = 0;
         for &li in &group_leaves {
             for rid in &leaves[li].req_ids {
                 if !agg_reqs.contains(rid) {
                     agg_reqs.push(rid.clone());
                 }
             }
-            agg_chars += all_quotas[li];
+            agg_chars += quotas[li];
         }
         tree.push(OutlineNode {
             id: parent_id.clone(),
@@ -749,7 +892,7 @@ pub fn derive_outline_with_mappings(
             level: 1,
             order: 0, // 排序后统一编序
             requirement_ids: agg_reqs,
-            target_chars: agg_chars,
+            target_chars: agg_chars as u32,
             status: SectionStatus::Pending,
             dirty: false,
             content: None,
@@ -763,7 +906,7 @@ pub fn derive_outline_with_mappings(
                 level: 2,
                 order: 0,
                 requirement_ids: leaves[li].req_ids.clone(),
-                target_chars: all_quotas[li],
+                target_chars: quotas[li] as u32,
                 status: SectionStatus::Pending,
                 dirty: false,
                 content: None,
@@ -1224,6 +1367,175 @@ mod tests {
             DEFAULT_TARGET_TOTAL_CHARS,
             "Default 必须引用常量（不得另写数字——三层曾不一致的病灶）"
         );
+    }
+
+    // ==================== #253 第二段：分层配额（计价 + 让渡 + 回退） ====================
+
+    /// 行政轨按条计价（300/条）、实质轨吃剩余（无评分轨时的让渡序）。
+    ///
+    /// 语料：资格条件×3（→「资格与响应」行政组）+ 技术参数×5（实质组）。
+    /// 底价 = 3×300 + 5×2000 = 10,900；target = 100,000 → 剩余 89,100
+    /// 全部让渡给实质轨（评分轨不存在）——行政配额保持按条计价不受注水。
+    #[test]
+    fn quota_253_admin_priced_per_req_body_absorbs_surplus() {
+        let reqs = vec![
+            req_with_anchor("REQ-0001", "资格条件", Some("1.4.1"), "第一章 公告", "独立法人资格"),
+            req_with_anchor("REQ-0002", "资格条件", Some("1.4.2"), "第一章 公告", "无违法记录"),
+            req_with_anchor("REQ-0003", "资格条件", Some("1.4.3"), "第一章 公告", "缴纳税收证明"),
+            req_with_anchor("REQ-0004", "技术参数", Some("5.1"), "第五章 采购需求", "链路 295 条"),
+            req_with_anchor("REQ-0005", "技术参数", Some("5.2"), "第五章 采购需求", "完好率 95%"),
+            req_with_anchor("REQ-0006", "技术参数", Some("5.3"), "第五章 采购需求", "30M 带宽"),
+            req_with_anchor("REQ-0007", "技术参数", Some("5.4"), "第五章 采购需求", "360分钟响应"),
+            req_with_anchor("REQ-0008", "技术参数", Some("5.5"), "第五章 采购需求", "设备清单"),
+        ];
+        let nodes = derive_outline(
+            &reqs,
+            OutlineSpec { target_total_chars: 100_000, max_reqs_per_leaf: 8 },
+            &mut counting_ids(),
+        );
+        let by_group = |kw: &str| -> Vec<&OutlineNode> {
+            nodes.iter().filter(|n| n.parent_id.is_some() && n.title.contains(kw)).collect()
+        };
+        // 行政轨：3 条 × 300 = 900（max(900, 500) = 900）——按条计价，零注水
+        let admin_leaves = by_group("资格");
+        assert_eq!(admin_leaves.len(), 1, "资格与响应 1 叶（3 条 ≤ 8/叶）");
+        assert_eq!(admin_leaves[0].requirement_ids.len(), 3);
+        assert_eq!(
+            admin_leaves[0].target_chars,
+            ADMIN_CHARS_PER_REQ * 3,
+            "行政叶配额 = 300 × 条数（#253 验收：单条 ≤ 500）"
+        );
+        // 实质轨：底价 5×2000 = 10,000 + 剩余 89,100（按条数让渡）
+        let body_leaves = by_group("技术参数");
+        assert_eq!(body_leaves.len(), 1);
+        assert_eq!(body_leaves[0].target_chars, 100_000 - 900, "剩余预算全部让渡给实质轨");
+        // 守恒：Σ根配额 == target（#253 验收 5：±5% 内——构造上恒等）
+        let total: u64 = nodes.iter().filter(|n| n.parent_id.is_none())
+            .map(|n| u64::from(n.target_chars)).sum();
+        assert_eq!(total, 100_000, "配额总和 == target（恒等守恒）");
+        assert!(validate_outline(&nodes).is_ok());
+    }
+
+    /// 评分轨按分值分配（#252 落地后的目标形态——松岭 85 分/6 章/20 细则）。
+    ///
+    /// 评分轨在当前分组面不出现（评分项不进正文），此处直测
+    /// [`allocate_quotas`]：20 细则叶（分值 5/5/4/5/5/2 × 按章分布）+
+    /// 行政 254 条（松岭实测）+ 实质 34 条，target = 844,000。
+    /// 断言 #253 验收 2/3/4/5：评分 ≥60%、行政 ≤25%、细则 ≥10,000、守恒 ±5%。
+    #[test]
+    fn quota_253_scoring_weight_allocation() {
+        // 20 个评分细则叶（分值 = 章分值 ÷ 细则数，×1000 权重面）
+        let mut tracks: Vec<Track> = Vec::new();
+        let mut weights: Vec<u64> = Vec::new();
+        let mut counts: Vec<u64> = Vec::new();
+        // 服务方案 25÷5、质量保证 20÷4、应急 12÷3、重点难点 10÷2、保密 10÷2、服务承诺 8÷4
+        for &(score, subs) in &[(25.0, 5usize), (20.0, 4), (12.0, 3), (10.0, 2), (10.0, 2), (8.0, 4)] {
+            for _ in 0..subs {
+                tracks.push(Track::Scoring);
+                weights.push((score / subs as f64 * 1000.0).round() as u64);
+                counts.push(1);
+            }
+        }
+        // 行政叶（合计 254 条——松岭实测：66 资格 + 96 格式 + 92 主题组）
+        for &c in &[22u64, 22, 22, 24, 24, 24, 24, 22, 21, 5, 2, 3, 11, 3, 9, 2, 1, 2] {
+            tracks.push(Track::Admin);
+            weights.push(0);
+            counts.push(c);
+        }
+        // 实质叶（合计 34 条——技术参数 11 + 服务售后 15 + 技术方案 2 + 质量标准 6）
+        for &c in &[11u64, 15, 2, 6] {
+            tracks.push(Track::Body);
+            weights.push(0);
+            counts.push(c);
+        }
+        let quotas = allocate_quotas(&tracks, &weights, &counts, DEFAULT_TARGET_TOTAL_CHARS);
+        assert_eq!(quotas.len(), tracks.len());
+        let total: u64 = quotas.iter().sum();
+        // 验收 5：守恒 ±5%（构造上恒等）
+        let dev = (total as f64 - f64::from(DEFAULT_TARGET_TOTAL_CHARS)).abs()
+            / f64::from(DEFAULT_TARGET_TOTAL_CHARS);
+        assert!(dev <= 0.05, "配额总和 {total} 偏离目标 ±5%（实际 {dev:.1}%）");
+        assert_eq!(total, u64::from(DEFAULT_TARGET_TOTAL_CHARS), "新路径构造性恒等");
+        // 验收 4：单个评分细则 ≥ 10,000
+        for (i, &t) in tracks.iter().enumerate() {
+            if t == Track::Scoring {
+                assert!(quotas[i] >= u64::from(MIN_SCORING_LEAF_CHARS),
+                    "评分细则叶 {i} 配额 {} < 10,000", quotas[i]);
+            }
+        }
+        // 分值比例：服务方案细则（5 分）> 应急细则（4 分）> 服务承诺细则（2 分）
+        let per = |w: u64| -> u64 {
+            let i = weights.iter().position(|&x| x == w).unwrap();
+            quotas[i]
+        };
+        assert!(per(5000) > per(4000), "5 分细则配额须大于 4 分细则（按分值分配）");
+        assert!(per(4000) > per(2000), "4 分细则配额须大于 2 分细则");
+        // 验收 2/3：评分合计 ≥ 60%、行政合计 ≤ 25%
+        let scoring_total: u64 = tracks.iter().zip(quotas.iter())
+            .filter(|(t, _)| **t == Track::Scoring).map(|(_, q)| *q).sum();
+        let admin_total: u64 = tracks.iter().zip(quotas.iter())
+            .filter(|(t, _)| **t == Track::Admin).map(|(_, q)| *q).sum();
+        let denom = f64::from(DEFAULT_TARGET_TOTAL_CHARS);
+        assert!(scoring_total as f64 / denom >= 0.60,
+            "评分章节配额占比 {:.1}% < 60%", scoring_total as f64 / denom * 100.0);
+        assert!(admin_total as f64 / denom <= 0.25,
+            "行政章节配额占比 {:.1}% > 25%", admin_total as f64 / denom * 100.0);
+        // 行政按条计价 ≤ 500/条（验收 4 前半——单条叶触 MIN_LEAF_CHARS 下限时
+        // 恰为 500/条边界，不超验收线）
+        let admin_cap = u64::from(MIN_LEAF_CHARS); // #253 验收：单个行政条款 ≤ 500 字
+        for (i, &t) in tracks.iter().enumerate() {
+            if t == Track::Admin {
+                assert!(quotas[i] / counts[i] <= admin_cap,
+                    "行政叶 {i} 单条配额 {} > 500", quotas[i] / counts[i]);
+            }
+        }
+        // 确定性：同输入双算全等
+        let again = allocate_quotas(&tracks, &weights, &counts, DEFAULT_TARGET_TOTAL_CHARS);
+        assert_eq!(quotas, again, "分层配额确定性（可重放前提）");
+    }
+
+    /// 评分权重缺失（抽取面无分值）→ 评分轨均摊（不因数据缺失零配额）。
+    #[test]
+    fn quota_253_scoring_zero_weights_fall_to_equal_split() {
+        let tracks = [Track::Scoring, Track::Scoring, Track::Scoring, Track::Admin];
+        let weights = [0u64, 0, 0, 0];
+        let counts = [1u64, 1, 1, 4];
+        let quotas = allocate_quotas(&tracks, &weights, &counts, 100_000);
+        // 底价：3×10,000 + max(300×4, 500)=1,200 → 31,200；剩余 68,800 均摊 3 叶
+        let per = quotas[0];
+        assert!(per >= u64::from(MIN_SCORING_LEAF_CHARS), "零权重评分叶保底 ≥ 10,000: {per}");
+        assert_eq!(quotas[1], quotas[2], "并列零权重 → 均摊全等");
+        let total: u64 = quotas.iter().sum();
+        assert_eq!(total, 100_000, "守恒恒等");
+        assert_eq!(quotas[3], u64::from(ADMIN_CHARS_PER_REQ) * 4, "行政轨不参与评分余量");
+    }
+
+    /// 底价不可负担（小目标退化面）→ 回退按 REQ 数均摊（历史语义）。
+    ///
+    /// 构造：行政 10 条 + 实质 6 条，底价 = 10×300 + 6×2000 = 15,000 > 12,000
+    /// → 回退：12,000 × 10/16 = 7,500 / 12,000 × 6/16 = 4,500。
+    #[test]
+    fn quota_253_fallback_when_base_exceeds_target() {
+        let tracks = [Track::Admin, Track::Body];
+        let weights = [0u64, 0];
+        let counts = [10u64, 6];
+        let quotas = allocate_quotas(&tracks, &weights, &counts, 12_000);
+        assert_eq!(quotas[0], 12_000 * 10 / 16, "回退：按 REQ 数均摊（历史行为）");
+        assert_eq!(quotas[1], 12_000 * 6 / 16);
+        assert_eq!(quotas.iter().sum::<u64>(), 12_000, "回退路径守恒");
+    }
+
+    /// 行政分类面（单一真源 is_admin_group——配额/门禁/基线测试三处共用）。
+    #[test]
+    fn quota_253_admin_group_classification() {
+        for t in ["资格与响应", "格式要求", "商务要求", "合同条款响应", "投标保证金",
+                  "招标文件获取", "纪律与监督", "附件与图纸说明", "补遗与澄清响应", "其他条款"] {
+            assert!(is_admin_group(t), "「{t}」应为行政组");
+        }
+        for t in ["技术参数", "服务与售后要求", "技术方案要求", "质量标准要求",
+                  "服务方案", "质量保证", "应急方案", "保密工作", "服务承诺"] {
+            assert!(!is_admin_group(t), "「{t}」不应为行政组（实质/评分内容）");
+        }
     }
 
     /// T-5 验收主测：320 条 REQ → 300-500 节点、每节点 ≥1 REQ、配额和 ≈ 目标 ±10%。

@@ -331,13 +331,20 @@ fn rule_section_empty_is_blocker() {
     assert!(codes.contains(&"E_SECTION_EMPTY"), "空章节必须 BLOCKER: {codes:?}");
 }
 
-// ---------------------------------------------------------------- 4. 规则 4：篇幅验收（1.0 写作验收）
+// ---------------------------------------------------------------- 4. 规则 4：篇幅验收（1.0 写作验收 + #253 门禁分级）
 
-/// 【1.0 写作验收】篇幅不足 → `E_CHARS_BELOW_MIN` BLOCKER：整份标书不得
-/// 报告为达标（ok=false、errors 面在位）。旧口径下短稿只是 MINOR 告警——
-/// 不足会静默放行到导出，违背「篇幅不达标的标书不能出厂」的验收线。
+/// 【1.0 写作验收 + #253 门禁分级】篇幅不足的两面：
+/// - **行政/实质章节**（本例「资格与响应」叶）短稿 → `W_CHARS_BELOW_MIN`
+///   MAJOR（issue #253 的 WARNING 语义：进 errors 面但不翻 ok、不拦导出
+///   ——内容完整即可，不强制篇幅）；
+/// - **全稿总量**不足 → `E_TOTAL_CHARS_BELOW_MIN` BLOCKER（1000 页硬指标
+///   ——产品级硬比较无容差）：整份标书不得报告达标（ok=false）。
+///
+/// 旧口径（#242）：任何章节短稿直接 `E_CHARS_BELOW_MIN` BLOCKER。#253
+/// 第二段把该码收窄到评分章节（见 `rule_chars_below_min_scoring_leaf_is_
+/// blocker`）——非评分章节的篇幅由总篇幅门在文档级把关，不再逐章阻断。
 #[test]
-fn rule_chars_below_min_is_blocker() {
+fn rule_chars_below_min_admin_leaf_warns_total_gate_blocks() {
     let (mut svc, pid) = svc_base("chars-low");
     bind_evidence_for(&mut svc, &["REQ-0001", "REQ-0002", "REQ-0003"]);
     // 人工超短稿（远低于 target×80% 下限——svc_base 单叶 target=2000）
@@ -356,23 +363,140 @@ fn rule_chars_below_min_is_blocker() {
         svc.draft_section(sid, None, None, Some("超短稿"), &mut Tiny).unwrap();
     }
     let r = validate(&mut svc, &pid);
-    assert_eq!(r["ok"], json!(false), "篇幅不足整份标书不得报告达标: {}", r["errors"]);
+    // 总篇幅门：全稿实写 << 2000 → BLOCKER，ok=false（旧验收意图保留——
+    // 「篇幅不足的标书不能出厂」由文档级硬门承担）
+    assert_eq!(r["ok"], json!(false), "总篇幅不足整份标书不得报告达标: {}", r["errors"]);
     let errors = r["errors"].as_array().unwrap();
     assert!(
-        errors.iter().any(|e| e["rule_code"] == "E_CHARS_BELOW_MIN" && e["severity"] == "BLOCKER"),
-        "篇幅不足必须 E_CHARS_BELOW_MIN BLOCKER: {errors:?}"
+        errors.iter().any(|e| e["rule_code"] == "E_TOTAL_CHARS_BELOW_MIN" && e["severity"] == "BLOCKER"),
+        "全稿总量不足必须 E_TOTAL_CHARS_BELOW_MIN BLOCKER: {errors:?}"
     );
-    // 定位面：finding 带 section_id + 消息含目标与最低线（补写指引）
+    // 行政章节的章节级降级面：MAJOR 进 errors 但不翻 ok（WARNING 语义）
+    assert!(
+        errors.iter().any(|e| e["rule_code"] == "W_CHARS_BELOW_MIN" && e["severity"] == "MAJOR"),
+        "行政章节短稿必须 W_CHARS_BELOW_MIN MAJOR（不逐章阻断）: {errors:?}"
+    );
+    assert!(r["counts"]["major"].as_u64().unwrap_or(0) >= 1, "MAJOR 计数面");
+    // 收窄面：非评分章节不再产 E_CHARS_BELOW_MIN（该码保留给评分章节）
+    assert!(
+        !errors.iter().any(|e| e["rule_code"] == "E_CHARS_BELOW_MIN"),
+        "E_CHARS_BELOW_MIN 收窄到评分章节（#253 门禁分级）: {errors:?}"
+    );
+    // 定位面：MAJOR finding 带 section_id + 消息含该叶自己的目标（补写指引）。
     // #252 适配：资格与响应语义分叶（资格证明材料响应/否决情形响应）——
-    // svc_base 3 条 REQ 拆 2 叶，target 按权重分账（1333/667），
-    // 断言锚到「该叶自己的目标值」而非全量 target
-    let f = errors.iter().find(|e| e["rule_code"] == "E_CHARS_BELOW_MIN").unwrap();
+    // svc_base 3 条 REQ 拆 2 叶，target 按权重分账，断言锚到「该叶自己的
+    // 目标值」而非全量 target（与 #253 门禁分级行政面叠加：叶是行政类 →
+    // W_CHARS_BELOW_MIN MAJOR）
+    let f = errors.iter().find(|e| e["rule_code"] == "W_CHARS_BELOW_MIN").unwrap();
     assert!(f["section_id"].as_str().is_some_and(|s| !s.is_empty()), "锚到章节: {f:?}");
     let msg = f["message"].as_str().unwrap();
     let sid = f["section_id"].as_str().unwrap();
     let target = svc.store().sections().iter()
         .find(|s| s.id == sid).map(|s| s.target_chars).unwrap();
-    assert!(msg.contains("最低篇幅") && msg.contains(&target.to_string()), "消息含目标与下限: {msg}");
+    assert!(msg.contains("容差下限") && msg.contains(&target.to_string()), "消息含目标与下限: {msg}");
+}
+
+/// 【#253 门禁分级】**评分章节**短稿 → `E_CHARS_BELOW_MIN` BLOCKER（评分
+/// 主体写不够 = 直接丢分——85 分主体不得达标/导出）。
+///
+/// 夹具：svc_base 同构 + 评分项 REQ-0005（score=25），人工重挂大纲把
+/// 「服务方案」评分叶绑定其上（#252 评分驱动大纲落地前的结构模拟——
+/// 评分轨的判定面是「叶绑定评分项 REQ」）。
+#[test]
+fn rule_chars_below_min_scoring_leaf_is_blocker() {
+    // 自建夹具（svc_base 同构 + 评分项 REQ-0005 随条款集一起落——
+    // MATRIX_READY 后不可改条款集，故不走 svc_base 复用）
+    let mut svc = BidService::open(tmp_dir("chars-score")).unwrap();
+    let pid = ok_result(call(&mut svc, "create_bid_project", json!({
+        "name": "校验测试", "bid_deadline": "2026-12-31", "mode": "明标", "external_key": "chars-score",
+    })))["project_id"].as_str().unwrap().to_string();
+    svc.store_mut().upsert_file(
+        "A-招标文件.docx", "招标文件", "sha-v-cs", 10, 1, 50, 0, ParseStatus::Ok, "",
+    ).unwrap();
+    svc.store_mut().upsert_file(
+        "C-补遗文件01.docx", "补遗", "sha-v-cs-add", 5, 0, 20, 0, ParseStatus::Ok, "",
+    ).unwrap();
+    let mut scoring = mk_req("REQ-0005", "评分项", "服务方案：整体方案 25 分");
+    scoring.params.insert("score".into(), serde_json::json!(25.0));
+    svc.set_requirements(vec![
+        mk_req("REQ-0001", "资格条件", "具备水利水电工程施工总承包贰级资质"),
+        mk_req("REQ-0002", "资格条件", "项目经理具备一级建造师注册证书"),
+        mk_req("REQ-0003", "否决项", "投标文件未经法定代表人签字作否决处理"),
+        scoring,
+    ]).unwrap();
+    let _ = svc.prepare_outline_and_matrix(
+        OutlineSpec { target_total_chars: 2_000, max_reqs_per_leaf: 8 },
+    ).unwrap();
+    bind_evidence_for(&mut svc, &["REQ-0001", "REQ-0002", "REQ-0003"]);
+
+    // 重挂树：既有「资格与响应」组原样 + 新增「服务方案」评分组
+    // （L1 + 叶绑定 REQ-0005；父配额 = 子和，树不变量全保——评分项不进
+    // derive 分组是 #121 P0-1 的现状，此处模拟 #252 落地后的结构形态）
+    let mut nodes = svc.store().sections().to_vec();
+    let max_order = nodes.iter().map(|n| n.order).max().unwrap_or(0);
+    let parent_id = "SEC-SCORE-1".to_string();
+    nodes.push(bid_domain::outline::OutlineNode {
+        id: parent_id.clone(),
+        parent_id: None,
+        title: "服务方案".into(),
+        level: 1,
+        order: max_order + 1,
+        requirement_ids: vec!["REQ-0005".into()],
+        target_chars: 10_000,
+        status: bid_domain::outline::SectionStatus::Pending,
+        dirty: false,
+        content: None,
+        content_attempt: 0,
+    });
+    nodes.push(bid_domain::outline::OutlineNode {
+        id: "SEC-SCORE-2".into(),
+        parent_id: Some(parent_id),
+        title: "整体服务方案".into(),
+        level: 2,
+        order: max_order + 2,
+        requirement_ids: vec!["REQ-0005".into()],
+        target_chars: 10_000,
+        status: bid_domain::outline::SectionStatus::Pending,
+        dirty: false,
+        content: None,
+        content_attempt: 0,
+    });
+    svc.store_mut().set_outline(nodes).unwrap();
+
+    // 全叶超短稿（评分叶 target=10,000，短稿远低于 80% 下限）
+    struct Tiny;
+    impl bid_tools::draft::SectionGenerator for Tiny {
+        fn generate(&mut self, i: &bid_tools::draft::SectionDraftInput)
+            -> Result<bid_tools::draft::GeneratedDraft, String> {
+            Ok(bid_tools::draft::GeneratedDraft {
+                content: format!("{}短稿。", i.requirements.iter()
+                    .map(|r| format!("[{}]", r.id)).collect::<Vec<_>>().join("")),
+            })
+        }
+    }
+    for sid in leaf_ids(&svc) {
+        svc.draft_section(&sid, None, None, Some("超短稿"), &mut Tiny).unwrap();
+    }
+    let r = validate(&mut svc, &pid);
+    assert_eq!(r["ok"], json!(false), "评分主体篇幅不足不得达标: {}", r["errors"]);
+    let errors = r["errors"].as_array().unwrap();
+    // 章节级 BLOCKER：评分叶（绑定 REQ-0005 评分项）→ E_CHARS_BELOW_MIN
+    let f = errors.iter()
+        .find(|e| e["rule_code"] == "E_CHARS_BELOW_MIN" && e["severity"] == "BLOCKER");
+    let f = f.expect("评分章节短稿必须 E_CHARS_BELOW_MIN BLOCKER");
+    assert_eq!(f["section_id"], json!("SEC-SCORE-2"), "锚到评分叶: {f:?}");
+    let msg = f["message"].as_str().unwrap();
+    assert!(msg.contains("评分章节") && msg.contains("10"), "消息含评分语义与目标: {msg}");
+    // 行政叶同稿只 MAJOR（分级对照——同一份短稿内两轨各归其位）
+    assert!(
+        errors.iter().any(|e| e["rule_code"] == "W_CHARS_BELOW_MIN" && e["severity"] == "MAJOR"),
+        "行政叶同稿降级为 MAJOR（分级对照）: {errors:?}"
+    );
+    // 总门同拦（全稿 12,000 目标 vs 实写 ~60 字）
+    assert!(
+        errors.iter().any(|e| e["rule_code"] == "E_TOTAL_CHARS_BELOW_MIN"),
+        "总篇幅门在场: {errors:?}"
+    );
 }
 
 /// 篇幅**超出**上限（> target×120%）→ `W_CHARS_OFF_TARGET` MINOR 告警

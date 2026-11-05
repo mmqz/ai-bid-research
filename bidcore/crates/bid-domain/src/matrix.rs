@@ -31,6 +31,27 @@
 //! 派生 vs 覆写：矩阵行是**派生态**（从 requirements + bindings + sections + overrides
 //! 重算，幂等）；人工裁决只经 [`DomainStore::set_matrix_override`]（不适用/偏离说明）
 //! 落 overrides 集合——派生输入不变则重算结果不变（可复现）。
+//!
+//! #241 裁定（Lead，2026-11-05）：「正文已响应但无外部证据」的两分账——
+//!
+//! ```text
+//! 投标人写没写回应？ → 文本事实 → 看正文 → 写了就是写了 → RESPONDED
+//! 能不能提交？       → 合规事实 → 看证据 → 没材料就是废标风险 → evidence_missing
+//! ```
+//!
+//! - 状态面：正文有实质响应（归属章节 content 非空）且无证据无占位 → **RESPONDED**
+//!   （旧语义判 NOT_RESPONDED 是把两件事混为一谈——冤枉真响应，用户去补写
+//!   本来已写好的内容）；
+//! - 证据缺口走**正交标记** [`MatrixRow::evidence_required`] /
+//!   [`MatrixRow::evidence_missing`]，不塞进 ResponseStatus（第三态会破坏
+//!   既有消费方：match 不穷尽、快照迁移、报告分桶——正交是加法，旧快照
+//!   旧消费方零影响，与 #255 的 `#[serde(default)]` 迁移面同源纪律）；
+//! - 门禁分工：矩阵 blocking 语义**不变**（必选未响应/待补仍阻断导出）；
+//!   证据缺口**不阻断导出**（草稿可导出），由提交就绪面
+//!   （bid-tools `validate::submission_readiness`——evidence_missing 的
+//!   必选条款阻断正式提交）承载；
+//! - 正文响应的判定输入是章节 **content**（非仅树归属）——因此 content
+//!   变化后必须重算矩阵（draft 路径联建，见 bid-tools draft.rs）。
 
 use crate::evidence::{EvidenceStatus, Evidence};
 use crate::outline::OutlineNode;
@@ -77,6 +98,19 @@ pub struct MatrixRow {
     /// serde default：旧快照零位移）
     #[serde(default)]
     pub pending_evidence_ids: Vec<String>,
+    /// #241 裁定：本条款是否**要求证明材料**（类别面：资格条件——资格性
+    /// 审查的对象就是证明材料本身；∪ 原文要求词面：提供/附/证明材料/
+    /// 证书/扫描件等，见 [`EVIDENCE_DEMAND_MARKERS`]）。serde default：
+    /// 旧快照零位移。
+    #[serde(default)]
+    pub evidence_required: bool,
+    /// #241 裁定：要求证明材料但无有效证据在绑
+    /// （`evidence_required && evidence_ids.is_empty()`）。**正交于 status**——
+    /// 正文响应（RESPONDED）与证据缺口（evidence_missing）可同真：文本事实
+    /// 与合规事实分账。占位/待核验绑定不算有效证据（#245 口径），不清本
+    /// 标记。serde default：旧快照零位移。
+    #[serde(default)]
+    pub evidence_missing: bool,
     pub status: ResponseStatus,
     /// 偏离说明（NOT_APPLICABLE 必填——不适用必须给理由，诚实状态）
     pub deviation: Option<String>,
@@ -129,6 +163,35 @@ pub fn is_mandatory(category: &str) -> bool {
 pub fn agent_mandatory(r: &Requirement) -> bool {
     r.params.get("marked_by").and_then(|v| v.as_str()) == Some("agent")
         && r.params.get("mandatory").and_then(|v| v.as_bool()) == Some(true)
+}
+
+/// #241 裁定：证据要求词（原文含任一 → 本条款要求证明材料）。
+///
+/// 词面取 Lead 裁定原文（「提供/附/证明材料/证书/扫描件」）+ 紧邻扩展
+/// （复印件/凭证/执照/授权/业绩/社保/纳税——采购文书的高频材料词）。
+/// 宁可多报不可漏报（fail-closed）：多报的代价是 readiness 多拦一条
+/// （出口明确：补绑证据或人工豁免），漏报的代价是开标废标。
+pub const EVIDENCE_DEMAND_MARKERS: &[&str] = &[
+    "提供", "附", "证明材料", "证书", "扫描件", "复印件", "凭证", "执照", "授权", "业绩", "社保", "纳税",
+];
+
+/// #241 裁定：本条款是否要求证明材料（两信号取或）。
+///
+/// 1. **类别面**：资格条件 → 恒真——资格性审查的审查对象就是证明材料
+///    （营业执照/资质证书/社保证明），不依赖词面；
+/// 2. **原文要求词面**（任何类别）：锚点 excerpt（含 Agent 提交的
+///    statement——merge.rs 双写 params.statement 与 excerpt）含
+///    [`EVIDENCE_DEMAND_MARKERS`] 任一词。否决项**不按类别一刀切**——
+///    否决项大量是行为承诺（签字盖章/保证金到账），其材料要求由词面
+///    捕捉（「须提供保证金凭证」命中「提供/凭证」），避免把行为承诺
+///    也强制要证据的过收口。
+pub fn requires_evidence(r: &Requirement) -> bool {
+    if r.category == "资格条件" {
+        return true;
+    }
+    let text_hit = |s: &str| EVIDENCE_DEMAND_MARKERS.iter().any(|m| s.contains(m));
+    r.anchors.iter().any(|a| text_hit(&a.excerpt))
+        || r.params.get("statement").and_then(|v| v.as_str()).map(text_hit).unwrap_or(false)
 }
 
 fn derived_cmp_id(requirement_id: &str) -> String {
@@ -187,18 +250,35 @@ pub fn derive_matrix_rows(
                 .or_insert_with(|| &s.id);
         }
     }
+    // #241 裁定：章节正文在位索引（REQ 归属章节的 content 非空且 trim 后
+    // 非空 = 「写了就是写了」的文本事实判定）。与 sec_by_req 同一「最深层
+    // 章节」口径——正文响应看的是 REQ 的实际响应位（叶），不是父聚合位。
+    let content_by_sec: HashMap<&str, bool> = sections.iter()
+        .map(|s| (
+            s.id.as_str(),
+            s.content.as_deref().map(|c| !c.trim().is_empty()).unwrap_or(false),
+        ))
+        .collect();
     reqs.iter().map(|r| {
         let evs = ev_by_req.get(r.id.as_str()).cloned().unwrap_or_default();
         let pends = pend_by_req.get(r.id.as_str()).cloned().unwrap_or_default();
         let sec = sec_by_req.get(r.id.as_str()).copied();
-        // 状态派生：override > 真实证据+章节 > 占位 > 缺失（#245 三分：
-        // 真实且有效 / 占位待核验 / 缺失——占位不得计为有效证据，但待补可见）
+        // 状态派生：override > 真实证据+章节 > 占位 > 正文实写 > 缺失
+        // （#245 三分：真实且有效 / 占位待核验 / 缺失；#241 裁定新增：
+        // 正文有实质响应且无证据无占位 → RESPONDED——文本事实与合规
+        // 事实分账，证据缺口由 evidence_missing 正交承载）
         let (status, deviation) = match overrides.get(&r.id) {
             Some(o) => (o.status, o.deviation.clone()),
             None => {
                 let has_ev = !evs.is_empty();
                 let has_pending = !pends.is_empty();
                 let has_sec = sec.is_some();
+                // #241 裁定：正文实质在位（归属章节 content 非空）。章节在
+                // 树但未写（content None/空白）不称「实质响应」——写了就是
+                // 写了，没写就是没写。
+                let body_responded = sec
+                    .map(|id| content_by_sec.get(id).copied().unwrap_or(false))
+                    .unwrap_or(false);
                 let st = if has_ev {
                     // 真实证据在位——占位绑定只进 pending_evidence_ids 追踪面，
                     // 不降级状态（真实与占位并存 = 真实为准，待补仍可追踪）
@@ -208,14 +288,25 @@ pub fn derive_matrix_rows(
                         ResponseStatus::Partial
                     }
                 } else if has_pending {
-                    // 仅占位材料——待补态（章节在位与否不改变「证据未满足」）
+                    // 仅占位材料——待补态（章节在位与否不改变「证据未满足」；
+                    // #245 语义不变：占位不清阻塞）
                     ResponseStatus::PendingEvidence
+                } else if body_responded {
+                    // #241 裁定：正文有实质响应 → RESPONDED（文本事实）；
+                    // 证据缺口由 evidence_missing 正交标记承载（合规事实），
+                    // 由提交就绪面（submission_readiness）拦截，不压进状态。
+                    ResponseStatus::Responded
                 } else {
                     ResponseStatus::NotResponded
                 };
                 (st, None)
             }
         };
+        // #241 裁定：证据要求与缺口（正交标记——与状态分账）。
+        // evidence_ids 只含有效证据（split_live_bindings 已按 tier 分流，
+        // 占位进 pending 不进 effective）——占位绑定不清缺口（#245 口径）。
+        let evidence_required = requires_evidence(r);
+        let evidence_missing = evidence_required && evs.is_empty();
         // 必选面 = 类别阻断面（资格条件/否决项）∪ Agent 必选标记——
         // 未响应**或仅占位待补**时阻断（#245：占位资质不得清除合规阻塞；
         // 已响应/部分/人工覆写即放行——真实材料在位时占位只是追踪面）。
@@ -230,6 +321,8 @@ pub fn derive_matrix_rows(
             response_section: sec.map(|s| s.to_string()),
             evidence_ids: evs.into_iter().map(|e| e.to_string()).collect(),
             pending_evidence_ids: pends.into_iter().map(|e| e.to_string()).collect(),
+            evidence_required,
+            evidence_missing,
             status,
             deviation,
             blocking,
@@ -831,5 +924,184 @@ mod tests {
         assert_eq!(j, "\"PENDING_EVIDENCE\"");
         let back: ResponseStatus = serde_json::from_str(&j).unwrap();
         assert_eq!(back, ResponseStatus::PendingEvidence);
+    }
+
+    // ============================ #241 裁定：正文响应与证据缺口两分账 ============================
+
+    /// 带正文的章节构造（sec() 的 content 面——「写了就是写了」）。
+    fn sec_with_content(id: &str, level: u8, reqs: &[&str], content: Option<&str>) -> OutlineNode {
+        let mut n = sec(id, level, reqs);
+        n.order = 10; // 文档序全局唯一
+        n.content = content.map(|c| c.to_string());
+        n
+    }
+
+    /// #241 专用最小 store（不预装轮转 REQ——set_requirements 是合并语义，
+    /// 复用 store_with_matrix_base 会残留未映射条款污染导出门断言）。
+    fn fresh_241_store(reqs: Vec<Requirement>) -> DomainStore {
+        let mut s = DomainStore::new();
+        s.create_project("#241 裁定", "C-241", "明标", "241-key").unwrap();
+        s.upsert_file("A.docx", "招标文件", "sha-241", 5, 1, 50, 0, ParseStatus::Ok, "").unwrap();
+        s.set_requirements(reqs).unwrap();
+        s
+    }
+
+    fn worded_req(id: &str, category: &str, excerpt: &str) -> Requirement {
+        let mut r = req(id, category);
+        r.anchors[0].excerpt = excerpt.into();
+        r
+    }
+
+    /// 验收 1（裁定操作口径）：正文有响应、无证据 → 矩阵 RESPONDED +
+    /// evidence_missing=true（要求材料的必选条款）；必选行**不再 blocking**
+    /// （证据缺口不阻断导出，由提交就绪面承载）；行为承诺型（无材料词）
+    /// 正文响应 → RESPONDED 且无缺口标记。
+    #[test]
+    fn body_responded_without_evidence_is_responded_with_gap() {
+        let mut s = fresh_241_store(vec![
+            worded_req("REQ-0001", "否决项", "投标人须提供投标保证金缴纳凭证，否则否决"),
+            worded_req("REQ-0002", "商务要求", "投标人须承诺质保期不少于五年"),
+        ]);
+        let node = sec_with_content("SEC-0001", 1, &["REQ-0001", "REQ-0002"],
+            Some("我方对本章条款逐一作出完整回应：保证金凭证与质保承诺均已落实。"));
+        s.set_outline(vec![node]).unwrap();
+        let _ = s.build_matrix().unwrap();
+        // 材料型否决项：正文响应 → RESPONDED（不再冤枉真响应）但缺口在
+        let r1 = s.matrix().iter().find(|r| r.requirement_id == "REQ-0001").unwrap();
+        assert_eq!(r1.status, ResponseStatus::Responded, "正文有实质响应 → RESPONDED（文本事实）");
+        assert!(!r1.blocking, "正文响应的必选行不阻断导出（两分账主面）");
+        assert!(r1.evidence_required, "词面命中材料要求词（提供/凭证）");
+        assert!(r1.evidence_missing, "无有效证据在绑 → 缺口为真（合规事实）");
+        // 承诺型商务条款：正文响应 → RESPONDED 且无缺口（承诺的载体就是正文）
+        let r2 = s.matrix().iter().find(|r| r.requirement_id == "REQ-0002").unwrap();
+        assert_eq!(r2.status, ResponseStatus::Responded);
+        assert!(!r2.blocking);
+        assert!(!r2.evidence_required, "无材料要求词 → 不要求证明材料");
+        assert!(!r2.evidence_missing);
+        // 导出门：两行皆非 blocking → 放行（草稿可导出——裁定门禁分工）
+        assert!(s.check_export_ready().is_ok(), "证据缺口不拦导出");
+    }
+
+    /// 验收 4：正文无响应（章节在树但 content 空 / 无章节）→ 仍 NOT_RESPONDED
+    /// （不变）——「写了就是写了」的另一面是「没写就是没写」；必选未响应
+    /// 仍阻断导出（不变面）。
+    #[test]
+    fn body_not_written_stays_not_responded() {
+        let mut s = fresh_241_store(vec![
+            worded_req("REQ-0001", "否决项", "投标人须提供投标保证金缴纳凭证，否则否决"),
+            worded_req("REQ-0002", "资格条件", "投标人须具备同类项目业绩"),
+        ]);
+        let nodes = vec![
+            sec_with_content("SEC-0001", 1, &["REQ-0001"], None),
+            sec_with_content("SEC-0002", 1, &["REQ-0002"], Some("   ")),
+        ];
+        let mut nodes = nodes;
+        nodes[1].order = 11; // 文档序全局唯一
+        s.set_outline(nodes).unwrap();
+        let _ = s.build_matrix().unwrap();
+        let r1 = s.matrix().iter().find(|r| r.requirement_id == "REQ-0001").unwrap();
+        assert_eq!(r1.status, ResponseStatus::NotResponded, "章节在树但未写 → 未响应（不变）");
+        assert!(r1.blocking, "否决项未响应 → 仍阻断（验收 4 不变面）");
+        let r2 = s.matrix().iter().find(|r| r.requirement_id == "REQ-0002").unwrap();
+        assert_eq!(r2.status, ResponseStatus::NotResponded, "空白正文不算实质响应");
+        assert!(r2.blocking);
+        assert!(r2.evidence_missing, "未响应行同样携带缺口标记（信息面）");
+        assert!(s.check_export_ready().is_err(), "必选未响应仍拦导出（不变）");
+    }
+
+    /// 验收 3：补充证据后 evidence_missing 翻转为 false（缺口关闭通道）。
+    /// 资格条件类别面恒要求证据（词面无关）。
+    #[test]
+    fn evidence_binding_flips_missing_false() {
+        let mut s = fresh_241_store(vec![
+            worded_req("REQ-0001", "资格条件", "投标人须具备独立法人资格"),
+        ]);
+        let node = sec_with_content("SEC-0001", 1, &["REQ-0001"],
+            Some("资格响应：我方具备招标文件要求的全部资格条件。"));
+        s.set_outline(vec![node]).unwrap();
+        let _ = s.build_matrix().unwrap();
+        let row = s.matrix().iter().find(|r| r.requirement_id == "REQ-0001").unwrap();
+        assert_eq!(row.status, ResponseStatus::Responded);
+        assert!(row.evidence_required, "资格条件类别面恒要求证明材料");
+        assert!(row.evidence_missing, "无证据 → 缺口在");
+        // 补绑真实证据（Active + 非占位）→ 翻转
+        push_ev(&mut s, "EV-0001", Some(crate::evidence::VerificationTier::ContentMatches));
+        s.evidence_bindings.push(EvidenceBinding {
+            evidence_id: "EV-0001".into(), requirement_id: "REQ-0001".into(),
+        });
+        let _ = s.build_matrix().unwrap();
+        let row = s.matrix().iter().find(|r| r.requirement_id == "REQ-0001").unwrap();
+        assert!(!row.evidence_missing, "补绑有效证据 → 缺口翻 false（验收 3）");
+        assert_eq!(row.status, ResponseStatus::Responded);
+    }
+
+    /// requires_evidence 两信号面：类别面（资格条件恒真）∪ 词面（任何类别
+    /// 的材料要求词）；行为承诺型否决项不按类别一刀切。
+    #[test]
+    fn requires_evidence_category_and_word_faces() {
+        // 类别面
+        assert!(requires_evidence(&req("REQ-0001", "资格条件")));
+        // 词面：任何类别命中材料词
+        let mut worded = req("REQ-0002", "否决项");
+        worded.anchors[0].excerpt = "投标人须提供投标保证金缴纳凭证，否则投标无效".into();
+        assert!(requires_evidence(&worded));
+        // Agent 提交面：params.statement 命中（merge.rs 双写面）
+        let mut agent_stmt = req("REQ-0003", "商务要求");
+        agent_stmt.params.insert("statement".into(),
+            serde_json::json!("投标人须附上法定代表人授权委托书扫描件"));
+        assert!(requires_evidence(&agent_stmt));
+        // 负向：行为承诺型（无材料词）不要求证据——承诺的载体就是正文
+        let mut promise = req("REQ-0004", "商务要求");
+        promise.anchors[0].excerpt = "投标人须承诺质保期不少于五年".into();
+        assert!(!requires_evidence(&promise));
+        // 负向：否决项类别单独不触发（词面捕捉，不一刀切）
+        let mut veto_promise = req("REQ-0005", "否决项");
+        veto_promise.anchors[0].excerpt = "投标文件未按规定签字盖章的将被否决".into();
+        assert!(!requires_evidence(&veto_promise));
+    }
+
+    /// #245 语义不回归：占位绑定 + 正文在位 → 仍 PENDING_EVIDENCE 且
+    /// blocking（占位不清阻塞），evidence_missing 保持 true（占位不算
+    /// 有效证据——不清缺口）。
+    #[test]
+    fn placeholder_keeps_pending_blocking_and_gap_with_body() {
+        let mut s = fresh_241_store(vec![
+            worded_req("REQ-0001", "资格条件", "投标人须提供同类项目业绩证明材料"),
+        ]);
+        push_ev(&mut s, "EV-PH", Some(crate::evidence::VerificationTier::Placeholder));
+        s.evidence_bindings.push(EvidenceBinding {
+            evidence_id: "EV-PH".into(), requirement_id: "REQ-0001".into(),
+        });
+        let node = sec_with_content("SEC-0001", 1, &["REQ-0001"],
+            Some("正文响应已写（占位材料在绑——待补态不因正文翻已响应）"));
+        s.set_outline(vec![node]).unwrap();
+        let _ = s.build_matrix().unwrap();
+        let row = s.matrix().iter().find(|r| r.requirement_id == "REQ-0001").unwrap();
+        assert_eq!(row.status, ResponseStatus::PendingEvidence,
+            "#245：占位仍待补（不因正文降级为 RESPONDED）");
+        assert!(row.blocking, "资格条件 + 待补 → 仍阻断（#245 不回归）");
+        assert_eq!(row.pending_evidence_ids, vec!["EV-PH".to_string()], "待补面可追踪");
+        assert!(row.evidence_missing, "占位绑定不算有效证据——缺口仍在（#245 口径）");
+        assert!(s.check_export_ready().is_err(), "占位绑定 → 导出门仍拒（#245 不回归）");
+    }
+
+    /// 旧快照兼容（#241）：无 evidence_required / evidence_missing 字段的
+    /// MatrixRow JSON → serde default false 载入零位移（验收 5）。
+    #[test]
+    fn legacy_matrix_row_snapshot_loads_without_evidence_fields() {
+        let legacy = serde_json::json!({
+            "id": "CMP-0001", "requirement_id": "REQ-0001",
+            "response_section": null, "evidence_ids": [],
+            "pending_evidence_ids": [],
+            "status": "NOT_RESPONDED", "deviation": null, "blocking": true
+        });
+        let row: MatrixRow = serde_json::from_value(legacy).unwrap();
+        assert!(!row.evidence_required, "旧快照证据要求面缺省 false（验收 5）");
+        assert!(!row.evidence_missing);
+        assert_eq!(row.status, ResponseStatus::NotResponded);
+        // 新快照往返：两标记序列化面在场
+        let j = serde_json::to_string(&row).unwrap();
+        assert!(j.contains("\"evidence_required\":false"), "序列化携带新字段：{j}");
+        assert!(j.contains("\"evidence_missing\":false"));
     }
 }

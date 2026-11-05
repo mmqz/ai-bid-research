@@ -177,8 +177,9 @@ def main() -> None:
             die(f"缺号未解释：{ext['missing_sequence'][:3]}…")
 
         # ---- P3 建纲 + 矩阵
+        # #253：844,000 ≈ 1000 页 × 844 字符/页（与引擎默认值同源，可省略不传）
         bo = mcp.must("build_outline", {
-            "project_id": pid, "target_total_chars": 20_000,
+            "project_id": pid, "target_total_chars": 844_000,
             "max_reqs_per_leaf": 8,
         })
         print(f"[6/9] P3 build_outline：{bo['counts']['leaves']} 叶 / "

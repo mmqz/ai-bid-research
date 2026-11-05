@@ -203,7 +203,7 @@ Agent 写好直注，免中继）；引擎不生成只提交——引用回查 /
 
 ```json
 {"tool": "build_outline", "args": {"project_id": "PRJ-…",
-  "target_total_chars": 20000, "max_reqs_per_leaf": 8}}
+  "target_total_chars": 844000, "max_reqs_per_leaf": 8}}
 ```
 ```json
 → {"ok": true, "data": {"counts": {"sections": 18, "leaves": 9,

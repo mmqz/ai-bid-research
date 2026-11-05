@@ -3653,7 +3653,11 @@ fn build_outline(svc: &mut BidService, args: Value) -> ToolResult {
     }
 
     let spec = bid_domain::outline::OutlineSpec {
-        target_total_chars: target_total_chars.unwrap_or(20_000).min(u32::MAX as u64) as u32,
+        // #253 第一段：默认值单一真源在 bid-domain——此处不得另写数字
+        // （曾 unwrap_or(20_000) 覆盖域层默认 → 24 页纲）。
+        target_total_chars: target_total_chars
+            .unwrap_or(u64::from(bid_domain::outline::DEFAULT_TARGET_TOTAL_CHARS))
+            .min(u32::MAX as u64) as u32,
         max_reqs_per_leaf: max_reqs_per_leaf.unwrap_or(8) as usize,
     };
     let (n_sections, n_rows, n_blocking) = svc

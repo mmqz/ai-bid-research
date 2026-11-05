@@ -386,7 +386,7 @@ fn input_schema(name: &str) -> Value {
             "type": "object",
             "properties": {
                 "project_id": pid,
-                "target_total_chars": {"type": "integer", "minimum": 1000, "maximum": 5000000, "description": "缺省 20000"},
+                "target_total_chars": {"type": "integer", "minimum": 1000, "maximum": 5000000, "description": format!("缺省 {}（≈1000 页 × 844 字符/页）", bid_domain::outline::DEFAULT_TARGET_TOTAL_CHARS)},
                 "max_reqs_per_leaf": {"type": "integer", "minimum": 1, "maximum": 50, "description": "缺省 8"},
                 "project_version": pv
             },

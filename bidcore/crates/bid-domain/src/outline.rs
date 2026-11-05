@@ -111,10 +111,21 @@ pub struct OutlineSpec {
     pub max_reqs_per_leaf: usize,
 }
 
+/// `target_total_chars` 缺省值——**单一真源**（#253 第一段）。
+///
+/// 推导：实测密度 844 字符/页（97 页真实产物 81,850 字符反推），
+/// 1000 页硬指标 → 1000 × 844 = **844,000**。
+///
+/// 三层统一：MCP 层（`bid-mcp/src/tools.rs` 的 `unwrap_or`）与工具描述
+/// （`bid-mcp/src/schema.rs` build_outline 入参说明）必须引用本常量，
+/// 不得另写数字。历史病灶：三层曾各自为政（1,000,000 / 20,000 /「缺省
+/// 20000」），Agent 按描述不传参 → 20,000 覆盖域层默认 → 建纲只出 24 页。
+pub const DEFAULT_TARGET_TOTAL_CHARS: u32 = 844_000;
+
 impl Default for OutlineSpec {
     fn default() -> Self {
-        // 1,000,000 字 / (12,000 REQ ÷ 24) ≈ 500 章——批次 v3 §零 的规模口径
-        OutlineSpec { target_total_chars: 1_000_000, max_reqs_per_leaf: 24 }
+        // 844,000 字 / (12,000 REQ ÷ 24) ≈ 500 章——批次 v3 §零 的规模口径
+        OutlineSpec { target_total_chars: DEFAULT_TARGET_TOTAL_CHARS, max_reqs_per_leaf: 24 }
     }
 }
 
@@ -873,6 +884,18 @@ mod tests {
     }
 
     // ============================ 自研测试 ============================
+
+    /// #253 第一段：Default 与单一真源常量同源（MCP 层 unwrap_or 与 schema
+    /// 描述均引用 `DEFAULT_TARGET_TOTAL_CHARS`——bid-mcp 回归见
+    /// `outline_default_quota.rs`，此处锚域层半边）。
+    #[test]
+    fn default_spec_uses_single_source_constant() {
+        assert_eq!(
+            OutlineSpec::default().target_total_chars,
+            DEFAULT_TARGET_TOTAL_CHARS,
+            "Default 必须引用常量（不得另写数字——三层曾不一致的病灶）"
+        );
+    }
 
     /// T-5 验收主测：320 条 REQ → 300-500 节点、每节点 ≥1 REQ、配额和 ≈ 目标 ±10%。
     #[test]

@@ -8,13 +8,13 @@
 
 ## 0. 通用约定
 
-- **错误码**：`E_AUTH` / `E_NOTFOUND` / `E_STATE`（状态机拒绝越级或非法转换）/ `E_CONFLICT`（project_version 过期）/ `E_PARTIAL`（部分条目失败，附 item_errors）/ `E_UNPROCESSABLE`（解析不可恢复）/ `E_RATE` / `E_INTERNAL`。
+- **错误码**：`E_AUTH` / `E_NOTFOUND` / `E_STATE`（状态机拒绝越级或非法转换）/ `E_CONFLICT`（project_version 过期）/ `E_PARTIAL`（部分条目失败，附 item_errors）/ `E_UNPROCESSABLE`（解析不可恢复）/ `E_DRAFT_INCOMPLETE`（#243——全稿最终校验前置拒：起草未完成，附 `missing` 叶清单，零副作用）/ `E_RATE` / `E_INTERNAL`。
 - **幂等策略**：写操作接受 `idempotency_key`；同一 key 重复调用返回首次结果（不重复执行）。文件按 `sha256` 天然幂等；条款抽取按 `dedupe_hash` 幂等合并。
 - **大结果分页（S-4，V3-5）**：列表类工具（get_compliance_matrix / list_evidence / list_tasks，及 M2-b 的 search_evidence）不得一次返回全量（12,000 行矩阵 / 10,000 条证据量级）——统一游标信封：
   `in : { project_id, filters:{...}, cursor?, limit?, page?(仅矩阵兼容) }`；
   `out: { rows|items, total(过滤后总数), limit(生效页宽), cursor(本次生效游标), next_cursor: string|null }`，`next_cursor=null` 即取完，原样回传取下一页。
   游标规则（fail-closed）：opaque base64（内嵌版本字节/偏移/过滤器指纹）；跨过滤器或跨工具复用游标 → `E_UNPROCESSABLE`；limit 合法域 1..=1000、缺省 100，越界/非整数**显式拒**（不静默 clamp）；游标损坏/版本不认识/偏移越界（底层列表已变化）→ `E_UNPROCESSABLE`。行序确定性（矩阵=条款位置序 CMP-0001..N；证据=id 字典序；任务=target_id 字典序）是分页安全前提，不得破坏。
-- **补充建议（第 9 个只读工具）**：`get_bid_project_state`——断点恢复的入口（读项目状态、各阶段完成度、DIRTY 章节、BLOCKER 计数），仿 LingYan `check_pipeline_state`。原 8 工具契约不受影响。V3-5（S-4）另增两个只读列表工具 `list_evidence` / `list_tasks`（§4-A/§4-B，工具面共 11）。issue #42 阶段 10 增第 12 个工具 `save_version`（AI 主动存版本快照，见文末 §SV）。#80 第三批（G1-G3）后工具面 21；#219 全块覆盖三工具（§17/§18/§19）后工具面 **24**（§3 同步抽取通路合并语义）。
+- **补充建议（第 9 个只读工具）**：`get_bid_project_state`——断点恢复的入口（读项目状态、各阶段完成度、DIRTY 章节、BLOCKER 计数），仿 LingYan `check_pipeline_state`。原 8 工具契约不受影响。V3-5（S-4）另增两个只读列表工具 `list_evidence` / `list_tasks`（§4-A/§4-B，工具面共 11）。issue #42 阶段 10 增第 12 个工具 `save_version`（AI 主动存版本快照，见文末 §SV）。#80 第三批（G1-G3）后工具面 21；#219 全块覆盖三工具（§17/§18/§19）后工具面 24（§3 同步抽取通路合并语义）；#226 增 `set_matrix_override` → 25；#243 增 `recover_validating_state`（§20，校验状态安全与恢复）后工具面 **26**。
 
 ## 1. create_bid_project
 ```
@@ -226,14 +226,28 @@ categories 四桶（#187——「没做 ≠ 做对了」，issue #9 口径）:
       「整本标书已通过审核」；not_performed 不把 ok 翻 false（能力缺席不是
       缺陷）。桶内 findings 与平面 findings 串接一致（桶序：structural →
       semantic → evidence → compliance，桶内规则触发序）。
-状态: → VALIDATING → REVIEWING；BLOCKER 清零（或登记 WAIVED+理由）才可 EXPORT
+状态（#243 收紧——校验状态安全）: 分面 + 条件推进——
+      ① 前置闸：scope=all（全稿最终校验）要求全部叶章节达 DRAFTED。存在
+      未完成叶 → `E_DRAFT_INCOMPLETE`（missing = 未完成叶清单）零副作用拒
+      （不跑规则/不推进状态/不落版本/不动审核记录）——起草期误触发无后果，
+      起草面照常可用；起草中的章节级检查走 scope=sections（不受此闸，恒纯读
+      ——矩阵级规则 1/2 仍全量报告未响应面）。
+      ② 仅「scope=all 且 ok=true（BLOCKER==0）」才推进 DRAFTING → VALIDATING
+      （复审语义）+ checkpoint；校验失败（ok=false）留在原态——项目保持可
+      修订、可重试（修订通道：draft_response_section / set_matrix_override /
+      证据补绑），无状态变迁则不落版本。重复校验幂等（无变迁不推进）。
+      ③ 历史异常态（VALIDATING + 缺章——旧版无条件推进所致）的恢复走 §20
+      recover_validating_state，禁止手改 db.json。
+      BLOCKER 清零（或登记 WAIVED+理由）才可 EXPORT
       （#86 摩擦 #10 清偿：REVIEWING 是导出时自动补齐的瞬态——单次 export 内部
       经 Drafting→Validating→Reviewing→ReadyToExport→Exported 逐态补链，
       不会作为可观察的停泊状态出现在两次调用之间；人工审面是三门
       record_review_gate（§12），不是项目状态 REVIEWING。若未来需要人工终审
       停泊位，再启用为可观察状态。）
-出参补充（#80 第三批外部 Agent 实测摩擦 #2）：validate 会推进项目版本（状态转换面），
-响应携带 project_version = 推进后的新值——后续工具调用必须用新值，否则 E_CONFLICT。
+出参补充（#80 第三批外部 Agent 实测摩擦 #2；#243 收紧）：校验通过且发生状态
+      推进时，响应携带 project_version = 推进后的新值——后续工具调用必须用
+      新值，否则 E_CONFLICT；前置拒（E_DRAFT_INCOMPLETE）与校验失败（ok=false）
+      零副作用——版本不变，响应携带当前值。
 project_version 步进源（#86 摩擦 #9 清偿）：project_version = 内容版本计数器，
       每一次【内容面落库】+1（set_requirements / set_section_content / 绑定 /
       状态推进 / 幂等登记等）；一次工具调用内含多步落库 → 步进 +N（N>1 常见，
@@ -754,4 +768,31 @@ out: { complete, total_blocks, covered_blocks, uncovered_range_count,
       uncovered_ranges 为连续未覆盖块的合并区间 [(from, to)…]。
 错误: E_STATE（窗口外——Validating 起全程放行）
 状态: FILES_IMPORTED+（Validating 起含全部状态）
+```
+
+## 20. recover_validating_state（#243 校验状态安全与恢复 · 历史异常态出口）
+
+```
+in : { project_id, reason(必填非空白——审计面：不可审计的恢复不成恢复),
+       project_version? }
+out: { status("DRAFTING"), recovery:{ at, from:"VALIDATING", to:"DRAFTING",
+       reason, missing_sections:[SEC-*…] }, project_version, request_id }
+语义: 历史异常态的受支持恢复。旧版缺陷（#243 之前的 main）：
+      validate_bid_document 在草稿未完成/校验失败时仍无条件推进 VALIDATING，
+      而 VALIDATING 态禁 draft_response_section → 起草死锁，用户被迫终止
+      进程并手工改 db.json 的状态字段。本工具取代那条不受支持的路径。
+      三重约束（不是任意状态写入）：①仅 VALIDATING 态（Reviewing+ 属审核/
+      导出阶段，语义不同，不在本通道）；②仅缺章（存在未 DRAFTED 的叶——
+      正是历史缺陷制造的异常态；草稿完整的 VALIDATING 是健康态（校验已过），
+      拒之）；③理由必填非空白。
+      效果：status → DRAFTING（起草面解锁）+ content_version +1 +
+      StateRecoveryRecord 审计账（何时/为何/从哪到哪/当时缺哪些章——随快照
+      持久化，跨重启可见）+ checkpoint。章节树/矩阵/审核记录不动（恢复是
+      状态面动作，内容面原样——恢复前后的不变量由测试锁定）。
+重复/重试: 恢复成功后项目在 DRAFTING，重复请求被 guard 拒（E_STATE——
+      非死锁态，起草面照常可用），审计账不重复；并发：MCP 服务串行处理
+      （&mut 服务态），无交错写。
+错误: E_STATE（非 VALIDATING 态——含重复恢复/项目本在 DRAFTING 可起草）；
+      E_UNPROCESSABLE（草稿完整的 VALIDATING / reason 空白）。
+状态: 仅 VALIDATING
 ```

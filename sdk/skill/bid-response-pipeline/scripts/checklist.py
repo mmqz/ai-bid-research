@@ -104,9 +104,10 @@ STAGES: dict[str, Stage] = {
         (_is_ok,),
         (check("data.counts.blocker", lambda v: v == 0,
                "BLOCKER = 0（非零必须修复或登记 WAIVED）"),),
-        # 注意：validate 推进 project_version——下一步工具必须用本响应新值。
+        # 注意（#243）：校验通过且推进（DRAFTING→VALIDATING）时 project_version
+        # +1——下一步工具必须用本响应新值；失败/前置拒零副作用（版本不变）。
         (check("project_version", lambda v: isinstance(v, int),
-               "响应携带 project_version（推进后的新值——传给下一个工具）"),),
+               "响应携带 project_version（发生推进时为新值——传给下一个工具）"),),
     ),
     "P8": (
         (_is_ok,),

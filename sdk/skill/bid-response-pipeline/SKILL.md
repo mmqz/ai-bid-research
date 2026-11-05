@@ -24,7 +24,7 @@ description: >
 | P3 矩阵 | 建纲+矩阵+资格判断 | `build_outline` → `get_compliance_matrix` | build_outline 返回 MATRIX_READY；资格/否决行 policy 全填；资格三态结论（eligible/conditional/not_eligible）向用户报告；**not_eligible → 停止流程，只产审查报告** | 矩阵只读（get_compliance_matrix），随时重查 |
 | P4 证据 | 登记+绑定证据、补缺清单 | `register_evidence` / `bind_evidence` / `list_evidence` / `search_evidence`* | 每条必选项≥1 条 OK 证据；EXPIRED 禁绑；缺失项形成补料清单交用户；bind 后 matrix.blocking=0 | 缺料→等待用户补充后仅补跑受影响行 |
 | P5 起草 | 逐章节起草（**正文由你写**） | `draft_response_section` / `save_version` | unanchored_claims=0；citations 全部来自已绑定 EV；**每完成一个章节，调用 save_version 存版本**（message 写明章节与完成内容） | per-SEC 重试，不影响其他章节 |
-| P6 校验 | 双层校验 | `validate_bid_document` | deterministic findings 清零（BLOCKER 必须 Resolved/Waived） | 按 scope 重跑 |
+| P6 校验 | 双层校验（**全稿完成后才 scope=all**） | `validate_bid_document` | 全部叶起草完成才 scope=all（缺章 → `E_DRAFT_INCOMPLETE` 零副作用拒，按 missing 清单回 P5 补）；起草期用 scope=sections 章节级检查；deterministic findings 清零（BLOCKER 必须 Resolved/Waived）；失败留在 DRAFTING 可修订重试 | 按 scope 重跑 |
 | P7 审校 | 模型审校→修订任务闭环 | `validate_bid_document` +（后端）RevisionTask | 每个 MAJOR finding 有 RT 且 DONE | 只重跑 DIRTY 章节 |
 | P8 导出 | 预检+导出 | `export_bid_document` | precheck.blockers=0；artifact sha256 复述 | 同参幂等 |
 
@@ -39,7 +39,19 @@ semantic / exact 三模式、top_k 1..=1000、确定性排序可重放；#217 �
 `check_bid_quality`（章节发现面——**外部 Agent 获取章节清单的正式查询口**，
 sections 只列可起草叶）、`score_price` / `score_section` / `score_document`
 （自评面：该报多少价、这份标书能得几分）、`record_review_gate`（人工复审门，
-见下）、`record_addendum_waiver`（补遗不就绪件的逐件人工确认——见下）。
+见下）、`record_addendum_waiver`（补遗不就绪件的逐件人工确认——见下）、
+`recover_validating_state`（历史异常态恢复：项目滞留在 VALIDATING 且仍有
+未起草叶（旧版校验误推进所致）→ 回 DRAFTING 解锁起草面，#243；三重约束
++审计账，**禁止手改 db.json**）。
+
+> **校验状态安全（#243 · 2026-11-05）**：`validate_bid_document` 的
+> `scope=all`（全稿最终校验）要求**全部叶章节达 DRAFTED**——缺章时返回
+> `E_DRAFT_INCOMPLETE`（missing 清单）**零副作用**（状态/版本/审核记录
+> 不变，起草面照常），按 missing 逐叶回 P5 补起草后重校。起草期的检查
+> 用 `scope=sections`（章节级，不受此闸；矩阵未响应面仍全量报告）。
+> 校验失败（ok=false）项目留在 DRAFTING，可修订可重试；**仅校验通过**
+> 才推进 VALIDATING。若项目已滞留在 VALIDATING 且缺章（历史异常态），用
+> `recover_validating_state`（reason 必填）回 DRAFTING 续跑。
 
 > **补遗分级门（#184）**：任一补遗/澄清件不处 READY（FAILED=解析失败 /
 > OCR_PENDING=扫描件零文本）→ `draft_response_section` 被 MissingAddendum

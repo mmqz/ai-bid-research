@@ -3,17 +3,29 @@
 > 契约依据：`docs/bid-mcp-contract.md` §7。规则分层：**确定性规则代码断言、
 > 先行必跑、BLOCKER 必须清零**；模型规则只产 finding 不改稿。
 
+## 何时可调（#243 校验状态安全）
+
+| 时点 | 用法 | 行为 |
+|---|---|---|
+| 起草中（仍有叶未 DRAFTED） | `scope="sections"` + `section_ids`（章节级检查） | 纯读诊断：矩阵未响应面仍全量报告；不推进状态 |
+| 起草中误调 `scope="all"` | — | `E_DRAFT_INCOMPLETE`（missing 清单）**零副作用**拒：状态/版本/审核记录均不变，起草面照常——按 missing 清单回 P5 逐叶补起草 |
+| 全稿完成 | `scope="all"`（全稿最终校验） | 跑全部规则；**仅 ok=true（BLOCKER==0）才推进 VALIDATING** |
+| 校验失败（ok=false） | 修复后重调 | 项目留在 DRAFTING，可修订可重试（draft_response_section / set_matrix_override / 证据补绑）；无状态变迁不落版本 |
+| 项目滞留 VALIDATING 且缺章（历史异常态） | `recover_validating_state` | 回 DRAFTING 解锁起草面（见下「历史异常态恢复」） |
+
 ## 调用形
 
 ```json
 { "project_id": "…", "scope": "all", "rules_profile": "standard" }
 ```
 
-- `scope`：`"all"` 或 `section_ids[]`（修订后只重跑受影响章——恢复协议 DIRTY 面）；
+- `scope`：`"all"`（全稿最终校验——要求全部叶达 DRAFTED）或 `"sections"` +
+  `section_ids[]`（章节级检查——起草期诊断面；修订后只重跑受影响章）；
 - `rules_profile`：`standard`（缺省）/ `dark_bid`（暗标——附加禁字清单扫描）。
 
-**注意**：validate 会推进项目版本（状态转换面）——响应携带的
-`project_version` 是**推进后的新值**，后续工具必须用新值，否则 E_CONFLICT。
+**注意**：校验通过且发生状态推进（DRAFTING → VALIDATING）时，响应携带的
+`project_version` 是**推进后的新值**，后续工具必须用新值，否则 E_CONFLICT；
+前置拒（`E_DRAFT_INCOMPLETE`）与校验失败（ok=false）零副作用——版本不变。
 
 ## 返回核对
 
@@ -72,7 +84,7 @@ categories: {                      # #187 分类返回（四桶各自独立状�
 
 ## BLOCKER 清零路径（导出前置）
 
-`状态 → VALIDATING → REVIEWING；BLOCKER 清零（或登记 WAIVED+理由）才可 EXPORT`
+`校验通过（ok=true）才推进 VALIDATING；BLOCKER 清零（或登记 WAIVED+理由）才可 EXPORT`
 
 两条路：
 
@@ -94,3 +106,18 @@ categories: {                      # #187 分类返回（四桶各自独立状�
 
 每个 MAJOR finding → 修订任务（RT）→ 修订 → `DONE`。只重跑 DIRTY 章节
 （上游 content_version 变化波及面）；未受影响的 ACCEPTED 章节不动。
+
+## 历史异常态恢复（#243 · recover_validating_state）
+
+旧版引擎的校验会在草稿未完成/校验失败时误推进 VALIDATING，而 VALIDATING
+态禁起草 → 项目死锁（用户曾被迫终止进程并手改 db.json 才能续跑——那不是
+受支持路径）。若 `get_bid_project_state` 显示项目在 `VALIDATING` 且仍有
+未起草叶：
+
+1. 调 `recover_validating_state`（`reason` 必填非空白，如实写明原因——审计
+   留底：何时/为何/从哪到哪/缺哪些章）→ 项目回 `DRAFTING`，起草面解锁；
+2. 按恢复响应的 `missing_sections`（或重查矩阵）逐叶补起草；
+3. 全稿完成后 `scope=all` 校验 → 通过后进导出流程。
+
+约束：仅 VALIDATING 态、仅缺章可恢复（草稿完整的 VALIDATING 是健康态，拒）；
+重复恢复被状态门拒（E_STATE，非死锁态）。**禁止手改 db.json**。

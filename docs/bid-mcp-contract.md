@@ -14,7 +14,7 @@
   `in : { project_id, filters:{...}, cursor?, limit?, page?(仅矩阵兼容) }`；
   `out: { rows|items, total(过滤后总数), limit(生效页宽), cursor(本次生效游标), next_cursor: string|null }`，`next_cursor=null` 即取完，原样回传取下一页。
   游标规则（fail-closed）：opaque base64（内嵌版本字节/偏移/过滤器指纹）；跨过滤器或跨工具复用游标 → `E_UNPROCESSABLE`；limit 合法域 1..=1000、缺省 100，越界/非整数**显式拒**（不静默 clamp）；游标损坏/版本不认识/偏移越界（底层列表已变化）→ `E_UNPROCESSABLE`。行序确定性（矩阵=条款位置序 CMP-0001..N；证据=id 字典序；任务=target_id 字典序）是分页安全前提，不得破坏。
-- **补充建议（第 9 个只读工具）**：`get_bid_project_state`——断点恢复的入口（读项目状态、各阶段完成度、DIRTY 章节、BLOCKER 计数），仿 LingYan `check_pipeline_state`。原 8 工具契约不受影响。V3-5（S-4）另增两个只读列表工具 `list_evidence` / `list_tasks`（§4-A/§4-B，工具面共 11）。issue #42 阶段 10 增第 12 个工具 `save_version`（AI 主动存版本快照，见文末 §SV）。#80 第三批（G1-G3）后工具面 21；#219 全块覆盖三工具（§17/§18/§19）后工具面 24（§3 同步抽取通路合并语义）；#226 增 `set_matrix_override` → 25；#243 增 `recover_validating_state`（§20，校验状态安全与恢复）后工具面 **26**。
+- **补充建议（第 9 个只读工具）**：`get_bid_project_state`——断点恢复的入口（读项目状态、各阶段完成度、DIRTY 章节、BLOCKER 计数），仿 LingYan `check_pipeline_state`。原 8 工具契约不受影响。V3-5（S-4）另增两个只读列表工具 `list_evidence` / `list_tasks`（§4-A/§4-B，工具面共 11）。issue #42 阶段 10 增第 12 个工具 `save_version`（AI 主动存版本快照，见文末 §SV）。#80 第三批（G1-G3）后工具面 21；#219 全块覆盖三工具（§17/§18/§19）后工具面 24（§3 同步抽取通路合并语义）；#226 增 `set_matrix_override` → 25；#243 增 `recover_validating_state`（§20，校验状态安全与恢复）后工具面 26；#254 增分段三工具 `append_section_segment` / `rewrite_section_segment` / `list_section_segments`（§21，章节级增量写入）后工具面 **29**。
 
 ## 1. create_bid_project
 ```
@@ -866,3 +866,64 @@ out: { status("DRAFTING"), recovery:{ at, from:"VALIDATING", to:"DRAFTING",
       E_UNPROCESSABLE（草稿完整的 VALIDATING / reason 空白）。
 状态: 仅 VALIDATING
 ```
+
+## 21. 章节分段写入三工具（#254 章节级增量写入 · Skill 分批写作的引擎对偶面）
+
+### 21-A. append_section_segment（追加段）
+
+```
+in : { project_id, section_id(叶章节), content(本批段文——非章节全文),
+       idem_key?(缺省=内容指纹 sha256 前 16 hex——同段同内容重提自动 no-op),
+       project_version? }
+out: { section_id, segment:{ id("SEG-xxxx"), seq, version, chars }, changed,
+       deduplicated(!changed), assembled_chars, target_chars, remaining_chars,
+       over_target, segment_count, citations, unanchored_claims, warnings,
+       status, project_version, request_id }
+语义: 真增量追加——段按 seq 升序入账，合稿 = 全部段 "\n\n" 拼接写回
+      OutlineNode.content（单一真源；引用回查/无锚检查/字符统计/
+      E_CHARS_BELOW_MIN/checkpoint/导出全部按合稿，下游零改动）。
+      种子语义：整稿写过的章节首段追加 → 既有正文自动入册为第 1 段
+      （绝不静默丢正文）。幂等：同章节同 idem_key 重放 → no-op
+      （changed=false，content_version 不动）。状态推进/工作区落盘
+      （ChapterRecorder 合稿）/checkpoint 与整稿路径同链。
+引用: pre-flight 整段拒——段内 [REQ-*]/[EV-*] 不在本章绑定集 →
+      E_UNPROCESSABLE 点名（分段不自动剔除，保「合稿==段拼接」不变量；
+      与整稿路径的「剔除+告警」语义差异是刻意的）。
+错误: E_NOTFOUND（章节不存在）；E_UNPROCESSABLE（空白段/结构节点/
+      引用回查失败/readiness 阻塞——与整稿同闸）；E_STATE（窗口外）。
+状态: MATRIX_READY+（与 draft_response_section 同窗口）
+```
+
+### 21-B. rewrite_section_segment（局部修订）
+
+```
+in : { project_id, segment_id("SEG-xxxx"——list 回显定位), content(该段修订后全文),
+       expected_version?(CAS 对照：与段当前 version 不符 → E_CONFLICT 无部分写入),
+       project_version? }
+out: 同 21-A（changed/deduplicated/version+1/合稿统计）
+语义: 只改目标段（version+1），兄弟段与顺序不动；合稿随之同步。
+      同内容重写 = no-op（version 不推进）。
+错误: E_NOTFOUND（段不存在）；E_CONFLICT（expected_version 过期——并发
+      写作面，先 list 对账再改）；E_UNPROCESSABLE（空白/引用回查失败）。
+状态: MATRIX_READY+（与 21-A 同窗口）
+```
+
+### 21-C. list_section_segments（只读对账）
+
+```
+in : { project_id, section_id, project_version? }
+out: { section_id, segments:[{ id, seq, version, chars, idem_key,
+       updated_at, preview(段首 40 字) }], assembled_chars, target_chars,
+       remaining_chars, over_target, status, project_version, request_id }
+语义: 段账本发现面——续写前/重启后的「已写到哪」对账（段随 StoreSnapshot
+      持久化，重启保真；SEG-xxxx 入 id 水位防重签碰撞）。
+错误: E_NOTFOUND（章节不存在）。
+状态: 全窗口只读（MATRIX_READY+，含导出后追溯）
+```
+
+### 21-D. 整稿 ↔ 分段互斥（与 §6 draft_response_section 的联动）
+
+`draft_response_section` 提交**不同内容**时，该章节段账本重置为单段
+（内容 = 整稿全文——账本与正文永不对不上）；同内容重提（幂等 no-op）
+不动账本。Skill 面（bid-response-pipeline §篇幅纪律）已改写：分批写作
+必须走 21-A，`draft_response_section` 仅用于 ≤4000 字小节或整章重写。

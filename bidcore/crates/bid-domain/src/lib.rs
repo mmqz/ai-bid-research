@@ -63,6 +63,7 @@ pub mod principal;
 pub mod review;
 pub mod scoring;
 pub mod coverage;
+pub mod segments;
 
 pub use principal::{ActorType, TrustedPrincipal};
 
@@ -197,6 +198,10 @@ impl ProjectStatus {
                 "search_evidence",
                 "get_bid_project_state",
                 "draft_response_section",
+                // #254 分段写入（与整稿同窗口——矩阵就绪即可续写）
+                "append_section_segment",
+                "rewrite_section_segment",
+                "list_section_segments",
                 "check_bid_quality",
                 // #80 第三批 MCP 补齐 G2/G3：证据登记绑定 + 审批门（P4 面）
                 "register_evidence",
@@ -216,6 +221,10 @@ impl ProjectStatus {
                 "search_evidence",
                 "get_bid_project_state",
                 "draft_response_section",
+                // #254 分段写入（起草主战场——长章节安全续写）
+                "append_section_segment",
+                "rewrite_section_segment",
+                "list_section_segments",
                 "validate_bid_document",
                 "export_bid_document",
                 "check_bid_quality",
@@ -233,6 +242,8 @@ impl ProjectStatus {
                 "get_coverage_report",
                 "search_evidence",
                 "get_bid_project_state",
+                // #254 只读段账本（校验期对账面——写作工具不重开）
+                "list_section_segments",
                 "validate_bid_document",
                 "export_bid_document",
                 "check_bid_quality",
@@ -252,6 +263,8 @@ impl ProjectStatus {
                 "get_coverage_report",
                 "search_evidence",
                 "get_bid_project_state",
+                // #254 只读段账本（复核期对账面）
+                "list_section_segments",
                 "validate_bid_document",
                 "export_bid_document",
                 "check_bid_quality",
@@ -269,6 +282,8 @@ impl ProjectStatus {
                 "search_evidence",
                 "get_bid_project_state",
                 "export_bid_document",
+                // #254 只读段账本（导出后追溯面）
+                "list_section_segments",
                 "check_bid_quality",
                 "record_review_gate",
                 // #184：补遗分级阻塞的逐件确认（导入后任意时刻）
@@ -466,6 +481,10 @@ pub struct DomainStore {
     /// #243 状态恢复审计账（VALIDATING → DRAFTING 的留底——追加式审计
     /// 日志，见 [`DomainStore::recover_validating_to_drafting`]）
     state_recoveries: Vec<StateRecoveryRecord>,
+    /// #254 章节正文分段账本（SEG-xxxx——合稿 = 有序段拼接，正文单一真相
+    /// 仍在 `OutlineNode.content`；账本与正文同进退的不变量与写入面见
+    /// [`DomainStore::append_section_segment`]）
+    segments: Vec<segments::SectionSegment>,
     /// 幂等键 → 首次结果 JSON（同 key 重放返回首次结果，不重复执行）
     idempotency: HashMap<String, serde_json::Value>,
     id_seq: u64,
@@ -493,6 +512,7 @@ impl DomainStore {
             submitted_requirements: HashMap::new(),
             scoring_mappings: vec![],
             state_recoveries: vec![],
+            segments: vec![],
             idempotency: HashMap::new(),
             id_seq: 0,
         }
@@ -1183,6 +1203,10 @@ pub struct StoreSnapshot {
     /// schema_version 不 bump，见头注释的加性演进纪律）
     #[serde(default)]
     pub state_recoveries: Vec<StateRecoveryRecord>,
+    /// #254 章节正文分段（加性迁移——旧快照无此字段 → 空集合加载：
+    /// 无分段账本时正文仍以 `OutlineNode.content` 为真相，行为与旧版一致）
+    #[serde(default)]
+    pub segments: Vec<segments::SectionSegment>,
     #[serde(default)]
     pub idempotency: BTreeMap<String, serde_json::Value>,
     #[serde(default)]
@@ -1218,6 +1242,7 @@ impl DomainStore {
                 .collect(),
             scoring_mappings: self.scoring_mappings.clone(),
             state_recoveries: self.state_recoveries.clone(),
+            segments: self.segments.clone(),
             // HashMap → BTreeMap：持久化 DTO 要求跨进程字节一致（HashMap 迭代序不确定）
             idempotency: self.idempotency.clone().into_iter().collect(),
             id_seq: self.id_seq,
@@ -1332,6 +1357,8 @@ impl DomainStore {
             max_suffix(snap.revision_tasks.iter().map(|t| t.id.clone())),
             // #224 SM-xxxx 入水位（store 签发命名空间）
             max_suffix(snap.scoring_mappings.iter().map(|m| m.id.clone())),
+            // #254 SEG-xxxx 入水位（store 签发命名空间——防重启后重签碰撞）
+            max_suffix(snap.segments.iter().map(|s| s.id.clone())),
             snap.project
                 .as_ref()
                 .map(|p| max_suffix([p.id.clone()].into_iter()))
@@ -1509,9 +1536,49 @@ impl DomainStore {
                 || !snap.addendum_waivers.is_empty()
                 || !snap.file_roles.is_empty()
                 || !snap.scoring_mappings.is_empty()
-                || !snap.state_recoveries.is_empty())
+                || !snap.state_recoveries.is_empty()
+                || !snap.segments.is_empty())
         {
             return Err(un("快照有数据但无项目（孤儿集合——拒绝加载半个库）".into()));
+        }
+        // #254 分段账本引用完整性：id 唯一；section_id 必须存在于章节树
+        // （孤儿段 = 凭空正文，拒）；同一章节内 seq 唯一（合稿顺序的确定性）。
+        if let Some(e) = dup_in(snap.segments.iter().map(|s| s.id.clone()).collect(), "segments") {
+            return Err(un(e));
+        }
+        if let Some(bad) = snap.segments.iter().find(|s| {
+            !snap.sections.iter().any(|n| n.id == s.section_id)
+        }) {
+            return Err(un(format!(
+                "segment {} 引用的章节 {} 不存在（孤儿段——半个账本，拒载）",
+                bad.id, bad.section_id
+            )));
+        }
+        {
+            let mut seen: std::collections::HashSet<(String, u32)> =
+                std::collections::HashSet::new();
+            if let Some(bad) = snap.segments.iter().find(|s| {
+                !seen.insert((s.section_id.clone(), s.seq))
+            }) {
+                return Err(un(format!(
+                    "章节 {} 内段序号 {} 重复（segment {}——合稿顺序不确定，拒载）",
+                    bad.section_id, bad.seq, bad.id
+                )));
+            }
+        }
+        // #254 幂等面：同章节内 idem_key 重复 = 重放将命中错误段（幂等键
+        // 唯一性是 append 语义的地基），拒载。
+        {
+            let mut seen: std::collections::HashSet<(String, String)> =
+                std::collections::HashSet::new();
+            if let Some(bad) = snap.segments.iter().find(|s| {
+                !seen.insert((s.section_id.clone(), s.idem_key.clone()))
+            }) {
+                return Err(un(format!(
+                    "章节 {} 内段幂等键 {} 重复（segment {}——幂等面破坏，拒载）",
+                    bad.section_id, bad.idem_key, bad.id
+                )));
+            }
         }
         Ok(Self {
             project: snap.project,
@@ -1533,6 +1600,7 @@ impl DomainStore {
             submitted_requirements: snap.submitted_requirements.into_iter().collect(),
             scoring_mappings: snap.scoring_mappings,
             state_recoveries: snap.state_recoveries,
+            segments: snap.segments,
             idempotency: snap.idempotency.into_iter().collect(),
             id_seq: snap.id_seq,
         })

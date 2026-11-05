@@ -51,7 +51,7 @@ use serde_json::Value;
 /// get_coverage_report）；#226 增 1 个：`set_matrix_override`（否决项
 /// 死锁的人工出口）；#243 增 1 个：`recover_validating_state`（历史
 /// 异常态 VALIDATING+缺章的受支持恢复出口）= 26。
-pub const TOOL_NAMES: [&str; 26] = [
+pub const TOOL_NAMES: [&str; 29] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -81,6 +81,11 @@ pub const TOOL_NAMES: [&str; 26] = [
     "set_matrix_override",
     // #243：历史异常态（VALIDATING+缺章）的受支持恢复出口
     "recover_validating_state",
+    // #254 章节级增量写入（分段追加/局部修订/账本发现——Skill 分批写作的
+    // 引擎对偶面：段是真增量，整稿替换不再是长章节的唯一写法）
+    "append_section_segment",
+    "rewrite_section_segment",
+    "list_section_segments",
 ];
 
 /// 工具解析与分发入口（进程级全局服务态——stdio 默认传输面）。

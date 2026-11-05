@@ -15,6 +15,7 @@ pub mod quality;
 pub mod readiness;
 pub mod runner;
 pub mod schema;
+pub mod segments;
 pub mod service;
 pub mod store_io;
 // #103 子任务 B：六种标书表格（struct → markdown → 现有导出链 → docx 真表格）

@@ -24,7 +24,7 @@ description: >
 | P3 矩阵 | 建纲+矩阵+资格判断 | `build_outline` → `get_compliance_matrix` | build_outline 返回 MATRIX_READY；资格/否决行 policy 全填；资格三态结论（eligible/conditional/not_eligible）向用户报告；**not_eligible → 停止流程，只产审查报告** | 矩阵只读（get_compliance_matrix），随时重查 |
 | P4 证据 | 登记+绑定证据、补缺清单 | `register_evidence` / `bind_evidence` / `list_evidence` / `search_evidence`* | 每条必选项≥1 条 OK 证据；EXPIRED 禁绑；缺失项形成补料清单交用户；bind 后 matrix.blocking=0 | 缺料→等待用户补充后仅补跑受影响行 |
 | P5 起草 | 逐章节起草（**正文由你写**） | `draft_response_section` / `save_version` | unanchored_claims=0；citations 全部来自已绑定 EV；**每完成一个章节，调用 save_version 存版本**（message 写明章节与完成内容） | per-SEC 重试，不影响其他章节 |
-| P6 校验 | 双层校验（**全稿完成后才 scope=all**） | `validate_bid_document` | 全部叶起草完成才 scope=all（缺章 → `E_DRAFT_INCOMPLETE` 零副作用拒，按 missing 清单回 P5 补）；起草期用 scope=sections 章节级检查；deterministic findings 清零（BLOCKER 必须 Resolved/Waived）；失败留在 DRAFTING 可修订重试 | 按 scope 重跑 |
+| P6 校验 | 双层校验（**全稿完成后才 scope=all**） | `validate_bid_document` | 全部叶起草完成才 scope=all（缺章 → `E_DRAFT_INCOMPLETE` 零副作用拒，按 missing 清单回 P5 补）；起草期用 scope=sections 章节级检查；deterministic findings 清零（BLOCKER 必须 Resolved/Waived）；失败留在 DRAFTING 可修订重试；`ok=true` ≠ 可提交——**提交就绪**看响应内 `submission_readiness.ready`（#241：正文已响应但证据缺口的必选条款不拦导出、拦正式提交，按 `evidence_missing` 清单补件或人工豁免） | 按 scope 重跑 |
 | P7 审校 | 模型审校→修订任务闭环 | `validate_bid_document` +（后端）RevisionTask | 每个 MAJOR finding 有 RT 且 DONE | 只重跑 DIRTY 章节 |
 | P8 导出 | 预检+导出 | `export_bid_document` | precheck.blockers=0；artifact sha256 复述 | 同参幂等 |
 
@@ -135,7 +135,7 @@ project_version 恒为本次完成后最新值，直接传给下一个工具。
 
 - `references/p1-import.md`——文件分类表、OCR 档位含义、失败降级话术
 - `references/p2-extract.md`——七类产物定义、条款类型判定边界、参数槽位表
-- `references/p3-matrix.md`——建纲/矩阵用法、四态与 blocking 判定、资格结论推导、blocking 行排查表
+- `references/p3-matrix.md`——建纲/矩阵用法、五态与 blocking 判定（#241 两分账：正文响应/证据缺口）、资格结论推导、blocking 行排查表
 - `references/p4-evidence.md`——证据登记/绑定面、有效期核对法、补料清单模板
 - `references/p6-validation.md`——确定性规则清单与模型检查范围、WAIVED 审批话术
 - `references/p7-review.md`——四道审门与 receipt 验签、RevisionTask 闭环、质量复核收口清单

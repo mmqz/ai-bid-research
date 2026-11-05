@@ -202,7 +202,7 @@ fn qualification_blocked_when_only_expired_certificate() {
     let b = r.blockers.iter().find(|b| b.code() == "MISSING_QUALIFICATION").expect("应缺资质");
     let Blocker::MissingQualification { have, .. } = b else { panic!("{b:?}") };
     assert!(have.iter().any(|t| t.contains("EXPIRED")), "须报出失效明细：{have:?}");
-    assert!(b.to_message().contains("台账里有但已失效"), "{}", b.to_message());
+    assert!(b.to_message().contains("台账里有但不可用"), "{}", b.to_message());
 }
 
 // ---------------------------------------------------------------- ③ MissingPerformance

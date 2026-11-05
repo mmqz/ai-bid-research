@@ -345,7 +345,10 @@ impl Blocker {
                 let tail = if have.is_empty() {
                     String::new()
                 } else {
-                    format!("（台账里有但已失效：{}）", have.join("、"))
+                    // #245：不可用面含三类——过期（EXPIRED）/被替代（SUPERSEDED）/
+                    // 占位待核验（PLACEHOLDER）；「已失效」对占位件不准确（其
+                    // 状态面仍 ACTIVE），措辞改为「不可用」。
+                    format!("（台账里有但不可用：{}）", have.join("、"))
                 };
                 format!("缺{req}：证据库里没有可用的资格/资质证明材料{tail}——无证硬写等于虚假响应")
             }
@@ -700,13 +703,21 @@ fn qualification_requirement(title: &str) -> Option<Vec<String>> {
     }
 }
 
-/// 台账里**不可用**的资质证据标题（过期/被替代——如实回报，不假装没有）。
+/// 台账里**不可用**的资质证据标题（过期/被替代/占位待核验——如实回报，
+/// 不假装没有）。#245：占位件状态面仍 ACTIVE（有效期维度正交），标注
+/// PLACEHOLDER 而非状态码，防「ACTIVE 却不可用」的误读。
 fn stale_qualification_titles(store: &DomainStore) -> Vec<String> {
     store
         .evidences()
         .iter()
         .filter(|e| e.kind == EvidenceKind::Qualification && !is_usable_evidence(e))
-        .map(|e| format!("{}（{}）", e.title, e.status.as_str()))
+        .map(|e| {
+            if e.is_placeholder() {
+                format!("{}（PLACEHOLDER 占位待核验）", e.title)
+            } else {
+                format!("{}（{}）", e.title, e.status.as_str())
+            }
+        })
         .collect()
 }
 

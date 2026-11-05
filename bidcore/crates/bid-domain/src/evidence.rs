@@ -198,20 +198,30 @@ impl EvidenceFields {
     }
 }
 
-/// 证据内容验证四态（#217 / #185 缺口 2——「找到证据」≠「读过证据」的区分面）。
+/// 证据内容验证五态（#217 / #185 缺口 2 + #245 占位态）——
+/// 「找到证据」≠「读过证据」≠「资质已核实」的三层区分面。
 ///
 /// | 态 | 含义 | 达成路径 |
 /// |---|---|---|
+/// | [`Placeholder`] | **占位/待核验**：材料内容未经核验，不得当作已验证证据（#245——占位不得清除合规阻塞，升级只能经换版重登） | 登记面 `placeholder: true`（调用方可自报占位——诚实方向；但**不能自报任何更高态**） |
 /// | [`FileExists`] | 来源文件在库且非失败件，但**正文未被定位读取** | `register_evidence` 无 locator（文件级锚） |
 /// | [`ContentMatches`] | 定位文本与解析产物**逐字对账通过** + 摘录入账 | 带 locator 且指纹一致（服务端 `bid_tools::BidService::register_evidence_verified` 裁决） |
 /// | [`SemanticSupport`] | 摘录与登记语义（标题/范围）经语义比对互证 | **预留**（M2-b 语义服务落地前不可达——枚举先立面，防第三态悄悄冒充第四态） |
 /// | [`HumanConfirmed`] | 人工确认摘录与原件一致 | **预留**（接 #182 TrustedPrincipal receipt 链路；当前不可经登记面设置） |
 ///
 /// 裁决纪律：tier 由**服务端**在登记时刻写入（域层纯透传），调用方无从自报——
-/// 与 #185 缺口 1 的 sha256/指纹同款「不信调用方」纪律。
+/// 与 #185 缺口 1 的 sha256/指纹同款「不信调用方」纪律。唯一例外是
+/// `Placeholder`（#245）：调用方**可以声明占位**（从低不从高的诚实方向——
+/// 自报“未核验”永远安全，自报“已核验”才危险），但 `Placeholder` 在矩阵
+/// 派生/导出门中不作为有效证据（见 [`crate::matrix`] 的 PENDING_EVIDENCE 态），
+/// 升级为真实证据只能经**换版重登**（新指纹 → 新记录，旧记录 Superseded
+/// 留审计痕——无原地迁移通道即无非法迁移通道）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum VerificationTier {
+    /// 占位/待核验（#245）：内容未经核验——可携带定位与摘录（可回溯占位
+    /// 登记指向了什么），但**不得作为已验证证据清阻塞/导出**。
+    Placeholder,
     /// 文件级锚：来源在库、未失败，但正文未定位（无摘录）。
     FileExists,
     /// 内容级锚：定位文本与解析产物逐字一致，摘录（excerpt）入账。
@@ -225,6 +235,7 @@ pub enum VerificationTier {
 impl VerificationTier {
     pub fn as_str(&self) -> &'static str {
         match self {
+            VerificationTier::Placeholder => "PLACEHOLDER",
             VerificationTier::FileExists => "FILE_EXISTS",
             VerificationTier::ContentMatches => "CONTENT_MATCHES",
             VerificationTier::SemanticSupport => "SEMANTIC_SUPPORT",
@@ -233,7 +244,9 @@ impl VerificationTier {
     }
 
     /// 正文是否已实际读取（CONTENT_MATCHES 及以上——SEMANTIC_SUPPORT/
-    /// HUMAN_CONFIRMED 是其严格超集：语义/人工确认必先有逐字摘录）。
+    /// HUMAN_CONFIRMED 是其严格超集：语义/人工确认必先有逐字摘录；
+    /// PLACEHOLDER 即便携带摘录也不算——占位材料的摘录是“指向占位登记
+    /// 位置”的回溯面，不是“内容已核实”的凭证）。
     pub fn content_read(&self) -> bool {
         matches!(
             self,
@@ -291,9 +304,22 @@ pub struct Evidence {
     /// 机器面是 `locator`，本字段给生成器/导出做可读引用）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub excerpt_locator: Option<String>,
-    /// 内容验证四态（见 [`VerificationTier`]——服务端登记时裁决，非调用方自报）。
+    /// 内容验证五态（见 [`VerificationTier`]——服务端登记时裁决；
+    /// `Some(Placeholder)` 是 #245 占位面，只能经换版重登升级）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verification_tier: Option<VerificationTier>,
+}
+
+impl Evidence {
+    /// 是否为占位/待核验材料（#245）：`verification_tier == PLACEHOLDER`。
+    ///
+    /// 占位证据**可以绑定**（待补可见）、**可以进起草输入**（生成器输出
+    /// 【待补】文案），但**不得计为有效证据**——矩阵派生
+    /// （[`crate::matrix::derive_matrix_rows`]）、起草就绪
+    /// （`is_usable_evidence`）、验证与导出门均以本判定分流。
+    pub fn is_placeholder(&self) -> bool {
+        self.verification_tier == Some(VerificationTier::Placeholder)
+    }
 }
 
 /// 证据 ↔ 条款绑定（最小面——T-2 MatrixRow 落地后由矩阵行消费）。
@@ -407,14 +433,24 @@ fn validate_spec(spec: &EvidenceSpec) -> Result<(), ToolError> {
             ));
         }
     }
-    // 携带摘录但态缺省 → 不猜：摘录只在 CONTENT_MATCHES+ 有意义，其余态
+    // 携带摘录但态缺省 → 不猜：摘录只在「声明了验证态」时有意义
+    // （CONTENT_MATCHES 的凭证 / PLACEHOLDER 的占位回溯面），其余态
     // 带 excerpt 属于口径漂移（文件级锚哪来的正文？），显式拒。
-    if spec.excerpt.is_some() && spec.verification_tier.is_none() {
+    if spec.excerpt.is_some()
+        && !matches!(
+            spec.verification_tier,
+            Some(VerificationTier::ContentMatches) | Some(VerificationTier::Placeholder)
+        )
+    {
         return Err(un(
-            "携带 excerpt 必须同时声明 verification_tier（CONTENT_MATCHES——摘录与验证态不可拆）"
+            "携带 excerpt 必须同时声明 verification_tier（CONTENT_MATCHES——摘录与验证态不可拆；#245：PLACEHOLDER 占位登记也可带摘录回溯占位位置）"
                 .into(),
         ));
     }
+    // #245：占位声明纪律——PLACEHOLDER 不得携带 locator 指纹对账外的任何
+    // 「已核验」暗示。域层不重复 #212 的来源对账（服务端职责），但占位态
+    // 必须可持久化、可审计（excerpt/excerpt_locator 照记，供回溯占位登记
+    // 指向了什么）。
     Ok(())
 }
 
@@ -474,11 +510,18 @@ impl DomainStore {
 
     /// 登记证据（幂等 + 换版）。
     ///
-    /// - 语义四元组 (kind, title, subject, scope) 相同且指纹+双日期全同 → 重放
-    ///   no-op（deduplicated: true，content_version 不动）；
-    /// - 语义位已占用但指纹/日期有变 → **换版**：旧记录 Superseded（经单向降级
-    ///   迁移——Expired→Superseded 亦合法），新记录 version = 旧+1；
+    /// - 语义四元组 (kind, title, subject, scope) 相同且指纹+双日期+验证态全同
+    ///   → 重放 no-op（deduplicated: true，content_version 不动）；
+    /// - 语义位已占用但指纹/日期/验证态有变 → **换版**：旧记录 Superseded（经
+    ///   单向降级迁移——Expired→Superseded 亦合法），新记录 version = 旧+1，
+    ///   且**旧记录的既有绑定迁移到新记录**（语义位不变 → 响应面跟随当前版，
+    ///   #245：占位→真实的升级路径由此承载，旧绑定不残留）；
     /// - 新语义位 → 直接入账，version = 1。
+    ///
+    /// #245 验证态入幂等键的理由：同指纹不同 tier（如 PLACEHOLDER →
+    /// CONTENT_MATCHES）语义不同——若按重放 no-op 返回旧记录 id，调用方
+    /// 会拿到「以为转正了」的假成功（实际还是占位）；按换版处理则
+    /// 留审计痕（旧记录 Superseded 可查）且绑定迁移到新记录。
     ///
     /// 出生态一律 Active——时间面翻转（Expired/Expiring）由 [`Self::apply_validity`]
     /// 与 [`Self::bind_evidence`] 携带的开标日裁决（登记时不知道评标基准日）。
@@ -499,7 +542,8 @@ impl DomainStore {
         {
             let same_payload = existing.fingerprint == spec.fingerprint
                 && existing.valid_from == spec.valid_from
-                && existing.valid_until == spec.valid_until;
+                && existing.valid_until == spec.valid_until
+                && existing.verification_tier == spec.verification_tier;
             if same_payload {
                 return Ok((existing.id.clone(), true)); // 重放 no-op
             }
@@ -532,6 +576,33 @@ impl DomainStore {
                 version: old_version + 1,
                 status: EvidenceStatus::Active,
             });
+            // #245 换版绑定迁移：旧记录的绑定改指新记录（去重——新位已有
+            // 同条款绑定时只删旧，不双绑）。绑定的语义是「这个语义位（资质）
+            // 响应了这个条款」——版本迭代后响应面应跟随当前版本，否则旧
+            // 绑定会残留成「Superseded 仍绑定」的规则 8 BLOCKER，把合法的
+            // 换版/占位升级流程卡死在导出门外。
+            //
+            // 两步式（retain_mut 闭包内改 id 再返回 false 会把迁移项误删）：
+            // 1) 收集旧位绑定对应的条款（排除新位已有的）；2) 重建绑定表。
+            let migrate_req_ids: Vec<String> = self
+                .evidence_bindings
+                .iter()
+                .filter(|b| b.evidence_id == old_id)
+                .map(|b| b.requirement_id.clone())
+                .filter(|rid| {
+                    !self
+                        .evidence_bindings
+                        .iter()
+                        .any(|x| x.evidence_id == id && x.requirement_id == *rid)
+                })
+                .collect();
+            self.evidence_bindings.retain(|b| b.evidence_id != old_id);
+            for rid in migrate_req_ids {
+                self.evidence_bindings.push(EvidenceBinding {
+                    evidence_id: id.clone(),
+                    requirement_id: rid,
+                });
+            }
             if let Some(p) = self.project.as_mut() {
                 p.content_version += 1;
             }
@@ -1265,5 +1336,103 @@ mod tests {
         // serde SCREAMING_SNAKE_CASE（MCP 出参口径直接对齐）
         let j = serde_json::to_string(&VerificationTier::HumanConfirmed).unwrap();
         assert_eq!(j, "\"HUMAN_CONFIRMED\"");
+    }
+
+    // ============================ #245：占位/待核验证据（PLACEHOLDER 态） ============================
+
+    /// 占位态入账：is_placeholder 判定 + 可绑（Active 状态面不受占位影响——
+    /// 绑定是「待补可见」的载体，占位绑定不清阻塞由矩阵派生负责）+ 摘录
+    /// 可随占位登记入账（回溯占位指向）+ serde 往返保留。
+    #[test]
+    fn placeholder_tier_persists_binds_and_roundtrips() {
+        let mut s = store_with_reqs();
+        let mut sp = gt02_spec();
+        sp.verification_tier = Some(VerificationTier::Placeholder);
+        sp.excerpt = Some("占位登记：待投标人提供真实资质证书后重新登记换版".into());
+        sp.excerpt_locator = Some("《招标文件》第三章 资格要求".into());
+        let (id, dedup) = s.register_evidence(sp).unwrap();
+        assert!(!dedup, "新语义位首登");
+        let ev = s.evidence(&id).unwrap().clone();
+        assert!(ev.is_placeholder(), "占位判定命中");
+        assert_eq!(ev.status, EvidenceStatus::Active, "状态面仍是 Active（有效期维度与占位维度正交）");
+        assert!(!VerificationTier::Placeholder.content_read(), "占位态不算已读正文");
+        // 占位证据可绑（绑定让待补可见——不拒绑，但矩阵派生不清阻塞）
+        s.bind_evidence(&id, "REQ-0002", "2026-11-15").unwrap();
+        assert_eq!(s.evidence_bindings().len(), 1, "占位绑定成功（待补载体）");
+        // serde 往返保留占位态（持久化面）
+        let back: Evidence = serde_json::from_str(&serde_json::to_string(&ev).unwrap()).unwrap();
+        assert!(back.is_placeholder(), "快照往返占位态保留");
+        // 旧快照（verification_tier 缺省）不是占位——兼容面零位移
+        assert!(!serde_json::from_value::<Evidence>(serde_json::json!({
+            "id": "EV-0001", "kind": "qualification", "title": "旧证据",
+            "source_file": "a.pdf", "source_sha256": "aa", "locator": {
+                "kind": "pdf_page_text", "page": 1, "text_fingerprint": "fnv64:x" },
+            "fingerprint": "fnv64:x", "valid_from": null, "valid_until": null,
+            "subject_name": "甲", "scope": "", "version": 1, "status": "ACTIVE"
+        })).unwrap().is_placeholder(), "旧快照非占位");
+    }
+
+    /// 同指纹不同验证态 → 换版（不幂等重放）：PLACEHOLDER → CONTENT_MATCHES
+    /// 的「转正」必须签发新记录 + 旧记录 Superseded 留审计痕——若按重放
+    /// no-op 返回旧 id，调用方会拿到「以为转正了」的假成功。
+    #[test]
+    fn same_fingerprint_different_tier_bumps_version_not_replay() {
+        let mut s = store_with_reqs();
+        let mut ph = gt02_spec();
+        ph.verification_tier = Some(VerificationTier::Placeholder);
+        let (id_ph, _) = s.register_evidence(ph).unwrap();
+        // 同指纹、同日期、不同 tier → 换版
+        let mut real = gt02_spec(); // 指纹同 fnv64:02
+        real.verification_tier = Some(VerificationTier::ContentMatches);
+        real.excerpt = Some("资质等级：二级；承包范围：电子与智能化工程".into());
+        real.excerpt_locator = Some("《EV-02》第 1 页".into());
+        let (id_real, dedup) = s.register_evidence(real).unwrap();
+        assert!(!dedup, "tier 不同 = 语义变化 → 换版（非重放）");
+        assert_ne!(id_ph, id_real, "签发新 EV");
+        assert_eq!(s.evidence(&id_ph).unwrap().status, EvidenceStatus::Superseded, "旧占位记录留痕");
+        assert_eq!(s.evidence(&id_real).unwrap().version, 2, "版本递增");
+        assert!(!s.evidence(&id_real).unwrap().is_placeholder(), "新记录非占位");
+    }
+
+    /// 换版绑定迁移：占位记录的既有绑定在换版后改指新记录（语义位的响应面
+    /// 跟随当前版本）——占位→真实升级后矩阵行立即按真实证据派生，且旧绑定
+    /// 不残留成「Superseded 仍绑定」。
+    #[test]
+    fn version_bump_migrates_bindings_to_new_record() {
+        let mut s = store_with_reqs();
+        let mut ph = gt02_spec();
+        ph.verification_tier = Some(VerificationTier::Placeholder);
+        let (id_ph, _) = s.register_evidence(ph).unwrap();
+        s.bind_evidence(&id_ph, "REQ-0002", "2026-11-15").unwrap();
+        assert!(s.evidence_bindings().iter().any(|b| b.evidence_id == id_ph));
+        // 换版（真实证据：新指纹）
+        let mut real = gt02_spec();
+        real.fingerprint = "fnv64:02-real".into();
+        real.verification_tier = Some(VerificationTier::ContentMatches);
+        real.excerpt = Some("资质等级：二级".into());
+        real.excerpt_locator = Some("《EV-02》第 1 页".into());
+        let (id_real, _) = s.register_evidence(real).unwrap();
+        assert!(
+            s.evidence_bindings().iter().any(|b| b.evidence_id == id_real && b.requirement_id == "REQ-0002"),
+            "旧占位绑定迁移到新记录"
+        );
+        assert!(
+            !s.evidence_bindings().iter().any(|b| b.evidence_id == id_ph),
+            "旧记录绑定不残留（Superseded 仍绑定会卡规则 8）"
+        );
+        assert_eq!(s.evidence_bindings().len(), 1, "迁移去重——无双绑");
+    }
+
+    /// 幂等重放不变（tier 相同 + 指纹相同 → no-op 返回原 id）——same_payload
+    /// 加入 tier 比较后，同态重放路径零回归。
+    #[test]
+    fn same_tier_same_fingerprint_still_replays() {
+        let mut s = store_with_reqs();
+        let mut ph = gt02_spec();
+        ph.verification_tier = Some(VerificationTier::Placeholder);
+        let (id1, _) = s.register_evidence(ph.clone()).unwrap();
+        let (id2, dedup) = s.register_evidence(ph).unwrap();
+        assert!(dedup, "同态同指纹 → 幂等重放");
+        assert_eq!(id1, id2, "原 id 直返");
     }
 }

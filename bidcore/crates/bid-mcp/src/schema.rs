@@ -401,6 +401,7 @@ fn input_schema(name: &str) -> Value {
                 "source_file_id": {"type": "string", "description": "TF-*——已导入文件（import_tender_files 回执 per_file[].file_id）；不存在/解析失败 → 拒（#185 来源验证）"},
                 "subject_name": {"type": "string"},
                 "scope": {"type": "string"},
+                "placeholder": {"type": "boolean", "description": "#245：true = 占位/待核验登记（verification_tier=PLACEHOLDER）——可自报（诚实方向：从低不从高）；占位可绑定（矩阵 PENDING_EVIDENCE 待补）但不清除合规阻塞、不得声称资质已具备；升级 = 导入真实材料重新登记（换版）；verification_tier 参数不存在（服务端裁决，自报拒）"},
                 "valid_from": {"type": "string", "description": "ISO 日期"},
                 "valid_until": {"type": "string", "description": "ISO 日期"},
                 "locator": {
@@ -579,7 +580,7 @@ fn describe(name: &str) -> &'static str {
         "save_version" => "AI 主动存版本快照（mang-snap 同源）",
         "check_bid_quality" => "只读：生成质量覆盖度检查 + 报告落盘（#68 阶段 2）",
         "build_outline" => "建纲 + 矩阵首建（G1——#80 第三批补齐；REQUIREMENTS_EXTRACTED 态）",
-        "register_evidence" => "证据登记（G2——语义位查重/换版；MATRIX_READY+；#185 来源验证：source_file_id 须指向已导入文件，sha256/指纹由服务端生成；带 locator 且对账通过 → CONTENT_MATCHES + 正文摘录入账，缺省文件级锚 → FILE_EXISTS（#217 四态）；业绩类可带 client/amount_wan/completed_on 业务面；结构化字段走可选 fields 对象）",
+        "register_evidence" => "证据登记（G2——语义位查重/换版；MATRIX_READY+；#185 来源验证：source_file_id 须指向已导入文件，sha256/指纹由服务端生成；带 locator 且对账通过 → CONTENT_MATCHES + 正文摘录入账，缺省文件级锚 → FILE_EXISTS（#217 四态）；#245 占位：placeholder=true → PLACEHOLDER 占位/待核验——可绑定但不清合规阻塞（矩阵 PENDING_EVIDENCE 待补）、不得声称资质已具备，升级 = 换版重登；verification_tier 不可自报；业绩类可带 client/amount_wan/completed_on 业务面；结构化字段走可选 fields 对象）",
         "bind_evidence" => "证据批量绑定 + 矩阵重算（G2——EXPIRED 禁绑；MATRIX_READY+）",
         "record_review_gate" => "三门记审（G3——matrix/outline/pre_export；#182 receipt 验签——人工确认由宿主签发 receipt 提供）",
         "record_addendum_waiver" => "补遗逐件人工确认（#184——分级阻塞的免责面；#182 receipt 验签（签域绑定 file_id）；FILES_IMPORTED+）",

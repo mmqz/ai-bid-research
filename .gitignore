@@ -35,3 +35,14 @@ artifacts/e2e-real-path/2*
 # #80 第三批：同款只留 latest（run-id 在 phase 日志与产物内可查）
 artifacts/e2e-subagent-path/2*
 __pycache__/
+
+# #245：real-corpus-e2e 中间明细（02-08 号件）不入库（19d11ff/20dce7d 惯例——
+# 全量测试运行会再生成本批文件，防 git add -A 误扫入；终态件
+# 01/09/10/11/report.md 正常入库）
+artifacts/real-corpus-e2e/latest/*/02_*
+artifacts/real-corpus-e2e/latest/*/03_*
+artifacts/real-corpus-e2e/latest/*/04_*
+artifacts/real-corpus-e2e/latest/*/05_drafts/
+artifacts/real-corpus-e2e/latest/*/06_*
+artifacts/real-corpus-e2e/latest/*/07_*
+artifacts/real-corpus-e2e/latest/*/08_*

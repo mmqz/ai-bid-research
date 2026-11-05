@@ -99,6 +99,12 @@ pub struct EvidenceRegistration {
     pub title: String,
     /// 引擎定位器（`None` = 文件级锚）；`Some` 时须与解析产物对账。
     pub locator: Option<EngineLocator>,
+    /// #245 占位声明：`true` = 本次登记为占位/待核验材料（tier=PLACEHOLDER）。
+    /// 调用方**可以自报占位**（诚实方向——从低不从高），但不得自报任何
+    /// 已验证态（verification_tier 不在参数面，升级只能经换版重登）。
+    /// 占位证据：可绑定（待补可见）、可进起草（生成【待补】文案），
+    /// 但不计为有效证据、不清合规阻塞、导出门独立复算拒。
+    pub placeholder: bool,
     pub valid_from: Option<String>,
     pub valid_until: Option<String>,
     pub subject_name: String,
@@ -900,10 +906,15 @@ impl BidService {
                     tf.id
                 ),
             })?;
-        // ---- 4/5. locator 对账 + 系统生成指纹 + 摘录捕获（#217 四态裁决）
+        // ---- 4/5. locator 对账 + 系统生成指纹 + 摘录捕获（#217 四态裁决
+        //      +#245 占位态）：
         //      文件级锚（无 locator）→ FILE_EXISTS：来源在库且非失败件，但正文
         //      未定位——摘录面为空（不编造「读过了」的假象）；带 locator 且对账
         //      通过 → CONTENT_MATCHES：定位文本逐字入账为 excerpt。
+        //      **placeholder=true（#245）→ 一律 PLACEHOLDER**：占位/待核验材料
+        //      的内容未经核验——即便 locator 对账通过（如指向招标文件里的
+        //      「资质要求」文本，那是要什么、不是有什么），也不得计为已验证
+        //      证据。摘录照记（回溯占位登记指向了什么），升级路径 = 换版重登。
         let located: Option<LocatedContent> = match &reg.locator {
             None => None,
             Some(loc) => Some(locate_content(parsed, loc)?),
@@ -915,19 +926,32 @@ impl BidService {
             },
             (Some(loc), _) => loc.clone(),
         };
-        let (fingerprint, excerpt, excerpt_locator, verification_tier) = match &located {
-            Some(lc) => (
-                lc.fingerprint.clone(),
-                Some(truncate_excerpt(&lc.text)),
-                Some(lc.locator_display.clone()),
-                Some(bid_domain::evidence::VerificationTier::ContentMatches),
-            ),
-            None => (
-                format!("sha256:{}", tf.sha256),
-                None,
-                None,
-                Some(bid_domain::evidence::VerificationTier::FileExists),
-            ),
+        let (fingerprint, excerpt, excerpt_locator, verification_tier) = if reg.placeholder {
+            // #245 占位登记：指纹仍服务端生成（#185 纪律不变），摘录携带时
+            // 记录（占位指向回溯面）；tier 强制 PLACEHOLDER——不因 locator
+            // 对账通过而升格（「文件里有这段文本」≠「资质真实具备」）。
+            (
+                located.as_ref().map(|lc| lc.fingerprint.clone())
+                    .unwrap_or_else(|| format!("sha256:{}", tf.sha256)),
+                located.as_ref().map(|lc| Some(truncate_excerpt(&lc.text))).unwrap_or(None),
+                located.as_ref().map(|lc| Some(lc.locator_display.clone())).unwrap_or(None),
+                Some(bid_domain::evidence::VerificationTier::Placeholder),
+            )
+        } else {
+            match &located {
+                Some(lc) => (
+                    lc.fingerprint.clone(),
+                    Some(truncate_excerpt(&lc.text)),
+                    Some(lc.locator_display.clone()),
+                    Some(bid_domain::evidence::VerificationTier::ContentMatches),
+                ),
+                None => (
+                    format!("sha256:{}", tf.sha256),
+                    None,
+                    None,
+                    Some(bid_domain::evidence::VerificationTier::FileExists),
+                ),
+            }
         };
         let spec = EvidenceSpec {
             kind: reg.kind,
@@ -1139,11 +1163,17 @@ impl BidService {
     /// `export_bid_document` 业务半边（#59 阶段 2 + #117 任务 1 表格接线）。
     ///
     /// 步骤：
-    /// 1. **三前置门**（防废标的最后关口——fail-closed）：
-    ///    a. 矩阵 blocking 行清零（`check_export_ready`——必选未响应不得导出）；
+    /// 1. **四前置门**（防废标的最后关口——fail-closed）：
+    ///    a. 矩阵 blocking 行清零（`check_export_ready`——必选未响应/待补不得
+    ///       导出，#245 后 PENDING_EVIDENCE 必选行也在此面）；
     ///    b. 审核 BLOCKER findings 清零（`export_allowed`——T-7 闸门）；
     ///    c. 写作验收复算（1.0——`writing_acceptance_findings`：篇幅不足/
     ///       空章节即使审核已直接批准也不得导出，见该函数门禁语义注记）；
+    ///    d. 占位证据复算（#245——`placeholder_evidence_findings`：活跃占位
+    ///       绑定存在即拒——占位材料不得冒充已核验证据导出；人工豁免通道
+    ///       = 合法人工豁免（NOT_APPLICABLE + 偏离说明 + 可信 Human
+    ///       receipt，见 `validate::is_legitimate_placeholder_exemption`），
+    ///       与 1c 同为独立复算门、不消费记审面）；
     /// 2. format-spec 解析：`.mang/format-spec.json` 在场 → 读盘校验；
     ///    缺失 → `derive_from_requirements`（从格式条款提取；零命中 → 基线
     ///    + warning，Lead 铁律「不硬编码」的降级面）；
@@ -1202,6 +1232,35 @@ impl BidService {
                 reason: format!(
                     "写作验收门未过：{} 处 BLOCKER（{detail}）——篇幅不足/空章节即使审核已批准也不得导出（导出门独立复算，不消费记审面）；补写后 validate 复核、重走 pre_export_confirm",
                     wa.len(),
+                ),
+            });
+        }
+        // ---- 1d. 占位证据门（#245——导出时点独立复算，fail-closed）：
+        //      活跃占位绑定存在 → 占位材料不得冒充已核验证据导出。与 1c
+        //      同款纪律：不消费记审面（审核直接批准也不放行）；差异面是
+        //      人工豁免通道——占位缺失可经合法人工豁免（NOT_APPLICABLE +
+        //      偏离说明 + 可信 Human receipt，见 validate::
+        //      is_legitimate_placeholder_exemption）豁免，篇幅不足没有该
+        //      通道（只能补写）。**普通状态覆写（Responded 等）不豁免**
+        //      ——set_matrix_override 对其不强制偏离说明，覆写在场 ≠
+        //      豁免成立（PR #247 审核收紧）。
+        let ph = crate::validate::placeholder_evidence_findings(self.store());
+        if !ph.is_empty() {
+            let detail = ph
+                .iter()
+                .map(|f| {
+                    format!(
+                        "{}@{}",
+                        f.rule_code,
+                        f.requirement_id.as_deref().unwrap_or("PROJECT")
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("、");
+            return Err(ToolError::EUnprocessable {
+                reason: format!(
+                    "占位证据门未过：{} 处 BLOCKER（{detail}）——占位/待核验材料不得作为已核验证据导出（即使审核已批准）；导入真实材料重新登记（换版升级）或人工覆写豁免后重导",
+                    ph.len(),
                 ),
             });
         }

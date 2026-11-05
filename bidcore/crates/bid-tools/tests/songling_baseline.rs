@@ -275,13 +275,16 @@ fn pdf_engine_param_retrievability() {
     let _g = engine_lock().lock().unwrap_or_else(|p| p.into_inner());
     let svc = pdf_engine_svc();
     // 检索面 = REQ 的 anchor excerpt + locator 拼接（数值完整性的判据——
-    // issue #250「数值与单位不得丢失」在抽取结果的可检索性口径）
+    // issue #250「数值与单位不得丢失」在抽取结果的可检索性口径）。
+    // #267 匹配瞬间归一：haystack 与 needle 双侧 norm_n3（NFKC 康熙部首
+    // ⽇→日 + 千分位剥离）——「数据不动、匹配归一」纪律，不落库不改真源。
     let haystack: String = svc
         .store()
         .requirements()
         .iter()
         .flat_map(|r| r.anchors.iter().map(|a| format!("{}{}", a.excerpt, a.locator)))
         .collect();
+    let hay = bid_parse::norm_n3(&haystack);
 
     // 16 锚点 = 金标准 v1 的检索判据（retrieval_needles 数组 AND 语义）
     let gr = load_json("expected/requirements.reviewed.json");
@@ -293,8 +296,8 @@ fn pdf_engine_param_retrievability() {
             panic!("{id} 缺 retrieval_needles（金标准检索锚点字段）")
         });
         let all_hit = needles.iter().all(|n| {
-            let needle = n.as_str().unwrap();
-            haystack.contains(needle)
+            let needle = bid_parse::norm_n3(n.as_str().unwrap());
+            hay.contains(&needle)
         });
         if all_hit {
             hits += 1;

@@ -9,11 +9,12 @@
 ## 调用形
 
 ```json
-{ "project_id": "…", "target_total_chars": 20000, "max_reqs_per_leaf": 8,
+{ "project_id": "…", "target_total_chars": 850000, "max_reqs_per_leaf": 8,
   "project_version": 12 }
 ```
 
-- `target_total_chars`：总目标字数（1,000..=5,000,000，缺省 20,000）——
+- `target_total_chars`：总目标字数（1,000..=5,000,000，缺省 850,000——
+  1000 页硬指标 @844 字符/页，与引擎单一真源常量同步）——
   长标书按实测篇幅给大值（见主 Skill「篇幅纪律」）；
 - `max_reqs_per_leaf`：每叶挂载条款上限（1..=50，缺省 8）；
 - 状态窗口：**REQUIREMENTS_EXTRACTED 态可调**（FilesImported/Draft →
@@ -23,7 +24,7 @@
 
 ```json
 → { "counts": { "sections": 18, "leaves": 9, "requirements": 108,
-     "total_target_chars": 20000, "matrix_rows": 108, "matrix_blocking": 47 },
+     "total_target_chars": 850000, "matrix_rows": 108, "matrix_blocking": 47 },
    "status": "MATRIX_READY", "project_version": 14 }
 ```
 

@@ -1253,6 +1253,10 @@ fn push_req(reqs: &mut Vec<Requirement>, seq: &mut usize, category: &str,
             params.insert("score".into(), serde_json::json!(s));
         }
     }
+    // #250：来源字段完整化——正则产物统一 `marked_by: "regex"`（Agent 项
+    // 由 merge.rs 写 "agent"）。全量 REQ 的来源面对称：regex / agent /
+    // human（human 面当前无录入通路——工具面落地时同键扩展）。
+    params.insert("marked_by".into(), serde_json::json!("regex"));
     *seq += 1;
     reqs.push(Requirement {
         id: format!("REQ-{seq:04}"),

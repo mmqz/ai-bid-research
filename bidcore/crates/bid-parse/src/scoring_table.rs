@@ -421,6 +421,10 @@ fn assemble_scoring_rows(
         };
         let sub_items = split_sub_items(&body);
         let criteria_body = nfkc(&body).trim().to_string();
+        // 锚前缀用规范名（「，」→「及」——与域层 canonical_item_name 同一
+        // 规则：章节标题的并列连词形。前缀是重建文本的自描述头，规范形
+        // 保证「评分表行 → 章节」的检索面（#252 门 4：REQ 锚含章节标题）
+        let canonical = name.replace('，', "及");
         let locator = p
             .idxs
             .first()
@@ -432,7 +436,7 @@ fn assemble_scoring_rows(
             score,
             objective,
             track: track.clone(),
-            criteria: format!("{name}（{score}分 {track}）：{criteria_body}"),
+            criteria: format!("{canonical}（{score}分 {track}）：{criteria_body}"),
             sub_items,
             block_idxs: p.idxs.clone(),
             locator,
@@ -733,7 +737,7 @@ mod tests {
         assert_eq!(rows[5].sub_items[2], "固定联系人、联系方式");
         // ---- 锚面前缀（门 4 检索面：REQ 锚 excerpt 含规范名）----
         assert!(rows[0].criteria.starts_with("服务方案（25分 技术评审）："));
-        assert!(rows[1].criteria.contains("项目重点、难点分析，应对措施及相关的合理化建议（10分 技术评审）："));
+        assert!(rows[1].criteria.contains("项目重点、难点分析及应对措施及相关的合理化建议（10分 技术评审）："), "锚前缀用规范名（逗号→及）");
         assert!(rows[6].criteria.starts_with("业绩（5分 商务评审）："));
         // ---- 消费面：表名行 + 全区域（含页脚）+ 不含第六章行 ----
         assert!(used.contains(&0), "表名行计入消费");

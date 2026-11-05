@@ -122,6 +122,13 @@ pub enum MappingSource {
     AgentSubmitted,
     /// 人工登记（#182 可信身份面后续接入）
     Manual,
+    /// #252 评分驱动建纲派生：大纲推导时从评分表行 REQ 生成。
+    /// 与 RuleParsed 的差别：SEC id 是建纲时新签的，无法从 params 重放
+    /// （RuleParsed 靠 params.section 每次确定性重放所以不入账）——本来源
+    /// **必须落账**（#252 验收 4：scoring_mappings 中评分项全部有
+    /// section_id），且大纲重建时先清除再重签（SEC id 已换，旧行是孤儿），
+    /// 见 `derive_and_set_outline`。
+    OutlineDerived,
 }
 
 /// #224 评分项 ↔ 章节多对多映射（持久化业务事实——独立身份可追溯可审计）。

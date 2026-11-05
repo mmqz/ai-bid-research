@@ -363,10 +363,16 @@ fn rule_chars_below_min_is_blocker() {
         "篇幅不足必须 E_CHARS_BELOW_MIN BLOCKER: {errors:?}"
     );
     // 定位面：finding 带 section_id + 消息含目标与最低线（补写指引）
+    // #252 适配：资格与响应语义分叶（资格证明材料响应/否决情形响应）——
+    // svc_base 3 条 REQ 拆 2 叶，target 按权重分账（1333/667），
+    // 断言锚到「该叶自己的目标值」而非全量 target
     let f = errors.iter().find(|e| e["rule_code"] == "E_CHARS_BELOW_MIN").unwrap();
     assert!(f["section_id"].as_str().is_some_and(|s| !s.is_empty()), "锚到章节: {f:?}");
     let msg = f["message"].as_str().unwrap();
-    assert!(msg.contains("最低篇幅") && msg.contains("2000"), "消息含目标与下限: {msg}");
+    let sid = f["section_id"].as_str().unwrap();
+    let target = svc.store().sections().iter()
+        .find(|s| s.id == sid).map(|s| s.target_chars).unwrap();
+    assert!(msg.contains("最低篇幅") && msg.contains(&target.to_string()), "消息含目标与下限: {msg}");
 }
 
 /// 篇幅**超出**上限（> target×120%）→ `W_CHARS_OFF_TARGET` MINOR 告警
@@ -751,15 +757,18 @@ fn semantic_failed_with_stub_reviewer() {
     // semantic 已执行且有发现（Failed——不再是 not_performed）
     match &report.semantic {
         bid_tools::validate::CheckResult::Failed(fs) => {
-            assert_eq!(fs.len(), 1, "svc_base 单叶——stub 每章一条 M_ 发现");
-            assert_eq!(fs[0].rule_code, "M_QUALITY_VAGUE");
-            assert_eq!(fs[0].severity, "BLOCKER");
+            // #252 适配：资格与响应语义分叶——svc_base 3 条 REQ 拆 2 叶
+            //（资格证明材料响应 + 否决情形响应），stub 每叶一条 M_ 发现 → 2
+            assert_eq!(fs.len(), 2, "svc_base 2 叶（#252 语义分叶）——stub 每叶一条 M_ 发现");
+            assert!(fs.iter().all(|f| f.rule_code == "M_QUALITY_VAGUE"));
+            assert!(fs.iter().all(|f| f.severity == "BLOCKER"));
         }
         other => panic!("semantic 应为 Failed，实际 {other:?}"),
     }
     // 分账面：模型发现计入 counts.model（且 BLOCKER 计入 blocker → ok=false）
-    assert_eq!(report.counts.model, 1);
-    assert_eq!(report.counts.blocker, 1, "模型 BLOCKER 计入 blocker（已执行桶的 BLOCKER）");
+    // #252 适配：2 叶 → 2 条模型发现
+    assert_eq!(report.counts.model, 2);
+    assert_eq!(report.counts.blocker, 2, "模型 BLOCKER 计入 blocker（已执行桶的 BLOCKER）");
     assert!(!report.ok, "已执行语义面的 BLOCKER 必须翻 ok");
     // findings 承载模型发现（kind=MODEL 分账口径不变）
     assert!(report.findings.iter().any(|f| f.rule_code == "M_QUALITY_VAGUE"));

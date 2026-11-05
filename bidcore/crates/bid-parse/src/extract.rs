@@ -523,8 +523,13 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
     // （防段落重组双抽）；结构化条目在主循环后统一 REQ 化（表名行不剔除——
     // 留给旧链开审查语境，与既有行为一致）。
     let (review_items, review_used) = crate::review_table::extract_pdf_linearized(f);
+    // #252 综合评分表专路：评分表行（评审项/分值/细则）装配 + 区域接管
+    // （表名行计入消费——评分表名行在旧链无语境价值，留着会被评分细则
+    // 行误抽。review_table 在评分表表名行收表，两路区域互不重叠）。
+    let (scoring_rows, scoring_used) = crate::scoring_table::extract_scoring_table_pdf(f);
     let review_consumed: std::collections::HashSet<usize> = review_used
         .iter()
+        .chain(scoring_used.iter())
         .filter(|&&rb| rb < blocks.len())
         .flat_map(|&rb| para_start[rb]..=para_end[rb])
         .collect();
@@ -819,6 +824,33 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
                 kind: "table".into(),
                 locator,
                 excerpt: it.item.clone(),
+            }],
+            params, &f.name,
+        );
+    }
+
+    // #252 综合评分表行 REQ 化：每行 → 评分项（评分驱动大纲的输入面）。
+    // params 携带 name/score/track/objective/sub_items——域层（scoring_outline）
+    // 据此建「评审项 → L1 章节 / 细则 → L2 小节」。锚 excerpt = 规范名前缀
+    // + 行文本（NFKC 重建——康熙部首归一，检索面可用；构造见 scoring_table
+    // 模块文档）。clause_no 沿用审查表行约定「表名-行号」。
+    for sr in &scoring_rows {
+        let mut params = HashMap::new();
+        params.insert("name".into(), serde_json::json!(sr.name));
+        params.insert("score".into(), serde_json::json!(sr.score));
+        params.insert("track".into(), serde_json::json!(sr.track));
+        params.insert("objective".into(), serde_json::json!(sr.objective));
+        if !sr.sub_items.is_empty() {
+            params.insert("sub_items".into(), serde_json::json!(sr.sub_items));
+        }
+        push_req(
+            reqs, seq, "评分项",
+            Some(format!("综合评分表-{}", sr.row)),
+            vec![Anchor {
+                file: f.name.clone(),
+                kind: "table".into(),
+                locator: sr.locator.clone(),
+                excerpt: sr.criteria.clone(),
             }],
             params, &f.name,
         );

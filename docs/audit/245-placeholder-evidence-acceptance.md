@@ -30,7 +30,7 @@
 | 就绪（readiness.rs） | `is_usable_evidence` 排除占位；`matrix_responded` 对 PENDING_EVIDENCE 返回 false | 资格章节素材就绪不被占位登记静默满足（无证硬写拦——#110 反编造门 × #245 的纵深防御）；不可用清单标注 PLACEHOLDER（防 ACTIVE 误读） |
 | 起草（draft.rs / llm.rs） | `EvBrief.placeholder` 随行；mock/LLM 对占位证据输出【待补：...】专属文案（不引用 [EV-xxxx]、不声称已具备）；收束段措辞收敛 | 占位可进草稿（用户授权形态），但不能成为证据引用、不能生成「已具备/已满足」结论 |
 | 验证（validate.rs） | 规则 1/2 扩 PENDING_EVIDENCE（E_QUAL_UNMET/E_VETO_UNRESPONDED 带待补注记）；新规则 5b `E_EVIDENCE_PLACEHOLDER`（BLOCKER，绑定面——非必选行也报）；新规则 5c `E_CITATION_PLACEHOLDER`（BLOCKER，正文引用占位 EV = 引用面冒充） | 占位绑定在验证报告可追踪、显式标记 |
-| 导出（service.rs 1d 门） | `placeholder_evidence_findings` 独立复算：活跃占位绑定存在即拒——**即使审核已直接批准**（三门全 Approved 零 RT 也不放行；与 1c 写作验收门同款「不消费记审面」纪律）。差异面：占位有人工豁免通道（matrix_overrides + Human receipt + 偏离说明），篇幅不足没有 | 占位材料不得作为已核验证据导出；修复不是死锁（升级/豁免后放行） |
+| 导出（service.rs 1d 门） | `placeholder_evidence_findings` 独立复算：活跃占位绑定存在即拒——**即使审核已直接批准**（三门全 Approved 零 RT 也不放行；与 1c 写作验收门同款「不消费记审面」纪律）。差异面：占位有合法人工豁免通道（**#247 审核收紧：NOT_APPLICABLE + 非空偏离说明 + 可信 Human receipt 三要件缺一不可**——Responded 等普通状态覆写即使由 Human 发起也不豁免），篇幅不足没有 | 占位材料不得作为已核验证据导出；修复不是死锁（升级/合法豁免后放行） |
 | MCP 契约（tools.rs / schema.rs） | `register_evidence` 增 `placeholder`（bool，非布尔拒）；**`verification_tier` 参数显式拒**（自报拒，零副作用）；登记/绑定回执带 placeholder 标记与警示 hint；`get_compliance_matrix` 行出参带 pending_evidence_ids（status 过滤器可用 PENDING_EVIDENCE）；evidence 列带 verification_tier | 「MCP 层不能通过参数把占位状态直接改成 verified」——参数面不存在该通道 |
 
 ## 3. 验收条件逐条对账（issue 原文）
@@ -54,31 +54,67 @@ reviews/RT/gate_approved，只复算占位证据 BLOCKER。理由：记审记录
 核验过」。e2e 测试 2 专门锁定：三门全 Approved、零 findings、零 RT，导出
 仍被 1d 拒（错误消息「占位证据门未过：N 处 BLOCKER（E_EVIDENCE_PLACEHOLDER@REQ-*）」）。
 
-**人工通道的边界**（与 1c 的差异面）：占位缺失有人工豁免出口——
-`set_matrix_override`（#226/#182：只认 Human receipt + 偏离说明，Agent 不得
-自免单）；篇幅不足（1c）没有人工通道，只能补写。被覆写的 REQ 不进 1d 门
-（豁免留痕可回溯）。
+**人工通道的边界**（与 1c 的差异面；**#247 审核收紧后的最终口径**）：
+占位缺失有人工豁免出口，但只有**明确的合法人工豁免**才放行——
+`is_legitimate_placeholder_exemption` 三要件裁决：①**NOT_APPLICABLE**
+（人裁决「本行不适用」；Responded/Partial 等是「已响应」类声明，正是
+占位不得冒充的结论——`set_matrix_override` 对其不强制偏离说明，也不得
+因此绕过占位门）；②**非空偏离说明**（#226/#182：只认 Human receipt +
+偏离说明，Agent 不得自免单）；③**可信 Human receipt**
+（`MatrixOverride.trusted`——#182 服务层 HMAC 验签后注入的
+TrustedPrincipal，**只认 receipt 背书面、不认 principal 回显串**——
+"human:xxx" 是可伪造普通字段，legacy/手改快照 trusted 缺席 → fail-closed）。
+被豁免的 REQ 不进 1d 门（豁免留痕可回溯）；篇幅不足（1c）没有人工通道，
+只能补写。
 
-## 5. 测试清单（25 个新测试）
+## 4b. PR #247 审核收紧（2026-11-05，交付后审核反馈）
+
+**审核发现**：首版 1d 门的豁免条件是「matrix_overrides 有该 REQ 即跳过」
+——过宽。`set_matrix_override` 对 Responded 等状态不强制偏离说明，
+普通人工状态覆写也能绕过「Human receipt + 偏离说明」的豁免要求。
+
+**修复**：新增 `validate::is_legitimate_placeholder_exemption` 三要件裁决
+（NOT_APPLICABLE + 非空偏离说明 + 可信 Human receipt），
+`placeholder_evidence_findings` 从「key 在场即豁免」改为三要件裁决——
+validate 规则 5b 与导出门 1d 同源收口。**新增测试 ×2 + e2e 扩步**：
+
+- `placeholder_gate_exemption_predicate_requires_full_legitimate_form`：
+  裁决矩阵——合法全形态放行；四个非 NOT_APPLICABLE 状态（即使
+  Human receipt + 偏离说明在座）、偏离说明缺失/空白、trusted 缺席
+  （只剩 principal 回显串——可伪造普通字段）、Agent 身份，逐项不豁免；
+- `placeholder_gate_responded_override_still_blocks_placeholder`：核心回归
+  ——占位仍绑定时，**服务面 + 真实 Human receipt（宿主签发、签域四重
+  绑定）**的 Responded 覆写（无偏离说明/带偏离说明两形态）仍触发
+  E_EVIDENCE_PLACEHOLDER（1d 真源 + validate 面）；换合法 NOT_APPLICABLE
+  + 偏离说明 + Human receipt 后放行；
+- e2e 测试 2 扩步：Responded 覆写（合法 receipt）后导出仍拒，再走
+  合法豁免才 EXPORTED。
+
+既有合法豁免放行测试（域面 `placeholder_gate_findings_cover_override_and_upgrade`
++ e2e 末段）保持通过——豁免通道保留，不是死锁。
+
+## 5. 测试清单（27 个新测试——#245 首批 25 + #247 审核收紧 2）
 
 **bid-domain（evidence.rs ×4 + matrix.rs ×5）**：占位入账/可绑/快照往返；
 异 tier 换版；绑定迁移去重；同态重放；占位不清阻塞；真实为准不回归；
 占位+章节仍待补；人工覆写豁免通道保留；旧快照兼容。
 
-**bid-tools（placeholder_evidence.rs ×9）**：tier 裁决（文件级/带定位）；
+**bid-tools（placeholder_evidence.rs ×9 + #247 审核收紧 ×2）**：tier 裁决（文件级/带定位）；
 占位绑定保阻塞（batch 回执面）；真实绑定零回归；mock 待补文案；就绪面
 不可用；升级换版绑定迁移矩阵翻转；validate 规则面（E_QUAL_UNMET 注记 +
 E_EVIDENCE_PLACEHOLDER + E_CITATION_PLACEHOLDER + 【待补】不误报）；
-1d 门真源（非必选覆盖/覆写豁免/升级清空）。
+1d 门真源（非必选覆盖/合法豁免放行/升级清空）；豁免裁决矩阵
+（#247）；Responded 覆写不豁免（#247）。
 
 **bid-mcp 契约（placeholder_evidence_tool.rs ×4）**：占位回执（tier +
 placeholder + hint 警示 + 幂等）；自报拒 + 非布尔拒 + 零副作用；矩阵待补
 回显（PENDING_EVIDENCE 过滤器 + pending_evidence_ids + blocking 保留 +
 bind 回执警示）；缺省非占位零回归。
 
-**bid-mcp e2e（placeholder_evidence_e2e.rs ×2）**：事故形态全链 containment
-（占位批量绑定 → blocking 未归零 → 资格章节起草拦 → 升级修复 → EXPORTED）；
-1d 门独立复算（矩阵+审核全过仍拒 → 人工豁免 → EXPORTED）。
+**bid-mcp e2e（placeholder_evidence_e2e.rs ×2，#247 审核后测试 2 扩步）**：
+事故形态全链 containment（占位批量绑定 → blocking 未归零 → 资格章节
+起草拦 → 升级修复 → EXPORTED）；1d 门独立复算（矩阵+审核全过仍拒 →
+**Responded 覆写（合法 receipt）也拒（#247）** → 合法豁免 → EXPORTED）。
 
 ## 6. 边界遵守
 

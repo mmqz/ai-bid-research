@@ -1171,8 +1171,9 @@ impl BidService {
     ///       空章节即使审核已直接批准也不得导出，见该函数门禁语义注记）；
     ///    d. 占位证据复算（#245——`placeholder_evidence_findings`：活跃占位
     ///       绑定存在即拒——占位材料不得冒充已核验证据导出；人工豁免通道
-    ///       = matrix_overrides（Human receipt），与 1c 同为独立复算门、
-    ///       不消费记审面）。
+    ///       = 合法人工豁免（NOT_APPLICABLE + 偏离说明 + 可信 Human
+    ///       receipt，见 `validate::is_legitimate_placeholder_exemption`），
+    ///       与 1c 同为独立复算门、不消费记审面）；
     /// 2. format-spec 解析：`.mang/format-spec.json` 在场 → 读盘校验；
     ///    缺失 → `derive_from_requirements`（从格式条款提取；零命中 → 基线
     ///    + warning，Lead 铁律「不硬编码」的降级面）；
@@ -1237,8 +1238,12 @@ impl BidService {
         // ---- 1d. 占位证据门（#245——导出时点独立复算，fail-closed）：
         //      活跃占位绑定存在 → 占位材料不得冒充已核验证据导出。与 1c
         //      同款纪律：不消费记审面（审核直接批准也不放行）；差异面是
-        //      人工豁免通道——占位缺失可经 matrix_overrides（Human receipt
-        //      + 偏离说明）豁免，篇幅不足没有该通道（只能补写）。
+        //      人工豁免通道——占位缺失可经合法人工豁免（NOT_APPLICABLE +
+        //      偏离说明 + 可信 Human receipt，见 validate::
+        //      is_legitimate_placeholder_exemption）豁免，篇幅不足没有该
+        //      通道（只能补写）。**普通状态覆写（Responded 等）不豁免**
+        //      ——set_matrix_override 对其不强制偏离说明，覆写在场 ≠
+        //      豁免成立（PR #247 审核收紧）。
         let ph = crate::validate::placeholder_evidence_findings(self.store());
         if !ph.is_empty() {
             let detail = ph

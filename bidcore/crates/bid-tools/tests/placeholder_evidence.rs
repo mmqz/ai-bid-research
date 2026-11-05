@@ -468,3 +468,198 @@ fn upgrade_placeholder_to_real_migrates_bindings_and_matrix() {
     let all_blocking: usize = svc.store().matrix().iter().filter(|r| r.blocking).count();
     assert!(all_blocking < blocking_before, "升级后 blocking 面收缩（REQ-0001 行解除）");
 }
+
+// ================================================================ PR #247 审核收紧
+// 审核反馈：placeholder_evidence_findings 曾只看 matrix_overrides 是否有该
+// REQ 就跳过占位门——条件过宽。set_matrix_override 对 Responded 等状态不
+// 强制偏离说明，普通人工状态覆写也能绕过「Human receipt + 偏离说明」的
+// 豁免要求。收紧为三要件裁决（is_legitimate_placeholder_exemption）。
+
+/// 豁免裁决谓词判定矩阵（is_legitimate_placeholder_exemption——三要件
+/// 缺一不可，PR #247 审核：覆写在场 ≠ 豁免成立）。
+///
+/// 负面维度逐项锁：
+/// - 状态不是 NOT_APPLICABLE（Responded/Partial/NotResponded/PendingEvidence）
+///   ——「已响应」类声明正是占位不得冒充的结论，即使 Human 发起也不豁免；
+/// - 偏离说明缺失 / 纯空白——不适用必须给理由（诚实状态）；
+/// - **可信 receipt 缺席**（trusted: None，只剩 principal 回显串）——只认
+///   receipt 背书面，不认 "human:xxx" 可伪造普通字段（legacy/手改快照
+///   fail-closed）；
+/// - trusted 为 Agent 身份——#182 过审面只认 Human。
+#[test]
+fn placeholder_gate_exemption_predicate_requires_full_legitimate_form() {
+    use bid_domain::matrix::MatrixOverride;
+    use bid_domain::principal::AUTH_METHOD_HMAC_RECEIPT;
+    use bid_domain::{ActorType, TrustedPrincipal};
+    use bid_tools::validate::is_legitimate_placeholder_exemption;
+
+    let human = TrustedPrincipal::human("245-裁决人");
+    let agent = TrustedPrincipal {
+        actor_id: "bot-01".into(),
+        actor_type: ActorType::Agent,
+        authentication_method: AUTH_METHOD_HMAC_RECEIPT.into(),
+        approval_receipt: "v1.bot-01.agent.matrix_override:x:y:RESPONDED:1.aa".into(),
+    };
+    let ov = |status: ResponseStatus,
+              deviation: Option<&str>,
+              trusted: Option<TrustedPrincipal>,
+              principal: &str| MatrixOverride {
+        requirement_id: "REQ-0003".into(),
+        status,
+        deviation: deviation.map(String::from),
+        principal: principal.into(),
+        trusted,
+        at: 1_800_000_000,
+    };
+
+    // 合法人工豁免全形态（NOT_APPLICABLE + 非空偏离说明 + 可信 Human receipt）
+    // → 放行
+    assert!(is_legitimate_placeholder_exemption(&ov(
+        ResponseStatus::NotApplicable,
+        Some("该评分项以承诺响应，佐证材料后补（人工裁决）"),
+        Some(human.clone()),
+        "human:245-裁决人",
+    )));
+
+    // ① 状态不是 NOT_APPLICABLE：即使 Human receipt + 偏离说明在座也不豁免
+    for st in [
+        ResponseStatus::Responded,
+        ResponseStatus::Partial,
+        ResponseStatus::NotResponded,
+        ResponseStatus::PendingEvidence,
+    ] {
+        assert!(
+            !is_legitimate_placeholder_exemption(&ov(
+                st,
+                Some("有偏离说明也不豁免——状态是冒充面"),
+                Some(human.clone()),
+                "human:245-裁决人",
+            )),
+            "{st:?} 是「已响应」类声明——占位不得借状态覆写冒充"
+        );
+    }
+
+    // ② 偏离说明缺失 / 纯空白 → 不豁免
+    assert!(!is_legitimate_placeholder_exemption(&ov(
+        ResponseStatus::NotApplicable,
+        None,
+        Some(human.clone()),
+        "human:245-裁决人",
+    )));
+    assert!(!is_legitimate_placeholder_exemption(&ov(
+        ResponseStatus::NotApplicable,
+        Some("   "),
+        Some(human.clone()),
+        "human:245-裁决人",
+    )));
+
+    // ③ 可信 receipt 缺席：只剩 principal 回显串（可伪造普通字段）不放行
+    //    ——legacy/手改快照 trusted=None 形态，fail-closed
+    assert!(
+        !is_legitimate_placeholder_exemption(&ov(
+            ResponseStatus::NotApplicable,
+            Some("理由在座也不放行——没有可信 receipt 背书"),
+            None,
+            "human:attacker",
+        )),
+        "不认 principal 回显串（human: 前缀可伪造）——只认 trusted receipt 面"
+    );
+
+    // ④ trusted 为 Agent 身份 → 不豁免（#182 过审面只认 Human）
+    assert!(!is_legitimate_placeholder_exemption(&ov(
+        ResponseStatus::NotApplicable,
+        Some("理由在座也不放行——Agent 不得自免单"),
+        Some(agent),
+        "human:bot-01",
+    )));
+}
+
+/// 核心回归（PR #247 审核反馈）：占位仍绑定时，Responded 状态覆写
+/// （set_matrix_override 对其不强制偏离说明）即使由**合法 Human receipt**
+/// （宿主签发、签域四重绑定）发起，也不豁免占位门——仍触发
+/// E_EVIDENCE_PLACEHOLDER（1d 真源 + validate 面）；换成合法
+/// NOT_APPLICABLE + 偏离说明 + Human receipt 后放行。
+#[test]
+fn placeholder_gate_responded_override_still_blocks_placeholder() {
+    let mut svc = matrix_ready_service("gate-responded");
+    if svc.store().files().is_empty() {
+        return; // 夹具缺失 SKIP
+    }
+    let ev_id = register(&mut svc, "资质占位（Responded 覆写面）", true);
+    let req_id = "REQ-0003".to_string(); // 评分项（非必选——1a 门外的 1d 面主体）
+    let (_, _, errs, _, _) =
+        svc.bind_evidence_batch(&ev_id, &[req_id.clone()], "2026-11-15").unwrap();
+    assert!(errs.is_empty());
+
+    // 基线：占位绑定在库 → 1d 真源报该 REQ
+    let f0 = bid_tools::validate::placeholder_evidence_findings(svc.store());
+    assert_eq!(f0.len(), 1, "占位绑定 → 1d 报 1 条（评分行非必选也在绑定面）");
+    assert_eq!(f0[0].requirement_id.as_deref(), Some(req_id.as_str()));
+
+    // Responded 覆写（服务面 + 真实 Human receipt——完全合法的人工动作；
+    // 域层对 Responded 不强制偏离说明，这正是旧豁免条件过宽的入口）：
+    // 「无偏离说明」与「带偏离说明」两种形态都不豁免。
+    let pid = svc.store().project().unwrap().id.clone();
+    for (idx, deviation) in [None, Some("评分项已按承诺响应（人工裁决）")].into_iter().enumerate() {
+        let scope = bid_tools::service::matrix_override_scope(
+            &pid,
+            &req_id,
+            ResponseStatus::Responded.as_str(),
+            deviation.unwrap_or(""),
+        );
+        let receipt = svc.issue_approval_receipt(&format!("245-裁决人-{idx}"), &scope);
+        svc.set_matrix_override(
+            req_id.clone(),
+            ResponseStatus::Responded,
+            deviation.map(String::from),
+            &receipt,
+        )
+        .unwrap_or_else(|e| panic!("合法 Human receipt 的 Responded 覆写应成功: {e:?}"));
+        let f = bid_tools::validate::placeholder_evidence_findings(svc.store());
+        assert_eq!(
+            f.len(),
+            1,
+            "Responded 覆写（{}/2 形态）不豁免占位门——覆写在场 ≠ 豁免成立",
+            idx + 1
+        );
+        assert_eq!(f[0].rule_code, "E_EVIDENCE_PLACEHOLDER");
+        assert_eq!(f[0].requirement_id.as_deref(), Some(req_id.as_str()));
+    }
+
+    // validate 面（规则 5b 同源）：E_EVIDENCE_PLACEHOLDER 仍报（占位仍绑定时
+    // Responded 覆写不得让验证报告静默）
+    let report =
+        bid_tools::validate::validate_document(svc.store(), None, &mut bid_tools::validate::NoModel)
+            .unwrap();
+    assert!(
+        report
+            .findings
+            .iter()
+            .any(|f| f.rule_code == "E_EVIDENCE_PLACEHOLDER"
+                && f.requirement_id.as_deref() == Some(req_id.as_str())),
+        "Responded 覆写在座 → validate 仍报 E_EVIDENCE_PLACEHOLDER（PR #247 回归面）"
+    );
+
+    // 合法人工豁免（NOT_APPLICABLE + 非空偏离说明 + 真实 Human receipt）
+    // → 1d 放行（豁免通道保留，不是死锁）
+    let deviation = "该评分项确不适用（人工 receipt 裁决 + 偏离说明）";
+    let scope = bid_tools::service::matrix_override_scope(
+        &pid,
+        &req_id,
+        ResponseStatus::NotApplicable.as_str(),
+        deviation,
+    );
+    let receipt = svc.issue_approval_receipt("245-裁决人", &scope);
+    svc.set_matrix_override(
+        req_id.clone(),
+        ResponseStatus::NotApplicable,
+        Some(deviation.into()),
+        &receipt,
+    )
+    .unwrap();
+    let f2 = bid_tools::validate::placeholder_evidence_findings(svc.store());
+    assert!(
+        f2.is_empty(),
+        "合法人工豁免（NOT_APPLICABLE + 偏离说明 + Human receipt）放行: {f2:?}"
+    );
+}

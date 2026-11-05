@@ -383,8 +383,9 @@ pub fn validate_document(
     //      与规则 1/2 的分工：规则 1/2 只覆盖资格/否决类的矩阵态（全局面）；
     //      本规则覆盖**绑定面**（任何类别的 REQ）——非必选行的占位绑定
     //      （矩阵 PENDING_EVIDENCE 不阻断写作）也在此报 BLOCKER：导出前
-    //      必须解决（补真实材料换版，或人工覆写豁免——被覆写的 REQ 不报，
-    //      人工裁决通道是 overrides 表，见 placeholder_evidence_findings）。
+    //      必须解决（补真实材料换版，或合法人工豁免——只认 NOT_APPLICABLE
+    //      + 偏离说明 + 可信 Human receipt，见 is_legitimate_placeholder_
+    //      exemption：普通状态覆写不豁免）。
     for f in placeholder_evidence_findings(store) {
         evidence_f.push(f);
     }
@@ -582,6 +583,34 @@ fn excerpt_of(req: &bid_domain::Requirement) -> String {
     if cut.is_empty() { req.id.clone() } else { cut }
 }
 
+/// #245 占位门人工豁免裁决（单一真源——validate 规则 5b 与导出门 1d 共用；
+/// PR #247 审核收紧：**覆写在场 ≠ 豁免成立**）。
+///
+/// 只有**明确的合法人工豁免**才放行仍活跃的占位绑定，三要件缺一不可：
+/// 1. **NOT_APPLICABLE**——人裁决「本行不适用」。其他覆写状态
+///    （Responded/Partial/NotResponded/PendingEvidence）是「已响应」类
+///    声明——正是占位材料不得冒充的结论；`set_matrix_override` 对它们
+///    不强制偏离说明，普通人工状态覆写不得因此绕过占位门；
+/// 2. **非空偏离说明**（trim 后非空）——不适用必须给理由（诚实状态；
+///    域层写入面已强制，此处独立复算：手改/旧快照不带说明不放行）；
+/// 3. **可信 Human receipt**——`MatrixOverride.trusted`（#182：服务层
+///    HMAC 验签后注入的 TrustedPrincipal，写入面单一真源）。**只认
+///    receipt 背书面，不认 `principal` 回显串**（"human:xxx" 是可伪造的
+///    普通字段；legacy 快照 trusted 缺席 → 不豁免，fail-closed）。
+pub fn is_legitimate_placeholder_exemption(ov: &bid_domain::matrix::MatrixOverride) -> bool {
+    ov.status == bid_domain::matrix::ResponseStatus::NotApplicable
+        && ov
+            .deviation
+            .as_deref()
+            .map(|d| !d.trim().is_empty())
+            .unwrap_or(false)
+        && ov
+            .trusted
+            .as_ref()
+            .map(|t| t.actor_type == bid_domain::ActorType::Human)
+            .unwrap_or(false)
+}
+
 /// #245 占位证据独立复算（导出门 1d 的真源——validate 规则 5b 同款）。
 ///
 /// 语义（与 1c 写作验收门对称的 fail-closed 门禁）：
@@ -590,18 +619,26 @@ fn excerpt_of(req: &bid_domain::Requirement) -> String {
 ///   findings 零 RT）也仍拒绝：记审面是流程事实不是核验事实，本门不消费
 ///   reviews/RT（PR #242 1c 门同款纪律）；
 /// - **人工裁决通道**（与 1c 的差异面——占位缺失有人工豁免出口，篇幅不足
-///   没有）：REQ 已被人工覆写（`matrix_overrides` 在场，#182 只认 Human
-///   receipt）→ 不计入门——豁免留痕可回溯；
+///   没有）：只认 [`is_legitimate_placeholder_exemption`]（NOT_APPLICABLE +
+///   非空偏离说明 + 可信 Human receipt）——覆写在场 ≠ 豁免成立，
+///   豁免留痕可回溯；
 /// - 解决通道：①补真实材料重新登记（换版：占位记录 Superseded + 绑定迁移
-///   → 本门自然清空）；②人工覆写豁免（带偏离说明）。
+///   → 本门自然清空）；②合法人工豁免（NOT_APPLICABLE + 偏离说明 +
+///   Human receipt）。
 ///
 /// 返回空 vec = 过门；非空 = BLOCKER 清单（导出面逐条点名拒）。
 pub fn placeholder_evidence_findings(store: &DomainStore) -> Vec<ValidationFinding> {
     let mut out = Vec::new();
     for b in store.evidence_bindings() {
-        // 人工覆写的 REQ 不计（豁免通道——覆写只认 Human receipt，域层已拦）
-        if store.matrix_overrides().contains_key(&b.requirement_id) {
-            continue;
+        // 人工豁免裁决（PR #247 审核收紧）：只有「NOT_APPLICABLE + 非空
+        // 偏离说明 + 可信 Human receipt」的明确豁免才跳过占位门——
+        // 覆写在场 ≠ 豁免成立：Responded 等状态覆写（set_matrix_override
+        // 对其不强制偏离说明）即使由 Human 发起 receipt 签发，也不放行
+        // 仍活跃的占位绑定（fail-closed）。
+        if let Some(ov) = store.matrix_overrides().get(&b.requirement_id) {
+            if is_legitimate_placeholder_exemption(ov) {
+                continue;
+            }
         }
         let Some(ev) = store.evidences().iter().find(|e| e.id == b.evidence_id) else {
             continue;
@@ -615,7 +652,7 @@ pub fn placeholder_evidence_findings(store: &DomainStore) -> Vec<ValidationFindi
                 section_id: None,
                 requirement_id: Some(b.requirement_id.clone()),
                 message: format!(
-                    "占位/待核验证据 {}（{}）仍绑定在 {} 上——占位材料不得作为已核验证据导出（#245）；解决：导入真实材料重新登记（换版升级），或人工覆写豁免（Human receipt + 偏离说明）",
+                    "占位/待核验证据 {}（{}）仍绑定在 {} 上——占位材料不得作为已核验证据导出（#245）；解决：导入真实材料重新登记（换版升级），或合法人工豁免（NOT_APPLICABLE + 偏离说明 + Human receipt——普通状态覆写不豁免）",
                     ev.id, ev.title, b.requirement_id,
                 ),
             });

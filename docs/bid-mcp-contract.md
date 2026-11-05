@@ -304,9 +304,11 @@ out: { artifact:{url, sha256, size}, content_version_snapshot, precheck:{blocker
        （独立复算，不消费记审面）；
      · 1d 占位证据门（#245）：活跃占位绑定存在即拒——占位/待核验材料
        不得作为已核验证据导出（与 1c 同为独立复算门、不消费记审面；
-       差异面：占位有人工豁免通道 = set_matrix_override Human receipt +
-       偏离说明，篇幅不足没有——只能补写）。解决通道：①导入真实材料
-       重新登记（换版升级，绑定自动迁移）；②人工覆写豁免。
+       差异面：占位有合法人工豁免通道 = NOT_APPLICABLE 覆写 + 非空偏离
+       说明 + 可信 Human receipt（#247 审核收紧：三要件缺一不可，
+       Responded 等普通状态覆写即使由 Human 发起也不豁免），篇幅不足
+       没有——只能补写）。解决通道：①导入真实材料重新登记（换版升级，
+       绑定自动迁移）；②合法人工豁免。
 状态: → READY_TO_EXPORT → EXPORTED
 ```
 
@@ -489,8 +491,9 @@ out: { ev_id: "EV-*", deduplicated, kind(snake_case), status,
         不引用 [EV-xxxx] 编号、不声称已具备/已满足；
       · 升级路径（受控、可审计）：导入真实材料后**重新登记**（同语义位
         异指纹/异验证态 → 换版：旧占位记录 SUPERSEDED 留审计痕 + 绑定
-        迁移到新记录）——无原地迁移通道即无非法迁移通道；人工豁免走
-        set_matrix_override（Human receipt + 偏离说明）。
+        迁移到新记录）——无原地迁移通道即无非法迁移通道；合法人工豁免
+        = NOT_APPLICABLE 覆写 + 非空偏离说明 + 可信 Human receipt
+        （#247 审核收紧：Responded 等普通状态覆写不豁免占位门）。
 状态: MATRIX_READY+（P4 面——矩阵就绪后登记）
 错误: E_NOTFOUND（source_file_id 不存在）；E_UNPROCESSABLE（kind/日期/fields
       非法；**旧参数 source_file / source_sha256 / fingerprint 已废除——传入

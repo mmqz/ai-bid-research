@@ -15,8 +15,10 @@
 //! 2. [`placeholder_gate_1d_fires_even_when_matrix_and_reviews_pass`]（导出
 //!    门 1d 独立复算）：必选行绑真实证据（1a 矩阵门过）+ 非必选行绑占位
 //!    （不阻断写作）→ 三门全 Approved 零 findings 零 RT → 导出**仍拒**
-//!    （占位证据门——不消费记审面，PR #242 1c 门同款纪律）→ 人工覆写
-//!    豁免（Human receipt + 偏离说明）→ 导出放行（1d 的人工裁决通道）。
+//!    （占位证据门——不消费记审面，PR #242 1c 门同款纪律）→ **Responded
+//!    状态覆写（即使合法 Human receipt 签发）也不豁免**（PR #247 审核收紧：
+//!    覆写在场 ≠ 豁免成立）→ 合法人工豁免（NOT_APPLICABLE + 偏离说明 +
+//!    Human receipt）→ 导出放行（1d 的人工裁决通道）。
 //!
 //! 写操作全部走 `dispatch_with` MCP 分派；无 MCP 工具的准备步骤（矩阵重建/
 //! 记审/覆写）走服务面并显式标注。SKIP 纪律（issue #9）：corpus-A 真件
@@ -506,6 +508,34 @@ fn placeholder_gate_1d_fires_even_when_matrix_and_reviews_pass() {
         "【1d 门独立复算】矩阵与审核全过也拒（占位不得冒充已核验导出）: {err}"
     );
     assert!(err.contains("E_EVIDENCE_PLACEHOLDER"), "逐条点名 BLOCKER: {err}");
+
+    // ---- PR #247 审核收紧回归：Responded 状态覆写不豁免占位门。走**合法
+    //      Human receipt**（宿主签发面 issue_approval_receipt、签域四重绑定
+    //      project/req/status/reason）把待补行覆写为 RESPONDED——完全合法的
+    //      人工动作（set_matrix_override 对 Responded 不强制偏离说明，这正是
+    //      旧门禁条件过宽的入口）——仍活跃的占位绑定照样拦：「已响应」正是
+    //      占位材料不得冒充的结论，覆写在场 ≠ 豁免成立。
+    for rid in &scoring_ids {
+        let scope = bid_tools::service::matrix_override_scope(&pid, rid, "RESPONDED", "");
+        let receipt = svc.issue_approval_receipt("245-裁决人", &scope);
+        svc.set_matrix_override(
+            rid.clone(),
+            bid_domain::matrix::ResponseStatus::Responded,
+            None,
+            &receipt,
+        )
+        .unwrap();
+    }
+    let reply_resp = call(
+        &mut svc,
+        "export_bid_document",
+        json!({ "project_id": &pid, "format": "docx", "output_path": "out/投标文件-1d门-responded覆写.docx" }),
+    );
+    let err_resp = err_text(&reply_resp);
+    assert!(
+        err_resp.contains("占位证据门") && err_resp.contains("E_EVIDENCE_PLACEHOLDER"),
+        "【Responded 覆写不豁免】合法 Human receipt 的状态覆写也拦（占位仍绑定时）: {err_resp}"
+    );
 
     // ---- 人工豁免通道（1d 的差异面）：Human receipt 覆写 + 偏离说明 → 放行
     for rid in &scoring_ids {

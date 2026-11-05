@@ -103,9 +103,19 @@ out: { rows:[{cmp_id, requirement:{id, clause_no, category, statement, mandatory
                 与 status 分账：正文实写即 RESPONDED（文本事实），材料要求与
                 缺口由这两列承载（合规事实）；evidence_missing=true 的必选
                 行阻断提交就绪但不拦导出）,
+              substantive: bool（#276 ★实质性条款——识别列，数据源 params.star
+                （标记面 submit_block_marks.requirements[].substantive ∪ 抽取面★
+                检测两条路径统一派生，matrix.rs `substantive`）；一条不响应即
+                响应无效。**不参与 blocking 派生**（★响应门的分级是 Lead 裁决面）——
+                验收看 star_summary 统计口）,
               gap, response_policy, draft_section_id, blocking}],
        total(过滤后总数), limit, cursor(本次生效), next_cursor: string|null,
-       counts:{total, returned, page(信息性回显), page_size(=limit)} }
+       counts:{total, returned, page(信息性回显), page_size(=limit)},
+       star_summary:{total, responded, partial, not_responded, not_applicable,
+         responded_share: f64|null}（#276 ★实质性条款统计口——**全量口径**，
+         不受 filters 影响：验收面「★全部识别并响应（对照 manifest.star_count）」
+         的可编程基础；NOT_APPLICABLE 单列不计入 responded——不适用是免除响应
+         而非满足响应，验收单独对账；无★条款时 responded_share=null（非 0/0 假象）） }
 无状态副作用；任何阶段可调。行序 = 条款位置序（cmp_id CMP-0001..N，确定性稳定）；
 先过滤后分页（total 恒为过滤后总数）。
 `rows[].requirement.mandatory` = 类别阻断面（资格条件/否决项）∪ Agent 必选标记

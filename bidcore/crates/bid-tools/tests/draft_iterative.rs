@@ -85,6 +85,7 @@ fn sample_input() -> SectionDraftInput {
             scope: "水利水电工程".into(),
             excerpt: "资质等级：贰级；承包工程范围：可承担单项合同额不超过企业注册资本金 5 倍的水利水电工程施工".into(),
             excerpt_locator: "《EV-01-水利水电资质证书.pdf》第 1 页".into(),
+            placeholder: false,
         }],
         instructions: None,
     }

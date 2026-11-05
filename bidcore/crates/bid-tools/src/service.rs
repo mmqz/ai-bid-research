@@ -99,6 +99,12 @@ pub struct EvidenceRegistration {
     pub title: String,
     /// 引擎定位器（`None` = 文件级锚）；`Some` 时须与解析产物对账。
     pub locator: Option<EngineLocator>,
+    /// #245 占位声明：`true` = 本次登记为占位/待核验材料（tier=PLACEHOLDER）。
+    /// 调用方**可以自报占位**（诚实方向——从低不从高），但不得自报任何
+    /// 已验证态（verification_tier 不在参数面，升级只能经换版重登）。
+    /// 占位证据：可绑定（待补可见）、可进起草（生成【待补】文案），
+    /// 但不计为有效证据、不清合规阻塞、导出门独立复算拒。
+    pub placeholder: bool,
     pub valid_from: Option<String>,
     pub valid_until: Option<String>,
     pub subject_name: String,
@@ -900,10 +906,15 @@ impl BidService {
                     tf.id
                 ),
             })?;
-        // ---- 4/5. locator 对账 + 系统生成指纹 + 摘录捕获（#217 四态裁决）
+        // ---- 4/5. locator 对账 + 系统生成指纹 + 摘录捕获（#217 四态裁决
+        //      +#245 占位态）：
         //      文件级锚（无 locator）→ FILE_EXISTS：来源在库且非失败件，但正文
         //      未定位——摘录面为空（不编造「读过了」的假象）；带 locator 且对账
         //      通过 → CONTENT_MATCHES：定位文本逐字入账为 excerpt。
+        //      **placeholder=true（#245）→ 一律 PLACEHOLDER**：占位/待核验材料
+        //      的内容未经核验——即便 locator 对账通过（如指向招标文件里的
+        //      「资质要求」文本，那是要什么、不是有什么），也不得计为已验证
+        //      证据。摘录照记（回溯占位登记指向了什么），升级路径 = 换版重登。
         let located: Option<LocatedContent> = match &reg.locator {
             None => None,
             Some(loc) => Some(locate_content(parsed, loc)?),
@@ -915,19 +926,32 @@ impl BidService {
             },
             (Some(loc), _) => loc.clone(),
         };
-        let (fingerprint, excerpt, excerpt_locator, verification_tier) = match &located {
-            Some(lc) => (
-                lc.fingerprint.clone(),
-                Some(truncate_excerpt(&lc.text)),
-                Some(lc.locator_display.clone()),
-                Some(bid_domain::evidence::VerificationTier::ContentMatches),
-            ),
-            None => (
-                format!("sha256:{}", tf.sha256),
-                None,
-                None,
-                Some(bid_domain::evidence::VerificationTier::FileExists),
-            ),
+        let (fingerprint, excerpt, excerpt_locator, verification_tier) = if reg.placeholder {
+            // #245 占位登记：指纹仍服务端生成（#185 纪律不变），摘录携带时
+            // 记录（占位指向回溯面）；tier 强制 PLACEHOLDER——不因 locator
+            // 对账通过而升格（「文件里有这段文本」≠「资质真实具备」）。
+            (
+                located.as_ref().map(|lc| lc.fingerprint.clone())
+                    .unwrap_or_else(|| format!("sha256:{}", tf.sha256)),
+                located.as_ref().map(|lc| Some(truncate_excerpt(&lc.text))).unwrap_or(None),
+                located.as_ref().map(|lc| Some(lc.locator_display.clone())).unwrap_or(None),
+                Some(bid_domain::evidence::VerificationTier::Placeholder),
+            )
+        } else {
+            match &located {
+                Some(lc) => (
+                    lc.fingerprint.clone(),
+                    Some(truncate_excerpt(&lc.text)),
+                    Some(lc.locator_display.clone()),
+                    Some(bid_domain::evidence::VerificationTier::ContentMatches),
+                ),
+                None => (
+                    format!("sha256:{}", tf.sha256),
+                    None,
+                    None,
+                    Some(bid_domain::evidence::VerificationTier::FileExists),
+                ),
+            }
         };
         let spec = EvidenceSpec {
             kind: reg.kind,

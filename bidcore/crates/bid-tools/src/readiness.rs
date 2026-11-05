@@ -492,12 +492,14 @@ fn format_not_ready_files(files: &[AddendumFileState]) -> String {
 
 // ---------------------------------------------------------------- 证据可用性
 
-/// 可用证据 = 状态可绑（Active / Expiring）。
+/// 可用证据 = 状态可绑（Active / Expiring）**且非占位**（#245）。
 ///
 /// 与 evidence.rs `EvidenceStatus::can_bind`、draft.rs 的禁绑同口径——
-/// 过期（R-03）/ 被替代的证据不能算「有」。
+/// 过期（R-03）/ 被替代的证据不能算「有」；占位/待核验材料（PLACEHOLDER）
+/// 同样不算——资格/资质章节的就绪检查不得被占位登记静默满足
+/// （「待补」可见，但「素材齐了」的结论不能下）。
 pub fn is_usable_evidence(ev: &Evidence) -> bool {
-    ev.status.can_bind()
+    ev.status.can_bind() && !ev.is_placeholder()
 }
 
 /// 台账里某类**可用**证据。
@@ -726,7 +728,8 @@ fn req_has_usable_evidence(store: &DomainStore, req_id: &str) -> bool {
 /// - 命中行且 `RESPONDED` → 已响应；
 /// - 命中行 `NOT_APPLICABLE` 且**有偏离说明** → 视为已处理（可审计的豁免，
 ///   与 matrix.rs「不适用必须给理由」同口径）；
-/// - 其余（NOT_RESPONDED / PARTIAL / blocking / 无矩阵行）→ 未响应。
+/// - 其余（NOT_RESPONDED / PARTIAL / **PENDING_EVIDENCE（#245：仅占位
+///   证据在绑——占位不算已响应）** / blocking / 无矩阵行）→ 未响应。
 fn matrix_responded(store: &DomainStore, req_id: &str) -> bool {
     let Some(row) = store.matrix().iter().find(|r: &&MatrixRow| r.requirement_id == req_id) else {
         return false; // 矩阵未构建或漏行——没对过账就是没响应
@@ -739,7 +742,9 @@ fn matrix_responded(store: &DomainStore, req_id: &str) -> bool {
         ResponseStatus::NotApplicable => {
             row.deviation.as_deref().map(str::trim).is_some_and(|d| !d.is_empty())
         }
-        ResponseStatus::NotResponded | ResponseStatus::Partial => false,
+        ResponseStatus::NotResponded
+        | ResponseStatus::Partial
+        | ResponseStatus::PendingEvidence => false,
     }
 }
 

@@ -66,6 +66,7 @@ fn input() -> SectionDraftInput {
             scope: "本标段全部施工内容".into(),
             excerpt: "证书编号：D235002247；资质等级：施工总承包贰级；有效期至 2028-03-15".into(),
             excerpt_locator: "《EV-01-施工总承包资质证书.pdf》第 1 页".into(),
+            placeholder: false,
         }],
         instructions: Some("突出同类水库工程的施工业绩".into()),
     }

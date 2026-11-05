@@ -421,13 +421,20 @@ impl SectionGenerator for RealGenerator {
 
 /// 系统面（规则——不承载章节内容，全部数据来自 input）。
 fn system_framing(input: &SectionDraftInput) -> String {
+    // #245：占位证据纪律——占位/待核验材料不得被真实生成器当作资质证明
+    // （与 mock 同款：不引用编号、不声称已具备；【待补】形态落正文）。
+    let placeholder_rule = if input.evidences.iter().any(|e| e.placeholder) {
+        "6) 标注「占位/待核验」的证据材料不是已核验的真实证据：不得声称资质已具备/已满足，不得以其编号作为佐证引用，对应位置写【待补：...】占位说明；"
+    } else {
+        ""
+    };
     format!(
         "你是标书撰写引擎，为章节《{title}》撰写正文。规则：\
 1) 输出 Markdown，首行是一级标题「# {title}」，其后是正文段落；\
 2) 引用要求或证据时使用 [REQ-xxxx] / [EV-xxxx] 编号形态，且只准使用用户消息中列出的编号，禁止编造不存在的编号；\
 3) 每一条要求条款都必须有对应的响应内容；\
 4) 篇幅以用户消息给出的目标字数为准，允许上下浮动 20%；\
-5) 只输出章节正文，不输出解释、前言、草稿标记或对话。",
+5) 只输出章节正文，不输出解释、前言、草稿标记或对话；{placeholder_rule}",
         title = input.title,
     )
 }
@@ -451,8 +458,17 @@ fn user_material(input: &SectionDraftInput) -> String {
     if input.evidences.is_empty() {
         v.push("证据材料：无（不得编造证据编号）。".to_string());
     } else {
-        v.push("证据材料（可援引佐证，引用其编号）：".to_string());
+        v.push("证据材料（可援引佐证，引用其编号；标注「占位/待核验」的除外）：".to_string());
         for e in &input.evidences {
+            // #245：占位证据——素材面显式降格为待补面：不出示摘录实料
+            // （防生成器顺手引用），指令写【待补】占位，不引用编号。
+            if e.placeholder {
+                v.push(format!(
+                    "- [{}]（{}：{}）【占位/待核验——非已核验证据：不得引用此编号作佐证，不得声称资质已具备；对应内容写【待补：{}的真实证明材料】占位说明，待核验后替换】",
+                    e.id, e.kind, e.title, e.title
+                ));
+                continue;
+            }
             let scope = if e.scope.trim().is_empty() { "见证据原件" } else { &e.scope };
             let mut line = format!("- [{}]（{}：{}，适用范围：{scope}）", e.id, e.kind, e.title);
             // #217（#185 缺口 2）：正文摘录随行——引用金额/日期/范围等实料

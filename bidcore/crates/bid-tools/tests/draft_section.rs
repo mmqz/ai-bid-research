@@ -229,6 +229,7 @@ fn sample_input(target: u32) -> SectionDraftInput {
             scope: "全国".into(),
             excerpt: "资质等级：贰级；承包范围：水利水电工程施工总承包，可承担各类水利水电工程".into(),
             excerpt_locator: "《EV-01-水利水电资质证书.pdf》第 1 页".into(),
+            placeholder: false,
         }],
         instructions: Some("按资格条件逐项响应".into()),
     }

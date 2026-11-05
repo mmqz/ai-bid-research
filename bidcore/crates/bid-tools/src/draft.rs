@@ -73,6 +73,10 @@ pub struct ReqBrief {
 /// 拿到的不只是「证据标题」还有**正文实料**（金额/时间/范围来自逐字截取的
 /// 定位文本，非标题转写）。空串 = 文件级锚未定位正文——生成器只能引
 /// 台账面，不得编造细节。
+///
+/// #245：新增 `placeholder`——占位/待核验证据标记。生成器对占位证据
+/// 只能输出【待补：...】占位文案（按用户授权占位可进草稿），**不得生成
+/// 「已具备/已满足」的结论、不得把占位当作资质证明引用**。
 #[derive(Debug, Clone, PartialEq)]
 pub struct EvBrief {
     pub id: String,
@@ -83,6 +87,8 @@ pub struct EvBrief {
     pub excerpt: String,
     /// 摘录定位（人话：`《文件》第 N 页` / `《文件》正文段 N`；空串 = 未定位）。
     pub excerpt_locator: String,
+    /// 占位/待核验标记（#245——true = PLACEHOLDER 态证据）。
+    pub placeholder: bool,
 }
 
 /// 生成产物（正文 + 生成器声称的引用清单）。
@@ -158,7 +164,10 @@ pub fn build_section_input(
         });
     }
 
-    // ---- EV 面：override 优先，缺省走绑定集（本章节 REQ ↔ EV）
+    // ---- EV 面：override 优先，缺省走绑定集（本章节 REQ ↔ EV）。
+    //      #245：占位证据仍进输入面（生成器需知道「这里待补」才能落
+    //      【待补】占位文案），但携带 placeholder 标记——生成器不得将其
+    //      当作已具备的资质证明引用。
     let ev_ids: Vec<String> = match evidence_override {
         Some(ids) => ids.to_vec(),
         None => bound_evidence_ids(store, &known_req_ids),
@@ -178,6 +187,7 @@ pub fn build_section_input(
             scope: ev.scope.clone(),
             excerpt: ev.excerpt.clone().unwrap_or_default(),
             excerpt_locator: ev.excerpt_locator.clone().unwrap_or_default(),
+            placeholder: ev.is_placeholder(),
         });
     }
 
@@ -286,6 +296,14 @@ const REQ_RESPONSE_TEMPLATE: &str = "针对 [REQ_ID]（CATEGORY 类条款）「E
 /// EV 佐证模板。
 const EV_SUPPORT_TEMPLATE: &str = "依据 [EV_ID]（KIND：TITLE，适用范围：SCOPE），本章节相关承诺具备可核验的证据支撑，评标委员会可按证据台账索引回查原件。";
 
+/// EV 占位待补模板（#245）：占位/待核验证据的专属文案——**不生成
+/// 「已具备/已满足」结论、不声称可核验**；落【待补：...】显式占位
+/// （形态避开 W_PLACEHOLDER 词表 TODO/待补充/【占位】——占位进草稿是
+/// 用户授权的待补形态，与模板残留不同源不误报）。同时**不携带
+/// [EV_ID] 引用**：占位证据不得成为正文引用（引用会被 E_CITATION_
+/// PLACEHOLDER 拦截——mock 与真实生成器同纪律）。
+const EV_PENDING_TEMPLATE: &str = "【待补：KIND「TITLE」的真实证明材料尚未核验——当前为占位登记（待核验），本章节不作已具备声明；待材料导入并重新登记核验后替换本段并补充佐证说明。】";
+
 /// EV 正文摘录段（#217）：CONTENT_MATCHES 态追加——生成器引用实料
 /// （金额/日期/范围）只准来自这段逐字截取的原文，不得越出摘录编造。
 const EV_EXCERPT_TEMPLATE: &str = "其原始凭据 EXCERPT_LOCATOR 原文摘录如下：「EXCERPT」（摘录与解析产物逐字对账一致，引用实料以此为准，不得超出摘录范围编造）。";
@@ -318,8 +336,17 @@ pub fn generate_mock(input: &SectionDraftInput) -> String {
         paras.push(s);
     }
 
-    // ③ 逐 EV 佐证段（#217：正文摘录随行——文件级锚无摘录则只引台账面）
+    // ③ 逐 EV 佐证段（#217：正文摘录随行——文件级锚无摘录则只引台账面；
+    //    #245：占位证据走【待补】专属模板——不引用、不声称已具备）
     for e in &input.evidences {
+        if e.placeholder {
+            paras.push(
+                EV_PENDING_TEMPLATE
+                    .replace("KIND", &e.kind)
+                    .replace("TITLE", &truncate_chars(&e.title, 50)),
+            );
+            continue; // 占位证据无佐证段、无摘录段——待补形态即全部输出
+        }
         paras.push(
             EV_SUPPORT_TEMPLATE
                 .replace("EV_ID", &e.id)
@@ -341,17 +368,26 @@ pub fn generate_mock(input: &SectionDraftInput) -> String {
         }
     }
 
-    // ④ 符合性收束
+    // ④ 符合性收束（#245：仅当存在占位证据时收敛措辞——占位在章不得
+    //    声称「证据支撑完整」；无占位时原措辞零位移）
     let all_reqs = input
         .requirements
         .iter()
         .map(|r| format!("[{}]", r.id))
         .collect::<Vec<_>>()
         .join("、");
-    paras.push(format!(
-        "综上，本章节对 {} 已逐项响应并给出证据支撑，响应内容真实、完整、准确，\
+    let has_placeholder = input.evidences.iter().any(|e| e.placeholder);
+    paras.push(if has_placeholder {
+        format!(
+            "综上，本章节对 {} 已逐项响应；其中部分佐证材料为占位登记（待核验），相关响应结论以真实材料核验后为准，当前不作已具备声明。",
+            all_reqs,
+        )
+    } else {
+        format!(
+            "综上，本章节对 {} 已逐项响应并给出证据支撑，响应内容真实、完整、准确，\
 不存在招标文件规定的任何否决情形。", all_reqs,
-    ));
+        )
+    });
 
     // ⑤ 填充到 target ±20%（不足时循环补句；超出时截到下限——确定性两向）
     pad_to_target(paras, input.target_chars)

@@ -52,6 +52,7 @@ fn imported_docx_service(tag: &str) -> BidService {
 fn reg(source_file_id: &str, locator: Option<EngineLocator>, title: &str) -> EvidenceRegistration {
     EvidenceRegistration {
         source_file_id: source_file_id.to_string(),
+        placeholder: false,
         kind: EvidenceKind::Qualification,
         title: title.to_string(),
         locator,

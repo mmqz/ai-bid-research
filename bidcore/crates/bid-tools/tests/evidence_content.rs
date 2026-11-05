@@ -100,6 +100,7 @@ fn service_with_sources(tag: &str) -> (BidService, String, String) {
 fn reg(source_file_id: &str, locator: Option<EngineLocator>, title: &str) -> EvidenceRegistration {
     EvidenceRegistration {
         source_file_id: source_file_id.to_string(),
+        placeholder: false,
         kind: EvidenceKind::Performance,
         title: title.to_string(),
         locator,

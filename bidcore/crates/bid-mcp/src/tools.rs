@@ -999,6 +999,10 @@ fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
                 "status": status,
                 "evidence": evidence,
                 "pending_evidence_ids": row.map(|m| m.pending_evidence_ids.clone()).unwrap_or_default(),
+                // #241 裁定：证据要求与缺口正交标记（与 status 分账——正文
+                // 响应是文本事实，缺不缺材料是合规事实，两列各自可查）。
+                "evidence_required": row.map(|m| m.evidence_required).unwrap_or(false),
+                "evidence_missing": row.map(|m| m.evidence_missing).unwrap_or(false),
                 "gap": Value::Null,
                 "response_policy": "default",
                 "draft_section_id": row.and_then(|m| m.response_section.clone()),
@@ -2084,6 +2088,36 @@ fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
 
 // ---------------------------------------------------------------- #68 阶段 2 check_bid_quality
 
+/// #241 裁定：提交就绪清单项的契约 out 组装（validate / check_bid_quality
+/// 共用——单一出口，两工具的 submission_readiness 面永不分叉）。
+fn readiness_item_json(i: &bid_tools::validate::ReadinessItem) -> Value {
+    json!({
+        "requirement_id": i.requirement_id,
+        "row_id": i.row_id,
+        "category": i.category,
+        "excerpt": i.excerpt,
+        "message": i.message,
+    })
+}
+
+/// #241 裁定：提交就绪面的契约 out 组装。
+///
+/// 门禁分工（Export ≠ Submission Readiness）：导出可过而提交未就绪是
+/// **合法状态**（草稿可导出——证据缺口不拦导出；但缺口未清不得正式
+/// 提交）。消费方（Agent/Human）按 evidence_missing 清单逐项补件。
+fn submission_readiness_json(svc: &BidService) -> Value {
+    let r = bid_tools::validate::submission_readiness(svc.store());
+    json!({
+        "ready": r.ready,
+        "not_built": r.not_built,
+        "blockers": r.blockers(),
+        "unresponded_count": r.unresponded.len(),
+        "evidence_missing_count": r.evidence_missing.len(),
+        "unresponded": r.unresponded.iter().map(readiness_item_json).collect::<Vec<_>>(),
+        "evidence_missing": r.evidence_missing.iter().map(readiness_item_json).collect::<Vec<_>>(),
+    })
+}
+
 /// `check_bid_quality` —— 生成质量覆盖度检查（只读诊断 + 报告落盘）。
 ///
 /// 壳层职责：参数校验 → 项目路由 → 状态机裁决（guard_tool——MatrixReady+，
@@ -2262,6 +2296,9 @@ fn check_bid_quality(svc: &mut BidService, args: Value) -> ToolResult {
             "char_deviation_pct": char_deviation_pct,
         },
         "needs_human": sm.needs_human,
+        // #241 裁定：提交就绪面（evidence_missing 清单供逐项补件——导出可过
+        // 而未就绪是合法状态，两分账在响应面同场可见）
+        "submission_readiness": submission_readiness_json(svc),
         "sections": report.sections,
         "artifact": artifact,
         "warnings": warnings,
@@ -3604,6 +3641,10 @@ fn validate_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
         },
         "sections_checked": report.sections_checked,
         "project_status": svc.store().project().map(|p| p.status.as_str()).unwrap_or("UNKNOWN"),
+        // #241 裁定：提交就绪面（evidence_missing 清单供逐项补件——ok=true
+        // 只表示已执行检查零 BLOCKER，不等于可正式提交；导出可过而提交未
+        // 就绪是合法状态，两分账在响应面同场可见）
+        "submission_readiness": submission_readiness_json(svc),
         // #80 第三批外部 Agent 实测摩擦 #2：validate 会推进版本（VALIDATING
         // 转换面），响应必须回传新版本号——否则调用方后续带旧版本号 → E_CONFLICT
         // （契约 §0「响应统一携带 project_version」的承诺面）。

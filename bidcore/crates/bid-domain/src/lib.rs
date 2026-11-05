@@ -227,6 +227,14 @@ impl ProjectStatus {
                 "score_document",
                 // #226：起草期照样要能翻案（发现某条是规则说明 → 标不适用）
                 "set_matrix_override",
+                // #241 裁定：证据补件通道在起草期必须可用——validate/
+                // check_bid_quality 在本态输出 evidence_missing 清单，「见缺口
+                // →补件→就绪」的解决出口不能断在最后一步（与 #226
+                // set_matrix_override 同款窗口理由；#245 占位换版升级也依赖
+                // 本通道）。域层自有 R-03 闸（EXPIRED/SUPERSEDED 禁绑）保证
+                // 绑定质量，状态门不承担绑定校验职责。
+                "register_evidence",
+                "bind_evidence",
             ],
             Validating => &[
                 "get_compliance_matrix",
@@ -243,6 +251,10 @@ impl ProjectStatus {
                 "score_document",
                 // #226：导出前复核期同样可翻案（这里是 blocking 最后能解的地方）
                 "set_matrix_override",
+                // #241 裁定：复核期补件（readiness 证据缺口的解决出口——与
+                // set_matrix_override 同窗口同理由：导出前是缺口的最后解处）
+                "register_evidence",
+                "bind_evidence",
                 // #243：历史异常态（VALIDATING + 缺章——旧版校验误推进所致）
                 // 的受支持恢复出口；三重约束见 recover_validating_to_drafting
                 "recover_validating_state",
@@ -262,6 +274,10 @@ impl ProjectStatus {
                 "score_document",
                 // #226：导出前复核期同样可翻案（这里是 blocking 最后能解的地方）
                 "set_matrix_override",
+                // #241 裁定：导出前复核期补件（readiness 证据缺口的最后解处
+                // ——与 set_matrix_override 同窗口同理由）
+                "register_evidence",
+                "bind_evidence",
             ],
             Exported => &[
                 "get_coverage_report",

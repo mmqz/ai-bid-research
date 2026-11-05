@@ -164,6 +164,25 @@ fn write_tools_gated_by_state() {
     // validate_bid_document：DRAFTING 才许校验
     assert!(!ProjectStatus::MatrixReady.allowed_tools().contains(&"validate_bid_document"));
     assert!(ProjectStatus::Drafting.allowed_tools().contains(&"validate_bid_document"));
+    // #241 裁定：证据补件通道在缺口可发现的全程可用——validate/
+    // check_bid_quality 输出 evidence_missing 清单的状态（DRAFTING 到
+    // READY_TO_EXPORT）都必须能补件（与 #226 set_matrix_override 同款窗口
+    // 理由）；终态 EXPORTED 仍拒（终态不改数据的不变量）。
+    for s in [
+        ProjectStatus::MatrixReady,
+        ProjectStatus::EvidenceBound,
+        ProjectStatus::Drafting,
+        ProjectStatus::Validating,
+        ProjectStatus::Reviewing,
+        ProjectStatus::ReadyToExport,
+    ] {
+        assert!(s.allowed_tools().contains(&"bind_evidence"),
+            "{s:?} 必须放行 bind_evidence（#241 补件通道）");
+        assert!(s.allowed_tools().contains(&"register_evidence"),
+            "{s:?} 必须放行 register_evidence（#241/#245 换版升级通道）");
+    }
+    assert!(!ProjectStatus::Exported.allowed_tools().contains(&"bind_evidence"),
+        "终态仍拒（terminal_state_blocks_write_tools 不变量）");
 }
 
 /// 终态（Exported）**不得**再放行写面工具——只允许只读/幂等面。
@@ -205,7 +224,9 @@ fn full_matrix_snapshot() {
     let grid: Vec<(ProjectStatus, &str)> = vec![
         // Draft（record_addendum_waiver 拒——导入前无件可确认）
         // #227 后 24 工具位串 + #226 尾位（set_matrix_override）= 25 位；
-        // #243 尾位（recover_validating_state，仅 VALIDATING 放行）= 26 位
+        // #243 尾位（recover_validating_state，仅 VALIDATING 放行）= 26 位；
+        // #241 裁定：register/bind_evidence 位（第 6/7 位）在 DRAFTING 到
+        // READY_TO_EXPORT 翻 1（证据补件通道——缺口可发现的全程可解）。
         (ProjectStatus::Draft, "11000000000000100000000000"),
         // FilesImported
         (ProjectStatus::FilesImported, "01101000100000100000111100"),
@@ -215,15 +236,15 @@ fn full_matrix_snapshot() {
         (ProjectStatus::MatrixReady, "00001110110010110110100110"),
         // EvidenceBound
         (ProjectStatus::EvidenceBound, "00001110110010110110100110"),
-        // Drafting
-        (ProjectStatus::Drafting, "00001000110111110110100110"),
-        // Validating（#243 尾位 1——历史异常态恢复出口）
-        (ProjectStatus::Validating, "00001000100111110110100111"),
-        // Reviewing
-        (ProjectStatus::Reviewing, "00001000100111110110100110"),
-        // ReadyToExport
-        (ProjectStatus::ReadyToExport, "00001000100111110110100110"),
-        // Exported
+        // Drafting（#241：5/6 位翻 1——证据补件）
+        (ProjectStatus::Drafting, "00001110110111110110100110"),
+        // Validating（#243 尾位 1——历史异常态恢复出口；#241：5/6 位翻 1）
+        (ProjectStatus::Validating, "00001110100111110110100111"),
+        // Reviewing（#241：5/6 位翻 1）
+        (ProjectStatus::Reviewing, "00001110100111110110100110"),
+        // ReadyToExport（#241：5/6 位翻 1）
+        (ProjectStatus::ReadyToExport, "00001110100111110110100110"),
+        // Exported（终态不变量：终态不改数据——#241 不被括进来）
         (ProjectStatus::Exported, "00001000100011110110100110"),
     ];
     assert_eq!(grid.len(), ALL_STATES.len());

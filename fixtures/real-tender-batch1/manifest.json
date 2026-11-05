@@ -6,7 +6,7 @@
  "source": {
   "channel": "微信文件传输（用户提供）",
   "original_dir": "E:\\xwechat_files\\wxid_e8b2ebugrctq22_bc66\\msg\\file\\2026-11",
-  "note": "每个「文件集.zip」内仅含 1 个招标文件 PDF（黑龙江政府采购平台统一导出形态）"
+  "note": "每个「文件集.zip」内仅含 1 个招标文件 PDF（黑龙江政府采购平台统一导出形态）。入库时解压并保留 PDF 原名。"
  },
  "license_note": "招标文件为依法必须公开的政府采购文件（法定公开媒介发布），评测用途引用",
  "common_traits": {
@@ -23,7 +23,7 @@
    "id": "college-ai-230001",
    "title": "学院国家双高建设项目智慧教育生态下的AI赋能\"专业群\"建设服务",
    "project_no": "[230001]JYGS[GK]2026000620261105001",
-   "path": "fixtures/real-tender-batch1/college-ai-230001/tender.pdf",
+   "path": "fixtures/real-tender-batch1/college-ai-230001/学院国家双高建设项目智慧教育生态下的AI赋能“专业群”建设服务招标文件（[230001]JYGS[GK]2026000620261105001）.pdf",
    "sha256": "bad4d6ba0b23406d40f662ee28e06e4dcbbb2fb5b5bfef7fcf977c50f45370bb",
    "bytes": 719050,
    "pages": 70,
@@ -38,13 +38,15 @@
     "has_scoring": true,
     "has_tech_req": true,
     "has_business": true
-   }
+   },
+   "original_filename": "学院国家双高建设项目智慧教育生态下的AI赋能“专业群”建设服务招标文件（[230001]JYGS[GK]2026000620261105001）.pdf",
+   "original_zip": "学院国家双高建设项目智慧教育生态下的AI赋能“专业群”建设服务（ 230001 JYGS GK 2026000620261105001）-文件集.zip"
   },
   {
    "id": "danqing-reservoir-230001",
    "title": "丹青水库工程溢洪道模型试验",
    "project_no": "[230001]SLSJY[GK]2026000520261105001",
-   "path": "fixtures/real-tender-batch1/danqing-reservoir-230001/tender.pdf",
+   "path": "fixtures/real-tender-batch1/danqing-reservoir-230001/丹青水库工程溢洪道模型试验招标文件（[230001]SLSJY[GK]2026000520261105001）.pdf",
    "sha256": "7bfff6cb5dccb2223a0bbf34d1388fbfbee4848bc6118a0026d933062645263d",
    "bytes": 645213,
    "pages": 65,
@@ -59,13 +61,15 @@
     "has_scoring": true,
     "has_tech_req": true,
     "has_business": true
-   }
+   },
+   "original_filename": "丹青水库工程溢洪道模型试验招标文件（[230001]SLSJY[GK]2026000520261105001）.pdf",
+   "original_zip": "丹青水库工程溢洪道模型试验（ 230001 SLSJY GK 2026000520261105001）-文件集.zip"
   },
   {
    "id": "hc-cluster-230001",
    "title": "超融合集群",
    "project_no": "[230001]GCZX[GK]2026000720261023001",
-   "path": "fixtures/real-tender-batch1/hc-cluster-230001/tender.pdf",
+   "path": "fixtures/real-tender-batch1/hc-cluster-230001/超融合集群招标文件（[230001]GCZX[GK]2026000720261023001）.pdf",
    "sha256": "311b30f503e1439e3519cb5386b3f1e5489a09871608fb73b0990bfb843f4612",
    "bytes": 700269,
    "pages": 74,
@@ -80,13 +84,15 @@
     "has_scoring": true,
     "has_tech_req": true,
     "has_business": true
-   }
+   },
+   "original_filename": "超融合集群招标文件（[230001]GCZX[GK]2026000720261023001）.pdf",
+   "original_zip": "超融合集群（ 230001 GCZX GK 2026000720261023001）-文件集.zip"
   },
   {
    "id": "hq-dev-procure-230001",
    "title": "高质量发展设备采购第二批(二次)",
    "project_no": "[230001]zzgj[GK]20260070-120261105001",
-   "path": "fixtures/real-tender-batch1/hq-dev-procure-230001/tender.pdf",
+   "path": "fixtures/real-tender-batch1/hq-dev-procure-230001/高质量发展设备采购第二批(二次)招标文件（[230001]zzgj[GK]20260070-120261105001）.pdf",
    "sha256": "45bec54427b9fd2d03a77fd1b396fa6a446caa6d82a82a8d780df86db556727e",
    "bytes": 787676,
    "pages": 89,
@@ -101,13 +107,15 @@
     "has_scoring": true,
     "has_tech_req": true,
     "has_business": true
-   }
+   },
+   "original_filename": "高质量发展设备采购第二批(二次)招标文件（[230001]zzgj[GK]20260070-120261105001）.pdf",
+   "original_zip": "高质量发展设备采购第二批(二次)（ 230001 zzgj GK 20260070-120261105001）-文件集.zip"
   },
   {
    "id": "wenming-longjiang-230001",
    "title": "\"文明龙江\"主题融媒传播",
    "project_no": "[230001]zjgj-[GK]2026000420261105001",
-   "path": "fixtures/real-tender-batch1/wenming-longjiang-230001/tender.pdf",
+   "path": "fixtures/real-tender-batch1/wenming-longjiang-230001/“文明龙江”主题融媒传播招标文件（[230001]zjgj-[GK]2026000420261105001）.pdf",
    "sha256": "f80d0de7cbf5d5f1a2f12087651e79229f1b30dd5e4ad1bc66d42dcf6bab28e9",
    "bytes": 621679,
    "pages": 63,
@@ -122,11 +130,18 @@
     "has_scoring": true,
     "has_tech_req": true,
     "has_business": true
-   }
+   },
+   "original_filename": "“文明龙江”主题融媒传播招标文件（[230001]zjgj-[GK]2026000420261105001）.pdf",
+   "original_zip": "“文明龙江”主题融媒传播（ 230001 zjgj- GK 2026000420261105001）-文件集.zip"
   }
  ],
  "expected_baselines": {
   "note": "待抽取实跑后固化（#268 任务）——当前只登记静态事实（页数/sha256/文本量/★数）",
   "status": "PENDING"
+ },
+ "file_naming": {
+  "note": "用 zip 内的原始文件名（保留项目名称与项目编号）——不给改名，避免剥夺 Agent 从文件名取项目信息的路径",
+  "original_zip": "微信收到的「文件集.zip」",
+  "inner_pdf": "zip 内唯一 PDF，保持原名"
  }
 }

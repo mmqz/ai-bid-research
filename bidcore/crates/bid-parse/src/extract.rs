@@ -926,6 +926,19 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                 idxs.into_iter().map(move |bi| (bi, it.clone()))
             })
             .collect();
+    // #250 表格专路接管：参数表/商务表按「表头+数据行」结构化装配（一行
+    // 一条参数/要求，数值单位完整）。区域接管防双抽——被接管的块位不走
+    // 旧碎片链；优先级：审查表（#144 红线）> 语义表 > 旧链。
+    let semantic = crate::table_semantics::extract_docx_semantic_tables(f);
+    // 语义表条款号前缀：表号（locator「表N」提取——「参数表」类无名表用
+    // 「表N-行M」形态，与前附表-N / 表-N 既有条款号族同构）
+    let sem_clause_no = |b: &Block| -> String {
+        let key = table_key_of(&b.locator);
+        match key.rfind(" 表") {
+            Some(i) => format!("{}-{}", &key[i + 1..], row_no_of(&b.locator)),
+            None => format!("表-{}", row_no_of(&b.locator)),
+        }
+    };
     let mut bi = 0usize;
     while bi < blocks.len() {
     let b = &blocks[bi];
@@ -1098,6 +1111,33 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                         Some(format!("{}-{}", ri.table_name, ri.row)),
                         vec![anchor(f, b)], params, &f.name,
                     );
+                } else if let Some(ri) = semantic.params.get(&b.idx) {
+                    // #250 表格专路：参数表数据行（区域接管——不走旧
+                    // re_model 碎片链）。params.statement 承载语义组装
+                    //（数值单位完整），excerpt 锚保真（块原文）。
+                    let mut params = HashMap::new();
+                    params.insert(
+                        "statement".into(),
+                        serde_json::Value::String(ri.statement.clone()),
+                    );
+                    if ri.star {
+                        params.insert("star".into(), serde_json::json!(true));
+                    }
+                    push_req(reqs, seq, "技术参数", Some(sem_clause_no(b)),
+                             vec![anchor(f, b)], params, &f.name);
+                } else if let Some(ri) = semantic.commercial.get(&b.idx) {
+                    // #250 表格专路：商务表数据行（此前无任何商务抽取
+                    // 分支——实测商务要求 0 条，保证金/有效期/履约全丢）。
+                    let mut params = HashMap::new();
+                    params.insert(
+                        "statement".into(),
+                        serde_json::Value::String(ri.statement.clone()),
+                    );
+                    if ri.star {
+                        params.insert("star".into(), serde_json::json!(true));
+                    }
+                    push_req(reqs, seq, "商务要求", Some(sem_clause_no(b)),
+                             vec![anchor(f, b)], params, &f.name);
                 } else if crate::review_table::recognize_header(&b.cells).is_some() {
                     // 审查表表头行——只消费不产出
                 } else {

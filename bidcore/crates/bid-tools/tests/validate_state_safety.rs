@@ -18,7 +18,8 @@
 
 use bid_domain::evidence::{EvidenceKind, EvidenceSpec};
 use bid_domain::locator::EngineLocator;
-use bid_domain::outline::OutlineSpec;
+use bid_domain::outline::{OutlineNode, OutlineSpec, SectionStatus};
+use bid_domain::principal::TrustedPrincipal;
 use bid_domain::{Anchor, ParseStatus, ProjectStatus, Requirement, ToolError};
 use bid_tools::draft::MockGenerator;
 use bid_tools::service::BidService;
@@ -50,12 +51,13 @@ fn mk_req(id: &str, category: &str, excerpt: &str) -> Requirement {
 }
 
 /// 两叶夹具（资格组叶 + 格式组叶）：
-/// - `draft_all=true`：全叶起草（DRAFTING、全稿完成）；
+/// - `draft_all=true`：全叶起草（DRAFTING、全稿完成——#241 裁定后资格行
+///   随正文实写翻 RESPONDED，本夹具不再天然制造 E_QUAL_UNMET，失败面
+///   构造见 `svc_unmapped_qual`）；
 /// - `draft_all=false`：只起草格式叶（DRAFTING、缺资格叶——未完成态）。
 ///
-/// 资格 REQ-0001 只登记台账证据（不绑——readiness 闸放行、矩阵行保持
-/// 未响应，供「校验失败可重试」面制造 E_QUAL_UNMET）；格式 REQ-0002
-/// 零绑定可起草。
+/// 资格 REQ-0001 只登记台账证据（不绑——readiness 闸放行）；格式
+/// REQ-0002 零绑定可起草。
 fn svc_two_leaves(tag: &str, draft_all: bool) -> (BidService, Vec<String>) {
     let dir = temp_ws(tag);
     let mut svc = BidService::open(&dir).unwrap();
@@ -186,25 +188,102 @@ fn validate_sections_scope_is_the_drafting_time_check() {
 
 // ---------------------------------------------------------------- 3. 失败可修订重试
 
+/// 失败面夹具（#241 裁定后的 E_QUAL_UNMET 构造）：REQ-0003（资格条件）
+/// **不落任何章节**（覆盖缺口形态）——全叶起草后仍 NOT_RESPONDED，
+/// 规则 2 报 E_QUAL_UNMET。旧构造（资格叶已起草但无证据 → 未响应）
+/// 由 #241 裁定废止：正文实写即 RESPONDED（文本事实），证据缺口另走
+/// evidence_missing/提交就绪面，不再出现在状态面。
+fn svc_unmapped_qual(tag: &str) -> BidService {
+    let dir = temp_ws(tag);
+    let mut svc = BidService::open(&dir).unwrap();
+    svc.create_project("243 服务层", "ZFCG-243", "明标", &format!("ext-243-{tag}")).unwrap();
+    for (name, kind, sha) in [
+        ("A-招标文件.docx", "招标文件", "sha-243-a"),
+        ("C-补遗文件01.docx", "补遗", "sha-243-c"),
+    ] {
+        svc.store_mut().upsert_file(name, kind, sha, 10, 1, 50, 0, ParseStatus::Ok, "").unwrap();
+    }
+    svc.set_requirements(vec![
+        mk_req("REQ-0001", "资格条件", "具备水利水电工程施工总承包贰级资质"),
+        mk_req("REQ-0002", "格式要求", "正文用仿宋三号字"),
+        mk_req("REQ-0003", "资格条件", "项目经理须持有效安全生产考核合格证"),
+    ])
+    .unwrap();
+    // 手工建纲：只映射 REQ-0001/0002（REQ-0003 留空——覆盖缺口）
+    let mk_leaf = |id: &str, title: &str, order: u32, reqs: &[&str]| OutlineNode {
+        id: id.into(), parent_id: None, title: title.into(), level: 1, order,
+        requirement_ids: reqs.iter().map(|s| s.to_string()).collect(),
+        target_chars: 800, status: SectionStatus::Pending, dirty: false,
+        content: None, content_attempt: 0,
+    };
+    svc.store_mut().set_outline(vec![
+        mk_leaf("SEC-0001", "资格响应", 1, &["REQ-0001"]),
+        mk_leaf("SEC-0002", "格式响应", 2, &["REQ-0002"]),
+    ]).unwrap();
+    svc.store_mut().build_matrix().unwrap();
+    // 台账资质（登记不绑——清 MissingQualification 闸，资格叶可零绑定起草）
+    svc.store_mut()
+        .register_evidence(EvidenceSpec {
+            kind: EvidenceKind::Qualification,
+            title: "水利水电工程施工总承包贰级资质证书".into(),
+            source_file: "EV-ledger.pdf".into(),
+            source_sha256: "sha-243-lg".into(),
+            locator: EngineLocator::DocxParagraph {
+                paragraph_index: 7,
+                text_fingerprint: "fnv64:lg".into(),
+            },
+            fingerprint: "fnv64:lg".into(),
+            valid_from: None,
+            valid_until: None,
+            subject_name: "某公司".into(),
+            scope: "水利水电".into(),
+            client: None,
+            amount_wan: None,
+            completed_on: None,
+            fields: Default::default(),
+            excerpt: None,
+            excerpt_locator: None,
+            verification_tier: None,
+        })
+        .unwrap();
+    // 全叶起草（全稿完成——E_DRAFT_INCOMPLETE 前置闸不触发）
+    for rid in ["REQ-0001", "REQ-0002"] {
+        let leaf = leaf_of_req(&svc, rid);
+        svc.draft_section(&leaf, None, None, None, &mut MockGenerator).unwrap();
+    }
+    assert_eq!(svc.store().project().unwrap().status, ProjectStatus::Drafting);
+    svc
+}
+
 #[test]
 fn validate_failure_stays_in_drafting_then_retry_passes_and_advances() {
-    let (mut svc, _leaves) = svc_two_leaves("retry", true);
+    let mut svc = svc_unmapped_qual("retry");
 
-    // 第一轮：全稿完成但资格未响应（台账未绑）→ ok=false，留在 DRAFTING
+    // 第一轮：全稿完成但 REQ-0003（资格条件，未落章节）未响应 → ok=false，
+    // 留在 DRAFTING（#241 裁定后资格叶正文实写已翻 RESPONDED——失败源
+    // 改为覆盖缺口形态的未映射条款，旧「无证据即未响应」口径废止）
     let version_before = svc.store().content_version();
     let report = svc.validate_document(None).unwrap();
-    assert!(!report.ok, "E_QUAL_UNMET 在场（资格行未响应）");
+    assert!(!report.ok, "E_QUAL_UNMET 在场（未映射资格行未响应）");
     assert!(report.findings.iter().any(|f| f.rule_code == "E_QUAL_UNMET"));
     assert_eq!(svc.store().project().unwrap().status, ProjectStatus::Drafting, "失败不推进（#243 核心）");
     assert_eq!(svc.store().content_version(), version_before, "失败零副作用（版本不变）");
     // 可修订：draft_response_section 仍可用（修订通道未被锁死）
     assert!(svc.store().guard_tool("draft_response_section").is_ok());
 
-    // 修订：补绑证据 → 矩阵重算（未响应清零）
-    let eid = svc.store().evidences()[0].id.clone();
-    svc.store_mut().bind_evidence(&eid, "REQ-0001", "2030-12-31").unwrap();
+    // 修订：人工确认响应成立（#182：Human receipt 面——覆写 RESPONDED+说明，
+    // 覆写后重算矩阵，未响应清零）。旧路径（补绑证据即清）对未映射条款
+    // 只到 PARTIAL（证据无章节落位）——响应成立需人工确认或补落章节。
+    svc.store_mut()
+        .set_matrix_override(
+            "REQ-0003".into(),
+            bid_domain::matrix::ResponseStatus::Responded,
+            Some("安全生产考核合格证随投标文件正本提交（人工确认响应成立）".into()),
+            &TrustedPrincipal::human("243-retry-lead"),
+        )
+        .unwrap();
     let (_rows, blocking) = svc.store_mut().build_matrix().unwrap();
-    assert_eq!(blocking, 0, "绑定后 blocking 清零");
+    assert_eq!(blocking, 0, "覆写后 blocking 清零");
 
     // 第二轮：ok=true → 推进 VALIDATING（复审语义——成功面）
     let version_mid = svc.store().content_version();

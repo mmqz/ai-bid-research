@@ -5,8 +5,10 @@
 //!   MissingPerformance / MissingTechEvidence / UncoveredVetoItem / IncompleteTender）；
 //! - Agent 必选接线（UncoveredMandatoryItem）：Agent 标必选且类别不在
 //!   资格/否决阻断面、矩阵未响应 → 阻塞；非必选/无标记不误断；否决类不双报；
-//! - 承诺型裁定（PR #241 决策点 2）：正文已响应但无外部证据**不算已响应**
-//!  （正文不是矩阵派生输入）；出口=绑佐证或人工覆写 RESPONDED+说明；
+//! - #241 裁定（Lead 2026-11-05）：正文已响应但无外部证据 → 矩阵
+//!   RESPONDED（文本事实）+ 证据缺口正交标记（evidence_missing——合规
+//!   事实，由提交就绪面拦）；旧口径（2026-11-04 决策点 2：正文不算
+//!   响应）废止——正文实写后不再需要人工 RESPONDED 覆写自证；
 //! - 阻塞信息**人类可读**（不含 enum 名）；
 //! - 占位符：扫描正文里的【待补充】、行号、往返一致；
 //! - 真实场景：没有业绩证据的章节 → `ready = false`（issue 验收第 4 条）；
@@ -416,18 +418,22 @@ fn agent_mandatory_veto_category_reports_via_veto_blocker_only() {
     );
 }
 
-/// 裁定（PR #241 报 Lead 决策点 2，2026-11-04）：普通商务必选条款
-/// 「正文已响应、但没有外部证据」**不算已响应**。
+/// 裁定（Lead 2026-11-05，issue #241）：普通商务必选条款
+/// 「正文已响应、但没有外部证据」**矩阵记为 RESPONDED**（算已响应）。
 ///
-/// 依据：矩阵四态（T-2 规格 / V3-2 实装注）的派生输入只有
-/// 绑定 / 章节归属 / 覆写三个真源——**章节正文内容不是派生输入**
-/// （derive_matrix_rows 结构上不读 content）。承诺型商务条款的出口
-/// 与 #226 死锁同款：有佐证材料就绑定（→RESPONDED），没有就走
-/// 人工覆写（RESPONDED+说明——正文承诺型；NOT_APPLICABLE+理由——
-/// 真不适用）；Agent 不得以「正文写了承诺」自证已响应（#182：覆写
-/// 只认 Human receipt）。
+/// 依据：两分账——「写没写回应」是文本事实（看正文，写了就是写了），
+/// 「能不能提交」是合规事实（看证据，缺材料 = 废标风险）；旧口径把两件
+/// 事混为一谈（判未响应 → 冤枉真响应；判已响应即放行 → 放过废标风险）
+/// 都错。证据缺口由 evidence_missing 正交标记承载，由提交就绪面
+/// （submission_readiness）拦截，不压进状态面。
+///
+/// 承诺型条款（无材料要求词 → evidence_required=false）正文实写即
+/// 响应账全清；材料型条款（有要求词/资格类）正文实写仍留缺口标记
+/// （补绑证据或人工 NOT_APPLICABLE 豁免关闭，见 validate 面测试）。
+/// 旧口径的承诺型出口（人工 RESPONDED 覆写）保留给「正文尚未落、
+/// 但人工确认响应成立」的形态（responded_override_with_reason 测试）。
 #[test]
-fn drafted_body_without_evidence_is_not_response() {
+fn drafted_body_without_evidence_is_responded_not_blocking() {
     let mut s = base_store(
         vec![node("SEC-0001", "商务响应", 1, &["REQ-0001"])],
         vec![agent_req("REQ-0001", "商务要求", true)],
@@ -444,7 +450,8 @@ fn drafted_body_without_evidence_is_not_response() {
     s.advance_section_status("SEC-0001", SectionStatus::Drafted).unwrap();
     s.build_matrix().unwrap();
 
-    // 矩阵面：正文在位，无证据无覆写 → 仍 NOT_RESPONDED、仍 blocking
+    // 矩阵面：正文在位 → RESPONDED（裁定主面）；承诺型条款无材料要求词
+    // → 无缺口标记；必选行不再 blocking（冤枉真响应的旧口径废止）
     let row = s
         .matrix()
         .iter()
@@ -452,21 +459,52 @@ fn drafted_body_without_evidence_is_not_response() {
         .expect("REQ-0001 在矩阵中");
     assert_eq!(
         row.status,
-        bid_domain::matrix::ResponseStatus::NotResponded,
-        "正文不是矩阵派生输入——无证据无覆写即未响应（裁定主面）"
+        bid_domain::matrix::ResponseStatus::Responded,
+        "正文实写 → 已响应（文本事实——写了就是写了）"
     );
-    assert!(row.blocking, "Agent 必选商务条款未响应 → blocking");
+    assert!(!row.blocking, "正文响应的 Agent 必选行不阻断（两分账）");
+    assert!(!row.evidence_required, "承诺型条款（无材料要求词）不要求证明材料");
+    assert!(!row.evidence_missing, "承诺型条款正文实写即缺口全清");
 
-    // 起草门：已起草的正文不豁免响应账（复核/再起草同口径）
+    // 起草门：正文在位的必选条款已响应 → 再起草不被 UncoveredMandatoryItem 拦
+    // （旧口径的「正文已写仍拦再起草」死锁消除）
     let r = check_draft_readiness(&s, "SEC-0001");
-    assert!(!r.ready, "正文已写不等于已响应：{:?}", r);
-    let b = r
+    let mandatory_blocker = r
         .blockers
         .iter()
-        .find(|b| b.code() == "UNCOVERED_MANDATORY_ITEM")
-        .expect("正文在位仍应报必选未响应");
-    let msg = b.to_message();
-    assert!(msg.contains("REQ-0001") && !msg.contains("UncoveredMandatoryItem"), "{msg}");
+        .find(|b| b.code() == "UNCOVERED_MANDATORY_ITEM");
+    assert!(
+        mandatory_blocker.is_none(),
+        "正文在位 = 响应账已清：{:?}",
+        r.blockers.iter().map(|b| b.code()).collect::<Vec<_>>()
+    );
+}
+
+/// 材料型必选条款的正文实写：RESPONDED 但 evidence_missing=true——
+/// 状态面不冤枉真响应，缺口面不放过废标风险（两分账的正反两面同钉）。
+#[test]
+fn drafted_body_with_material_clause_keeps_evidence_gap() {
+    // 材料型条款：原文含要求词（授权委托书扫描件）——构造期定型
+    let mut material = agent_req("REQ-0001", "商务要求", true);
+    material.anchors[0].excerpt = "投标人须附上法定代表人授权委托书扫描件".into();
+    let mut s = base_store(
+        vec![node("SEC-0001", "商务响应", 1, &["REQ-0001"])],
+        vec![material],
+    );
+    s.advance_section_status("SEC-0001", SectionStatus::Outlining).unwrap();
+    s.advance_section_status("SEC-0001", SectionStatus::Drafting).unwrap();
+    s.set_section_content(
+        "SEC-0001",
+        "我方已按要求附上法定代表人授权委托书扫描件（见附件）。".into(),
+    )
+    .unwrap();
+    s.advance_section_status("SEC-0001", SectionStatus::Drafted).unwrap();
+    s.build_matrix().unwrap();
+    let row = s.matrix().iter().find(|r| r.requirement_id == "REQ-0001").unwrap();
+    assert_eq!(row.status, bid_domain::matrix::ResponseStatus::Responded);
+    assert!(!row.blocking);
+    assert!(row.evidence_required, "原文含材料要求词（附/扫描件）");
+    assert!(row.evidence_missing, "无有效证据在绑 → 缺口保留（合规事实）");
 }
 
 /// 承诺型商务必选条款的**正门出口**：人工覆写 RESPONDED（带说明）。

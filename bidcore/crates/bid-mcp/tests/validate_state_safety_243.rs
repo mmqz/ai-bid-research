@@ -15,7 +15,8 @@
 
 use bid_domain::evidence::{EvidenceKind, EvidenceSpec};
 use bid_domain::locator::EngineLocator;
-use bid_domain::outline::OutlineSpec;
+use bid_domain::outline::{OutlineNode, OutlineSpec, SectionStatus};
+use bid_domain::principal::TrustedPrincipal;
 use bid_domain::{Anchor, ParseStatus, ProjectStatus, Requirement};
 use bid_mcp::{dispatch_with, BidService, ToolCall, ToolError, ToolReply};
 use serde_json::{json, Value};
@@ -121,6 +122,64 @@ fn build_two_leaf_project(tag: &str) -> (BidService, String) {
     (svc, pid)
 }
 
+/// 建项目（#241 裁定后的失败面变体）：REQ-0003（资格条件）**不落章节**
+///（覆盖缺口）——全稿完成后仍 NOT_RESPONDED，供 full_order 用例的 ③
+/// 制造 ok=false。旧构造（资格叶已起草但无证据 → 未响应）由 #241 裁定
+/// 废止：正文实写即 RESPONDED（文本事实），证据缺口另走
+/// evidence_missing/提交就绪面，不进状态面。手工建纲（auto 建纲会
+/// 全量映射，无法构造未映射条款）。
+fn build_unmapped_qual_project(tag: &str) -> (BidService, String) {
+    let dir = tmp_dir(tag);
+    let mut svc = BidService::open(&dir).unwrap();
+    let pid = ok_result(call(&mut svc, "create_bid_project", json!({
+        "name": "243 工具层", "bid_deadline": "2026-12-31", "mode": "明标",
+        "external_key": &format!("ext-243-mcp-{tag}"),
+    })))["project_id"].as_str().unwrap().to_string();
+    svc.store_mut()
+        .upsert_file("A-招标文件.docx", "招标文件", &format!("sha-243u-{tag}"), 10, 1, 50, 0, ParseStatus::Ok, "")
+        .unwrap();
+    svc.store_mut()
+        .upsert_file("C-补遗文件01.docx", "补遗", &format!("sha-243u-{tag}-c"), 5, 0, 20, 0, ParseStatus::Ok, "")
+        .unwrap();
+    svc.set_requirements(vec![
+        mk_req("REQ-0001", "资格条件", "具备水利水电工程施工总承包贰级资质"),
+        mk_req("REQ-0002", "格式要求", "正文用仿宋三号字"),
+        mk_req("REQ-0003", "资格条件", "项目经理须持有效安全生产考核合格证"),
+    ])
+    .unwrap();
+    let mk_leaf = |id: &str, title: &str, order: u32, reqs: &[&str]| OutlineNode {
+        id: id.into(), parent_id: None, title: title.into(), level: 1, order,
+        requirement_ids: reqs.iter().map(|s| s.to_string()).collect(),
+        target_chars: 800, status: SectionStatus::Pending, dirty: false,
+        content: None, content_attempt: 0,
+    };
+    svc.store_mut().set_outline(vec![
+        mk_leaf("SEC-0001", "资格响应", 1, &["REQ-0001"]),
+        mk_leaf("SEC-0002", "格式响应", 2, &["REQ-0002"]),
+    ]).unwrap();
+    svc.store_mut().build_matrix().unwrap();
+    let _ = svc.store_mut().register_evidence(EvidenceSpec {
+        kind: EvidenceKind::Qualification,
+        title: "水利水电工程施工总承包贰级资质证书".into(),
+        source_file: "EV-ledger.pdf".into(),
+        source_sha256: format!("sha-243u-{tag}-lg"),
+        locator: EngineLocator::DocxParagraph { paragraph_index: 7, text_fingerprint: "fnv64:lg".into() },
+        fingerprint: "fnv64:lg".into(),
+        valid_from: None,
+        valid_until: None,
+        subject_name: "某公司".into(),
+        scope: "水利水电".into(),
+        client: None,
+        amount_wan: None,
+        completed_on: None,
+        fields: Default::default(),
+        excerpt: None,
+        excerpt_locator: None,
+        verification_tier: None,
+    });
+    (svc, pid)
+}
+
 fn draft_leaf(svc: &mut BidService, pid: &str, sid: &str) -> Value {
     ok_result(call(svc, "draft_response_section", json!({
         "project_id": pid, "section_id": sid,
@@ -181,7 +240,7 @@ fn incomplete_draft_guard_is_side_effect_free() {
 
 #[test]
 fn full_order_rejected_then_draft_validate_export() {
-    let (mut svc, pid) = build_two_leaf_project("full-order");
+    let (mut svc, pid) = build_unmapped_qual_project("full-order");
     let leaves = leaf_ids(&svc);
     // ① 起草一半误触发全局校验 → 被拒（无副作用，起草可继续）
     draft_leaf(&mut svc, &pid, &leaves[0]);
@@ -204,13 +263,25 @@ fn full_order_rejected_then_draft_validate_export() {
         })));
     }
 
-    // ③ 全稿校验（矩阵未响应 → 失败面先走一轮：留 DRAFTING 可修订）
+    // ③ 全稿校验（REQ-0003 资格条件未落章节——覆盖缺口 → 失败面先走一轮：
+    //    留 DRAFTING 可修订。旧构造「资格叶已起草但无证据 → 未响应」由
+    //    #241 裁定废止：正文实写即 RESPONDED）
     let r = ok_result(call(&mut svc, "validate_bid_document", json!({ "project_id": pid, "scope": "all" })));
-    assert_eq!(r["ok"], json!(false), "③ 资格未响应（台账未绑）→ ok=false");
+    assert_eq!(r["ok"], json!(false), "③ 未映射资格条款未响应 → ok=false");
     assert_eq!(r["project_status"], "DRAFTING", "③ 失败不推进（可修订可重试）");
-    // 修订：补绑证据（服务面——修订通道之一）
-    let eid = svc.store().evidences()[0].id.clone();
-    svc.store_mut().bind_evidence(&eid, "REQ-0001", "2030-12-31").unwrap();
+    // #241 顺带验证：校验响应携带提交就绪面（REQ-0003 同场双清单）
+    assert_eq!(r["submission_readiness"]["ready"], json!(false));
+    assert_eq!(r["submission_readiness"]["unresponded_count"], json!(1));
+    // 修订：人工确认响应成立（未映射条款补绑证据只到 PARTIAL——响应成立
+    // 需人工确认或补落章节；#182 Human receipt 面）
+    svc.store_mut()
+        .set_matrix_override(
+            "REQ-0003".into(),
+            bid_domain::matrix::ResponseStatus::Responded,
+            Some("安全生产考核合格证随投标文件正本提交（人工确认响应成立）".into()),
+            &TrustedPrincipal::human("243-full-order-lead"),
+        )
+        .unwrap();
     let (_rows, blocking) = svc.store_mut().build_matrix().unwrap();
     assert_eq!(blocking, 0);
 

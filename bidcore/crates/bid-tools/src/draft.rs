@@ -750,6 +750,14 @@ impl super::service::BidService {
         // ---- 5. 章节推进 DRAFTED（合法链补齐；no-op 路径零副作用）
         advance_section_to_drafted(self.store_mut(), section_id)?;
 
+        // ---- 5.5 矩阵联建（#241 裁定：正文实写成为状态派生输入——content
+        //      变化后必须重算，否则消费面（导出矩阵门/validate 规则 1-2/
+        //      起草 readiness）看到陈旧状态）。幂等派生：同内容重提交 → 行
+        //      不变 → 不 bump；首次落正文 → 未响应行翻 RESPONDED → bump
+        //      （矩阵行变化是真实状态变化，与绑定/覆写路径的联建同款账面）。
+        //      draft_section_iterative 经本函数回放提交，天然同覆盖。
+        self.store_mut().build_matrix()?;
+
         // ---- 6. 项目推进 DRAFTING（首次起草——MatrixReady → EvidenceBound
         //        → Drafting 逐态经 next_allowed；已越过者 no-op）
         advance_project_to_drafting(self.store_mut())?;

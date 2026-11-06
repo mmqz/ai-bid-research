@@ -9,12 +9,14 @@
 ## 0. 通用约定
 
 - **错误码**：`E_AUTH` / `E_NOTFOUND` / `E_STATE`（状态机拒绝越级或非法转换）/ `E_CONFLICT`（project_version 过期）/ `E_PARTIAL`（部分条目失败，附 item_errors）/ `E_UNPROCESSABLE`（解析不可恢复）/ `E_DRAFT_INCOMPLETE`（#243——全稿最终校验前置拒：起草未完成，附 `missing` 叶清单，零副作用）/ `E_RATE` / `E_INTERNAL`。
+- **行协议信封（#279）**：stdio 裸 JSON 路径（`bid-mcp-stdio` / `dispatch_json`）每行一个 `{"tool":"...","args":{...}}`。参数放**顶层**（`{"tool":..,"name":..}`）时历史行为是 serde 静默吞掉 + 工具层报误导性的「字段缺失」（#269 六场 11 次失败调用）；#279 起顶层出现该工具已知参数名 → 直接报**信封结构错误**：`ToolCall 解析失败：参数须嵌套在 "args" 下（收到顶层字段 name、bid_deadline，未见 args）`。未知顶层字段不触发（不越权猜测，维持工具层原语义）。
+- **project_version 乐观并发（#279 第 3 项）**：写工具接受三种形态——① 非负整数：强一致 CAS，过期 `E_CONFLICT`（报错带对齐建议，不变）；② 字符串 `"latest"`：显式声明「我确认无并发」，跳过检查（单代理顺序作业不必追踪版本号）；③ 缺省/null：内部步骤语义，跳过检查（现状不变）。非法字符串 → `E_UNPROCESSABLE`（文案指明合法形态）。
 - **幂等策略**：写操作接受 `idempotency_key`；同一 key 重复调用返回首次结果（不重复执行）。文件按 `sha256` 天然幂等；条款抽取按 `dedupe_hash` 幂等合并。
 - **大结果分页（S-4，V3-5）**：列表类工具（get_compliance_matrix / list_evidence / list_tasks，及 M2-b 的 search_evidence）不得一次返回全量（12,000 行矩阵 / 10,000 条证据量级）——统一游标信封：
   `in : { project_id, filters:{...}, cursor?, limit?, page?(仅矩阵兼容) }`；
   `out: { rows|items, total(过滤后总数), limit(生效页宽), cursor(本次生效游标), next_cursor: string|null }`，`next_cursor=null` 即取完，原样回传取下一页。
   游标规则（fail-closed）：opaque base64（内嵌版本字节/偏移/过滤器指纹）；跨过滤器或跨工具复用游标 → `E_UNPROCESSABLE`；limit 合法域 1..=1000、缺省 100，越界/非整数**显式拒**（不静默 clamp）；游标损坏/版本不认识/偏移越界（底层列表已变化）→ `E_UNPROCESSABLE`。行序确定性（矩阵=条款位置序 CMP-0001..N；证据=id 字典序；任务=target_id 字典序）是分页安全前提，不得破坏。
-- **补充建议（第 9 个只读工具）**：`get_bid_project_state`——断点恢复的入口（读项目状态、各阶段完成度、DIRTY 章节、BLOCKER 计数），仿 LingYan `check_pipeline_state`。原 8 工具契约不受影响。V3-5（S-4）另增两个只读列表工具 `list_evidence` / `list_tasks`（§4-A/§4-B，工具面共 11）。issue #42 阶段 10 增第 12 个工具 `save_version`（AI 主动存版本快照，见文末 §SV）。#80 第三批（G1-G3）后工具面 21；#219 全块覆盖三工具（§17/§18/§19）后工具面 24（§3 同步抽取通路合并语义）；#226 增 `set_matrix_override` → 25；#243 增 `recover_validating_state`（§20，校验状态安全与恢复）后工具面 26；#254 增分段三工具 `append_section_segment` / `rewrite_section_segment` / `list_section_segments`（§21，章节级增量写入）后工具面 **29**。
+- **补充建议（第 9 个只读工具）**：`get_bid_project_state`——断点恢复的入口（读项目状态、各阶段完成度、DIRTY 章节、BLOCKER 计数），仿 LingYan `check_pipeline_state`。原 8 工具契约不受影响。V3-5（S-4）另增两个只读列表工具 `list_evidence` / `list_tasks`（§4-A/§4-B，工具面共 11）。issue #42 阶段 10 增第 12 个工具 `save_version`（AI 主动存版本快照，见文末 §SV）。#80 第三批（G1-G3）后工具面 21；#219 全块覆盖三工具（§17/§18/§19）后工具面 24（§3 同步抽取通路合并语义）；#226 增 `set_matrix_override` → 25；#243 增 `recover_validating_state`（§20，校验状态安全与恢复）后工具面 26；#254 增分段三工具 `append_section_segment` / `rewrite_section_segment` / `list_section_segments`（§21，章节级增量写入）后工具面 29；#279 增 `list_tools`（§LT，行协议发现面）后工具面 **30**。
 
 ## 1. create_bid_project
 ```
@@ -995,3 +997,17 @@ out: { section_id, segments:[{ id, seq, version, chars, idem_key,
 （内容 = 整稿全文——账本与正文永不对不上）；同内容重提（幂等 no-op）
 不动账本。Skill 面（bid-response-pipeline §篇幅纪律）已改写：分批写作
 必须走 21-A，`draft_response_section` 仅用于 ≤4000 字小节或整章重写。
+
+## LT. list_tools（#279 行协议发现面 · 只读）
+```
+in : {}（无参数、无状态前置——建项目前即可调）
+out: { count, tools: [{ name, summary }...],
+       line_protocol: { request, response, notes[] } }
+语义: 行协议握手入口——#269 六场实测两个独立代理都试探了 list_tools
+      （Agent 先握手再干活的合理预期），行协议无此工具只能 E_NOTFOUND、
+      信封结构全靠猜（danqing / hc-cluster 各 5 连败）。返回工具清单
+      （单一真源 TOOL_NAMES + 摘要）+ 行协议契约摘要（信封形态/错误码面/
+      CAS 纪律/断点恢复入口）。
+备注: 标准 MCP JSON-RPC 客户端用 tools/list 方法等价获取（含 inputSchema
+      全量）；本工具是 stdio 裸 JSON 行协议的发现面补口。
+```

@@ -123,13 +123,55 @@ pub fn tools_schema() -> Value {
     serde_json::json!({ "tools": entries })
 }
 
+// ------------------------------------------------ 工具参数名提取（#279 信封诊断）
+//
+// dispatch_json 的信封结构诊断需要「某工具的已知参数名」——单一真源就是
+// 本模块 inputSchema 的 properties 键（schema 与实现的漂移由
+// tests/mcp_protocol.rs 的一致性断言兜底）。不另立字段清单表（两处真源必漂移）。
+
+/// 指定工具的入参字段名清单（未知工具 → 空——不猜测，交由分发层报 E_NOTFOUND）。
+#[must_use]
+pub fn tool_arg_fields(tool: &str) -> Vec<String> {
+    input_schema(tool)
+        .get("properties")
+        .and_then(Value::as_object)
+        .map(|props| props.keys().cloned().collect())
+        .unwrap_or_default()
+}
+
+/// 全部工具入参字段名的并集（解析失败路径用——调用方连 tool 字段都没给，
+/// 只能按全工具并集猜「这些顶层字段像工具参数」）。OnceLock 缓存：全量
+/// schema 只构建一次。
+#[must_use]
+pub fn all_tool_arg_fields() -> Vec<String> {
+    static ALL: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    ALL.get_or_init(|| {
+        let mut seen: Vec<String> = Vec::new();
+        for name in crate::TOOL_NAMES {
+            for f in tool_arg_fields(name) {
+                if !seen.contains(&f) {
+                    seen.push(f);
+                }
+            }
+        }
+        seen
+    })
+    .clone()
+}
+
 /// 各工具入参的 JSON Schema（`type/properties/required/enum/minimum/maximum/
 /// items/minItems` 键面——draft-07 广谱子集，不依赖 2020-12 专有键）。
 #[must_use]
 fn input_schema(name: &str) -> Value {
     // 高频参数的公共形状（match 各臂互斥——按值 move 各占一条执行路径，合法）
     let pid = json!({"type": "string", "description": "项目 ID（建项目时的 project_id）"});
-    let pv = json!({"type": "integer", "description": "乐观并发版本号（上次响应的 project_version 原样回传；缺省跳过检查）"});
+    let pv = json!({
+        "oneOf": [
+            {"type": "integer", "minimum": 0},
+            {"type": "string", "const": "latest"}
+        ],
+        "description": "乐观并发版本号：上次响应的 project_version 原样回传（强一致，过期 E_CONFLICT）；或 \"latest\" 显式声明无并发（#279）；缺省跳过检查"
+    });
     match name {
         "create_bid_project" => json!({
             "type": "object",
@@ -592,11 +634,18 @@ fn input_schema(name: &str) -> Value {
             },
             "required": ["project_id"]
         }),
+        "list_tools" => json!({
+            "type": "object",
+            "properties": {},
+            "description": "无参数——发现面工具，任何状态可用"
+        }),
         _ => json!({"type": "object"}),
     }
 }
 
-fn describe(name: &str) -> &'static str {
+/// 工具的一句话摘要（tools/list 与 #279 `list_tools` 发现面的单一真源；
+/// #279 起公开——tools.rs 的发现面工具复用，避免第二份描述漂移）。
+pub(crate) fn describe(name: &str) -> &'static str {
     match name {
         "create_bid_project" => "建项目（external_key 幂等）",
         "import_tender_files" => "导入招标文件 + 完整性对账",
@@ -609,6 +658,7 @@ fn describe(name: &str) -> &'static str {
         "append_section_segment" => "追加章节分段（#254——content 是段正文非章节全文，引擎按序合稿，前段不丢；同 idem_key/同内容重提幂等 no-op；长章节分批写作的安全路径）",
         "rewrite_section_segment" => "重写指定段（#254——局部修订不动兄弟段；expected_version CAS，过期 E_CONFLICT；定位用 list 回显的 segment_id）",
         "list_section_segments" => "只读段账本（#254——段清单 + 合稿字数 + 剩余配额，续写前对账）",
+        "list_tools" => "只读：工具清单 + 行协议契约摘要（#279 发现面——无上下文代理的握手入口；返回信封形态/错误码面/CAS 纪律；JSON-RPC 客户端用 tools/list 等价）",
         "validate_bid_document" => "双层校验（确定性规则 + 模型复核）",
         "export_bid_document" => "导出（含暗标模式；#117 表格接线——profile.bid_amount/price_breakdown 报价决策，六表自动注入/附表）",
         "get_bid_project_state" => "只读：项目状态与 allowed_next_tools",
@@ -668,5 +718,7 @@ fn is_implemented(name: &str) -> bool {
             | "append_section_segment"
             | "rewrite_section_segment"
             | "list_section_segments"
+            // #279 行协议发现面（tools.rs 纯只读臂，无状态前置）
+            | "list_tools"
     )
 }

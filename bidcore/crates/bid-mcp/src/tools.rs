@@ -76,6 +76,10 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         "get_coverage_report" => crate::coverage_tools::get_coverage_report(svc, args),
         // ---- #285 ① ★漏标检测（只读——★字面真值 vs 已抽 REQ 差集，只报不补） ----
         "get_star_coverage" => crate::coverage_tools::get_star_coverage(svc, args),
+        // ---- #285 ② 块级双向索引三工具（只读——REQ↔块双向反查 + overlay）----
+        "get_requirement_provenance" => crate::bidi_tools::get_requirement_provenance(svc, args),
+        "get_block_requirements" => crate::bidi_tools::get_block_requirements(svc, args),
+        "get_annotation_overlay" => crate::bidi_tools::get_annotation_overlay(svc, args),
         "score_section" => score_section(svc, args),
         "score_document" => score_document(svc, args),
         // ---- #145 任务 1：双通道证据检索（契约 §5——朴素实现，真向量库见 M2-b）----

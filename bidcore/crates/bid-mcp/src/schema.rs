@@ -279,6 +279,30 @@ fn input_schema(name: &str) -> Value {
             "properties": {
                 "project_id": pid,
                 "file_id": {"type": "string", "description": "文件 ID（import_tender_files 回执 per_file[].file_id）"}
+        // ---- #285 ② 块级双向索引三工具 ----
+        "get_requirement_provenance" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid,
+                "req_id": {"type": "string", "description": "REQ id（extract_requirements 回执 / get_compliance_matrix 的 req_id）"}
+            },
+            "required": ["project_id", "req_id"]
+        }),
+        "get_block_requirements" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid,
+                "file_id": {"type": "string", "description": "文件 ID（import_tender_files 回执 per_file[].file_id）"},
+                "block_idx": {"type": "integer", "minimum": 0, "description": "0 基块序（get_document_chunks 的 chunks[].block_idx）"}
+            },
+            "required": ["project_id", "file_id", "block_idx"]
+        }),
+        "get_annotation_overlay" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid,
+                "file_id": {"type": "string", "description": "文件 ID"},
+                "page": {"type": "integer", "minimum": 1, "description": "可选——只取该页块（PDF 面；省略 = 全文件）"}
             },
             "required": ["project_id", "file_id"]
         }),
@@ -698,6 +722,9 @@ pub(crate) fn describe(name: &str) -> &'static str {
         "submit_block_marks" => "提交区间标记 + requirements（#219——verdict: requirement|noise|rule|review_table；校验区间合法/不越界/不重叠/requirement 落在 requirement 区间内）",
         "get_coverage_report" => "只读：覆盖报告（#219——哪些块没归属 + 未覆盖区间 + 各类 verdict 块数；全覆盖才允许建纲）",
         "get_star_coverage" => "只读：★漏标检测（#285①——字面★真值（排除「打★号条款为实质性条款」样板句）vs 已抽 REQ 差集；star_total/declarations/star_truth/captured/missing 三级恒等式不漏不重；missing[] 带 page/line/block_idx/reason 补标定位面；只报不补——补标走 submit_block_marks substantive=true）",
+        "get_requirement_provenance" => "只读：REQ 溯源（#285②——REQ→原文：锚点带 block_idx/page/line，块位三级真源＝回填值→旧锚(locator,excerpt)兜底→null 诚实；resolved_via 标记腿来源）",
+        "get_block_requirements" => "只读：块反查（#285②——块→REQ：原文+verdict（无标记=null）+req_ids+marked_by；无 REQ 块照常返回）",
+        "get_annotation_overlay" => "只读：视图层 overlay 数据面（#285②——逐块 req_ids/semantic(emphasis|requirement)/status/suspected_miss；计数全量、明细≤200 截断，page 参数分页）",
         _ => "unknown",
     }
 }
@@ -736,6 +763,10 @@ fn is_implemented(name: &str) -> bool {
             | "get_coverage_report"
             // #285 ① ★漏标检测（coverage_tools.rs）
             | "get_star_coverage"
+            // #285 ② 块级双向索引三工具（全部只读、已接线）
+            | "get_requirement_provenance"
+            | "get_block_requirements"
+            | "get_annotation_overlay"
             // #243 校验状态安全与恢复
             | "recover_validating_state"
             // #254 章节级增量写入三工具

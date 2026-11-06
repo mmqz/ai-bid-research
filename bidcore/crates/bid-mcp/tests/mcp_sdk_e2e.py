@@ -5,7 +5,7 @@
 工具三件套（issue #137 验收第一条）：
 
   1. initialize        —— 版本协商 + serverInfo + capabilities
-  2. list_tools        —— 30 个工具全量在座，每个带合法 inputSchema（#219 三覆盖工具 + #226 set_matrix_override + #243 recover_validating_state + #254 分段三工具 + #279 list_tools 发现面）
+  2. list_tools        —— 34 个工具全量在座，每个带合法 inputSchema（#219 三覆盖工具 + #226 set_matrix_override + #243 recover_validating_state + #254 分段三工具 + #279 list_tools 发现面）
   3. call_tool         —— 成功路径（create_bid_project）+
                           工具执行错误（isError=true + 契约错误码）+
                           协议错误（未知工具 → McpError -32602）
@@ -49,7 +49,10 @@ EXPECTED_TOOLS = {
     "list_section_segments",
     # #279 行协议发现面（JSON-RPC tools/list 同样可见）
     "list_tools",
-    "recommend_length_profile",  # #287 篇幅档位推荐（与 TOOL_NAMES 31 对齐）
+    "recommend_length_profile",  # #287 篇幅档位推荐
+    "get_requirement_provenance",  # #285② 块级双向索引三工具（与 TOOL_NAMES 34 对齐）
+    "get_block_requirements",
+    "get_annotation_overlay",
 }
 
 server_bin = sys.argv[1] if len(sys.argv) > 1 else "bid-mcp-server"
@@ -84,8 +87,7 @@ async def main() -> None:
             # ---- ② list_tools（全量工具面 + inputSchema 形态）----
             tools = (await session.list_tools()).tools
             names = {t.name for t in tools}
-check(len(tools) == 32, f"list_tools: 工具数 = {len(tools)}（32）")
-
+check(len(tools) == 35, f"list_tools: 工具数 = {len(tools)}（35）")
             check(names == EXPECTED_TOOLS, "list_tools: 与 TOOL_NAMES 单一真源一致")
             for t in tools:
                 check(isinstance(t.inputSchema, dict) and t.inputSchema.get("type") == "object",

@@ -199,7 +199,7 @@ fn acceptance_setup(tag: &str) -> (BidService, String, PathBuf) {
     use bid_domain::review::{Decision, Gate};
     for gate in [Gate::MatrixApproval, Gate::OutlineApproval] {
         svc.store_mut()
-            .record_review(gate, &bid_domain::TrustedPrincipal::human("wa-lead"), Decision::Approved, vec![])
+            .record_review(gate, &bid_domain::TrustedPrincipal::human("wa-lead"), Decision::Approved, vec![], None)
             .unwrap();
     }
     (svc, pid, ws)
@@ -284,7 +284,7 @@ fn writing_acceptance_full_flow_docx_out() {
     // ⑦' PreExportConfirm 记审（#180：定稿内容过门——服务面）
     use bid_domain::review::{Decision, Gate};
     svc.store_mut()
-        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("wa-lead"), Decision::Approved, vec![])
+        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("wa-lead"), Decision::Approved, vec![], None)
         .unwrap();
 
     // ⑧ 导出（MCP §8——成品 docx）
@@ -426,7 +426,7 @@ fn writing_acceptance_short_draft_blocked_from_export() {
                 format!("章节 {victim} 正文低于最低篇幅（target={victim_target} 的 −20% 下限）"),
                 Some(victim.clone()),
             )],
-        )
+         None)
         .unwrap();
     assert_eq!(receipt.spawned_rt_ids.len(), 1, "BLOCKER 强制派生 1 个 RT");
     let rt_id = receipt.spawned_rt_ids[0].clone();
@@ -440,7 +440,7 @@ fn writing_acceptance_short_draft_blocked_from_export() {
     // ⑧' 导出被拒（面 2：即使门被误批，RT 未关单仍拒——E_UNPROCESSABLE）
     //      测试特权：补记一条同门 Approved（内容未变），单独验证 RT 闸面。
     svc.store_mut()
-        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("wa-lead"), Decision::Approved, vec![])
+        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("wa-lead"), Decision::Approved, vec![], None)
         .unwrap();
     let reply = call(&mut svc, "export_bid_document", json!({
         "project_id": &pid, "format": "docx", "output_path": "out/投标文件-短稿.docx",
@@ -477,7 +477,7 @@ fn writing_acceptance_short_draft_blocked_from_export() {
 
     // ---- 重审过门（内容已变——新摘要）→ 导出成功
     svc.store_mut()
-        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("wa-lead"), Decision::Approved, vec![])
+        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("wa-lead"), Decision::Approved, vec![], None)
         .unwrap();
     let r = ok_result(call(&mut svc, "export_bid_document", json!({
         "project_id": &pid, "format": "docx", "output_path": "out/投标文件-修复后.docx",
@@ -539,7 +539,7 @@ fn writing_acceptance_export_independent_of_review_approval() {
             &bid_domain::TrustedPrincipal::human("wa-lead"),
             Decision::Approved,
             vec![],
-        )
+         None)
         .unwrap();
     // 记审面确实全绿（三门过 + RT 闸清空——`open_blockers` 是 export_allowed
     // 的 RT 判据面）——拒力只能来自独立复算门
@@ -571,7 +571,7 @@ fn writing_acceptance_export_independent_of_review_approval() {
             &bid_domain::TrustedPrincipal::human("wa-lead"),
             Decision::Approved,
             vec![],
-        )
+         None)
         .unwrap();
     let r = ok_result(call(&mut svc, "export_bid_document", json!({
         "project_id": &pid, "format": "docx", "output_path": "out/投标文件-直接批准-修复.docx",
@@ -593,7 +593,7 @@ fn writing_acceptance_export_independent_of_review_approval() {
             &bid_domain::TrustedPrincipal::human("wa-lead"),
             Decision::Approved,
             vec![],
-        )
+         None)
         .unwrap();
     let reply = call(&mut svc, "export_bid_document", json!({
         "project_id": &pid, "format": "docx", "output_path": "out/投标文件-空叶.docx",

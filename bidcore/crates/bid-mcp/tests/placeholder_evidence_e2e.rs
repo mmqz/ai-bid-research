@@ -202,14 +202,14 @@ fn register_real_with_page_anchor(
 fn approve_two_gates(svc: &mut BidService) {
     for gate in [Gate::MatrixApproval, Gate::OutlineApproval] {
         svc.store_mut()
-            .record_review(gate, &bid_domain::TrustedPrincipal::human("245-lead"), Decision::Approved, vec![])
+            .record_review(gate, &bid_domain::TrustedPrincipal::human("245-lead"), Decision::Approved, vec![], None)
             .unwrap();
     }
 }
 
 fn approve_pre_export(svc: &mut BidService) {
     svc.store_mut()
-        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("245-lead"), Decision::Approved, vec![])
+        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("245-lead"), Decision::Approved, vec![], None)
         .unwrap();
 }
 

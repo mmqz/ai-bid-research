@@ -831,6 +831,7 @@ mod tests {
             actor_type: ActorType::Agent,
             authentication_method: "hmac_receipt_v1".into(),
             approval_receipt: String::new(),
+            scope_is_agent: false,
         };
         let err = s.set_matrix_override(
             "REQ-0003".into(), ResponseStatus::NotApplicable,

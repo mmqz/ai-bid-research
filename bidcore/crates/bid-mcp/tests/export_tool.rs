@@ -59,10 +59,10 @@ fn pass_setup_gates(svc: &mut BidService) {
     // #131：无补遗确认门一并过（基座只导入招标文件，L3 阻塞的人工出口；
     // #118 合入时漏适配本套件的起草面）
     svc.store_mut()
-        .record_review(Gate::AddendumWaiver, &bid_domain::TrustedPrincipal::human("lead"), Decision::Approved, vec![])
+        .record_review(Gate::AddendumWaiver, &bid_domain::TrustedPrincipal::human("lead"), Decision::Approved, vec![], None)
         .unwrap_or_else(|e| panic!("无补遗确认门失败（{e:?}）"));
     for gate in [Gate::MatrixApproval, Gate::OutlineApproval] {
-        svc.store_mut().record_review(gate, &bid_domain::TrustedPrincipal::human("lead"), Decision::Approved, vec![])
+        svc.store_mut().record_review(gate, &bid_domain::TrustedPrincipal::human("lead"), Decision::Approved, vec![], None)
             .unwrap_or_else(|e| panic!("前置门过审失败（{e:?}）——门序/状态窗检查夹具"));
     }
 }
@@ -72,7 +72,7 @@ fn pass_setup_gates(svc: &mut BidService) {
 fn pass_pre_export_confirm(svc: &mut BidService) {
     use bid_domain::review::{Decision, Gate};
     svc.store_mut()
-        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("lead"), Decision::Approved, vec![])
+        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("lead"), Decision::Approved, vec![], None)
         .unwrap_or_else(|e| panic!("导出确认门失败（{e:?}）"));
 }
 
@@ -291,7 +291,7 @@ fn export_blocked_by_unresponded_mandatory_rows() {
     // 不过此门则全部叶被 MissingAddendum 拒，状态停在导出前，闸语义测不到）
     use bid_domain::review::{Decision, Gate};
     svc.store_mut()
-        .record_review(Gate::AddendumWaiver, &bid_domain::TrustedPrincipal::human("lead"), Decision::Approved, vec![])
+        .record_review(Gate::AddendumWaiver, &bid_domain::TrustedPrincipal::human("lead"), Decision::Approved, vec![], None)
         .unwrap();
     // 先起草（进 DRAFTING——export 的 guard 面），保持零绑定零覆写。
     // 缺失回报闸（#110 任务 1）：登记台账资质（不绑）让资格叶可起草；含未响应

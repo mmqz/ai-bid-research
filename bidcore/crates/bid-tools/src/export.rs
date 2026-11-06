@@ -903,6 +903,10 @@ pub struct ExportOptions<'a> {
     /// #117 任务 1：表格/格式件附加件（None = 纯章节面——既有调用方零变化；
     /// Some = 六表注入 + 附表 + 格式件，见 [`build_export_extras`]）。
     pub extras: Option<&'a ExportExtras>,
+    /// #277 方案 A：agent 过门警告横幅（None = 无 agent 过门/全人工确认——
+    /// 既有行为零变化；Some = 正文 TOC 后插红色粗体警告段，措辞与门清单
+    /// 由服务层组装单一真源）。PDF 通道经 docx→soffice 自动继承。
+    pub review_banner: Option<String>,
 }
 
 impl<'a> ExportOptions<'a> {
@@ -1151,6 +1155,16 @@ impl<'a> DocumentExporter<'a> {
         }
         // TOC 域插正文最前（Word F9 更新出目录；开关面见 toc_field 注释）。
         docx = docx.add_table_of_contents(toc_field());
+        // #277 方案 A：agent 过门警告横幅——TOC 后、首章前（首页可见位）。
+        // 红色粗体：警告语义不可与正文混淆；追认后（每门最新过门都是 human）
+        // 本字段为 None，横幅消失。
+        if let Some(banner) = &opts.review_banner {
+            docx = docx.add_paragraph(
+                Paragraph::new().add_run(
+                    Run::new().add_text(banner.as_str()).bold().color(RED_RUN_COLOR),
+                ),
+            );
+        }
         let mut chapters_written = 0usize;
         let mut total_chars = 0u64;
         // #117 任务 1：表格注入位解析（锚定章 → 该子树最后一个叶章；

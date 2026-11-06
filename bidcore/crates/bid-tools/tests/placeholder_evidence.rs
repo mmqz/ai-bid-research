@@ -499,6 +499,7 @@ fn placeholder_gate_exemption_predicate_requires_full_legitimate_form() {
         actor_type: ActorType::Agent,
         authentication_method: AUTH_METHOD_HMAC_RECEIPT.into(),
         approval_receipt: "v1.bot-01.agent.matrix_override:x:y:RESPONDED:1.aa".into(),
+        scope_is_agent: false,
     };
     let ov = |status: ResponseStatus,
               deviation: Option<&str>,

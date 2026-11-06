@@ -140,7 +140,7 @@ fn prepared(tag: &str) -> (BidService, String, PathBuf) {
     use bid_domain::review::{Decision, Gate};
     for gate in [Gate::MatrixApproval, Gate::OutlineApproval] {
         svc.store_mut()
-            .record_review(gate, &bid_domain::TrustedPrincipal::human("seg-lead"), Decision::Approved, vec![])
+            .record_review(gate, &bid_domain::TrustedPrincipal::human("seg-lead"), Decision::Approved, vec![], None)
             .unwrap();
     }
     let blocking = svc.store().matrix().iter().filter(|r| r.blocking).count();

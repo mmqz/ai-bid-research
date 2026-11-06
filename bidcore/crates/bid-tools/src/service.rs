@@ -560,6 +560,12 @@ pub struct BidService {
     /// 导入响亮拒（见 [`Self::import`]）。持久化目录始终隐式受信（服务的
     /// 自有存储——章节/导出/manifest 都落在那里，与 fs_root 是否覆盖无关）。
     fs_root: Option<PathBuf>,
+    /// #277 方案 A：严格模式——true = 审核门只认 human receipt（默认，
+    /// Q1 裁定：保守，自动化场景显式开启）；false = 允许 agent 声明过门
+    /// （全程留痕 + 导出警告 + 可追认）。工作区配置
+    /// `<dir>/.mang/config.json` 的 `require_human_receipt` 位（缺省 true
+    /// ——旧工作区行为零变化）；纯内存态恒 true。
+    require_human_receipt: bool,
 }
 
 /// #182：32 字节随机密钥（getrandom——OS 熵源，不手拼）。
@@ -645,6 +651,47 @@ pub fn matrix_override_scope(
     format!("matrix_override:{project_id}:{requirement_id}:{status}:{reason_digest}")
 }
 
+/// #277 方案 A：agent 声明过门的签域——人类签域 + `:agent` 后缀。
+/// 服务层双路验签的第二路（第一路 = 人类签域，见 [`review_gate_scope`]）。
+/// 签域族分离 = 身份不冒充的结构面：agent 的 receipt 只能过 agent 签域，
+/// 人类签域的 MAC 覆盖 scope，交叉必 BadSignature。
+pub fn agent_review_gate_scope(gate: Gate) -> String {
+    format!("{}:agent", review_gate_scope(gate))
+}
+
+/// #277 方案 A：补遗确认的 agent 签域（[`addendum_waiver_scope`] + 后缀）。
+pub fn agent_addendum_waiver_scope(file_id: &str) -> String {
+    format!("{}:agent", addendum_waiver_scope(file_id))
+}
+
+/// #277 方案 A：工作区配置装载（`<dir>/.mang/config.json`）。
+///
+/// - 文件不存在 / 字段缺席 / null → **true**（严格模式默认，Q1 裁定：保守
+///   ——旧工作区与纯内存态行为零变化；自动化跑批显式写 false 开启）；
+/// - `require_human_receipt` 非布尔 → Corrupt 拒开（fail-closed 不猜测）；
+/// - JSON 损坏 → Corrupt 拒开（同 approval.key 的纪律：配置面不静默降级）。
+fn load_workspace_config(dir: &Path) -> Result<bool, crate::store_io::StoreIoError> {
+    let path = dir.join(".mang").join("config.json");
+    match std::fs::read_to_string(&path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(true),
+        Err(e) => Err(crate::store_io::StoreIoError::Io(e)),
+        Ok(text) => {
+            let v: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
+                crate::store_io::StoreIoError::Corrupt(format!(
+                    ".mang/config.json 解析失败（{e}）——工作区配置不静默降级，修复后重开"
+                ))
+            })?;
+            match v.get("require_human_receipt") {
+                None | Some(serde_json::Value::Null) => Ok(true),
+                Some(serde_json::Value::Bool(b)) => Ok(*b),
+                Some(other) => Err(crate::store_io::StoreIoError::Corrupt(format!(
+                    "require_human_receipt 须为布尔（实际 {other}）——配置面拒开不猜测"
+                ))),
+            }
+        }
+    }
+}
+
 impl BidService {
     #[must_use]
     pub fn new() -> Self {
@@ -655,6 +702,8 @@ impl BidService {
             // #182：纯内存态——内存生成密钥不落盘（测试/嵌入方默认形态）
             approval_key: random_approval_key(),
             fs_root: None,
+            // #277：纯内存态恒严格模式（自动化场景走持久化工作区显式配置）
+            require_human_receipt: true,
         }
     }
 
@@ -662,6 +711,9 @@ impl BidService {
     /// T-8 验收「建项→导入→抽条款→重启→状态完整恢复」的入口），否则空态起步。
     /// #182：审批密钥从 `<dir>/.mang/approval.key` 装载（缺则生成落盘 0600
     /// ——重启后旧 receipt 在 24h 有效窗内仍可验，跨进程身份连续）。
+    /// #277：工作区配置从 `<dir>/.mang/config.json` 装载（缺省/缺字段 →
+    /// require_human_receipt=true 严格模式；JSON 损坏 → Corrupt 拒开——
+    /// fail-closed，不静默降级）。
     pub fn open(dir: impl AsRef<Path>) -> Result<Self, crate::store_io::StoreIoError> {
         let sf = crate::store_io::StoreFile::new(&dir);
         let (snap, parsed) = match sf.load()? {
@@ -679,6 +731,7 @@ impl BidService {
             None => DomainStore::new(),
         };
         let approval_key = load_or_create_approval_key(sf.dir())?;
+        let require_human_receipt = load_workspace_config(sf.dir())?;
         Ok(Self {
             store,
             parsed,
@@ -687,6 +740,7 @@ impl BidService {
             fs_root: Some(dir.as_ref().to_path_buf()),
             persist: Some(sf),
             approval_key,
+            require_human_receipt,
         })
     }
 
@@ -1039,45 +1093,155 @@ impl BidService {
         Ok((bound, replayed, item_errors, rows, blocking))
     }
 
-    /// `record_review_gate` 业务半边（G3 + #182）：三门记审。
+    /// `record_review_gate` 业务半边（G3 + #182 + #277 方案 A）。
     ///
     /// #182：入参从裸 `reviewer` 串改为 `receipt`（宿主签发的审批回执）。
-    /// **服务层验签是 MCP 面的唯一入口**（单一真源——壳层不重复实现）：
-    /// 签域 `review_gate:{gate}`（门级绑定——A 门 receipt 过不了 B 门）→
-    /// 验签得 TrustedPrincipal → 域层再拦 actor_type（纵深）。状态门/门序
-    /// 裁决在域层 record_review，不变。
+    /// **服务层验签是 MCP 面的唯一入口**（单一真源——壳层不重复实现）。
+    ///
+    /// #277 方案 A：**双路验签**——
+    /// 1. 先验人类签域 `review_gate:{gate}`（现状路径）：通过 → human
+    ///    过门（零变化）；
+    /// 2. 不通过再验 agent 签域 `review_gate:{gate}:agent`：通过 → **严格
+    ///    模式检查**（require_human_receipt=true → 拒，报因说明 + 指引；
+    ///    false → agent 声明过门，`agent_reason` 必填非空——域层落
+    ///    GatePassRecord 审计账 + 导出警告）；
+    /// 3. 两路都不过 → 报人类验签面的错误（主路径口径不变——伪造/
+    ///    过期/篡改的报因与 #182 完全一致；Human 用 agent 签域的混用
+    ///    场景优先报 NotAgent 的签域不匹配提示）。
     pub fn record_review_gate(
         &mut self,
         gate: Gate,
         receipt: &str,
         decision: bid_domain::review::Decision,
         findings: Vec<(bid_domain::review::Severity, String, String, Option<String>)>,
+        agent_reason: Option<&str>,
     ) -> Result<(bid_domain::review::ReviewReceipt, TrustedPrincipal), ToolError> {
-        let principal = self.verify_approval_receipt(receipt, &review_gate_scope(gate))?;
+        let principal = self.verify_gate_principal(
+            receipt,
+            &review_gate_scope(gate),
+            &agent_review_gate_scope(gate),
+            "record_review_gate",
+        )?;
         let receipt = self
             .store
-            .record_review(gate, &principal, decision, findings)?;
+            .record_review(gate, &principal, decision, findings, agent_reason)?;
         self.auto_checkpoint()?;
         Ok((receipt, principal))
     }
 
-    /// `record_addendum_waiver` 业务半边（#184 + #182）：补遗逐件人工确认。
+    /// `record_addendum_waiver` 业务半边（#184 + #182 + #277 方案 A）。
     ///
     /// #182：入参从裸 `principal` 串改为 `receipt`。签域
     /// `addendum_waiver:{file_id}`（件级绑定——TF-0003 的 receipt 免不了
     /// TF-0004）；reason 非空白 / file_id 存在性在域层裁决，不变。
+    /// #277：同款双路验签（agent 签域 `addendum_waiver:{file_id}:agent`）
+    /// ——agent 声明确认时 reason 本就是必填参数（审计四要素同源）。
     pub fn record_addendum_waiver(
         &mut self,
         file_id: &str,
         reason: &str,
         receipt: &str,
     ) -> Result<(bid_domain::AddendumWaiverRecord, TrustedPrincipal), ToolError> {
-        let principal = self.verify_approval_receipt(receipt, &addendum_waiver_scope(file_id))?;
+        let principal = self.verify_gate_principal(
+            receipt,
+            &addendum_waiver_scope(file_id),
+            &agent_addendum_waiver_scope(file_id),
+            "record_addendum_waiver",
+        )?;
         let rec = self
             .store
             .record_addendum_waiver(file_id, reason, &principal)?;
         self.auto_checkpoint()?;
         Ok((rec, principal))
+    }
+
+    /// #277 方案 A：过门面的双路验签（human 签域 → agent 签域 → 报错）。
+    ///
+    /// 裁决序：
+    /// 1. 人类签域验签（[`principal::verify_approval_receipt`]——只认 Human
+    ///    actor + 传入的人类 scope）→ Ok = human 路径，直接返回；
+    /// 2. agent 签域验签（[`principal::verify_agent_receipt`]——只认 Agent
+    ///    actor + 传入的 agent scope）→ Ok 且 `require_human_receipt=false`
+    ///    = agent 声明路径（返回 Agent principal——域层落审计账）；
+    ///    Ok 但严格模式 → 拒（报因说明：工作区配置指引）；
+    /// 3. 两路都不过：NotAgent（Human 用 agent 签域——签域/身份不匹配）
+    ///    优先报不匹配提示；否则报人类验签面的原始错误（伪造/过期/篡改
+    ///    的报因与 #182 口径一致——不因新增通道而弱化现有防线，验收 4）。
+    fn verify_gate_principal(
+        &self,
+        receipt: &str,
+        human_scope: &str,
+        agent_scope: &str,
+        at: &str,
+    ) -> Result<TrustedPrincipal, ToolError> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        // ---- 1. 人类签域（现状路径）
+        match principal::verify_approval_receipt(receipt, &self.approval_key, human_scope, now) {
+            Ok(p) => return Ok(p),
+            Err(human_err) => {
+                // ---- 2. agent 签域（#277 声明面）
+                match principal::verify_agent_receipt(receipt, &self.approval_key, agent_scope, now)
+                {
+                    Ok(p) => {
+                        if self.require_human_receipt {
+                            return Err(ToolError::EUnprocessable {
+                                reason: format!(
+                                    "{}：agent 声明过门被拒——本工作区 require_human_receipt=true（严格模式：审核门只认人工 receipt）。\
+                                     开启通道：工作区 <ws>/.mang/config.json 写 {{\"require_human_receipt\": false}} 后重开（#277 方案 A：留痕+导出警告+可追认）",
+                                    at
+                                ),
+                            });
+                        }
+                        return Ok(p);
+                    }
+                    Err(agent_err) => {
+                        // ---- 3. 报错面：混用签域（Human 用 agent 签域）优先
+                        //      报不匹配；其余报人类验签面原始错误
+                        if matches!(agent_err, principal::ReceiptError::NotAgent) {
+                            return Err(ToolError::EUnprocessable {
+                                reason: format!(
+                                    "{}：审批 receipt 验签失败（NOT_AGENT_ACTOR——{}）。{}",
+                                    at,
+                                    agent_err,
+                                    "签域与身份不匹配：Human 不得用 agent 签域，Agent 声明过门走 :agent 签域（#277）"
+                                ),
+                            });
+                        }
+                        return Err(ToolError::EUnprocessable {
+                            reason: format!(
+                                "{}：审批 receipt 验签失败（{}——{}）。人工确认由宿主签发 receipt 提供，Agent 不得伪造；agent 声明过门走 :agent 签域（#277）",
+                                at,
+                                human_err.code(),
+                                human_err
+                            ),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    /// #277：严格模式读面（工具层回显 / 测试断言用）。
+    #[must_use]
+    pub fn require_human_receipt(&self) -> bool {
+        self.require_human_receipt
+    }
+
+    /// #277：agent 声明过门清单（工具层响应面 agent_waivers 的素材——
+    /// 每门最新一条 human_confirmed=false）。
+    #[must_use]
+    pub fn agent_gate_passes(&self) -> Vec<&bid_domain::review::GatePassRecord> {
+        self.store.agent_gate_passes()
+    }
+
+    /// #277：全部门人工确认完成？（导出响应面 human_review_complete——
+    /// false 时导出正文带警告横幅）。
+    #[must_use]
+    pub fn human_review_complete(&self) -> bool {
+        self.store.human_review_complete()
     }
 
     // ------------------------------------------------------------ #182 审批 receipt 面
@@ -1364,11 +1528,31 @@ impl BidService {
         let fenced_out = crate::fs_fence::resolve_write(&self.fs_roots(), output_path)?;
         let fenced_abs = fenced_out.absolute();
         let output_path = fenced_abs.as_path();
+        // ---- #277 方案 A：agent 过门警告横幅——存在 agent 声明过门（未经
+        //      人工确认，每门最新一条判）→ 导出正文首页 TOC 后插红色警告
+        //      + warnings 携带同一事实。追认后（每门最新都是 human）横幅
+        //      消失。措辞 = Q3 裁定原文。
+        let agent_passes = self.store.agent_gate_passes();
+        let review_banner = if agent_passes.is_empty() {
+            None
+        } else {
+            let gates: Vec<&str> = agent_passes.iter().map(|p| p.gate.as_str()).collect();
+            let banner = format!(
+                "【警告】本标书的部分审核门由 AI 声明通过，未经人工复核（门：{}）。\
+                 追认：人工以本人 receipt 重过对应门后，本警告消失（#277）",
+                gates.join("、")
+            );
+            warnings.push(
+                "#277：存在 agent 声明过门（未经人工确认）——正文首页已插警告横幅；人工补 human receipt 追认后消失".into(),
+            );
+            Some(banner)
+        };
         let opts = crate::export::ExportOptions {
             format_spec: Some(&spec),
             project_name: self.store.project()?.name.clone(),
             anonymize: anonymize_effective,
             extras: Some(&extras),
+            review_banner,
         };
         let (docx_path, final_path) = if format == "pdf" {
             // docx 先落工作区内部位（out/.pdf-staging/{stem}.docx——不入用户

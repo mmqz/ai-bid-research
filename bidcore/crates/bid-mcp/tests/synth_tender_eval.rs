@@ -437,7 +437,7 @@ fn synth_tender_eval() {
     // #180 审核内容绑定：矩阵/大纲批的是响应面与结构面，保持起草前原位；
     // PreExportConfirm 绑定章节正文摘要，挑至全部叶起草完成后记审（见 ⑦'）
     for gate in [Gate::MatrixApproval, Gate::OutlineApproval] {
-        svc.store_mut().record_review(gate, &bid_domain::TrustedPrincipal::human("synth-lead"), Decision::Approved, vec![]).unwrap();
+        svc.store_mut().record_review(gate, &bid_domain::TrustedPrincipal::human("synth-lead"), Decision::Approved, vec![], None).unwrap();
     }
     let n_blocking = svc.store().matrix().iter().filter(|r| r.blocking).count();
     assert_eq!(n_blocking, 0, "⑦ 绑定后 blocking 清零: 剩 {n_blocking}");
@@ -468,7 +468,7 @@ fn synth_tender_eval() {
     // ---- ⑦' PreExportConfirm 记审（#180：定稿内容过门——全部叶起草完成后、
     //      导出前，绑定的才是将进产物的正文摘要）
     svc.store_mut()
-        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("synth-lead"), Decision::Approved, vec![])
+        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("synth-lead"), Decision::Approved, vec![], None)
         .unwrap();
 
     // ---- ⑧ 导出 ----

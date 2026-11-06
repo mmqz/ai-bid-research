@@ -9,6 +9,12 @@ members = [
     "crates/bid-mcp",
     "crates/bid-engine",
     "crates/mang-snap",
+    # FG-01（#303）：mang-app 撤掉空 [workspace] 表并入本 workspace——
+    # 此前它是独立 workspace，cargo test --workspace 不含它，39 个测试
+    # 从未在 CI 执行（diag.rs tools==13 腐烂断言因此潜伏）。见 audit
+    # false-green-register.md FG-01 与 issue #303。
+    # 注意：本成员含 tao/wry GUI 依赖，Linux 本地构建需 gtk/webkit2gtk dev。
+    "crates/mang-app",
 ]
 
 [workspace.package]

@@ -1,5 +1,10 @@
-# mang-app 独立于 bidcore workspace（桌面壳与核心库分开构建，避免拖慢核心 CI）
-[workspace]
+# FG-01（#303）：本文件曾有过的空 [workspace] 表把 mang-app 隔离成独立
+# workspace——bidcore 的 cargo test --workspace 不含它，CI 只对它 cargo check
+# （编译不执行），39 个测试（fs 围栏 write_bytes_guard / 路径穿越 / llm 掩码
+# 安全面）从未运行，diag.rs 的 tools==13 腐烂断言因此从未被发现。
+# 现并入 bidcore workspace：测试随 --workspace 全量执行（Windows CI 实证）。
+# 本地 Linux 注意：构建本包需要 gtk/webkit2gtk dev 包（tao/wry/rfd 的 Linux
+# 后端）——不装就构建不了它；跑其他成员用 cargo test -p <成员> 即可。
 
 [package]
 name = "mang-app"

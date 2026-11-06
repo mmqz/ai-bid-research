@@ -301,9 +301,25 @@ mod tests {
     fn mcp_status_is_stdio_and_ready() {
         let v = mcp_status().unwrap();
         assert_eq!(v["channel"], "stdio");
-        assert_eq!(v["tools"], 13, "工具面 13 个（#68 阶段 2 后）");
-        assert_eq!(v["implemented"], 11);
+        // FG-01（#303）教训：#68 阶段 2 时把工具面写死成 13/11，TOOL_NAMES
+        // 涨到 31 后该断言必红——但 mang-app 此前是独立 workspace（空 [workspace]
+        // 表），CI 只 cargo check 从不执行测试，腐烂从未被发现。
+        // 改为对单一真源 TOOL_NAMES 的动态断言：工具面涨多少都不用改这里。
+        assert_eq!(
+            v["tools"].as_u64().expect("tools 计数必须是数字") as usize,
+            bid_mcp::TOOL_NAMES.len(),
+            "工具面必须与 bid_mcp::TOOL_NAMES 单一真源同量"
+        );
+        // 当前 31 工具全部实装（schema::is_implemented 白名单覆盖全部 TOOL_NAMES）。
+        // 若未来新增「未实装」工具导致此处红：把基线改成显式列出允许未实装的
+        // 白名单，而不是删断言——基线随真源同步，不是放宽（AGENTS.md 第 9 条）。
+        assert_eq!(
+            v["implemented"].as_u64().expect("implemented 计数必须是数字") as usize,
+            bid_mcp::TOOL_NAMES.len(),
+            "当前全部工具实装（见 bid-mcp schema::is_implemented 白名单）"
+        );
         assert_eq!(v["ready"], true, "未知工具探测应答 E_NOTFOUND 即就绪（#325 契约字面量）");
+
     }
 
     #[test]

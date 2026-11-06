@@ -10,6 +10,7 @@
 ```json
 { "project_id": "…", "format": "docx",
   "output_path": "out/投标文件-技术标.docx",
+  "bid_open_date": "2026-12-05",
   "profile": { "bid_amount": 15800000, "project_name": "…招标官方项目名",
                "duration_days": 180, "validity_days": 90,
                "deposit_amount": 300000, "legal_rep_gender": "男",
@@ -23,6 +24,13 @@
 - `output_path`：**工作区相对路径**（不得绝对路径/含 `..`——违反 →
   `E_UNPROCESSABLE`）。产物落 `<工作区>/<output_path>`，父目录自动创建；
   返回的 `artifact.url` 是解析后的绝对路径；
+- `bid_open_date`（#322，可选但强烈建议）：**开标日时效裁决基准日**（ISO
+  日期，与 bind_evidence 的同参同口径）。提供则在导出前对全部证据做单向
+  翻转（Active/Expiring→Expired，只降不升——Expired 不可逆，重新登记新版
+  证据才是正路）；翻转后矩阵同步重算，矩阵门读到的是翻转后状态（翻掉的
+  证据不再撑响应面）。未提供但存在带 valid_until 的证据 → warnings 响亮
+  告警「时效未裁决」（不硬拒）；非法日期/非字符串 → `E_UNPROCESSABLE`。
+  **建议：有带时效字段的证据时必传**（资质证书过期是废标级风险）；
 - `profile` 是**投标决策面**（报价/工期/有效期/保证金/分项报价/招标官方
   项目名）——进幂等键，**换报价重导 = 新导出**（不吃旧缓存）；
 - `options.tracked_changes` / `options.watermark`：暂不支持——传 truthy 会
@@ -30,6 +38,10 @@
 - 状态窗：Drafting+ 可调（含 EXPORTED——重复导出/换参数重导）。
 
 ## 前置检查（引擎双门，fail-closed）
+
+0. **时效裁决**（#322，提供 `bid_open_date` 时）：开标日口径单向翻转证据
+   状态（翻转后矩阵重算——矩阵门/响应面读的是翻转后状态；翻转清单进
+   warnings 审计面）；
 
 1. **矩阵门**（`check_export_ready`）：blocking 行（必选未响应）未清零 →
    `E_UNPROCESSABLE` 逐行列出「`REQ-x（CMP-x）: 必选未响应——R-03/R-04

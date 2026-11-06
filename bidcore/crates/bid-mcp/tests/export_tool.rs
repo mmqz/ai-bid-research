@@ -519,3 +519,190 @@ fn export_watermark_false_does_not_warn() {
         r2["warnings"]
     );
 }
+
+// ---------------------------------------------------------------- #322：开标日时效裁决接线（R-05）+ 翻转后矩阵重算（R-04）
+
+/// mk_req 的 Agent 标必选变体：评分项类（不进大纲正文——无响应章节）+
+/// params.marked_by=agent + params.mandatory=true（merge.rs 转换产物的
+/// 手工等价形状——blocking 面命中 agent_mandatory，响应只能靠证据）。
+fn mk_agent_mandatory_req(id: &str, excerpt: &str) -> Requirement {
+    let mut params = std::collections::HashMap::new();
+    params.insert("marked_by".to_string(), serde_json::json!("agent"));
+    params.insert("mandatory".to_string(), serde_json::json!(true));
+    Requirement {
+        id: id.into(),
+        category: "评分项".into(),
+        clause_no: None,
+        anchors: vec![Anchor {
+            file: "A-招标文件.docx".into(),
+            kind: "para".into(),
+            locator: "第四章/2.1".into(),
+            excerpt: excerpt.into(),
+        }],
+        params,
+        source_file: "A-招标文件.docx".into(),
+    }
+}
+
+/// svc_drafted 的时效变体：证据带 valid_until（其余链路与 svc_drafted 同构——
+/// create → import → extract → outline → matrix → draft → 三门 + PreExportConfirm）。
+/// bind 用 2026-12-31（valid_until=2027-06-30 在其后 → 可绑）。
+/// REQ-0004（评分项 + Agent 标必选，无响应章节）：响应**只能**靠证据——
+/// 翻转前 Partial（非阻塞），翻转后 NotResponded（阻塞）——门 1a 的
+/// 翻转敏感面（#322 负例的靶行）。
+fn svc_drafted_validity(tag: &str) -> (BidService, String, std::path::PathBuf) {
+    let dir = tmp_dir(tag);
+    let mut svc = BidService::open(&dir).unwrap();
+    let pid = ok_result(call(&mut svc, "create_bid_project", json!({
+        "name": "时效裁决测试项目", "bid_deadline": "2027-12-31", "mode": "明标", "external_key": tag,
+    })))["project_id"].as_str().unwrap().to_string();
+    svc.store_mut().upsert_file(
+        "A-招标文件.docx", "招标文件", &format!("sha-{tag}"), 10, 1, 50, 0, ParseStatus::Ok, "",
+    ).unwrap();
+    let reqs = vec![
+        mk_req("REQ-0001", "资格条件", "投标人须具备水利水电工程施工总承包贰级及以上资质"),
+        mk_req("REQ-0002", "否决项", "投标文件未经法定代表人签字的作否决处理"),
+        mk_agent_mandatory_req("REQ-0004", "投标人近三年须具有类似项目业绩（附证明材料）"),
+    ];
+    svc.set_requirements(reqs).unwrap();
+    let _ = svc.prepare_outline_and_matrix(OutlineSpec { target_total_chars: 1_500, max_reqs_per_leaf: 8 })
+        .unwrap();
+    use bid_domain::evidence::EvidenceSpec;
+    use bid_domain::locator::EngineLocator;
+    let (eid, _) = svc.store_mut().register_evidence(EvidenceSpec {
+        kind: bid_domain::evidence::EvidenceKind::Qualification,
+        title: "水利水电工程施工总承包贰级资质证书".into(),
+        source_file: "EV-01.pdf".into(),
+        source_sha256: format!("sha-ev-{tag}"),
+        locator: EngineLocator::DocxParagraph { paragraph_index: 3, text_fingerprint: "fnv64:1a".into() },
+        fingerprint: "fnv64:1a".into(),
+        valid_from: Some("2025-06-30".into()),
+        valid_until: Some("2027-06-30".into()),
+        subject_name: "某建设工程有限公司".into(),
+        scope: "水利水电".into(),
+        client: None,
+        amount_wan: None,
+        completed_on: None,
+        fields: Default::default(),
+        excerpt: None,
+        excerpt_locator: None,
+        verification_tier: None,
+    }).unwrap();
+    for rid in ["REQ-0001", "REQ-0002", "REQ-0004"] {
+        svc.store_mut().bind_evidence(&eid, rid, "2026-12-31").unwrap();
+    }
+    let _ = svc.store_mut().build_matrix().unwrap();
+    // 夹具基线：翻转前 REQ-0004 = Partial（证据在位无章节，非阻塞）→ 门 1a 放行
+    assert!(
+        svc.store().check_export_ready().is_ok(),
+        "夹具基线：翻转前门 1a 放行（REQ-0004 Partial 非阻塞）"
+    );
+    pass_setup_gates(&mut svc);
+    let leaf_ids: Vec<String> = {
+        let parents: std::collections::HashSet<String> = svc.store().sections().iter()
+            .filter_map(|n| n.parent_id.clone()).collect();
+        svc.store().sections().iter()
+            .filter(|n| !parents.contains(&n.id)).map(|n| n.id.clone()).collect()
+    };
+    for sid in &leaf_ids {
+        svc.draft_section(sid, None, None, None, &mut bid_tools::draft::MockGenerator).unwrap();
+    }
+    pass_pre_export_confirm(&mut svc);
+    (svc, pid, dir)
+}
+
+/// 负例 e2e（#322 验收条目）：Active→Expired 翻转 → 旧响应行不得过门 1a。
+/// 导出时提供 bid_open_date=2027-07-01（valid_until=2027-06-30 已过）→
+/// 翻转 EXPIRED → 矩阵重算（R-04）→ REQ-0004（Agent 标必选，仅证据响应）
+/// 变 NotResponded → E_UNPROCESSABLE。
+#[test]
+fn export_with_bid_open_date_flips_expired_and_blocks() {
+    let (mut svc, pid, _dir) = svc_drafted_validity("flip-block");
+    let reply = call(&mut svc, "export_bid_document", json!({
+        "project_id": pid, "format": "docx", "output_path": "out/标书.docx",
+        "bid_open_date": "2027-07-01",
+    }));
+    let code = err_code(&reply);
+    assert_eq!(code, "E_UNPROCESSABLE", "翻转后导出必须被拒（门 1a）");
+    let msg = format!("{reply:?}");
+    assert!(
+        msg.contains("必选未响应") && msg.contains("REQ-0004"),
+        "错误来自矩阵门 1a 且点名时效靶行（实际：{msg}）"
+    );
+    // 状态滞留 Drafting（EXPORTED 未推进——导出原子性）
+    assert_eq!(svc.store().project().unwrap().status, ProjectStatus::Drafting);
+    // 只降不升：同项目换回合法开标日也不复活（Expired 不可逆——重新登记
+    // 新版证据（register renewal）才是正路，这是 apply_validity 的单向语义）
+    let reply2 = call(&mut svc, "export_bid_document", json!({
+        "project_id": pid, "format": "docx", "output_path": "out/标书.docx",
+        "bid_open_date": "2026-12-31",
+    }));
+    assert_eq!(err_code(&reply2), "E_UNPROCESSABLE", "Expired 不可逆（只降不升）");
+}
+
+/// 正例：开标日在 valid_until 内 → 零翻转 → 导出成功且无时效类告警。
+#[test]
+fn export_with_bid_open_date_no_flip_succeeds() {
+    let (mut svc, pid, _dir) = svc_drafted_validity("no-flip-ok");
+    let r = ok_result(call(&mut svc, "export_bid_document", json!({
+        "project_id": pid, "format": "docx", "output_path": "out/标书.docx",
+        "bid_open_date": "2026-12-31",
+    })));
+    assert_eq!(r["project_status"], "EXPORTED", "开标日未过时效 → 导出成功");
+    assert!(
+        !r["warnings"].as_array().unwrap().iter().any(|w| w.as_str().unwrap().contains("翻转")),
+        "零翻转零告警（valid_until 2027-06-30 > 开标日 2026-12-31）: {}",
+        r["warnings"]
+    );
+    assert!(
+        !r["warnings"].as_array().unwrap().iter().any(|w| w.as_str().unwrap().contains("时效未裁决")),
+        "提供了开标日 → 不产「未裁决」告警: {}",
+        r["warnings"]
+    );
+}
+
+/// 兼容面：不带 bid_open_date（既有调用方）→ 不硬拒，响亮告警「时效未裁决」。
+#[test]
+fn export_without_bid_open_date_warns_unadjudicated() {
+    let (mut svc, pid, _dir) = svc_drafted_validity("no-date-warn");
+    let r = ok_result(call(&mut svc, "export_bid_document", json!({
+        "project_id": pid, "format": "docx", "output_path": "out/标书.docx",
+    })));
+    assert_eq!(r["project_status"], "EXPORTED", "契约兼容：缺参不阻断导出");
+    assert!(
+        r["warnings"].as_array().unwrap().iter().any(|w| w.as_str().unwrap()
+            .contains("时效未裁决")),
+        "带 valid_until 的证据存在时必须响亮告警: {}",
+        r["warnings"]
+    );
+    // 对照：无时效证据的既有夹具（valid_until=None）不产该告警（零噪音）
+    let (mut svc2, pid2, _) = svc_drafted("no-date-clean", false);
+    let r2 = ok_result(call(&mut svc2, "export_bid_document", json!({
+        "project_id": pid2, "format": "docx", "output_path": "out/标书.docx",
+    })));
+    assert!(
+        !r2["warnings"].as_array().unwrap().iter().any(|w| w.as_str().unwrap()
+            .contains("时效未裁决")),
+        "无 valid_until 证据 → 不产时效告警: {}",
+        r2["warnings"]
+    );
+}
+
+/// 参数校验：非法日期/非字符串 → 响亮拒（不静默忽略）。
+#[test]
+fn export_bid_open_date_input_validation() {
+    let (mut svc, pid, _dir) = svc_drafted_validity("bad-date");
+    let reply = call(&mut svc, "export_bid_document", json!({
+        "project_id": pid, "format": "docx", "output_path": "out/x.docx",
+        "bid_open_date": "2026/12/31",
+    }));
+    assert_eq!(err_code(&reply), "E_UNPROCESSABLE", "非法格式响亮拒");
+    assert!(format!("{reply:?}").contains("YYYY-MM-DD"), "错误带格式指引");
+
+    let reply2 = call(&mut svc, "export_bid_document", json!({
+        "project_id": pid, "format": "docx", "output_path": "out/x.docx",
+        "bid_open_date": 20261231,
+    }));
+    assert_eq!(err_code(&reply2), "E_UNPROCESSABLE", "非字符串响亮拒");
+    assert!(format!("{reply2:?}").contains("number"), "错误点名实际类型");
+}

@@ -326,6 +326,12 @@ in : { project_id, format:"docx"|"pdf", output_path(必填——产物路径，�
        （#189 导出围栏纵深：工具层形状校验之外，服务层 resolve_write 按受信根
        组件级判定 + 逐段 symlink 检查——字符串前缀陷阱与 symlink 逃逸在
        两层任一被拦），
+       bid_open_date?(#322/R-05：开标日时效裁决——ISO 日期 YYYY-MM-DD。提供则
+       在导出前按开标日对全部证据做单向翻转（Active/Expiring→Expired，
+       只降不升；翻转后矩阵同步重算 R-04，矩阵门读到的是翻转后状态；
+       翻转非空进 warnings 审计面）。未提供但存在带 valid_until 的证据 →
+       响亮告警「时效未裁决」，不硬拒（契约兼容）；非法日期/非字符串 →
+       E_UNPROCESSABLE 响亮拒),
        profile:{dark_bid? , template?}, options:{tracked_changes?, watermark?}, project_version }
 嵌入: #68 阶段 3——章正文支持 md 块语法（无语法内容与旧版字节级同输出）：
      - 表格：连续 | 行（首行表头 + |---| 分隔行 + 数据行）→ docx 表格

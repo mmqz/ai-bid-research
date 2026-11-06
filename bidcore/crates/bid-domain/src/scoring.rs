@@ -1800,6 +1800,9 @@ mod tests {
                 kind: "para".into(),
                 locator: "评标办法".into(),
                 excerpt: excerpt.into(),
+                    block_idx: None,
+                    page: None,
+                    line: None
             }],
             params,
             source_file: "A".into(),
@@ -1816,6 +1819,9 @@ mod tests {
                 kind: "para".into(),
                 locator: "须知".into(),
                 excerpt: "投标文件未经法定代表人签字的将被否决".into(),
+                    block_idx: None,
+                    page: None,
+                    line: None
             }],
             params: HashMap::new(),
             source_file: "A".into(),
@@ -2050,6 +2056,9 @@ mod tests {
                     kind: "para".into(),
                     locator: "第四章 评标办法".into(),
                     excerpt: excerpt.into(),
+                        block_idx: None,
+                        page: None,
+                        line: None
                 }],
                 params,
                 source_file: "A".into(),
@@ -2137,6 +2146,9 @@ mod tests {
                     kind: "para".into(),
                     locator: "评标办法".into(),
                     excerpt: format!("{id} 评分项"),
+                        block_idx: None,
+                        page: None,
+                        line: None
                 }],
                 params,
                 source_file: "A".into(),
@@ -2215,6 +2227,9 @@ mod tests {
                     kind: "para".into(),
                     locator: "评标办法".into(),
                     excerpt: format!("{id} 评分项"),
+                        block_idx: None,
+                        page: None,
+                        line: None
                 }],
                 params,
                 source_file: "A".into(),
@@ -2404,6 +2419,9 @@ mod tests {
                     kind: "para".into(),
                     locator: "第四章 评标办法".into(),
                     excerpt: criteria.into(),
+                        block_idx: None,
+                        page: None,
+                        line: None
                 }],
                 params,
                 source_file: "A".into(),

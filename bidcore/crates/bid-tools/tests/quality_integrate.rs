@@ -34,6 +34,9 @@ fn scoring_req(id: &str, score: f64, section: &str, criteria: &str) -> Requireme
             kind: "para".into(),
             locator: format!("第四章/{id}"),
             excerpt: criteria.into(),
+                block_idx: None,
+                page: None,
+                line: None
         }],
         params,
         source_file: "A-招标文件.docx".into(),

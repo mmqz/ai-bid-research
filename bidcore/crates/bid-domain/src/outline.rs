@@ -1513,6 +1513,9 @@ impl DomainStore {
                     kind: "table".into(),
                     locator: String::new(),
                     excerpt: String::new(),
+                        block_idx: None,
+                        page: None,
+                        line: None
                 }));
             self.upsert_scoring_mapping(
                 it.scoring_req_id,
@@ -1771,6 +1774,9 @@ mod tests {
                 file: "A".into(), kind: "para".into(),
                 locator: "第三章".into(),
                 excerpt: format!("条款-{i} 的原文摘录"),
+                    block_idx: None,
+                    page: None,
+                    line: None
             }],
             params: std::collections::HashMap::new(),
             source_file: "A".into(),
@@ -2054,6 +2060,9 @@ mod tests {
                 kind: "para".into(),
                 locator: locator.into(),
                 excerpt: excerpt.into(),
+                    block_idx: None,
+                    page: None,
+                    line: None
             }],
             params: std::collections::HashMap::new(),
             source_file: "A".into(),
@@ -2468,6 +2477,9 @@ mod tests {
                 kind: "para".into(),
                 locator,
                 excerpt: format!("条款-{i} 摘录"),
+                    block_idx: None,
+                    page: None,
+                    line: None
             }],
             params: std::collections::HashMap::new(),
             source_file: "A".into(),
@@ -2597,6 +2609,9 @@ mod tests {
                 kind: "table".into(),
                 locator: "第25页 行8".into(),
                 excerpt: format!("{name}（{score}分 {track}）：…"),
+                    block_idx: None,
+                    page: None,
+                    line: None
             }],
             params: [
                 ("name".to_string(), serde_json::json!(name)),

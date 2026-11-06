@@ -460,6 +460,18 @@ pub struct Anchor {
     pub kind: String,    // para|table|ocr|xlsx_cell
     pub locator: String, // 章节路径 / 表行 / 页
     pub excerpt: String, // 原文引用片段（对齐判分依据——创建时固化，不可篡改）
+    // ---- #285 ② 块级定位（Option + serde(default)：旧快照反序列化为 None，
+    // 向后兼容；requirement_hash 只含 file|locator|excerpt——加字段不动幂等键）。
+    /// 文件内块序（`ParsedFile.blocks[].idx`——从 REQ 跳回原文的锚；
+    /// 抽取时回填，旧快照由工具面按 (locator, excerpt) 兜底解析）。
+    #[serde(default)]
+    pub block_idx: Option<usize>,
+    /// 1 基页号（PDF 面 locator「第N页 行M」可解析；DOCX 章节路径面为 None）。
+    #[serde(default)]
+    pub page: Option<u32>,
+    /// 页内行号（同上——仅 PDF 面有意义）。
+    #[serde(default)]
+    pub line: Option<u32>,
 }
 
 // ---------------------------------------------------------------- 权威状态机存储
@@ -1748,6 +1760,66 @@ pub fn requirement_hash(r: &Requirement) -> String {
 mod tests {
     use super::*;
 
+    // ---------------------------------------------------------------- #285 ②
+    // Anchor 块级定位：旧快照（无新字段）反序列化为 None——向后兼容验收面。
+
+    #[test]
+    fn anchor_legacy_json_deserializes_with_none_block_fields() {
+        // #285 ② 之前的快照形态（无 block_idx/page/line）
+        let legacy = r#"{"file":"A-招标文件.pdf","kind":"pdf_line","locator":"第18页 行12","excerpt":"★服务地点：松岭区"}"#;
+        let a: Anchor = serde_json::from_str(legacy).expect("旧快照必须可反序列化");
+        assert_eq!(a.file, "A-招标文件.pdf");
+        assert_eq!(a.block_idx, None, "旧快照块位 = None（诚实：无数据不虚构）");
+        assert_eq!(a.page, None);
+        assert_eq!(a.line, None);
+    }
+
+    #[test]
+    fn anchor_block_fields_roundtrip() {
+        let a = Anchor {
+            file: "A-招标文件.pdf".into(),
+            kind: "pdf_line".into(),
+            locator: "第18页 行12".into(),
+            excerpt: "★服务地点：松岭区".into(),
+            block_idx: Some(427),
+            page: Some(18),
+            line: Some(12),
+        };
+        let j = serde_json::to_string(&a).unwrap();
+        let b: Anchor = serde_json::from_str(&j).unwrap();
+        assert_eq!(a, b, "新字段 roundtrip 不丢");
+        assert!(j.contains("\"block_idx\":427"));
+    }
+
+    #[test]
+    fn anchor_block_fields_do_not_change_requirement_hash() {
+        // 幂等键纪律：requirement_hash 只含 file|locator|excerpt——
+        // 块级字段有无不影响 dedupe（旧快照重跑不产生重复 REQ）。
+        let mk = |block_idx, page, line| Requirement {
+            id: "REQ-0001".into(),
+            category: "其他".into(),
+            clause_no: None,
+            anchors: vec![Anchor {
+                file: "A".into(),
+                kind: "para".into(),
+                locator: "第三章 > 3.2".into(),
+                excerpt: "原文".into(),
+                block_idx,
+                page,
+                line,
+            }],
+            params: HashMap::new(),
+            source_file: "A".into(),
+        };
+        let legacy = mk(None, None, None);
+        let filled = mk(Some(42), Some(3), Some(7));
+        assert_eq!(
+            requirement_hash(&legacy),
+            requirement_hash(&filled),
+            "块级字段不进 hash——旧快照与新抽取幂等合并"
+        );
+    }
+
     fn store_with_files() -> DomainStore {
         let mut s = DomainStore::new();
         s.create_project("测试项目", "ZFCG-2026-GK-0311", "明标", "ext-key-1")
@@ -1854,6 +1926,9 @@ mod tests {
                 kind: "para".into(),
                 locator: "第三章".into(),
                 excerpt: "独立承担民事责任能力的法人营业执照".into(),
+                    block_idx: None,
+                    page: None,
+                    line: None
             }],
             params: HashMap::new(),
             source_file: "A".into(),
@@ -2035,6 +2110,9 @@ mod tests {
                     kind: "para".into(),
                     locator: "第一章/1.1".into(),
                     excerpt: "正文用仿宋三号字".into(),
+                        block_idx: None,
+                        page: None,
+                        line: None
                 }],
                 params: HashMap::new(),
                 source_file: "A-招标文件.docx".into(),
@@ -2048,6 +2126,9 @@ mod tests {
                     kind: "para".into(),
                     locator: "第二章/2.1".into(),
                     excerpt: "设备功率不低于 100kW".into(),
+                        block_idx: None,
+                        page: None,
+                        line: None
                 }],
                 params: HashMap::new(),
                 source_file: "A-招标文件.docx".into(),

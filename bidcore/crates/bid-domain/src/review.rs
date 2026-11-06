@@ -844,6 +844,9 @@ mod tests {
                 kind: "para".into(),
                 locator: "第三章".into(),
                 excerpt: "独立承担民事责任能力的法人营业执照".into(),
+                    block_idx: None,
+                    page: None,
+                    line: None
             }],
             params: HashMap::new(),
             source_file: "A".into(),

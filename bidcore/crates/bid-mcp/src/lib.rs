@@ -21,6 +21,7 @@
 //! `bid-mcp-stdio`）一字未动。
 
 pub mod coverage_tools;
+pub mod bidi_tools;
 pub mod cursor;
 pub mod error;
 pub mod protocol;
@@ -59,9 +60,11 @@ use serde_json::Value;
 /// = 30；#287 增 1 个：`recommend_length_profile`（篇幅档位推荐——P3 建纲
 /// 前只读：信号面细则数/★条款数/预算/采购类型/明写篇幅）= 31；#285 ① 增 1 个：
 /// `get_star_coverage`（★漏标检测——字面★真值 vs 已抽 REQ 差集；六场黑盒
-/// 实测捕获率 1/5~5/5 波动的对账面）= 32。
-pub const TOOL_NAMES: [&str; 32] = [
-
+/// 实测捕获率 1/5~5/5 波动的对账面）= 32；#285 ② 增 3 个：块级双向索引
+/// 三工具（get_requirement_provenance / get_block_requirements /
+/// get_annotation_overlay——REQ↔块双向反查 + 视图渲染 overlay 数据面）
+/// = 35。
+pub const TOOL_NAMES: [&str; 35] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -89,6 +92,11 @@ pub const TOOL_NAMES: [&str; 32] = [
     "get_coverage_report",
     // #285 ① ★漏标检测（只读对账——★字面真值 vs 已抽 REQ）
     "get_star_coverage",
+    // #285 ② 块级双向索引三工具（只读——REQ→原文 provenance / 块→REQ
+    // 反查 / overlay 渲染数据面；数据源 = Anchor 块级定位 + 派生索引）
+    "get_requirement_provenance",
+    "get_block_requirements",
+    "get_annotation_overlay",
     // #226 层 1：否决项死锁的人工出口
     "set_matrix_override",
     // #243：历史异常态（VALIDATING+缺章）的受支持恢复出口

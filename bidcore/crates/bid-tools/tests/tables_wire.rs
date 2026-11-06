@@ -52,6 +52,9 @@ fn req(id: &str, category: &str, clause: &str, excerpt: &str) -> Requirement {
             kind: "para".into(),
             locator: format!("{clause} 段"),
             excerpt: excerpt.into(),
+                block_idx: None,
+                page: None,
+                line: None
         }],
         params: Default::default(),
         source_file: "A-招标文件.docx".into(),

@@ -96,6 +96,9 @@ fn svc_with_partial_bad_addendum(tag: &str) -> (BidService, String, String, Stri
             kind: "para".into(),
             locator: "第二章/1.1".into(),
             excerpt: "投标人须具备电子与智能化工程专业承包二级及以上资质".into(),
+                block_idx: None,
+                page: None,
+                line: None
         }],
         params: Default::default(),
         source_file: "A-招标文件.docx".into(),

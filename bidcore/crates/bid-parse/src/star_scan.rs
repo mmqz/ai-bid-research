@@ -369,6 +369,11 @@ mod tests {
                 kind: "pdf_line".into(),
                 locator: locator.to_string(),
                 excerpt: excerpt.to_string(),
+                // 旧快照形态（无块级定位）——star_scan 双腿匹配只消费
+                // locator/excerpt（#285② 块位面不参与，兼容旧锚正是设计面）
+                block_idx: None,
+                page: None,
+                line: None,
             }],
             params,
             source_file: "A-测试.pdf".into(),

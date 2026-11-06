@@ -315,6 +315,9 @@ mod tests {
                     kind: "table".into(),
                     locator: format!("技术参数表 > 第 {} 行", i + 1),
                     excerpt: format!("参数-{i} 的原文摘录"),
+                        block_idx: None,
+                        page: None,
+                        line: None
                 }],
                 params: HashMap::new(),
                 source_file: "A".into(),
@@ -657,6 +660,9 @@ mod tests {
                 kind: "para".into(),
                 locator: "第三章".into(),
                 excerpt: "技术参数响应表合成件".into(),
+                    block_idx: None,
+                    page: None,
+                    line: None
             }],
             params: HashMap::new(),
             source_file: "f".into(),

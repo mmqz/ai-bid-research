@@ -95,6 +95,9 @@ fn forms_store(tag: &str) -> (DomainStore, PathBuf) {
             locator: "1.1 段".into(),
             excerpt: "1.1 项目名称：智慧病房物联网平台；项目编号：ZFCG-2026-117F；采购人：某医院。"
                 .into(),
+                block_idx: None,
+                page: None,
+                line: None
         }],
         params: Default::default(),
         source_file: "A-招标文件.docx".into(),
@@ -110,6 +113,9 @@ fn forms_store(tag: &str) -> (DomainStore, PathBuf) {
             kind: "para".into(),
             locator: "5.1 段".into(),
             excerpt: "平台须支持不少于 5000 个终端接入。".into(),
+                block_idx: None,
+                page: None,
+                line: None
         }],
         params: Default::default(),
         source_file: "A-招标文件.docx".into(),

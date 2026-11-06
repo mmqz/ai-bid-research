@@ -98,6 +98,9 @@ fn generate_sample_with_all_six_tables() {
             kind: "table".into(),
             locator: "技术参数表 > 第 1 行".into(),
             excerpt: "存储容量 >=100GB".into(),
+                block_idx: None,
+                page: None,
+                line: None
         }],
         params: Default::default(),
         source_file: "A-招标文件.docx".into(),

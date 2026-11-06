@@ -1025,8 +1025,12 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
             vec![Anchor {
                 file: f.name.clone(),
                 kind: "table".into(),
-                locator,
+                locator: locator.clone(),
                 excerpt: it.item.clone(),
+                // #285 ② 块级定位回填（行首块位；页行从 locator 解析）
+                block_idx: it.block_idxs.first().copied(),
+                page: crate::page_line_of(&locator).0,
+                line: crate::page_line_of(&locator).1,
             }],
             params, &f.name,
         );
@@ -1056,6 +1060,10 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
                 kind: "table".into(),
                 locator: sr.locator.clone(),
                 excerpt: sr.criteria.clone(),
+                // #285 ② 块级定位回填（行首块位；页行从 locator 解析）
+                block_idx: sr.block_idxs.first().copied(),
+                page: crate::page_line_of(&sr.locator).0,
+                line: crate::page_line_of(&sr.locator).1,
             }],
             params, &f.name,
         );
@@ -1082,11 +1090,18 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
         let anchors: Vec<Anchor> = it
             .block_idxs
             .iter()
-            .filter_map(|&bi| f.blocks.get(bi).map(|b| Anchor {
-                file: f.name.clone(),
-                kind: "table".into(),
-                locator: b.locator.clone(),
-                excerpt: b.text.clone(),
+            .filter_map(|&bi| f.blocks.get(bi).map(|b| {
+                let (page, line) = crate::page_line_of(&b.locator);
+                Anchor {
+                    file: f.name.clone(),
+                    kind: "table".into(),
+                    locator: b.locator.clone(),
+                    excerpt: b.text.clone(),
+                    // #285 ② 块级定位回填（逐块——多锚 REQ 每锚各自带块位）
+                    block_idx: Some(b.idx),
+                    page,
+                    line,
+                }
             }))
             .collect();
         push_req(
@@ -1114,6 +1129,10 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
                 kind: "table".into(),
                 locator: vi.locator.clone(),
                 excerpt: vi.statement.clone(),
+                // #285 ② 块级定位回填（值行块位；页行从 locator 解析）
+                block_idx: Some(vi.block_idx),
+                page: crate::page_line_of(&vi.locator).0,
+                line: crate::page_line_of(&vi.locator).1,
             }],
             params,
             &f.name,
@@ -1568,7 +1587,17 @@ fn extract_b2_ocr(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize) 
             }
         }
         push_req(reqs, seq, "否决项", None,
-                 vec![Anchor { file: f.name.clone(), kind: "ocr".into(), locator, excerpt }],
+                 vec![Anchor {
+                     file: f.name.clone(),
+                     kind: "ocr".into(),
+                     locator,
+                     excerpt,
+                     // #285 ② 块级定位回填（种子行块位；locator 带「 + 行接」后缀，
+                     // 页行从种子行 locator 原文解析——拼接后缀不参与）
+                     block_idx: Some(b.idx),
+                     page: crate::page_line_of(&b.locator).0,
+                     line: crate::page_line_of(&b.locator).1,
+                 }],
                  HashMap::new(), &f.name);
     }
 }
@@ -1611,6 +1640,7 @@ fn push_req(reqs: &mut Vec<Requirement>, seq: &mut usize, category: &str,
 }
 
 fn anchor(f: &ParsedFile, b: &Block) -> Anchor {
+    let (page, line) = crate::page_line_of(&b.locator);
     Anchor {
         file: f.name.clone(),
         kind: match b.kind {
@@ -1623,6 +1653,10 @@ fn anchor(f: &ParsedFile, b: &Block) -> Anchor {
         .to_string(),
         locator: b.locator.clone(),
         excerpt: b.text.clone(), // 溯源锚原文（创建时固化）
+        // #285 ② 块级定位回填：块位 + locator 解析页行（PDF 面；DOCX 为 None）
+        block_idx: Some(b.idx),
+        page,
+        line,
     }
 }
 

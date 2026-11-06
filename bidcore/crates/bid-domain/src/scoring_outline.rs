@@ -568,6 +568,9 @@ mod tests {
                 kind: "table".into(),
                 locator: "第25页 行8".into(),
                 excerpt: format!("{name}（{score}分 {track}）：…"),
+                    block_idx: None,
+                    page: None,
+                    line: None
             }],
             params: [
                 ("name".to_string(), serde_json::json!(name)),
@@ -591,6 +594,9 @@ mod tests {
                 kind: "pdf_line".into(),
                 locator: "第17页 行3".into(),
                 excerpt: excerpt.to_string(),
+                    block_idx: None,
+                    page: None,
+                    line: None
             }],
             params: std::collections::HashMap::new(),
             source_file: "A".into(),

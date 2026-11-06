@@ -762,6 +762,12 @@ pub struct ExportReport {
     /// 逐格式件标题（任务 2 面）。
     #[serde(default)]
     pub form_titles: Vec<String>,
+
+    /// #317：暗标复验报告（非暗标导出为 None）。六类泄露扫描（正文/页眉
+    /// 页脚/属性/批注/修订/图片 EXIF）+ 路径面 + 自动清理回执——BLOCKER
+    /// 归零才允许产物落地（复验门在 export_with 落盘前执行）。
+    #[serde(default)]
+    pub dark_bid_scan: Option<crate::dark_bid::LeakScanReport>,
 }
 
 /// 源章指纹（幂等对账的最小充分量：同章同版本同内容 → 三元组全等）。
@@ -830,6 +836,11 @@ pub enum ExportError {
         target: String,
         why: String,
     },
+    /// #317：暗标复验门——自动清理后仍有 BLOCKER 级身份泄露残留
+    /// （fail-closed：不产出「能识别投标人」的暗标产物；逐条列出待人工处置）。
+    DarkBidLeak {
+        hits: Vec<crate::dark_bid::LeakHit>,
+    },
 }
 
 impl std::fmt::Display for ExportError {
@@ -864,6 +875,13 @@ impl std::fmt::Display for ExportError {
                 f,
                 "图片 {target} 无法嵌入: {why}——缺图不静默跳过（EV 引用查 workspace/files/，路径引用相对工作区根）"
             ),
+            ExportError::DarkBidLeak { hits } => {
+                write!(f, "暗标复验未过：{} 条 BLOCKER 级身份泄露残留（自动清理已执行）——", hits.len())?;
+                for h in hits.iter().filter(|h| h.severity == crate::dark_bid::Severity::Blocker) {
+                    write!(f, "\n  [{}] {}（{}）→ {}", h.location.as_str(), h.content, h.severity.as_str(), h.suggested_action)?;
+                }
+                write!(f, "\n逐条人工处置后重导（fail-closed：不产出能识别投标人的暗标产物）")
+            }
         }
     }
 }
@@ -1291,9 +1309,41 @@ impl<'a> DocumentExporter<'a> {
         // ⑧ 原子落盘：tmp 写全量 → rename 替换（borrow：mdcore sidecar
         // tmp+rename 纪律）。pack 把 XML 部件流式写进 zip——rename 返回即
         // 导出安全，此后进程随时可死。
-        let file = std::fs::File::create(&tmp_path).map_err(ExportError::Io)?;
-        docx.pack(file)
-            .map_err(|e| ExportError::Pack(e.to_string()))?;
+        // #317 暗标路径：pack 进内存 → 引擎 anonymize 自动清理（docProps/
+        // comments/people 五部件，正文零触碰）→ 六类泄露扫描复验 →
+        // BLOCKER 残留即拒（DarkBidLeak，产物不落地）→ 清洁字节落盘 +
+        // 复验报告进 ExportReport。
+        let dark_bid_scan = if opts.anonymize.is_some() {
+            let bidder = opts.anonymize.unwrap_or_default();
+            let mut cursor = std::io::Cursor::new(Vec::new());
+            docx.pack(&mut cursor)
+                .map_err(|e| ExportError::Pack(e.to_string()))?;
+            let raw = cursor.into_inner();
+            let cleaned = bid_engine::anonymize_docx_props(&raw).map_err(|e| {
+                ExportError::Pack(format!("暗标元数据清理失败（引擎 anonymize）: {e}"))
+            })?;
+            let mut report =
+                crate::dark_bid::scan_dark_bid_leaks(&cleaned, Some(bidder), out_path);
+            report.auto_cleaned = vec![
+                "docProps/core.xml（creator/lastModifiedBy → 匿名常量）".into(),
+                "docProps/app.xml + custom.xml（Company/Manager/Sender 清空）".into(),
+                "word/comments.xml（批注作者/首字母置空）".into(),
+                "word/people.xml（空骨架）".into(),
+            ];
+            if !report.passed {
+                return Err(ExportError::DarkBidLeak { hits: report.hits });
+            }
+            let mut file = std::fs::File::create(&tmp_path).map_err(ExportError::Io)?;
+            use std::io::Write as _;
+            file.write_all(&cleaned).map_err(ExportError::Io)?;
+            drop(file);
+            Some(report)
+        } else {
+            let file = std::fs::File::create(&tmp_path).map_err(ExportError::Io)?;
+            docx.pack(file)
+                .map_err(|e| ExportError::Pack(e.to_string()))?;
+            None
+        };
         std::fs::rename(&tmp_path, out_path).map_err(ExportError::Io)?;
 
         // ⑨ 产物指纹 + 幂等清单落盘（导出后产物不可变——sha 是纯读）。
@@ -1308,6 +1358,7 @@ impl<'a> DocumentExporter<'a> {
             table_kinds,
             forms_written,
             form_titles,
+            dark_bid_scan,
         };
         let manifest = ExportManifest {
             schema_version: MANIFEST_SCHEMA_VERSION,

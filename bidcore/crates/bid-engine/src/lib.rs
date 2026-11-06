@@ -77,6 +77,19 @@ pub use types::{
 /// 差分验证见 PR 描述）。
 pub const MDCORE_REV: &str = "aa0c859d956597992c2d93e9055e2f0beca017c3";
 
+/// #317：引擎暗标元数据匿名化的标书侧出口（转发 `mdc-office-io`
+/// `anonymize_docx_props`——五部件清零：docProps core/app/custom、
+/// comments 作者、people 骨架；**正文部件 raw_copy 字节级不变**）。
+///
+/// 引擎能力不重造（AGENTS.md §22 两仓纪律）——标书侧（bid-tools 导出链）
+/// 只做泄露扫描、复验门与接线。修订作者不在引擎变换面（正文零触碰
+/// 不变量——带修订文档先接受/拒绝修订，见引擎侧注记），由标书侧扫描
+/// 报出（人工确认面）。
+pub fn anonymize_docx_props(bytes: &[u8]) -> Result<Vec<u8>, EngineError> {
+    mdc_office_io::docx::anonymize_docx_props(bytes)
+        .map_err(|e| EngineError::EngineFailed(format!("anonymize_docx_props: {e}")))
+}
+
 /// 门面：读文件 → 引擎解析 → 映射为 `ParsedFile`（B5 import 接线入口，docx 通道）。
 ///
 /// sha256 标书侧算（引擎不做文件级指纹——映射表 §1 末行）；错误分类：

@@ -3703,7 +3703,29 @@ fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
     let bytes = std::fs::metadata(&abs_out).map(|m| m.len()).unwrap_or(0);
     let mut warnings = warnings_pre;
     warnings.extend(outcome.warnings.iter().cloned());
-    let out = json!({
+    // #317：暗标复验报告进响应面（人工确认清单不静默——WARNING 命中
+    // 同步进 warnings 提示位）
+    let dark_bid_scan_json = outcome.report.dark_bid_scan.as_ref().map(|r| {
+        for h in r.hits.iter().filter(|h| h.severity == bid_tools::dark_bid::Severity::Warning) {
+            warnings.push(format!(
+                "暗标人工确认项（{}）：{}——{}",
+                h.location.as_str(),
+                h.content,
+                h.suggested_action
+            ));
+        }
+        json!({
+            "passed": r.passed,
+            "auto_cleaned": r.auto_cleaned,
+            "hits": r.hits.iter().map(|h| json!({
+                "location": h.location.as_str(),
+                "severity": h.severity.as_str(),
+                "content": h.content,
+                "suggested_action": h.suggested_action,
+            })).collect::<Vec<_>>(),
+        })
+    });
+    let mut out = json!({
         "artifact": {
             "url": abs_out.display().to_string(),
             "sha256": outcome.report.output_sha256,
@@ -3726,6 +3748,12 @@ fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
         "warnings": warnings,
         "request_id": next_request_id(),
     });
+    // #317：暗标复验报告（非暗标导出无此键——条件插入，不产 null 字段）
+    if let Some(scan) = dark_bid_scan_json {
+        if let Some(o) = out.as_object_mut() {
+            o.insert("dark_bid_scan".into(), scan);
+        }
+    }
     svc.store_mut().record_idempotent(ikey, out.clone());
     Ok(out)
 }

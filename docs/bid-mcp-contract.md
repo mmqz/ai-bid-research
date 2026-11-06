@@ -340,7 +340,12 @@ in : { project_id, format:"docx"|"pdf", output_path(必填——产物路径，�
 out: { artifact:{url, sha256, size}, content_version_snapshot, precheck:{blockers:0, waived:[VF-*]},
        tables_written, table_kinds:[...], forms_written, form_titles:[...],
        agent_waivers:[{ gate, actor, actor_type, method, human_confirmed, at, reason }](#277),
-       human_review_complete(bool)(#277), warnings[] }
+       human_review_complete(bool)(#277), warnings[],
+       dark_bid_scan?(#317：暗标导出专属——{passed, auto_cleaned:[引擎 anonymize
+       处理的四部件回执], hits:[{location(body|header|footer|doc_props|
+       comments|revisions|media_exif|path), severity(BLOCKER|WARNING),
+       content, suggested_action}]}——六类泄露扫描复验报告；BLOCKER 归零
+       才允许产物落地，WARNING 进 warnings 人工确认清单不静默) }
      ← #117/#122 导出面对账：六表/七件全部进 docx，逐张点名（tables_written
        == 6 且 table_kinds 逐类在座；forms_written == 7）。e2e 不信任工具
        返回值——解包 docx 数节验：`<w:tbl>`==6、七件关键词、表行数下限、

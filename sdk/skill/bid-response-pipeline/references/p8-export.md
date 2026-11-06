@@ -95,6 +95,24 @@ false` → 产物首页带红色警告横幅（「本标书的部分审核门由
 `bidder_name` 缺失/空白 → **响亮 warning：未做脱敏**（无名字可替——用户
 漏配），补齐后重导。P6 已做暗标禁字扫描，导出面是第二道。
 
+### #317 扫描-清理-复验（导出面第三道——机器强制）
+
+暗标导出时引擎自动执行三步，不再只靠替换：
+
+1. **自动清理**（引擎 anonymize——docProps core/app/custom、批注作者、
+   people 五部件清零/匿名常量；正文零触碰）——回执在响应
+   `dark_bid_scan.auto_cleaned`；
+2. **六类泄露扫描复验**（正文[跨 run 切分可检]/页眉页脚/文档属性/批注
+   作者/修订作者/图片 EXIF + 输出路径）——逐条命中带 location/severity/
+   suggested_action；
+3. **复验门**：BLOCKER 归零才允许产物落地——**残留即 E_UNPROCESSABLE**
+   （错误逐条列出待人工处置：页眉残留改中性表述、修订作者先接受/拒绝
+   修订、EXIF 清元数据重嵌、路径改中性名）。WARNING（EXIF/路径等可疑
+   面）进 warnings 人工确认清单，**不静默跳过**。
+
+你侧动作：`dark_bid_scan.hits` 非空 → 逐条向用户复述并处置后重导；
+passed=true + hits 空 → 向用户复述「暗标复验通过（四部件已自动清理）」。
+
 ## 产物验证（引擎侧回读——你要知道它存在）
 
 e2e 不信任工具返回值：`tests/export_readback.rs`（#172）把落盘 docx **解

@@ -519,3 +519,71 @@ fn export_watermark_false_does_not_warn() {
         r2["warnings"]
     );
 }
+
+// ---------------------------------------------------------------- #317：暗标扫描-清理-复验
+
+/// 正例：暗标导出 → 引擎自动清理（docProps/批注）+ 复验通过 →
+/// 响应带 dark_bid_scan 报告 + 落盘产物 core.xml 已匿名。
+#[test]
+fn dark_bid_export_scan_report_and_anonymized_props() {
+    let (mut svc, pid, dir) = svc_drafted("dark317", false);
+    // 项目名带公司名 → 页眉会带（format-spec 页眉模板用项目名）；
+    // 正文经既有 anonymize（公司名→投标人）替换
+    let r = ok_result(call(&mut svc, "export_bid_document", json!({
+        "project_id": pid, "format": "docx", "output_path": "out/暗标.docx",
+        "profile": { "dark_bid": true, "bidder_name": "某建设工程有限公司" },
+    })));
+    // 复验报告在响应面（非暗标导出无此键）
+    let scan = r["dark_bid_scan"].as_object()
+        .expect("暗标导出必须带 dark_bid_scan 复验报告");
+    assert_eq!(scan["passed"], json!(true), "复验通过（BLOCKER 归零）: {scan:?}");
+    assert!(
+        scan["auto_cleaned"].as_array().unwrap().len() >= 4,
+        "自动清理回执（四部件）: {scan:?}"
+    );
+    // 落盘产物核验：core.xml 匿名（creator=unknown——引擎 anonymize 真跑）
+    let url = r["artifact"]["url"].as_str().unwrap();
+    let core = part_text(std::path::Path::new(url), "docProps/core.xml");
+    assert!(core.contains("unknown"), "creator 匿名常量: {core}");
+    let _ = dir;
+}
+
+/// 负例：页眉残留公司名（自动替换面只做正文/标题——页眉是人工确认面）
+/// → BLOCKER 未归零 → 导出被拒（产物不落地）。
+#[test]
+fn dark_bid_export_blocked_when_leak_survives() {
+    let (mut svc, pid, dir) = svc_drafted("dark317-block", false);
+    // 项目名含公司名：页眉模板注入项目名（header1.xml）→ 扫描命中页眉面
+    let reply = call(&mut svc, "export_bid_document", json!({
+        "project_id": pid, "format": "docx", "output_path": "out/暗标.docx",
+        "profile": { "dark_bid": true, "bidder_name": "导出测试项目" },
+    }));
+    let code = err_code(&reply);
+    assert_eq!(code, "E_UNPROCESSABLE", "BLOCKER 残留必须拒: {reply:?}");
+    let msg = format!("{reply:?}");
+    assert!(
+        msg.contains("暗标复验未过") && msg.contains("header"),
+        "错误点名页眉面与处置建议: {msg}"
+    );
+    // 产物不落地（fail-closed——tmp 已建未 rename，主产物位为空）
+    assert!(
+        !dir.join("out/暗标.docx").exists(),
+        "复验未过不得产出暗标产物: {}",
+        dir.join("out").display()
+    );
+    // 状态滞留 Drafting
+    assert_eq!(svc.store().project().unwrap().status, ProjectStatus::Drafting);
+}
+
+/// 非暗标导出无 dark_bid_scan 键（响应面零噪音）。
+#[test]
+fn light_export_has_no_dark_bid_scan() {
+    let (mut svc, pid, _dir) = svc_drafted("light317", false);
+    let r = ok_result(call(&mut svc, "export_bid_document", json!({
+        "project_id": pid, "format": "docx", "output_path": "out/明标.docx",
+    })));
+    assert!(
+        r.get("dark_bid_scan").is_none(),
+        "非暗标导出不应带 dark_bid_scan 键: {r}"
+    );
+}

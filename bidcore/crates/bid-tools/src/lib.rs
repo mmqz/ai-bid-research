@@ -4,6 +4,8 @@
 pub mod assembly;
 pub mod check;
 pub mod context;
+// #317：暗标泄露扫描（六类）+ 复验报告——引擎 anonymize 的标书侧对账面
+pub mod dark_bid;
 pub mod draft;
 pub mod export;
 pub mod format_spec;

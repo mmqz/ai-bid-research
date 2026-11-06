@@ -25,9 +25,11 @@ image = { workspace = true }
 # #182：审批密钥的 OS 熵源（getrandom 0.2 已在 workspace 锁内——Cargo.lock
 # 既有条目，零新增网络取数；直连声明同 sha2 先例）。
 getrandom = "0.2"
+# #317：暗标泄露扫描面——解包导出产物读 XML 部件（生产依赖：dark_bid.rs
+# 的扫描器在 lib 面，非测试专属）。版本同 dev-dependencies 钉 4（锁内既有）。
+zip = "4"
 
 [dev-dependencies]
 # 测试面（S-6 验收）：解包导出产物校验 zip 完整性 + XML 良构（「Word 打开
 # B4 后 workspace 已删 zip/quick-xml 条目——测试面独立钉版本，仅 dev-dependency。
-zip = "4"
 quick-xml = "0.36"

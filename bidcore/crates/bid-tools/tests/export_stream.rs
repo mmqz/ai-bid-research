@@ -576,6 +576,8 @@ fn report_manifest_serde_roundtrip() {
         table_kinds: vec!["技术参数偏离表".into()],
         forms_written: 0,
         form_titles: vec![],
+        // #317 暗标复验面（非暗标导出为 None）
+        dark_bid_scan: None,
     };
     let json = serde_json::to_string(&report).unwrap();
     let back: ExportReport = serde_json::from_str(&json).unwrap();

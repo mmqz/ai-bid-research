@@ -27,6 +27,8 @@ sha2 = { workspace = true }
 
 [dev-dependencies]
 mang-snap = { path = "../mang-snap" }
+# #285 验收测试：黑龙江政采 PDF 文本层康熙部首（⽀付⽅式）NFKC 归一断言
+unicode-normalization = "0.1"
 # #59 阶段 2 测试面：解包导出 docx 校验（zip 部件面）——bid-tools 同款钉版本
 zip = "4"
 # #145 任务 2：审查表验证骨架——合成 docx 造件（bid-tools 同款钉版本，

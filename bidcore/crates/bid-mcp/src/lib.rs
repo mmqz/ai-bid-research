@@ -40,7 +40,8 @@ pub use transport::Transport;
 
 use serde_json::Value;
 
-/// 工具名单一真源（schema 声明与分发都从这里取）。
+/// 32 个工具名（单一真源；schema 声明与分发都从这里取）。
+
 ///
 /// V3-5（S-4 游标分页）新增 `list_evidence` / `list_tasks` 两个只读列表工具
 /// （原 8 工具契约 + `get_bid_project_state` + 2 = 11）；#42 阶段 10 增
@@ -56,9 +57,11 @@ use serde_json::Value;
 /// 异常态 VALIDATING+缺章的受支持恢复出口）= 26；#254 增 3 个：分段三工具
 /// = 29；#279 增 1 个：`list_tools`（行协议发现面——无上下文代理的握手入口）
 /// = 30；#287 增 1 个：`recommend_length_profile`（篇幅档位推荐——P3 建纲
-/// 前只读：信号面细则数/★条款数/预算/采购类型/明写篇幅 → 推荐档+理由+
-/// alternatives，决策权在用户）= 31。
-pub const TOOL_NAMES: [&str; 31] = [
+/// 前只读：信号面细则数/★条款数/预算/采购类型/明写篇幅）= 31；#285 ① 增 1 个：
+/// `get_star_coverage`（★漏标检测——字面★真值 vs 已抽 REQ 差集；六场黑盒
+/// 实测捕获率 1/5~5/5 波动的对账面）= 32。
+pub const TOOL_NAMES: [&str; 32] = [
+
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -84,6 +87,8 @@ pub const TOOL_NAMES: [&str; 31] = [
     "get_document_chunks",
     "submit_block_marks",
     "get_coverage_report",
+    // #285 ① ★漏标检测（只读对账——★字面真值 vs 已抽 REQ）
+    "get_star_coverage",
     // #226 层 1：否决项死锁的人工出口
     "set_matrix_override",
     // #243：历史异常态（VALIDATING+缺章）的受支持恢复出口

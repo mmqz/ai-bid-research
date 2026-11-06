@@ -273,6 +273,15 @@ fn input_schema(name: &str) -> Value {
             },
             "required": ["project_id"]
         }),
+        // ---- #285 ① ★漏标检测 ----
+        "get_star_coverage" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid,
+                "file_id": {"type": "string", "description": "文件 ID（import_tender_files 回执 per_file[].file_id）"}
+            },
+            "required": ["project_id", "file_id"]
+        }),
         "get_compliance_matrix" => json!({
             "type": "object",
             "properties": {
@@ -688,6 +697,7 @@ pub(crate) fn describe(name: &str) -> &'static str {
         "get_document_chunks" => "只读：按文件取块窗口（#219 全块覆盖——block_idx + locator + text + verdict 回显；size ≤ 200 分页取）",
         "submit_block_marks" => "提交区间标记 + requirements（#219——verdict: requirement|noise|rule|review_table；校验区间合法/不越界/不重叠/requirement 落在 requirement 区间内）",
         "get_coverage_report" => "只读：覆盖报告（#219——哪些块没归属 + 未覆盖区间 + 各类 verdict 块数；全覆盖才允许建纲）",
+        "get_star_coverage" => "只读：★漏标检测（#285①——字面★真值（排除「打★号条款为实质性条款」样板句）vs 已抽 REQ 差集；star_total/declarations/star_truth/captured/missing 三级恒等式不漏不重；missing[] 带 page/line/block_idx/reason 补标定位面；只报不补——补标走 submit_block_marks substantive=true）",
         _ => "unknown",
     }
 }
@@ -724,6 +734,8 @@ fn is_implemented(name: &str) -> bool {
             | "get_document_chunks"
             | "submit_block_marks"
             | "get_coverage_report"
+            // #285 ① ★漏标检测（coverage_tools.rs）
+            | "get_star_coverage"
             // #243 校验状态安全与恢复
             | "recover_validating_state"
             // #254 章节级增量写入三工具

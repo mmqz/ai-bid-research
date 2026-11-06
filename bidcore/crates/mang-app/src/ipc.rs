@@ -596,10 +596,17 @@ mod tests {
         let b = std::fs::canonicalize(tmp_dir("lb")).unwrap();
         let ctx = Ctx::new(Workspace::new(&a).unwrap(), PathBuf::new());
         ctx.open_workspace(b.to_string_lossy().as_ref()).unwrap();
-        // 记忆落盘 + 读回一致（重启恢复口径）
+        // 记忆落盘 + 读回一致（重启恢复口径）。
+        // #303/FG-01：落盘走 paths::display（剥 Windows verbatim \\?\ 前缀，
+        // recent/last-workspace 面向 UI 的口径）；期望值须用同一形态比较。
+        // 此前拿 raw canonicalize 的 verbatim 形态断言，Windows 上必红——
+        // 但 mang-app 测试从未在 CI 执行（FG-01），从未被发现；Linux 无
+        // verbatim 前缀、两形态相同，故本机一直绿（测试在两种平台的分歧
+        // 由并入 workspace 后的首轮 CI 实测暴露，2026-11-06）。
+        let expected = crate::paths::display(&b);
         assert_eq!(
             crate::recent::last_workspace().as_deref(),
-            Some(b.as_path())
+            Some(Path::new(&expected))
         );
         let _ = std::fs::remove_dir_all(a);
         let _ = std::fs::remove_dir_all(b);

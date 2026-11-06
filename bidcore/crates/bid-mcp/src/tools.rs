@@ -3716,6 +3716,20 @@ fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
         "chapters_written": outcome.report.chapters_written,
         "total_chars": outcome.report.total_chars,
         "toc_field_present": outcome.report.toc_field_present,
+        // #317 暗标清理报告（dark 导出在场）：blockers 恒 0（复验不过则
+        // 导出被拦）；manual_review 是人工确认清单（WARNING 面——不静默跳过）
+        "dark_bid": outcome.report.dark_bid.as_ref().map(|r| serde_json::json!({
+            "blockers": r.blockers,
+            "cleaned": r.cleaned,
+            "manual_review": r.post_scan.iter()
+                .filter(|h| h.severity == "WARNING")
+                .map(|h| serde_json::json!({
+                    "location": h.location, "part": h.part,
+                    "content": h.content, "action": h.suggested_action,
+                }))
+                .collect::<Vec<_>>(),
+            "pre_scan_count": r.pre_scan.len(),
+        })),
         "tables_written": outcome.report.tables_written,
         "table_kinds": outcome.report.table_kinds,
         "forms_written": outcome.report.forms_written,

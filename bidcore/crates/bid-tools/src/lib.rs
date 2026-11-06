@@ -4,6 +4,7 @@
 pub mod assembly;
 pub mod check;
 pub mod context;
+pub mod darkbid;
 pub mod draft;
 pub mod export;
 pub mod format_spec;

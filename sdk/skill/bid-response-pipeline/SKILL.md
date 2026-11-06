@@ -34,7 +34,7 @@ description: >
 | P5 起草 | 逐章节起草（**正文由你写**） | `draft_response_section` / `save_version` | unanchored_claims=0；citations 全部来自已绑定 EV；**每完成一个章节，调用 save_version 存版本**（message 写明章节与完成内容） | per-SEC 重试，不影响其他章节 |
 | P6 校验 | 双层校验（**全稿完成后才 scope=all**） | `validate_bid_document` | 全部叶起草完成才 scope=all（缺章 → `E_DRAFT_INCOMPLETE` 零副作用拒，按 missing 清单回 P5 补）；起草期用 scope=sections 章节级检查；deterministic findings 清零（BLOCKER 必须 Resolved/Waived）；失败留在 DRAFTING 可修订重试；`ok=true` ≠ 可提交——**提交就绪**看响应内 `submission_readiness.ready`（#241：正文已响应但证据缺口的必选条款不拦导出、拦正式提交，按 `evidence_missing` 清单补件或人工豁免） | 按 scope 重跑 |
 | P7 审校 | 模型审校→修订任务闭环 | `validate_bid_document` +（后端）RevisionTask | 每个 MAJOR finding 有 RT 且 DONE | 只重跑 DIRTY 章节 |
-| P8 导出 | 预检+导出 | `export_bid_document` | precheck.blockers=0；artifact sha256 复述 | 同参幂等 |
+| P8 导出 | 预检+导出 | `export_bid_document` | precheck.blockers=0；artifact sha256 复述；**暗标项目**：响应 `dark_bid.manual_review` 清单须逐条向用户复述（联系方式/EXIF/路径等人工确认项——不静默跳过），复验 BLOCKER 归零由引擎保证（不过则导出被拒并附处置清单） | 同参幂等 |
 
 \* `search_evidence`（知识库双通道检索）已接线（#145 朴素实现：hybrid /
 semantic / exact 三模式、top_k 1..=1000、确定性排序可重放；#217 起正文

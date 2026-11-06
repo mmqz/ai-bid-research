@@ -25,6 +25,10 @@ image = { workspace = true }
 # #182：审批密钥的 OS 熵源（getrandom 0.2 已在 workspace 锁内——Cargo.lock
 # 既有条目，零新增网络取数；直连声明同 sha2 先例）。
 getrandom = "0.2"
+# #317 暗标清理：导出 docx 的 zip 部件级读改写（docProps 清零/修订批注
+# 作者匿名化——docx-rs 无 creator 设置器，"unknown" 烤死在默认 CoreProps；
+# zip 4 已在 workspace 锁内（dev-dep 既有直连同款——零新增网络取数）。
+zip = "4"
 
 [dev-dependencies]
 # 测试面（S-6 验收）：解包导出产物校验 zip 完整性 + XML 良构（「Word 打开

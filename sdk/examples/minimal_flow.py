@@ -27,12 +27,15 @@ fixtures/synth-tender/招标文件/（仓内自带）。产物留在临时工作
 from __future__ import annotations
 
 import argparse
+import hashlib
+import hmac
 import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -41,23 +44,91 @@ FIXTURES = REPO_ROOT / "fixtures" / "synth-tender" / "招标文件"
 EVIDENCE_PDF = REPO_ROOT / "fixtures" / "corpus-A" / "files" / "evidence" / "EV-02-电子与智能化工程专业承包二级资质证书.pdf"
 BIN_NAME = "bid-mcp-stdio"
 
-# external 正文模板——{req} 占位符替换为**本章节绑定集内**的 REQ。
+# external 正文模板——{req} 占位符替换为本章节绑定集内的 REQ（首叶绑定
+# 5 条，演示引用其一；同一 REQ 多处引用合法，citations 按去重集计数）。
 # 两条实测写作纪律（引擎引用回查的执行面，契约 §6）：
 #   ① 引用的 REQ/EV 必须在本章节绑定集内（known = depends_on √绑定 EV）——
 #      引用其他章节的 REQ 会被当幻觉剔除（citations 归零 + warning）；
 #   ② 承诺句（含「承诺/保证/确保/完全满足」）必须**同句**带引用——
 #      标题也别用承诺词（无引用的标题句会计 unanchored_claims）。
+# 篇幅说明（#325 顺带）：演示稿写足 ~4k 字——行政章节有 1500 字下限
+# （W_CHARS_BELOW_MIN），且全稿总量是档位硬指标（E_TOTAL_CHARS_BELOW_MIN），
+# 103 字的极简稿会把两条门都踩红（即 #312 篇幅产能墙的示例面）。
 EXTERNAL_MANUSCRIPT = (
     "## 售后服务方案\n\n"
+    "### 1. 总体响应体系\n\n"
     "我方针对 [{req}] 承诺建立三级售后保障体系：7×24 小时热线响应，"
     "2 小时内远程响应，8 小时内到场处置。质保期内免费提供系统升级与"
-    "巡检服务，重要节点提前一周书面报备。"
+    "巡检服务，重要节点提前一周书面报备。\n\n"
+    "### 2. 服务组织与驻场安排\n\n"
+    "针对 [{req}] 我方组建专职售后团队：项目经理 1 名（持 PMP 资质，"
+    "统筹服务计划与月度回访）、系统工程师 2 名（负责平台与终端的日常"
+    "维护）、网络工程师 1 名（负责链路巡检与故障定位）。工作日实行"
+    "驻场服务（9:00-18:00），非工作时段保持电话与即时通讯双通道待命，"
+    "确保 [{req}] 响应路径全程可达。\n\n"
+    "驻场团队每月提交《运维月报》，内容包括：系统可用率（目标 ≥99.9%）、"
+    "故障清单与处置时长、备件消耗与库存、下月巡检计划。月报经采购人"
+    "签收后归档，作为服务考核的原始凭证。\n\n"
+    "### 3. 故障分级与响应时限\n\n"
+    "我方针对 [{req}] 承诺按四级故障分级响应：\n\n"
+    "- **一级（致命）**：平台整体不可用或数据面临丢失风险——15 分钟内"
+    "远程接入、2 小时内到场，4 小时内恢复或启用应急回退方案；\n"
+    "- **二级（严重）**：核心功能不可用（如终端离线超 30%）——30 分钟内"
+    "远程接入、4 小时内到场，8 小时内恢复；\n"
+    "- **三级（一般）**：非核心功能异常或性能下降——2 小时内响应，"
+    "1 个工作日内修复；\n"
+    "- **四级（咨询）**：使用咨询与配置调整——当日响应，2 个工作日内"
+    "闭环。\n\n"
+    "每起故障均开具《故障处置单》，记录报障时间、定级依据、处置过程、"
+    "恢复时间与根因分析，确保 [{req}] 的处置过程可追溯、可复盘。\n\n"
+    "### 4. 备品备件保障\n\n"
+    "针对 [{req}] 我方在项目现场配置备件柜：常用终端备机不低于在用"
+    "设备数的 5%，线材与光模块按 10% 冗余备存；关键部件（主机板卡、"
+    "电源模块）与厂商签订 48 小时供货协议。备件出入库实行双人签收，"
+    "每季度盘点并向采购人提交《备件库存报告》。\n\n"
+    "### 5. 巡检与预防性维护\n\n"
+    "我方承诺 [{req}] 实行月度例行巡检：硬件面（终端运行状态、存储"
+    "健康度、链路衰耗）、软件面（版本一致性、日志异常扫描、容量趋势）、"
+    "环境面（机房温湿度、供电冗余）三张清单逐项核对。巡检发现的隐患"
+    "按二级故障时限处置，确保 [{req}] 的隐患不过夜。\n\n"
+    "### 6. 培训与知识转移\n\n"
+    "质保期内针对 [{req}] 提供三轮培训：①管理员培训（平台配置、账号"
+    "与权限管理、日志审计，1 天）；②使用方培训（业务流程操作、常见"
+    "问题自助排查，0.5 天）；③应急处置演练（模拟一级故障的全流程"
+    "协同，0.5 天）。培训教材与录屏随交付文档一并移交，确保 [{req}] "
+    "的操作知识完整沉淀在采购人侧。\n\n"
+    "### 7. 服务考核与持续改进\n\n"
+    "我方接受采购人按 [{req}] 对服务质量的季度考核：响应及时率"
+    "（权重 30%）、恢复及时率（30%）、巡检完成率（20%）、满意度"
+    "（20%）。考核低于 85 分的季度，我方提交整改方案并在下一考核周期"
+    "复验；连续两个季度不达标，采购人有权按合同约定扣减当季服务费。\n\n"
+    "### 8. 质保期满衔接\n\n"
+    "质保期届满前 30 天，我方针对 [{req}] 提交《服务总结与移交清单》，"
+    "并给出续保方案（含可选服务档位与报价）供采购人决策，确保 [{req}] "
+    "的服务衔接不留空窗。"
 )
 
 
 def die(msg: str) -> None:
     print(f"[FAIL] {msg}", file=sys.stderr)
     sys.exit(1)
+
+
+def mint_receipt(ws: Path, actor_id: str, scope: str) -> str:
+    """#182 宿主签发面：读工作区密钥，按域层线格式签审批 receipt。
+
+    示例进程即宿主（spawn server 的同一进程树/同一文件系统权限）——
+    持钥签发是宿主特权；MCP 工具面上不存在等价能力（这正是 #182 的
+    信任根）。线格式与 bid-domain/src/principal.rs 一字不差（与
+    sdk/tests/test_mcp_e2e.py 的 mint_receipt 同源）：
+      v1.<actor>.human.<scope>.<issued_at>.<hex_hmac_sha256>
+      HMAC 消息 v1|<actor>|human|<scope>|<issued_at>
+    """
+    key = (ws / ".mang" / "approval.key").read_bytes()
+    now = int(time.time())
+    msg = f"v1|{actor_id}|human|{scope}|{now}".encode()
+    mac = hmac.new(key, msg, hashlib.sha256).hexdigest()
+    return f"v1.{actor_id}.human.{scope}.{now}.{mac}"
 
 
 def build_binary() -> Path:
@@ -88,7 +159,15 @@ class McpStdio:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            env={**os.environ, "BID_WS": str(workspace)},
+            env={
+                **os.environ,
+                "BID_WS": str(workspace),
+                # #183 围栏：受信导入根——示例夹具（fixtures/synth-tender）在
+                # 工作区外，服务端按根白名单放行（与 sdk/tests/test_mcp_e2e.py
+                # 的 BID_FS_ROOT 同款）。不设则 import_tender_files 报
+                # E_UNPROCESSABLE「导入路径越界」。
+                "BID_FS_ROOT": str(REPO_ROOT / "fixtures"),
+            },
         )
         self.project_version: int | None = None
 
@@ -177,9 +256,14 @@ def main() -> None:
             die(f"缺号未解释：{ext['missing_sequence'][:3]}…")
 
         # ---- P3 建纲 + 矩阵
-        # #253：844,000 ≈ 1000 页 × 844 字符/页（与引擎默认值同源，可省略不传）
+        # 篇幅目标取 Standard 档 800,000（#287 四档：400k/800k/1.2M/2.5M）。
+        # 本示例 mock 补齐面 ≈843k 字符：贴 844k 阈值会被 E_TOTAL_CHARS_BELOW_MIN
+        # 卡死（实测 843,014 < 844,000，差 0.1%——校准随上游计数口径漂移即翻车，
+        # 即 #312 篇幅产能墙的示例面）。演示链路的意义在「跑通」不在「达标」，
+        # 选 800k 档留 ~5% 余量；真实项目按 recommend_length_profile 推荐 + 用户
+        # 确认选档（#287 流程，见 #288 Skill 面）。
         bo = mcp.must("build_outline", {
-            "project_id": pid, "target_total_chars": 844_000,
+            "project_id": pid, "target_total_chars": 800_000,
             "max_reqs_per_leaf": 8,
         })
         print(f"[6/9] P3 build_outline：{bo['counts']['leaves']} 叶 / "
@@ -220,14 +304,22 @@ def main() -> None:
             die(f"绑定后 blocking={bind['matrix']['blocking']}（应为 0）")
         print(f"      bound_new={bind['bound_new']}，blocking=0 ✓")
 
-        # ---- 人工门（四门；reviewer 必须 human: 前缀）
+        # ---- 人工门（三门前置：matrix/outline + addendum_waiver；#325/R-14：
+        #      旧 reviewer 参数已废除并被参数面显式拒——契约 §12「旧 reviewer
+        #      参数显式拒——Agent 不得自述身份」。现行 #182 receipt 验签：
+        #      宿主持 approval.key 签发 receipt，本示例进程即宿主（与 e2e
+        #      测试同款 mint_receipt）。
+        #      pre_export_confirm 不在此处记：#180 审核内容绑定——该门绑定
+        #      全部章节正文摘要，必须在起草完成且校验通过后记（见下方
+        #      P6 之后），先过门后起草会被导出前置裁决拒（摘要失配））
         for gate in ("matrix_approval", "outline_approval",
-                     "pre_export_confirm", "addendum_waiver"):
+                     "addendum_waiver"):
             mcp.must("record_review_gate", {
                 "project_id": pid, "gate": gate, "decision": "APPROVED",
-                "reviewer": "human:minimal-flow-操作者",
+                "receipt": mint_receipt(ws, "minimal-flow-操作者",
+                                        f"review_gate:{gate}"),
             })
-        print("      四门已记（matrix/outline/pre_export + addendum_waiver）")
+        print("      三门已记（matrix/outline + addendum_waiver；receipt 验签）")
 
         # ---- 章节发现（叶清单的正式查询口；requirement_ids = 章节→REQ
         #      归属的正式查询口——external 正文引用必须落在该集合内）
@@ -272,16 +364,26 @@ def main() -> None:
         print(f"      mock 补齐余 {len(rest)} 叶（空章节是 P6 BLOCKER——"
               f"真实链路中每叶都由你的 Agent external 撰写）")
 
-        # ---- P6 校验 + P8 导出
+        # ---- P6 校验 + P7.5 终审门 + P8 导出
         v = mcp.must("validate_bid_document", {"project_id": pid, "scope": "all"})
         if v["counts"]["blocker"] != 0:
             die(f"BLOCKER={v['counts']['blocker']}：{v['findings'][:2]}")
+        # P7.5 pre_export_confirm（#180 审核内容绑定：绑定全部章节正文摘要，
+        # 起草完成且校验通过后才记——与人类流程同序，e2e 的 _case_full_pipeline
+        # 同款；先记门后改稿会被导出前置裁决拒「审核针对的内容已变更」）
+        mcp.must("record_review_gate", {
+            "project_id": pid, "gate": "pre_export_confirm",
+            "decision": "APPROVED",
+            "receipt": mint_receipt(ws, "minimal-flow-操作者",
+                                    "review_gate:pre_export_confirm"),
+        })
+        print("      P6 校验 BLOCKER=0 ✓ → P7.5 pre_export_confirm 已记（receipt 验签）")
         e = mcp.must("export_bid_document", {
             "project_id": pid, "format": "docx",
             "output_path": "out/minimal-flow-投标文件.docx",
         })
         art = e["artifact"]
-        print(f"[9/9] P6 校验 BLOCKER=0 ✓ → P8 导出：{art['url']} "
+        print(f"[9/9] P8 导出：{art['url']}"
               f"（{art['size']} bytes）\n      sha256={art['sha256']}"
               f"（复述给用户）\n      六表 {e['tables_written']} 张 / "
               f"七件 {e['forms_written']} 份在册")

@@ -76,13 +76,76 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         "score_document" => score_document(svc, args),
         // ---- #145 任务 1：双通道证据检索（契约 §5——朴素实现，真向量库见 M2-b）----
         "search_evidence" => search_evidence(svc, args),
+        // ---- #279：行协议发现面（无状态前置的只读握手——工具清单 + 契约摘要）----
+        "list_tools" => list_tools(),
         other => Err(ToolError::ENotFound {
             what: format!("未接入的工具 {other}"),
         }),
     }
 }
 
+// ---------------------------------------------------------------- #279 list_tools
+
+/// `list_tools` —— 行协议发现面（#279 第 1 项）。
+///
+/// 背景：#269 六场黑盒考验里两个独立代理都试探了 list_tools（Agent 的合理
+/// 预期：先握手再干活）——行协议无此工具只能报 E_NOTFOUND，代理只能盲猜
+/// 信封结构（danqing / hc-cluster 各 5 连败的间接成因）。标准 MCP JSON-RPC
+/// 客户端有 tools/list 方法等价获取，本工具补行协议的缺口。
+///
+/// 纯只读、无参数、无状态前置（建项目前即可调）：返回工具清单（单一真源
+/// [`crate::TOOL_NAMES`] + schema 描述）+ 行协议契约摘要（信封形态/错误码
+/// 面/CAS 纪律/断点恢复入口）——把「靠猜」变成「一次调用可知」。
+fn list_tools() -> ToolResult {
+    let tools: Vec<Value> = crate::TOOL_NAMES
+        .iter()
+        .map(|name| {
+            json!({
+                "name": name,
+                "summary": crate::schema::describe(name),
+            })
+        })
+        .collect();
+    Ok(json!({
+        "count": tools.len(),
+        "tools": tools,
+        "line_protocol": {
+            "request": "每行一个 JSON 对象：{\"tool\":\"<工具名>\",\"args\":{<参数>}}",
+            "response": "每行一个 JSON 应答：{\"ok\":true,\"tool\":..,\"data\":..} 或 {\"ok\":false,\"tool\":..,\"error\":{\"code\":..,\"what\":..}}",
+            "notes": [
+                "错误按 error.code 分支（E_STATE/E_NOTFOUND/E_UNPROCESSABLE/E_CONFLICT/...），不要解析 what 文案",
+                "参数必须嵌套在 args 下——顶层参数会报信封结构错误（#279）",
+                "project_version 乐观并发：传上次响应的数字（强一致，过期 E_CONFLICT）或 \"latest\"（显式声明无并发）；缺省跳过检查",
+                "断点恢复先调 get_bid_project_state",
+                "工具契约详情：docs/bid-mcp-contract.md"
+            ]
+        }
+    }))
+}
+
 // ---------------------------------------------------------------- 参数校验助手
+
+/// `project_version` 乐观并发参数解析（#279 第 3 项——CAS 心智负担）。
+///
+/// 形态三选一：
+/// - 非负整数 → `Some(n)`：强一致 CAS，过期 `E_CONFLICT`（现状不变——
+///   报错已带对齐建议，#269 三场全部自愈，**不动**）；
+/// - 字符串 `"latest"` → `None`：显式声明「我确认无并发」——与缺省同语义
+///   （跳过检查），但**意图可见**：单代理顺序作业时调用方不必追踪版本号，
+///   也不再因为揣着过期数字吃 E_CONFLICT 重试；误用时审计面上可辨认；
+/// - 缺省 / null → `None`：内部步骤语义（现状不变）。
+fn opt_cas_version(v: &Value, at: &str) -> Result<Option<u64>, ToolError> {
+    match v.get("project_version") {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Number(n)) => n.as_u64().map(Some).ok_or_else(|| ToolError::EUnprocessable {
+            what: format!("{at}: project_version 须为非负整数或 \"latest\""),
+        }),
+        Some(Value::String(s)) if s == "latest" => Ok(None),
+        Some(_) => Err(ToolError::EUnprocessable {
+            what: format!("{at}: project_version 须为非负整数或 \"latest\"（显式声明无并发）"),
+        }),
+    }
+}
 
 /// 契约 §2 `files[].kind` 枚举（MCP 壳校验面；服务层不重复——运行器自有
 /// 类别如「证据」不受此限，见 service.rs 分层说明）。
@@ -384,7 +447,7 @@ fn import_tender_files(svc: &mut BidService, args: Value) -> ToolResult {
             what: "files 不得为空（空批次无导入语义——查状态用 get_bid_project_state）".into(),
         });
     }
-    let project_version = opt_u64(&args, "project_version", "import_tender_files")?;
+    let project_version = opt_cas_version(&args, "import_tender_files")?;
     // ---- #183 围栏（壳层半边）：无受信根 → 响亮拒（指路 BID_WS）；
     //      有根 → 逐件 resolve_read（工作区相对 / 围栏内绝对；`..`/越界/
     //      symlink 段 → E_UNPROCESSABLE，先于项目路由与状态机——零副作用）。
@@ -696,7 +759,7 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
             what: "options 必须为对象".into(),
         });
     }
-    let project_version = opt_u64(&args, "project_version", "extract_requirements")?;
+    let project_version = opt_cas_version(&args, "extract_requirements")?;
 
     // ---- 项目路由 + 状态机裁决（E_NOTFOUND / E_STATE）
     let proj = svc.store().project().map_err(ToolError::from)?;
@@ -1989,7 +2052,7 @@ fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
     let project_id = req_str(&args, "project_id", TOOL)?;
     let section_id = req_str(&args, "section_id", TOOL)?;
     let instructions = opt_str(&args, "instructions", TOOL)?;
-    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
     // source_requirements / evidence_ids：字符串数组（缺省 = 章节绑定集 / 矩阵绑定集）
     let req_ids = opt_str_array(&args, "source_requirements", TOOL)?;
     let ev_ids = opt_str_array(&args, "evidence_ids", TOOL)?;
@@ -2579,7 +2642,7 @@ fn score_section(svc: &mut BidService, args: Value) -> ToolResult {
     const TOOL: &str = "score_section";
     let project_id = req_str(&args, "project_id", TOOL)?;
     let section_id = req_str(&args, "section_id", TOOL)?;
-    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
     route_guard(svc, &project_id, TOOL, project_version)?;
     // 前置：章节在场 + 已起草
     let node = svc
@@ -2649,7 +2712,7 @@ fn score_section(svc: &mut BidService, args: Value) -> ToolResult {
 fn score_document(svc: &mut BidService, args: Value) -> ToolResult {
     const TOOL: &str = "score_document";
     let project_id = req_str(&args, "project_id", TOOL)?;
-    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
     route_guard(svc, &project_id, TOOL, project_version)?;
     // 前置：章节树在场（与 check_bid_quality 同口径）
     if svc.store().sections().is_empty() {
@@ -3444,7 +3507,7 @@ fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
     let project_id = req_str(&args, "project_id", TOOL)?;
     let format = req_str(&args, "format", TOOL)?;
     let output_path = req_str(&args, "output_path", TOOL)?;
-    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
     // profile：{ dark_bid?: bool, bidder_name?: string, template? }
     let profile = args
         .get("profile")
@@ -3677,7 +3740,7 @@ fn validate_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
             what: format!("scope={scope} 非法（all | sections）"),
         });
     }
-    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
     // rules_profile：standard | dark_bid（暗标模式额外扫禁字清单——阶段 7 词
     // 表面；在场先告警未生效，不静默吞）
     let profile = opt_str(&args, "rules_profile", TOOL)?.unwrap_or_else(|| "standard".into());
@@ -3813,7 +3876,7 @@ fn recover_validating_state(svc: &mut BidService, args: Value) -> ToolResult {
             ),
         });
     }
-    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
     route_guard(svc, &project_id, TOOL, project_version)?;
 
     let rec = svc.recover_validating_state(&reason).map_err(ToolError::from)?;
@@ -3873,7 +3936,7 @@ pub(crate) fn route_guard(
 fn build_outline(svc: &mut BidService, args: Value) -> ToolResult {
     const TOOL: &str = "build_outline";
     let project_id = req_str(&args, "project_id", TOOL)?;
-    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
     let target_total_chars = opt_u64(&args, "target_total_chars", TOOL)?;
     let max_reqs_per_leaf = opt_u64(&args, "max_reqs_per_leaf", TOOL)?;
     if let Some(t) = target_total_chars {
@@ -4074,7 +4137,7 @@ fn register_evidence(svc: &mut BidService, args: Value) -> ToolResult {
     let scope = opt_str(&args, "scope", TOOL)?.unwrap_or_default();
     let valid_from = opt_str(&args, "valid_from", TOOL)?;
     let valid_until = opt_str(&args, "valid_until", TOOL)?;
-    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
     // #245 占位声明（bool，默认 false；非布尔类型响亮拒）
     let placeholder = match args.get("placeholder") {
         None | Some(Value::Null) => false,
@@ -4195,7 +4258,7 @@ fn bind_evidence(svc: &mut BidService, args: Value) -> ToolResult {
         });
     }
     let bid_open_date = req_str(&args, "bid_open_date", TOOL)?;
-    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
 
     route_guard(svc, &project_id, TOOL, project_version)?;
 
@@ -4349,7 +4412,7 @@ fn record_review_gate(svc: &mut BidService, args: Value) -> ToolResult {
     }
     let receipt = req_str(&args, "receipt", TOOL)?;
     let findings = parse_findings(&args, TOOL)?;
-    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
 
     route_guard(svc, &project_id, TOOL, project_version)?;
 
@@ -4451,7 +4514,7 @@ fn set_matrix_override(svc: &mut BidService, args: Value) -> ToolResult {
     let requirement_id = req_str(&args, "requirement_id", TOOL)?;
     let status_raw = req_str(&args, "status", TOOL)?;
     let deviation = opt_str(&args, "deviation", TOOL)?;
-    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
     // #182：裸身份参数显式拒绝（参数面先于验签面——防未来有人加回
     // operator/principal 直传，把人工出口退化成 Agent 自免单通道）。
     if args.get("principal").is_some() || args.get("operator").is_some() {
@@ -4571,7 +4634,7 @@ fn record_addendum_waiver(svc: &mut BidService, args: Value) -> ToolResult {
         });
     }
     let receipt = req_str(&args, "receipt", TOOL)?;
-    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
 
     route_guard(svc, &project_id, TOOL, project_version)?;
 
@@ -4629,7 +4692,7 @@ fn append_section_segment(svc: &mut BidService, args: Value) -> ToolResult {
     let section_id = req_str(&args, "section_id", TOOL)?;
     let content = req_str(&args, "content", TOOL)?;
     let idem_key = opt_str(&args, "idem_key", TOOL)?;
-    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
 
     route_guard(svc, &project_id, TOOL, project_version)?;
 
@@ -4675,7 +4738,7 @@ fn rewrite_section_segment(svc: &mut BidService, args: Value) -> ToolResult {
     // 并发模式一致；并发写作面建议携带）
     let expected_version = opt_u64(&args, "expected_version", TOOL)?
         .map(|v| v as u32);
-    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
 
     route_guard(svc, &project_id, TOOL, project_version)?;
 
@@ -4713,7 +4776,7 @@ fn list_section_segments(svc: &mut BidService, args: Value) -> ToolResult {
     const TOOL: &str = "list_section_segments";
     let project_id = req_str(&args, "project_id", TOOL)?;
     let section_id = req_str(&args, "section_id", TOOL)?;
-    let project_version = opt_u64(&args, "project_version", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
 
     route_guard(svc, &project_id, TOOL, project_version)?;
 

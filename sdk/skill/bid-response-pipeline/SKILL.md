@@ -122,7 +122,11 @@ semantic / exact 三模式、top_k 1..=1000、确定性排序可重放；#217 �
 辅助工具（不占阶段）：`get_bid_project_state`（断点恢复入口）、
 `check_bid_quality`（章节发现面——**外部 Agent 获取章节清单的正式查询口**，
 sections 只列可起草叶）、`score_price` / `score_section` / `score_document`
-（自评面：该报多少价、这份标书能得几分）、`record_review_gate`（人工复审门，
+（自评面：该报多少价、这份标书能得几分）、`check_scoring_coverage`（#318
+细则逐条响应覆盖检查——拆出每条评分细则「要求的点」，对照射章节正文报
+「哪个点写了/漏了哪点/建议扣分」；字面口径（语义等价表述不识别），
+只报不补——漏点面用分段工具补写后复跑，P6 校验前查一遍防「不完整」扣分）、
+`record_review_gate`（人工复审门，
 见下）、`record_addendum_waiver`（补遗不就绪件的逐件人工确认——见下）、
 `recover_validating_state`（历史异常态恢复：项目滞留在 VALIDATING 且仍有
 未起草叶（旧版校验误推进所致）→ 回 DRAFTING 解锁起草面，#243；三重约束

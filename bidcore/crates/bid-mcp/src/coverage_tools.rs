@@ -439,6 +439,118 @@ pub fn get_star_coverage(svc: &mut BidService, args: Value) -> ToolResult {
         },
     }))
 }
+// ---------------------------------------------------------------- #318 评标细则逐条响应
+
+/// `check_scoring_coverage`：评分细则逐条响应覆盖检查（#318——只读诊断）。
+///
+/// 评委按细则逐条打分：「需包含总体架构、实施步骤、风险应对」——本工具
+/// 拆出要求的点，对细则的映射章节正文（ScoringItem.mappings ∪ 持久化
+/// ScoringMapping 账本——与 score 工具同口径）做字面命中，报告
+/// 「哪个点在哪个章节 / 漏了哪些点 / 建议扣分」。
+///
+/// 入参：`project_id`。
+/// 出参：
+/// ```text
+/// summary { criteria_total / criteria_with_points / criteria_unmapped /
+///           points_total / points_covered / coverage_ratio /
+///           suggested_deduction }      总量与建议扣分（启发式）
+/// criteria[] { criterion_id / criteria_excerpt / max_score /
+///              mapped_sections / points[]{point, hit_section} }  逐细则
+/// notes[]    口径与局限（字面拆点/子串命中——语义等价表述不识别）
+/// ```
+///
+/// **只报不补**（#285★漏标同款纪律）：不自动改稿——漏点面交给
+/// Agent/人决策（rewrite_section_segment / append_section_segment 补写）。
+pub fn check_scoring_coverage(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "check_scoring_coverage";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    route_project(svc, &project_id, TOOL)?;
+
+    let store = svc.store();
+    let reqs = store.requirements().to_vec();
+    let mut items = bid_domain::scoring::derive_scoring_items(&reqs);
+    // #224 多对多：并入持久化映射（AgentSubmitted/Manual/OutlineDerived——
+    // 与 score 工具的 build_scorer 同口径：params.section 派生 + 账本并入，
+    // 同 (req, section) 键重合跳过，防双重计入）。
+    let persistent: Vec<(String, String)> = store
+        .scoring_mappings()
+        .iter()
+        .map(|m| (m.scoring_req_id.clone(), m.section_id.clone()))
+        .collect();
+    for it in &mut items {
+        for (req_id, sid) in &persistent {
+            if *req_id == it.requirement_id
+                && !it.mappings.iter().any(|x| &x.section_id == sid)
+            {
+                it.mappings.push(bid_domain::scoring::SectionMapping {
+                    section_id: sid.clone(),
+                    weight_share: 1.0,
+                });
+            }
+        }
+    }
+
+    // 章节命中 haystack：**纯正文**（标题不算——#252 评分驱动建纲的 L2
+    // 标题派生自细则原文（「保密措施」章节标题天然含点「保密措施」），
+    // 标题自命中是伪覆盖：空章节不得因标题同名词被判「已响应」。
+    // 正文内部的标题行（mock/external 稿自带「3.1 总体架构」）仍是正文
+    // ——真实响应面，照常命中。）
+    let sections: HashMap<String, Option<String>> = store
+        .sections()
+        .iter()
+        .map(|n| (n.id.clone(), n.content.clone()))
+        .collect();
+    let section_text = |sid: &str| -> String {
+        sections.get(sid).and_then(|c| c.clone()).unwrap_or_default()
+    };
+
+    let report = bid_domain::scoring_coverage::check_scoring_coverage(&items, section_text);
+
+    let criteria_json: Vec<Value> = report
+        .criteria
+        .iter()
+        .map(|c| {
+            json!({
+                "criterion_id": c.criterion_id,
+                "criteria_excerpt": c.criteria_excerpt,
+                "max_score": c.max_score,
+                "mapped_sections": c.mapped_sections,
+                "points": c.points.iter().map(|p| json!({
+                    "point": p.point,
+                    "hit_section": p.hit_section,
+                })).collect::<Vec<Value>>(),
+                "covered": c.points.iter().filter(|p| p.hit_section.is_some()).count(),
+                "total": c.points.len(),
+                "suggested_deduction": c.max_score.map(|m| {
+                    let uncovered = c.points.iter().filter(|p| p.hit_section.is_none()).count();
+                    if c.points.is_empty() { 0.0 } else { m * uncovered as f64 / c.points.len() as f64 }
+                }),
+            })
+        })
+        .collect();
+
+    Ok(json!({
+        "project_id": project_id,
+        "summary": {
+            "criteria_total": report.criteria_total,
+            "criteria_with_points": report.criteria_with_points,
+            "criteria_unmapped": report.criteria_unmapped,
+            "points_total": report.points_total,
+            "points_covered": report.points_covered,
+            "coverage_ratio": report.coverage_ratio,
+            "suggested_deduction": report.suggested_deduction,
+        },
+        "criteria": criteria_json,
+        "notes": report.notes,
+        "next": if report.points_total == 0 {
+            "未拆出任何点（细则无枚举形态/未抽取评分表）——先 extract_requirements，细则原文进 score_rules 后再查"
+        } else if report.points_covered == report.points_total {
+            "全部点覆盖——逐条响应面无漏点"
+        } else {
+            "有漏点——criteria[].points[] 里 hit_section=null 的点是扣分面：rewrite_section_segment / append_section_segment 补写后复跑本工具"
+        },
+    }))
+
 #[cfg(test)]
 mod tests {
     use super::*;

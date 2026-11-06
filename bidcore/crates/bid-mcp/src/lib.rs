@@ -41,7 +41,7 @@ pub use transport::Transport;
 
 use serde_json::Value;
 
-/// 32 个工具名（单一真源；schema 声明与分发都从这里取）。
+/// 33 个工具名（单一真源；schema 声明与分发都从这里取）。
 
 ///
 /// V3-5（S-4 游标分页）新增 `list_evidence` / `list_tasks` 两个只读列表工具
@@ -63,8 +63,11 @@ use serde_json::Value;
 /// 实测捕获率 1/5~5/5 波动的对账面）= 32；#285 ② 增 3 个：块级双向索引
 /// 三工具（get_requirement_provenance / get_block_requirements /
 /// get_annotation_overlay——REQ↔块双向反查 + 视图渲染 overlay 数据面）
-/// = 35。
-pub const TOOL_NAMES: [&str; 37] = [
+/// = 35；#318 增 1 个：`check_scoring_coverage`（评分细则逐条响应覆盖
+/// 检查——拆点/正文命中/漏点/建议扣分，只读诊断）= 36；#319 增 2 个：
+/// 补遗后增量重写（register_addendum_changes / rewrite_section_partial）
+/// = 38。
+pub const TOOL_NAMES: [&str; 38] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -97,6 +100,8 @@ pub const TOOL_NAMES: [&str; 37] = [
     "get_requirement_provenance",
     "get_block_requirements",
     "get_annotation_overlay",
+    // #318 评分细则逐条响应覆盖检查（只读诊断——拆点/命中/漏点/建议扣分）
+    "check_scoring_coverage",
     // #226 层 1：否决项死锁的人工出口
     "set_matrix_override",
     // #243：历史异常态（VALIDATING+缺章）的受支持恢复出口

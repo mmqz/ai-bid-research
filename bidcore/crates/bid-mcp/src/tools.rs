@@ -4221,6 +4221,7 @@ fn build_outline(svc: &mut BidService, args: Value) -> ToolResult {
                 + u64::from(bid_domain::outline::CHARS_PER_PAGE)
                 - 1)
                 / u64::from(bid_domain::outline::CHARS_PER_PAGE),
+        },
         // #244 覆盖闭环回执（信息性）：建纲时点的处置面分布——
         // excluded = B 态（已排除）；regex_fallback = 零标记走兜底的文件。
         "coverage": {

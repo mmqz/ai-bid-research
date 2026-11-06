@@ -69,6 +69,30 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      # #295（方案 A）：CI 装 poppler——9 条 songling L1 验收门
+      # （songling_baseline.rs ×4 + songling_scoring_outline.rs ×5，含
+      # #253 配额分布核心门）此前因 Windows 无 poppler 全程 SKIP、CI 零覆盖；
+      # #266 的 quota 0.824→0.820 回归因此在 main 静默存活到 C 本机才暴露。
+      # choco 的 poppler 包封装 oschwartz10612 社区构建（pdftotext/pdfinfo/
+      # pdftoppm 全在 PATH）——与本地 Linux 同源同工具族。装完自检三工具
+      # 版本，版本号进日志（基线跨平台核对的证据面）。
+      - name: Install poppler (#295 - L1 验收门 CI 覆盖)
+        shell: pwsh
+        run: |
+          choco install poppler -y --no-progress
+          # 不赌 choco shim 布局：递归定位 pdftotext.exe 的真实目录，
+          # 写进 GITHUB_PATH（后续所有 step 生效）——shim 在与不在都对。
+          $pdftotext = (Get-ChildItem -Path 'C:\ProgramData\chocolatey' -Recurse -Filter 'pdftotext.exe' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $pdftotext) { throw 'pdftotext.exe not found after choco install poppler' }
+          $binDir = Split-Path $pdftotext
+          echo $binDir >> $env:GITHUB_PATH
+          echo "poppler bin: $binDir"
+          # 本 step 内自检（GITHUB_PATH 对当前 step 不回灌——手动前置）
+          $env:Path = "$binDir;$env:Path"
+          pdftotext -v
+          pdfinfo -v
+          pdftoppm -v
+
       - name: Cache cargo
         uses: actions/cache@v4
         with:
@@ -98,27 +122,59 @@ jobs:
         working-directory: bidcore
         # issue #9 SKIP 机制已落地：外部工具缺件时，PDF 全链测试
         # （corpus_probe / kb_probe / e2e_m1）打 SKIP 横幅并提前 return，
-        # 计数 passed 而非 failed——Windows runner 无 poppler/tesseract 也能全量跑。
+        # 计数 passed 而非 failed。#295 起 poppler 在位（songling 9 门真跑），
+        # 但 tesseract 仍缺件（OCR 面测试继续 SKIP——见下方 SKIP 汇总步骤）。
         # --no-fail-fast：**不要**在第一个失败目标后停跑。
         # 教训（2026-11-02）：默认行为是「遇第一个失败目标就停」，
         # 于是 bid-mcp 的 score_tools 红了很久，bid-parse 的 9 个测试
         # 二进制**从来没在 CI 里跑过**——#168 修好一个红灯后，
         # 下一个红灯（addendum_recovery 的 CJK 乱码，见 #169）才浮现。
         # 全量报错能一次看全，而不是每次只揭露一个（20 分钟/轮）。
-        run: cargo test --workspace --no-fail-fast
+        # #295：输出 tee 到文件——后述 SKIP 汇总/横幅核验步骤读日志回放，
+        # 不再为了看横幅重跑一遍全量（旧 Verify 步骤的重跑每次白烧 ~15 分钟）。
+        # pwsh 管道下 $LASTEXITCODE 仍取 cargo 的退出码（Tee-Object 是 cmdlet
+        # 不碰它）——测试失败照样红，语义不变。
+        shell: pwsh
+        run: cargo test --workspace --no-fail-fast 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP\test-output.log"
 
-      - name: Verify SKIP banner emitted (Windows 无外部工具的预期行为)
+      # #295（横幅核验改为日志回放）：旧步骤为了看一条 SKIP 横幅把
+      # `cargo test --workspace` **整个重跑一遍**（每轮白烧 ~15 分钟）——
+      # 现在读上一步 tee 的日志，语义不变（两种环境都容忍）。
+      - name: Verify SKIP banner emitted (#295 起读日志回放，不重跑)
         working-directory: bidcore
-        # Windows runner 预装 poppler/tesseract 的可能性低——若确实缺件，
-        # 验证 SKIP 横幅真的出现（机制自证，防「静默通过但没跳」的假绿）；
-        # 若工具齐备则三项全跑，无横幅也正常（脚本容忍两种环境）。
         shell: pwsh
         run: |
-          $out = cargo test --workspace 2>&1 | Out-String
-          if ($out -match 'SKIP: probe_corpus_a_full_chain') {
+          $log = "$env:RUNNER_TEMP\test-output.log"
+          if ((Test-Path $log) -and (Select-String -Path $log -Pattern 'SKIP: probe_corpus_a_full_chain' -Quiet)) {
             echo 'SKIP banner verified: probe_corpus_a_full_chain correctly skipped (ENV_MISSING)'
           } else {
             echo 'No SKIP banner (tools present on runner) - full chain executed'
+          }
+
+      # #295（方案 C）：SKIP 可见性——「CI 全绿 ≠ 稳定」的止血面。
+      # 汇总全量测试输出里的 SKIP 横幅到 job summary + workflow warning
+      # 注解：一眼看清本轮 CI 有多少门「绿着但没跑」（缺件跳过）。
+      # 本步骤不判红（缺件跳过是 #9 机制的设计行为）——但 SKIP 数 > 0 时
+      # 用 ::warning 注解把它顶到 PR 页面，不再淹没在日志中部。
+      - name: SKIP 汇总（#295 方案 C——CI 覆盖缺口可见性）
+        if: always()
+        shell: pwsh
+        run: |
+          $log = "$env:RUNNER_TEMP\test-output.log"
+          echo '### SKIP 汇总（#295）' >> $env:GITHUB_STEP_SUMMARY
+          if (-not (Test-Path $log)) {
+            echo '（测试日志缺失——本步骤晚于测试步骤或测试未跑）' >> $env:GITHUB_STEP_SUMMARY
+            return
+          }
+          $skips = @(Select-String -Path $log -Pattern '^SKIP: (.+)$' | ForEach-Object { $_.Matches[0].Groups[1].Value } | Sort-Object -Unique)
+          if ($skips.Count -eq 0) {
+            echo '零 SKIP——全部测试真实运行 ✅（#295 起 poppler 在位，songling 9 门已转真跑）' >> $env:GITHUB_STEP_SUMMARY
+          } else {
+            echo "**$($skips.Count) 个测试被 SKIP（ENV_MISSING——CI 覆盖缺口，见下）**：" >> $env:GITHUB_STEP_SUMMARY
+            $skips | ForEach-Object { echo "- $_" >> $env:GITHUB_STEP_SUMMARY }
+            echo '' >> $env:GITHUB_STEP_SUMMARY
+            echo '缺口清单与补装指引见 issue #9 SKIP 机制（横幅即指引）；OCR 面（tesseract）缺件是当前已知缺口。' >> $env:GITHUB_STEP_SUMMARY
+            echo "::warning::CI 覆盖缺口：$($skips.Count) 个测试 SKIP（$($skips -join '、')）——CI 全绿不覆盖这些门"
           }
 
       - name: Detect external toolchain
@@ -135,5 +191,5 @@ jobs:
           } else {
             echo '**ENV_MISSING**: ' + ($missing -join ', ') >> $env:GITHUB_STEP_SUMMARY
             echo '' >> $env:GITHUB_STEP_SUMMARY
-            echo 'PDF 全链测试（corpus_probe/kb_probe/e2e_m1）已按 issue #9 SKIP 机制跳过（横幅 + 提前 return，非 FAIL）。' >> $env:GITHUB_STEP_SUMMARY
+            echo '#295 起 poppler 已在 CI 安装（pdftotext/pdfinfo/pdftoppm）；仍缺件的工具见上——其门禁测试按 issue #9 SKIP 机制跳过（横幅 + 提前 return，非 FAIL），明细见 SKIP 汇总。' >> $env:GITHUB_STEP_SUMMARY
           }

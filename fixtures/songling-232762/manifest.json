@@ -12,7 +12,7 @@
   "purchaser_addr": "黑龙江省大兴安岭地区松岭区小扬气镇松岭大街26号",
   "agent_org": "黑龙江蓝江项目管理有限公司",
   "procurement_method": "公开招标（综合评分法）",
-  "budget_cny": 1195800.0,
+  "budget_cny": 1195800,
   "bid_open_at": "2026-10-12 09:00:00",
   "contract_period_days": 365,
   "accept_consortium": false,
@@ -163,12 +163,12 @@
    "资格条件": 21,
    "商务要求": 0
   },
-  "retrievable_hits_of_16": 4,
+  "retrievable_hits_of_16": 5,
+  "norm_n3": "2026-11-05 #267 合并：norm_n3 匹配瞬间双侧归一（NFKC 康熙部首 + 千分位剥离）——GR-005「15日历天」4→5 转命中",
   "retrievable_miss_list": [
    "50M/s",
    "95%",
    "360分钟",
-   "15日历天",
    "0.2dB",
    "松岭区",
    "验收要求",
@@ -182,7 +182,8 @@
    "295条",
    "30M/s",
    "双电源",
-   "不接受"
+   "不接受",
+   "15日历天"
   ],
   "outline_nodes": 68,
   "outline_leaves": 43,

@@ -134,20 +134,25 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
 
 
-def mint_receipt(ws: Path, actor_id: str, scope: str) -> str:
-    """#182 宿主签发面复刻：读工作区密钥，按域层线格式签审批 receipt。
+async def mint_receipt(client: Any, ws: Path, actor_id: str, scope: str) -> str:
+    """#182 宿主签发面复刻（#323 起 v2 七段——含内容绑定摘要）。
 
     e2e 测试进程即宿主（spawn server 的同一进程树/同一文件系统权限）——
     持钥签发是宿主特权；MCP 工具面上不存在等价能力（这正是 #182 的信任根）。
     契约与 bid-domain/src/principal.rs 一字不差：
-      线格式 v1.<actor>.human.<scope>.<issued_at>.<hex_hmac_sha256>
-      HMAC 消息 v1|<actor>|human|<scope>|<issued_at>
+      线格式 v2.<actor>.human.<scope>.<issued_at>.<sections_digest>.<hex_hmac_sha256>
+      HMAC 消息 v2|<actor>|human|<scope>|<issued_at>|<sections_digest>
+    #323/R-06：第六段 = 当前章节树摘要——经 get_bid_project_state 的
+    content_binding.sections_digest 取（与服务器端验签同源单一真源）；
+    签发后内容变更 → 验签时摘要不一致 → CONTENT_DRIFTED_RECEIPT 拒。
     """
+    state = await call(client, "get_bid_project_state", {})
+    digest = state["content_binding"]["sections_digest"]
     key = (ws / ".mang" / "approval.key").read_bytes()
     now = int(time.time())
-    msg = f"v1|{actor_id}|human|{scope}|{now}".encode()
+    msg = f"v2|{actor_id}|human|{scope}|{now}|{digest}".encode()
     mac = hmac.new(key, msg, hashlib.sha256).hexdigest()
-    return f"v1.{actor_id}.human.{scope}.{now}.{mac}"
+    return f"v2.{actor_id}.human.{scope}.{now}.{digest}.{mac}"
 
 
 async def expect_reject(client: Any, tool: str, args: dict) -> str:
@@ -705,7 +710,7 @@ async def setup_project(client: Any, rec: Recorder, tag: str, ws: Path) -> dict:
         "project_id": pid, "gate": "matrix_approval", "decision": "APPROVED",
         "reviewer": "human:admin",
     })
-    forged = mint_receipt(ws, "admin", "review_gate:matrix_approval")
+    forged = await mint_receipt(client, ws, "admin", "review_gate:matrix_approval")
     forged = forged[:-1] + ("1" if forged[-1] != "1" else "0")
     probe_forged = await expect_reject(client, "record_review_gate", {
         "project_id": pid, "gate": "matrix_approval", "decision": "APPROVED",
@@ -715,7 +720,7 @@ async def setup_project(client: Any, rec: Recorder, tag: str, ws: Path) -> dict:
     for g in gates:
         r = await call(client, "record_review_gate", {
             "project_id": pid, "gate": g, "decision": "APPROVED",
-            "receipt": mint_receipt(ws, "mcp-e2e-lead", f"review_gate:{g}"),
+            "receipt": await mint_receipt(client, ws, "mcp-e2e-lead", f"review_gate:{g}"),
         })
     approved = r.get("gates_approved", [])
     actor = r.get("receipt", {}).get("actor", {})
@@ -727,8 +732,8 @@ async def setup_project(client: Any, rec: Recorder, tag: str, ws: Path) -> dict:
          probe_forged == "E_UNPROCESSABLE"),
         ("G3: #182 actor 回显 actor_type=human（宿主签发的可信身份）",
          actor.get("actor_type") == "human"),
-        ("G3: #182 actor 回显 authentication_method=hmac_receipt_v1",
-         actor.get("authentication_method") == "hmac_receipt_v1"),
+        ("G3: #182 actor 回显 authentication_method=hmac_receipt_v2（#323 v2 线格式）",
+         actor.get("authentication_method") == "hmac_receipt_v2"),
     ]
     rec.stage("G3 record_review_gate ×2", "record_review_gate",
               {"gates": list(gates),
@@ -965,7 +970,7 @@ async def _case_full_pipeline(rec: Recorder, ws: Path) -> None:
         # #182：宿主签发 receipt（测试进程即宿主——读工作区密钥签发）
         r = await call(client, "record_review_gate", {
             "project_id": pid, "gate": "pre_export_confirm", "decision": "APPROVED",
-            "receipt": mint_receipt(ws, "mcp-e2e-lead", "review_gate:pre_export_confirm"),
+            "receipt": await mint_receipt(client, ws, "mcp-e2e-lead", "review_gate:pre_export_confirm"),
         })
         receipt = r.get("receipt", {})
         digest = receipt.get("reviewed_content_digest")

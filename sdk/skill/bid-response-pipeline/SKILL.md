@@ -167,8 +167,10 @@ sections 只列可起草叶）、`score_price` / `score_section` / `score_docume
 > 判档依赖模型）。
 
 人工门（`record_review_gate`——过门身份由宿主签发的 `receipt` 验签保证：
-`v1.<actor>.human.<scope>.<issued_at>.<hmac>`，HMAC-SHA256 + 24h 时效窗 +
-scope 门级绑定；旧 `reviewer` 参数显式拒——AI 操作者不得自审自过）：矩阵门
+`v2.<actor>.human.<scope>.<issued_at>.<sections_digest>.<hmac>`，HMAC-SHA256 +
+24h 时效窗 + scope 门级绑定 + 内容绑定（#323——签发后章节内容变更，旧
+receipt 拒收 CONTENT_DRIFTED_RECEIPT，重新请人工确认签发即解）；旧
+`reviewer` 参数显式拒——AI 操作者不得自审自过）：矩阵门
 `matrix_approval` → 大纲门 `outline_approval` → 导出确认门
 `pre_export_confirm`（三门有序，export 前逐一记审）；第四门 `addendum_waiver`
 （**单件招标文件无补遗时**的人工确认——draft 会被 MissingAddendum 阻塞，

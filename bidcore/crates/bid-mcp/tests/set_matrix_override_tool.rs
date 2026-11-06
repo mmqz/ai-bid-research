@@ -495,11 +495,19 @@ fn forged_receipt_is_rejected() {
     let mut svc = BidService::new().with_fs_root(fixtures());
     let pid = ready_project(&mut svc, "226-forged");
     let (rid, _) = first_blocking(&mut svc, &pid);
-    // Agent 手搓的假 receipt（六段结构对但 HMAC 不对）
+    // Agent 手搓的假 receipt（v2 七段结构对但 HMAC 不对——#323 起线格式
+    // 含内容摘要段；结构合法的伪造走 BadSignature 面验签失败）
+    let forged_scope = bid_mcp::matrix_override_scope(&pid, &rid, "NOT_APPLICABLE", "伪造 receipt 自免单");
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let fake_digest = "a".repeat(64);
+    let fake_mac = "ab".repeat(32);
     let r = call(&mut svc, "set_matrix_override", json!({
         "project_id": pid, "requirement_id": rid, "status": "NOT_APPLICABLE",
         "deviation": "伪造 receipt 自免单",
-        "receipt": "v1.bid-agent.Human.matrix_override:REQ-0001.1730000000.deadbeef",
+        "receipt": format!("v2.bid-agent.human.{forged_scope}.{now}.{fake_digest}.{fake_mac}"),
     }));
     assert_eq!(err_code(&r), "E_UNPROCESSABLE");
     assert!(
@@ -574,6 +582,7 @@ fn agent_identity_receipt_is_rejected() {
         bid_domain::principal::ActorType::Agent,
         &bid_mcp::matrix_override_scope(&pid, &rid, "NOT_APPLICABLE", "Agent 给自己免单"),
         now,
+        &svc.receipt_binding_digest(),
     );
     let r = call(&mut svc, "set_matrix_override", json!({
         "project_id": pid, "requirement_id": rid, "status": "NOT_APPLICABLE",

@@ -1037,7 +1037,7 @@ mod tests {
             let bad = TrustedPrincipal {
                 actor_id: bad_id.into(),
                 actor_type: bad_type,
-                authentication_method: "hmac_receipt_v1".into(),
+                authentication_method: "hmac_receipt_v2".into(),
                 approval_receipt: String::new(),
                 scope_is_agent: false,
             };

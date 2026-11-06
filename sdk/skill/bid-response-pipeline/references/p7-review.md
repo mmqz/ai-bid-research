@@ -41,11 +41,18 @@
 
 ## receipt 语义（#182——人工确认的身份载体）
 
-线格式（六段，点分隔）：
+线格式（v2，七段，点分隔——#323 内容绑定）：
 
 ```
-v1.<actor_id>.<actor_type>.<scope>.<issued_at_unix_secs>.<hex_hmac_sha256>
+v2.<actor_id>.<actor_type>.<scope>.<issued_at_unix_secs>.<sections_digest>.<hex_hmac_sha256>
 ```
+
+- **内容绑定（#323/R-06）**：第六段 = 签发时章节树摘要（宿主从
+  `get_bid_project_state` 的 `content_binding.sections_digest` 取）——
+  宿主签发后章节内容变更，旧 receipt 过门被拒
+  （`CONTENT_DRIFTED_RECEIPT`）：「批的是旧版内容」不再蒙混；重新请
+  人工确认签发新 receipt 即解。旧 v1 六段格式已 fail-closed 拒收
+  （`LEGACY_V1_RECEIPT`）；
 
 - **宿主签发**：真人在宿主进程确认后，宿主用服务态密钥签发（持久化工作区
   落 `<工作区>/.mang/approval.key`；纯内存态内存生成不落盘）。**签发面
@@ -134,7 +141,7 @@ receipt: { review_id: "REV-…", gate, decision,
            reviewer: "human:<actor_id>"（legacy 回显——agent 声明面为 agent:<actor_id>，
                     派生值非身份判据）,
            actor: { actor_id, actor_type（"human" | "agent"）,
-                    authentication_method: "hmac_receipt_v1" },
+                    authentication_method: "hmac_receipt_v2" },
            method: "human_receipt" | "agent_declared"（#277），
            human_confirmed: bool（agent 声明面 false——导出警告判据）,
            finding_ids: ["FND-…"], spawned_rt_ids: ["RT-…"],

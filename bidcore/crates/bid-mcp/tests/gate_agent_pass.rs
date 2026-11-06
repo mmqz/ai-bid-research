@@ -97,13 +97,14 @@ fn tmp_ws(tag: &str, relaxed: bool) -> PathBuf {
     d
 }
 
-/// agent 签域 receipt（agent 持钥自签——`v1.<id>.agent.<scope>:agent.<ts>.<hmac>`）。
+/// agent 签域 receipt（agent 持钥自签——v2 七段，含内容绑定摘要 #323）。
 fn agent_receipt(svc: &BidService, actor: &str, scope: &str) -> String {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    issue_approval_receipt_as(svc.approval_key(), actor, ActorType::Agent, scope, now)
+    let digest = svc.receipt_binding_digest();
+    issue_approval_receipt_as(svc.approval_key(), actor, ActorType::Agent, scope, now, &digest)
 }
 
 /// 人类签域 receipt（宿主签发面——真人口径）。
@@ -230,12 +231,14 @@ fn mixed_scope_receipts_rejected() {
         .unwrap()
         .as_secs();
     let key = svc.approval_key().clone(); // approval_key() -> &[u8;32] 拷贝
+    let digest = svc.receipt_binding_digest();
     let human_on_agent = issue_approval_receipt_as(
         &key,
         "admin",
         ActorType::Human,
         &format!("addendum_waiver:{fid}:agent"),
         now,
+        &digest,
     );
     let e = call(&mut svc, "record_addendum_waiver", json!({
         "project_id": &pid, "file_id": &fid, "reason": "r",

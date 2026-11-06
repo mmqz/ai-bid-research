@@ -832,7 +832,7 @@ mod tests {
         let agent = TrustedPrincipal {
             actor_id: "bid-agent".into(),
             actor_type: ActorType::Agent,
-            authentication_method: "hmac_receipt_v1".into(),
+            authentication_method: "hmac_receipt_v2".into(),
             approval_receipt: String::new(),
             scope_is_agent: false,
         };

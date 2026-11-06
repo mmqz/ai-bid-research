@@ -707,9 +707,13 @@ bid_open_date 语义（#80 第三批外部 Agent 实测摩擦 #5）：证据有�
 ```
 in : { project_id, gate(matrix_approval|outline_approval|pre_export_confirm|addendum_waiver),
        decision(APPROVED|REJECTED),
-       receipt(#182 人类签域：v1.<actor>.human.review_gate:{gate}.<ts>.<hmac>；
-               #277 agent 签域：v1.<actor>.agent.review_gate:{gate}:agent.<ts>.<hmac>
+       receipt(#182 人类签域（#323 v2 七段，含内容绑定摘要）：
+               v2.<actor>.human.review_gate:{gate}.<ts>.<sections_digest>.<hmac>；
+               #277 agent 签域：v2.<actor>.agent.review_gate:{gate}:agent.<ts>.<sections_digest>.<hmac>
                ——agent 持钥自签声明，须工作区 require_human_receipt=false；
+               <sections_digest> = get_bid_project_state → content_binding.
+               sections_digest（签发时章节树摘要——#323 起内容变更后旧
+               receipt 拒：CONTENT_DRIFTED_RECEIPT，重签即解）；
                旧 reviewer 参数显式拒——Agent 不得自述身份),
        reason?(#277——agent 签域路径必填非空：为什么可以过这个门；human 路径可空),
        findings?:[{ severity(BLOCKER|WARNING|INFO), code, message, section_id? }],

@@ -361,6 +361,14 @@ fn get_bid_project_state(svc: &mut BidService, args: Value) -> ToolResult {
         "terminal": status.next_allowed().is_empty(),
         "dirty_sections": dirty_sections,
         "pending_rewrite_directives": pending_directives,
+        // #323：内容绑定面——章节树摘要（receipt v2 第六段的取值真源）+
+        // content_version（观测面）。宿主/外部宿主（如 SDK e2e 的测试进程）
+        // 签发审批 receipt 前读本字段取 digest；与导出裁决（#180 reviewed_
+        // content_digest 比对）同一真源口径——「正在批的内容状态」可见。
+        "content_binding": {
+            "sections_digest": svc.store().sections_digest(),
+            "content_version": svc.store().content_version(),
+        },
         // #277：过门审计面（断点恢复时可见——agent 声明过的门带警告导出；
         // human_review_complete=false 时 export_bid_document 正文插警告横幅）
         "agent_waivers": agent_waivers_json(svc),

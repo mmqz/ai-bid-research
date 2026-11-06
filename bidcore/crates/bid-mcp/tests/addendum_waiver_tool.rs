@@ -240,7 +240,7 @@ fn draft_blocks_on_partial_bad_addendum_until_per_file_waiver() {
     // #182 可信身份回显：actor_type=Human + HMAC 认证方式标记
     assert_eq!(w["recorded"]["actor"]["actor_type"], json!("human"), "actor_type=Human: {w}");
     assert_eq!(
-        w["recorded"]["actor"]["authentication_method"], json!("hmac_receipt_v1"),
+        w["recorded"]["actor"]["authentication_method"], json!("hmac_receipt_v2"),
         "认证方式标记: {w}"
     );
     // 就绪度回显：坏件 waived=true，不再构成阻塞

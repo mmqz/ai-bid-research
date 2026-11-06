@@ -83,7 +83,9 @@ pub struct MergeStats {
 /// 差异仅存在于直调测试面。
 pub fn has_extraction_face(kind: Option<&str>, name: &str) -> bool {
     match kind {
-        Some("附件") | Some("图纸") | Some("证据") => false,
+        // #271：「格式模板」同入无面清单（与 extract.rs is_attachment 同口径）
+        // ——格式件是填空模板非条款源，不进覆盖/矩阵面。
+        Some("附件") | Some("图纸") | Some("证据") | Some("格式模板") => false,
         Some(_) => true,
         None => name.starts_with("A-")
             || name.starts_with("C-")

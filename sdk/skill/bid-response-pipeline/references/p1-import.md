@@ -29,18 +29,20 @@
 | kind | 用途 | 备注 |
 |---|---|---|
 | 招标文件 | 主文件 + 技术规范书 | 条款抽取的主源 |
-| 附件 | 资格证明类附属件 | |
-| 图纸 | 图纸说明等技术附件 | |
+| 附件 | 资格证明类附属件 | 无条款面 |
+| 图纸 | 图纸说明等技术附件 | 无条款面 |
 | 补遗 | 补遗/澄清文件 | **改变条款面**——导入后必须增量重抽（P2） |
 | 答疑 | 答疑纪要 | 同上 |
 | 评分办法 | 评分细则 | 只进自评，不进正文 |
-| 格式模板 | 投标文件格式件 | 七格式件的对齐参考 |
+| 格式模板 | 投标文件格式件（含招标包 `附件/` 目录下的官方模板——声明函/偏离表/承诺书等，#271） | 无条款面（不产 REQ/不进矩阵/不阻塞起草）；解析后在 `forms_manifest` 清单可见；起草时格式类 REQ 带 `params.form_file_id`，可经 get_document_chunks 读模板结构 |
 
 ## 返回核对（数字核对纪律的落点）
 
 ```
-per_file[]: file_id / sha256 / pages / tables / chunks / ocr_tier / parse_status
+per_file[]: file_id / kind(#271 回显) / sha256 / pages / tables / chunks / ocr_tier / parse_status
 totals:     { files, chunks, parse_failed, partial }
+forms_manifest?: { count, items:[{file_id, name, parse_status, pages, tables}] }
+            ← #271 格式件清单（kind=格式模板；无格式件时键省略）
 addendum_readiness: { total, ready, not_ready:[{file_id, name, readiness, waived, reason}] }
             ← #184 补遗分级就绪报告（仅补遗/澄清类件）；非 READY 件另发
               ADDENDUM_NOT_READY 告警点名 + 指路 record_addendum_waiver

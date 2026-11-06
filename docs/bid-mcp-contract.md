@@ -34,8 +34,14 @@ in : { project_id, files:[{upload_ref, filename, kind(招标文件|附件|图纸
       upload_ref（#183/#189 文件围栏）: 必须落在受信根内——BID_FS_ROOT 声明的
       导入根，或 BID_WS 工作区（二者的并集）；相对路径按受信根锚定（不再按
       进程 CWD 解析）；词法 `..` 分量预拒（先于一切磁盘操作，零副作用）。
-out: { file_ids:[TF-*], per_file:[{file_id, sha256, pages, tables, chunks, ocr_tier, parse_status, deduplicated, errors?, warnings?(#188 METADATA_CONFLICT)}],
+out: { file_ids:[TF-*], per_file:[{file_id, kind(#271 回显), sha256, pages, tables, chunks, ocr_tier, parse_status, deduplicated, errors?, warnings?(#188 METADATA_CONFLICT | #270 CONVERTED_FROM_DOC)}],
        totals:{files, chunks, parse_failed, partial},
+       forms_manifest?:{ count, items:[{file_id, name, parse_status, pages, tables}] }
+         ← #271 格式件清单（kind=格式模板 的库内登记逐件可见；无格式件时键省略）。
+           格式件（附件/ 下官方填空模板）不产 REQ/不进矩阵/不阻塞起草
+           （readiness 不在面）；解析产物进 parsed 累积，可经
+           get_document_chunks 读模板结构；extract_requirements 时格式类
+           REQ 尽力关联 params.form_file_id/form_name。
        addendum_readiness:{ total, ready, not_ready:[{file_id, name,
          readiness(READY|FAILED|OCR_PENDING), waived, reason}] } }   ← #184 分级就绪报告
 幂等: sha256 已存在 → no-op 返回原 file_id（deduplicated:true）。

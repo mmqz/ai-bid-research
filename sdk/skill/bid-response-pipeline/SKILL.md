@@ -22,6 +22,82 @@ description: >
 > （docs/ 与 skill/ 平级）。找不到时向上层目录搜索最近的
 > `bid-mcp-contract.md`，不要在 Skill 目录下新建同名文件。
 
+## 快速开始（连接 bid-mcp——#314）
+
+> 你（Agent）不需要本节也能干活——宿主已经连好 MCP。本节给**宿主/用户**：
+> 从拿到 Skill 到 Agent 能调工具的完整路径，目标 10 分钟跑通。
+
+### 1. 构建
+
+```bash
+cd ai-bid-research/bidcore
+cargo build --release -p bid-mcp
+# 产物（target/release/ 下三个）：
+#   bid-mcp-server   标准 MCP 传输（JSON-RPC 2.0）——Claude Desktop / Cursor / Continue 连这个
+#   bid-mcp-stdio    行协议（逐行裸 JSON）——e2e 与桌面壳兼容面
+#   bid-mcp          启动器 CLI（--init 生成配置模板 / --doctor 自检）
+```
+
+### 2. 配置 MCP 客户端
+
+用启动器生成模板（command 自动填 `bid-mcp-server` 绝对路径）：
+
+```bash
+bid-mcp --init --client claude --ws /path/to/workspace   # 或 cursor / continue / json
+```
+
+输出即贴即用（三客户端配置形状同源，落点不同）：
+
+| 客户端 | 配置落点 |
+|---|---|
+| Claude Desktop | `claude_desktop_config.json`（macOS `~/Library/Application Support/Claude/`；Windows `%APPDATA%\Claude\`） |
+| Cursor | `<项目根>/.cursor/mcp.json`（或 `~/.cursor/mcp.json` 全局） |
+| Continue | `~/.continue/config.json`（`mcpServers` 节） |
+
+```json
+{
+  "mcpServers": {
+    "bid": {
+      "command": "/abs/path/bid-mcp-server",
+      "args": [],
+      "env": { "BID_WS": "/abs/path/workspace" }
+    }
+  }
+}
+```
+
+**`BID_WS`（工作区）建议必设**：持久化项目状态（db.json）；不设 = 纯内存态，
+进程退出数据即丢（只适合冒烟）。导入围栏：`import_tender_files` 的文件路径
+须落在 `BID_FS_ROOT`（素材根）∪ `BID_WS` 内——素材放工作区或设
+`BID_FS_ROOT`，二者皆无时导入会被响亮拒。
+
+### 3. 验证连接
+
+- MCP 客户端：连上后调 `tools/list`——应答含工具清单即通（数量以应答为准，
+  **本文不硬编码工具数**，单一真源 `TOOL_NAMES`）；
+- 命令行一键自检：`bid-mcp --doctor`（binary 在位 / 工具面真跑 / 工作区
+  可写 / 导入围栏 / Windows 编码，FAIL 带修复指引）；
+- 行协议冒烟：`echo '{"tool":"list_tools","args":{}}' | bid-mcp-stdio`
+  → 应答 `ok=true` 且 `count>0`。
+
+### 4. 开始使用
+
+把本 SKILL.md 交给 Agent，说：**「用 bid 这个 MCP 帮我做投标文件」**，
+附招标文件路径。Agent 按下方阶段表 P0→P8 走。
+
+### 常见问题（宿主侧）
+
+| 症状 | 处置 |
+|---|---|
+| Agent 说「找不到工具」 | 客户端 MCP 配置未生效——重跑 `bid-mcp --doctor`；行协议手测：`echo '{"tool":"list_tools","args":{}}' \| bid-mcp-stdio` |
+| `E_NOTFOUND`（项目/条目不存在） | `project_id` 传错——Agent 应先调 `get_bid_project_state` 对齐 |
+| server 启动即 panic | 工作区目录不存在或不可写（不静默降级）——`mkdir -p` + 检查权限，`bid-mcp --doctor --ws <dir>` 复验 |
+| import 被拒（围栏） | 素材路径不在 `BID_FS_ROOT` ∪ `BID_WS` 内——把素材移进工作区或设 `BID_FS_ROOT` |
+| 中文乱码（Windows） | `chcp 65001` 或用 Windows Terminal（UTF-8） |
+| 工具数对不上文档 | 正常——工具面持续演进，以 `list_tools`/`tools/list` 应答为准（历史病灶：文档硬编码数滞后，#278） |
+
+错误码速查全表：`docs/agent-integration.md` §6。
+
 ## 阶段表（顺序锁死，禁止跨步——防低能力模型跑偏）
 
 | 阶段 | 动作 | 允许工具 | 完成判据（停止条件） | 恢复点 |

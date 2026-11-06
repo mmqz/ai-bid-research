@@ -46,3 +46,9 @@ path = "src/bin/server.rs"
 [[bin]]
 name = "tool-surface"
 path = "src/bin/tool_surface.rs"
+
+# #314（Skill 启动器文档）：启动器/自检 CLI——--init 生成 MCP 客户端配置
+# 模板、--doctor 自检（binary/工具面真跑/工作区/围栏/编码）。不参与协议面。
+[[bin]]
+name = "bid-mcp"
+path = "src/bin/cli.rs"

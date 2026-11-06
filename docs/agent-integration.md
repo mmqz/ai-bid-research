@@ -64,9 +64,22 @@ BID_WS=/path/to/workspace cargo run -p bid-mcp --bin bid-mcp-stdio
   `search_evidence`）——未接线工具返回 typed `UNIMPLEMENTED_INTERNAL`、
   **绝不静默成功**的骨架纪律为未来新增工具保留。
 
-> 协议层演进：当前是 stdio 行协议（最简接线验证形态）；标准 MCP JSON-RPC
-> 传输层（initialize / tools/list 握手）由协议层任务接线后本节更新——工具
-> 语义面不变。
+> 协议层演进：标准 MCP JSON-RPC 传输层已由 #137 落地——`bid-mcp-server`
+> （initialize / tools/list / tools/call，官方 SDK 验收见
+> `tests/mcp_sdk_e2e.rs`）；Claude Desktop / Cursor / Continue 等客户端的
+> 配置模板与快速开始见 Skill「快速开始」节
+> （`sdk/skill/bid-response-pipeline/SKILL.md`，#314）。
+
+## 2.1 启动器 CLI（#314）
+
+```bash
+bid-mcp --init [--client claude|cursor|continue|json] [--ws <dir>]  # 生成 MCP 客户端配置模板
+bid-mcp --doctor [--ws <dir>]                                      # 自检（binary/工具面/工作区/围栏/编码）
+```
+
+`--doctor` 的工具面检查是**真跑**（进程内 dispatch `list_tools`，非 echo）；
+FAIL 项带修复指引，退出码 1。配置模板/故障排查的展示形态见 SKILL.md
+「快速开始」节（单一真源引用，两边不重复维护细节）。
 
 ## 3. 配置
 

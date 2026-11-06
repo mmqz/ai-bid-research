@@ -115,7 +115,7 @@ fn unknown_top_level_fields_keep_original_semantics() {
 fn properly_nested_args_unaffected() {
     // 嵌套 + 项目不存在 → 正常 E_NOTFOUND（非信封错误）
     let v = json_reply(r#"{"tool":"get_bid_project_state","args":{"project_id":"PRJ-404"}}"#);
-    assert_eq!(v["error"]["code"], "E_NOT_FOUND");
+    assert_eq!(v["error"]["code"], "E_NOTFOUND", "#325：线格式钉回契约字面量");
     // 无参工具裸调用（args 缺省、顶层无多余字段）→ 不触发
     let v2 = json_reply(r#"{"tool":"list_tools"}"#);
     assert_eq!(v2["ok"], true, "list_tools 无参可调：{v2}");
@@ -231,7 +231,7 @@ fn cas_latest_works_over_line_protocol() {
     let v = json_reply(
         r#"{"tool":"extract_requirements","args":{"project_id":"PRJ-404","project_version":"latest"}}"#,
     );
-    assert_eq!(v["error"]["code"], "E_NOT_FOUND", "\"latest\" 须被接受：{v}");
+    assert_eq!(v["error"]["code"], "E_NOTFOUND", "\"latest\" 须被接受（#325 契约字面量）：{v}");
     let v2 = json_reply(
         r#"{"tool":"extract_requirements","args":{"project_id":"PRJ-404","project_version":"soon"}}"#,
     );

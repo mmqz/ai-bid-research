@@ -292,7 +292,7 @@ const full = await (await fetch(url)).json();  // 与内联时那个帧完全一
 `explorer /select,"<path>"`（`CREATE_NO_WINDOW`）；目录则直接打开；路径不存在则打开最近的存在的父目录。→ `{ "ok": true, "path": "…" }`
 
 ### mcp.status  —— MCP 通道自检（#76 设置面板）
-只读，无参数。bid-mcp 是 **stdio 传输**（AI 客户端拉起 `bid-mcp-stdio` 子进程），本壳不监听端口，无地址/端口面；`ready` 是本壳内嵌引擎（直链 bidcore，方案 A）的 dispatch 自检——未知工具探测必须应答 `E_NOT_FOUND` JSON 帧。
+只读，无参数。bid-mcp 是 **stdio 传输**（AI 客户端拉起 `bid-mcp-stdio` 子进程），本壳不监听端口，无地址/端口面；`ready` 是本壳内嵌引擎（直链 bidcore，方案 A）的 dispatch 自检——未知工具探测必须应答 `E_NOTFOUND` JSON 帧（#325：线格式钉回契约字面量）。
 ```jsonc
 → { "channel": "stdio",
     "server": "bid-mcp-stdio（由 MCP 客户端拉起；本壳不监听端口）",

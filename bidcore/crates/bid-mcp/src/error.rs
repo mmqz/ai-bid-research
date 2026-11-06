@@ -9,6 +9,13 @@ pub type ToolResult = Result<serde_json::Value, ToolError>;
 /// serde：`rename_all = "SCREAMING_SNAKE_CASE"` 使内部标签 `code` 落位契约
 /// 字面量（`E_STATE` / `E_UNPROCESSABLE` / ...）——M0 期缺 rename 时线格式
 /// 曾输出变体名（`"code":"EUnprocessable"`），B-1 修正对齐契约 §0。
+///
+/// #325（R-13）：`ENotFound` 是 SCREAMING_SNAKE_CASE 的唯一例外——机械展开
+/// 会得到 `E_NOT_FOUND`，而契约 §0 / `code()` / `Display` 三面都是
+/// `E_NOTFOUND`。漂移曾让按契约写 `if code == "E_NOTFOUND"` 的外部
+/// Agent 全部路由失败，且被 SDK 断言固化为「正确行为」（FG-09）。
+/// 变体级 `rename` 钉回契约字面量；一致性测试
+/// `wire_tag_matches_code_literal_all_variants` 防再漂移。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "code", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ToolError {
@@ -16,7 +23,8 @@ pub enum ToolError {
     EState { what: String },
     /// 乐观并发冲突。
     EConflict { what: String },
-    /// 目标不存在。
+    /// 目标不存在。wire tag 见枚举头注释（#325：钉回契约字面量 E_NOTFOUND）。
+    #[serde(rename = "E_NOTFOUND")]
     ENotFound { what: String },
     /// 入参不合法 / 无法处理。
     EUnprocessable { what: String },
@@ -89,6 +97,49 @@ impl std::fmt::Display for ToolError {
 }
 
 impl std::error::Error for ToolError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// #325（FG-09 / R-13）：serde 线格式 tag 必须与 `code()` 契约字面量
+    /// 逐一相等——防再漂移。
+    ///
+    /// 历史漂移形态：`ENotFound` 被 `rename_all = "SCREAMING_SNAKE_CASE"`
+    /// 机械展开成 `E_NOT_FOUND`（≠ 契约 §0 / `code()` / `Display` 三面的
+    /// `E_NOTFOUND`），SDK 断言与 evidence 固件把漂移断言为正确行为，
+    /// 按契约写 `code == "E_NOTFOUND"` 的外部 Agent 全部路由失败。
+    /// 本测试逐变体序列化取 tag 对账 `code()`——新增变体或改 serde 属性
+    /// 导致任何一侧漂移都会在此变红。
+    #[test]
+    fn wire_tag_matches_code_literal_all_variants() {
+        let samples: Vec<ToolError> = vec![
+            ToolError::EState { what: "w".into() },
+            ToolError::EConflict { what: "w".into() },
+            ToolError::ENotFound { what: "w".into() },
+            ToolError::EUnprocessable { what: "w".into() },
+            ToolError::EPartial {
+                what: "w".into(),
+                item_errors: vec![],
+                hint: None,
+                data: None,
+            },
+            ToolError::unimplemented("some-tool", "M9"),
+            ToolError::EDraftIncomplete { missing: vec![] },
+        ];
+        for e in &samples {
+            let v = serde_json::to_value(e).unwrap();
+            let tag = v.get("code").and_then(|c| c.as_str()).unwrap_or("<tag 缺失>");
+            assert_eq!(
+                tag, e.code(),
+                "wire tag 与 code() 契约字面量漂移（#325 一致性门）"
+            );
+            // 反向：线格式必须能还同名变体（tag 钉字面量后 Deserialize 同步生效）
+            let back: ToolError = serde_json::from_value(v).unwrap();
+            assert_eq!(back, *e, "线格式反序列化回环（tag/字段不匹配会在此红）");
+        }
+    }
+}
 
 /// 从 `bid_domain::ToolError` 单向转换——本 crate 不持有自己的状态机。
 ///

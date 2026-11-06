@@ -4501,6 +4501,7 @@ fn build_outline(svc: &mut BidService, args: Value) -> ToolResult {
     let mut leaf_quotas: Vec<serde_json::Value> = Vec::with_capacity(leaves.len());
     let mut fallback_leaves: Vec<(String, u32)> = Vec::new();
     let mut scoring_leaf_count: u64 = 0;
+    let mut slot_leaf_count: u64 = 0;
     {
         let mut ordered: Vec<&&bid_domain::outline::OutlineNode> = leaves.iter().collect();
         ordered.sort_by_key(|n| n.order);
@@ -4511,29 +4512,45 @@ fn build_outline(svc: &mut BidService, args: Value) -> ToolResult {
                 "target_chars": n.target_chars,
             }));
             // 评分叶配额 < MIN_SCORING_LEAF_CHARS = 回退面症状（正常路径评分叶
-            // 恒 ≥ 底价；分类面与 validate 同源）
+            // 恒 ≥ 底价；分类面与 validate 同源）。
+            //
+            // 【槽位豁免——验收会话 1 实测误报修正】业绩/价格表格位（#252
+            // slots）配额**恒为 SLOT_FIXED_CHARS**（固定篇幅设计，不参与
+            // 底价/让渡分配）——低于 10k 是设计不是回退症状。800k 正常档
+            // 下槽位叶照样 <10k，旧判据会误报「被按比例压低」。
+            // 代价说明：回退把真评分叶恰好压到 2000 的边缘场景会被豁免
+            // 吞掉（只可能发生在 target 极小、且槽位之外还有评分叶的形态
+            // ——此时其余被压叶仍点名，警告不缺席）。
             if bid_tools::validate::is_scoring_leaf(n, svc.store()) {
-                scoring_leaf_count += 1;
-                if n.target_chars < bid_domain::outline::MIN_SCORING_LEAF_CHARS {
-                    fallback_leaves.push((n.id.clone(), n.target_chars));
+                if n.target_chars == bid_domain::scoring_outline::SLOT_FIXED_CHARS {
+                    slot_leaf_count += 1;
+                } else {
+                    scoring_leaf_count += 1;
+                    if n.target_chars < bid_domain::outline::MIN_SCORING_LEAF_CHARS {
+                        fallback_leaves.push((n.id.clone(), n.target_chars));
+                    }
                 }
             }
         }
     }
     let mut outline_warnings: Vec<String> = Vec::new();
     if !fallback_leaves.is_empty() {
-        // 底价和按全部评分叶计（不含行政/实质轨底价——主体项，别把消息淹没）
-        let floor_sum: u64 = u64::from(bid_domain::outline::MIN_SCORING_LEAF_CHARS)
-            * scoring_leaf_count;
+        // 底价和 = 非槽位评分叶底价 + 槽位固定配额（不含行政/实质轨——
+        // 主体项，别把消息淹没）
+        let floor_sum: u64 = scoring_leaf_count
+            * u64::from(bid_domain::outline::MIN_SCORING_LEAF_CHARS)
+            + slot_leaf_count * u64::from(bid_domain::scoring_outline::SLOT_FIXED_CHARS);
         let min_seen = fallback_leaves.iter().map(|(_, t)| u64::from(*t)).min().unwrap_or(0);
         outline_warnings.push(format!(
-            "配额回退：target_total_chars={} 低于评分叶底价和（{} 个评分叶 × {} = {}，\
+            "配额回退：target_total_chars={} 低于评分叶底价和（{} 个评分叶 × {} + {} 个表格位 × {} = {}，\
              未含行政/实质轨），{} 个评分叶配额被按比例压低（最低 {min_seen}）——它们的 \
              80% 线（E_CHARS_BELOW_MIN）随之同步压低。建议 target_total_chars ≥ {floor_sum}，\
              或显式确认接受压低",
             spec.target_total_chars,
             scoring_leaf_count,
             bid_domain::outline::MIN_SCORING_LEAF_CHARS,
+            slot_leaf_count,
+            bid_domain::scoring_outline::SLOT_FIXED_CHARS,
             floor_sum,
             fallback_leaves.len()
         ));

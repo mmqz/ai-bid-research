@@ -12,10 +12,16 @@
 //! → extract_requirements → build_outline → **应能建纲**。
 //! 询价件另走「故意漏标」变体 → **应被拦住并给出带内容的清单**。
 //!
-//! 语料缺失 → SKIP 横幅提前返回（issue #9 纪律：缺件不是业务失败，
-//! 也绝不静默假装通过）。
+//! 缺件纪律（issue #9：缺件不是业务失败，也绝不静默假装通过）：
+//! - 语料缺失 → SKIP 横幅提前返回；
+//! - 环境缺 poppler（Windows CI）→ batch1/batch2 整体 SKIP——PR #292
+//!   三次 CI 红的教训（AGENTS.md 三之二铁律：缺环境不得伪装成业务 FAIL）；
+//! - .doc 件缺转换器（Word COM / LibreOffice 均不在场）→ 该件 SKIP 横幅、
+//!   其余件继续真跑（Lead 方案 B：保住 PDF/docx 份的覆盖面）。
 
 use bid_mcp::{dispatch_with, BidService, ToolCall, ToolReply};
+use bid_parse::env_preflight::{skip_if_env_missing, POPPLER_TEXT_TOOLS};
+use bid_tools::service::doc_converter_available;
 use serde_json::{json, Value};
 use std::path::PathBuf;
 
@@ -147,6 +153,11 @@ fn assert_one_buildable(tag: &str, path: &PathBuf) {
 /// 稳定性（验收 6：新门不卡死正常流程）。
 #[test]
 fn batch1_full_marks_all_buildable() {
+    // 环境门（AGENTS.md 三之二）：CI（Windows）无 poppler → PDF 抽取链
+    // 降级 → E_PARTIAL 必红；本机 Linux（poppler 在位）真跑。
+    if skip_if_env_missing("coverage_gate_batch1", POPPLER_TEXT_TOOLS) {
+        return;
+    }
     let mains = tender_mains(1);
     if mains.is_empty() {
         eprintln!("SKIP: fixtures/real-tender-batch1 语料不在仓");
@@ -163,6 +174,10 @@ fn batch1_full_marks_all_buildable() {
 /// 「第X章」的结构也必须走通同一条覆盖闭环。
 #[test]
 fn batch2_full_marks_all_buildable() {
+    // 环境门（同 batch1）：4 份 PDF 需要 poppler，缺则整体 SKIP。
+    if skip_if_env_missing("coverage_gate_batch2", POPPLER_TEXT_TOOLS) {
+        return;
+    }
     let mains = tender_mains(2);
     if mains.is_empty() {
         eprintln!("SKIP: fixtures/real-tender-batch2 语料不在仓");
@@ -170,6 +185,21 @@ fn batch2_full_marks_all_buildable() {
     }
     assert!(mains.len() >= 6, "batch2 应有 6 份语料，实际 {}", mains.len());
     for (id, p) in &mains {
+        // .doc 件逐件判定（Lead 方案 B）：转换器（Windows Word COM /
+        // 其他平台 LibreOffice）均不在场时跳过该件并打响亮横幅——环境
+        // 缺件不是业务失败（issue #9），其余 PDF/docx 件继续真跑保覆盖面。
+        // BID_NO_DOC_CONVERTER=1 可在转换器在位的机器上模拟此路径。
+        if p.extension().map(|e| e.eq_ignore_ascii_case("doc")).unwrap_or(false)
+            && !doc_converter_available()
+        {
+            eprintln!();
+            eprintln!("====================================================================");
+            eprintln!("SKIP: batch2 {id}（.doc 转换器不可用）: {}", p.display());
+            eprintln!("reason: ENV_MISSING: .doc 需 Word COM（Windows）或 LibreOffice，本机均不可用");
+            eprintln!("（环境缺件，非业务失败——issue #9；其余件继续真跑）");
+            eprintln!("====================================================================");
+            continue;
+        }
         eprintln!("-- batch2 {id}: {}", p.display());
         assert_one_buildable(&format!("b2-{id}"), p);
     }

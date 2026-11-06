@@ -55,7 +55,7 @@
 | ID | 威胁 | 面 | 引擎继承 | 业务补充 | 测试锚点 | 状态 |
 |---|---|---|---|---|---|---|
 | T-13 | 证据摘录/sidecar 经日志泄露 | 日志面 | sidecar 本地纪律（md+meta 不出机器） | 日志脱敏清单：证据摘录截断或哈希化；trace.jsonl 不含证据全文（M1 已按此实现——trace 仅工具调用摘要） | 部署检查单 + trace 抽查 | PARTIAL（M1 trace 已合规；全链路脱敏清单 M5） |
-| T-14 | 导出件元数据泄露（暗标身份暴露→废标） | 导出面 | —（G3 引擎侧缺口仍开） | **业务侧缓解已验（V1-d）**：docProps 清零 + app.xml Company 移除 + 禁字双面扫描 + 金丝雀防空洞绿 | run_tests T7d（每轮回归） | TESTED（业务侧）；引擎侧 G3 P0 待排期 |
+| T-14 | 导出件元数据泄露（暗标身份暴露→废标） | 导出面 | —（G3 引擎侧缺口仍开） | 产品路径现状（#306/FG-13 如实登记）：暗标仅文本替换（anonymize——公司名→「投标人」，正文与章标题，export.rs scrub）——**无 docProps 清零、无全件禁字扫描**；docProps 清零+禁字双面扫描+金丝雀仅存在于 **SEMUL 仿真线（scripts/v1_darkbid.py，V1-d）**，不覆盖产品导出面 | 仿真面：run_tests T7d（SEMUL 件）；产品面：#317（暗标清理端到端）落地后补真机验证条目 | PARTIAL（SEMUL 仿真已验；产品路径未接——T7d 结论不得外推到产品件） |
 | T-15 | 依赖/镜像/模型出口投毒 | 供应链 | — | R-10 白名单 + NOTICES 式传递依赖闭包审查；镜像固定摘要；模型出口=本地部署默认 | M0 合规审查 | PENDING |
 
 ## 3. 人工审批边界（强制点矩阵）
@@ -77,7 +77,7 @@
    **残余面（诚实登记）**：xlsx 的实际解压流在 calamine 黑盒内不可注入计量——入口三门 + 读后双轴门已挡常规炸弹与下游无界；声明撒谎骗过 prescan 后 calamine **内部**解压内存尖峰为残余（威胁极低：需构造声明值异常的畸形 zip；根治 = xlsx 读面改 zip crate 流式自读，M2+）。**zip64/zip32 exotica 处置状态（R4 自查 + R5 独立复审 → M1.6 封堵，2026-10-26）**：① "声明1+目录2同名"（declared==absorbed）一致性畸形归档被接受——**维持登记（A6 同族，端态固有）**：zip crate 按声明计数读 CD、IndexMap 吸收后单消费者视图一致，无"查A读B"分歧面；M1.6 镜像后该端态可经结构化路径达成的三绕过已封，孤立畸形巧合路径维持登记（威胁低）；② 前置垃圾 zip64——**M1.6 升级：门真跑（fail-closed 放行非跳过）**：守卫镜像 crate 的 [声明偏移, locator) 窗内正向扫，archive-offset 校正语义对齐（前置垃圾 zip64 正向测试 prefix_junk_zip64_gate_active_and_passes）；③ **R5 绕过族三形态——✅ M1.6 已封（测试逐项入仓）**：(a) 尾部垃圾出窗——EOCD 回扫全文件化（V6/V13a/V13b 三档差分负向）；(b) 影子 EOCD——comment 适应检查 + 候选回退循环镜像 crate 语义（V7 负向）；(c) zip32 双计数字段分歧——本盘/总盘不一致即拒 + 比对取本盘字段（V8/V8b 双向负向，新增 EocdCountFieldsDiverge）。另终端语义升级：**候选全部不可验而归档已打开 → EocdUnverifiable fail-closed 拒绝**（旧 Ok(None) 门跳过即三类绕过公共根因，负向在位）。**镜像严格方向残留（均 fail-closed、登记在案）**：crate Detect 猜测语义窗口微差、zip64 内层多候选回退未逐步复刻、prefix-junk 下 CDFH 空间检查用相对偏移近似——三者只会**过度拒绝**恶意构造件，不会 fail-open；④ xlsx 单元格轴负向测试——✅ 已入仓（M1.6：xlsx_cell_flood_rejected_by_post_gate_cell_axis，95,239 行×21 列恰 2,000,019 格，行门静默格门拒绝，R5 X3 直采）；⑤ 压缩比门——✅ 乘法判据已实装（declared > 100×compressed 精确兑现 ">100"，边界对负向在位：100,999 拒/100,000 放行）。
 2. **T-04 子进程超时——✅ 已实施关闭（M1.5，2026-10-25；cargo test 9 项 + R3 审计修正加固 + P2-4 drain）**：bid-parse/guard.rs run_limited——① 超时杀**进程组**（process_group(0)+kill(-pgid)——孙进程不残留（setsid 脱组孙进程除外：R5 S6 实测返回仍有界 1.52s、当前三个外部命令不可能从文件内容派生 setsid 进程故生产不可达，注记随 M1.6）；非 unix 降级为只杀直接子，部署面为 Linux）② stdout 上限 + 溢出即时杀（yes 类无限输出不等超时即收割）③ 结果五分类（Success/Timeout/OutputOverflow/NonZeroExit/Busy/Spawn）——超时/溢出/非零**永不误标成功**（timeout_never_lies_as_success 断言）④ 并发全局门（4 席满显式 Busy）⑤ TmpGuard RAII 临时目录全路径回收（超时/失败/正常）⑥ OCR 页数门 200（超出整体显式拒绝——不留部分结果）⑦ stderr 持续 drain（P2-4：原 take 读满即停后关 FD，verbose 合法工具被 SIGPIPE 中杀误判 NonZeroExit——实测修正审计原“阻塞→Timeout”描述；drain 保留头 64KB，256KB 洪泛样本→Success 回归）。内存上界全档化（P2-5）：Success 路径 lossy 3×（192MB）×4 席 ≈ 0.75GB，见 run_limited 文档注释。
 3. **T-10 起草层注入（L3 残余，不可穷举）**：已知模式扫描仅告警；唯一收口 = 人工审校门禁（审校态 AI 不可写，T-08 双层门禁）。
-4. **T-14 引擎侧 G3**：暗标元数据清零的业务侧缓解（zip 补丁）为过渡——引擎导出面产品化前，每次导出必须跑 T7d 断言（已入每轮回归）。
+4. **T-14 引擎侧 G3**：暗标元数据清零的 docProps/禁字面仅在 SEMUL 仿真线验证（v1_darkbid.py——FG-13 口径修正：T7d 结论只对仿真件成立，产品路径仅文本替换）；引擎导出面产品化前，每次**仿真验证**跑 T7d 断言（已入每轮回归）——产品面端到端由 #317 承接。
 5. T-15 供应链闭包审查待 M0 执行（NOTICES 机制）。
 6. **T-07 文件围栏 TOCTOU（check-then-use v1，#183 实装时登记）**：fs_fence 的 resolve_read/resolve_write 为「解析-校验-使用」三步分离——校验与实际 open 之间路径组件（symlink 改指）理论上可被置换。当前单机单用户部署面（Agent 与用户同 OS 权限）下不构成新增威胁面；根治 = 打开目录句柄后相对路径操作（Unix openat+O_NOFOLLOW 语义），Windows 面用 File::open 后校验 handle 真实路径——按需排期。
 

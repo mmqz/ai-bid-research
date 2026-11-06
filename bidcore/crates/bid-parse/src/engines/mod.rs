@@ -261,9 +261,11 @@ fn append_page_diagnostics(pf: &mut ParsedFile, raw: &[u8]) {
 /// OCR 救援（#200 R2）：文本面两路均不可信时，问一次**渲染面**。
 ///
 /// 前提：`probe()` Ready（chi_sim 在位）——缺件不起渲染进程（诚实跳过，
-/// 不伪装尝试）；OCR 产物过乱码探测（Clean）才采信，summary 自报
-/// `[pdf-ocr-recovered]`。任何失败都返回 None——落回调用方既有的
-/// fail-loud 消息（救援是加法，绝不弱化 #169 防线）。
+/// 不伪装尝试）；OCR 产物过乱码探测（非 Garbled 即采信——与 parse_pdf
+/// 主流程口径一致）；`[pdf-ocr-recovered]` 标签由**采纳面**（parse_pdf
+/// 双乱码分叉处）盖章，本函数产物 summary 自报 OCR 通道面。任何失败都
+/// 返回 None——落回调用方既有的 fail-loud 消息（救援是加法，绝不弱化
+/// #169 防线）。
 fn try_ocr_recovery(
     tess: &TesseractOcr,
     path: &Path,
@@ -282,10 +284,16 @@ fn try_ocr_recovery(
     }
     let pf = tess.ocr_parsed(path).ok()?;
     let pages = pdf_text::parsed_pages_of(&pf);
-    if pdf_text::probe_cjk_garble_pages(raw, &pages).verdict != CjkGarbleProbe::Clean {
-        return None; // OCR 也解不出 CJK——不是可采信的救援产物
+    // #306/FG-11（chi_sim 环境复跑暴露）：接受 Clean **或 NoSignal**，只拒 Garbled
+    // ——与 parse_pdf 主流程的 verdict 处理口径一致（主流程 `match verdict {
+    // Garbled => …, _ => 放行 }`）。原「必须 Clean」在 #200/#223 给探测加
+    // CID 门后成为死路：非 CID 嵌入字体件（reportlab TTF 面、部分 Word 导出
+    // 件）恒 NoSignal → 救援恒 None——OCR 救援在分叉路径（texts_corroborate
+    // 不一致）对这类件从不生效，且因 chi_sim 缺失从未真跑暴露。
+    match pdf_text::probe_cjk_garble_pages(raw, &pages).verdict {
+        CjkGarbleProbe::Garbled => None, // OCR 也解不出 CJK——不是可采信的救援产物
+        CjkGarbleProbe::Clean | CjkGarbleProbe::NoSignal => Some(pf),
     }
-    Some(pf)
 }
 
 /// 引擎注册表（R3 CrossValidate / R4 外部引擎在此扩展）。
@@ -338,6 +346,14 @@ mod tests {
     #[test]
     fn ocr_recovery_rescues_diverged_text_paths() {
         use crate::engine::EngineStatus;
+        // 持子进程测试锁（#306/FG-11：chi_sim 就位后本测试真跑——probe /
+        // python3 生成器 / pdftoppm / tesseract 均经 run_limited 占并发席。
+        // 不持锁时与 guard::tests 的 busy 门测试互踩：本测试占席 → busy 门
+        // acquire().unwrap() panic；反向 busy 门占满 4 席 → 本测试 run_limited
+        // 返 Busy → try_ocr_recovery None → expect panic——两败俱伤，chi_sim
+        // 环境复跑实测复现。锁纪律与 env_preflight/tesseract 同款）。
+        let _slots =
+            crate::guard::SUBPROC_TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         let tess = TesseractOcr;
         match tess.probe() {
             EngineStatus::Ready => {}
@@ -370,10 +386,14 @@ c.save()";
         }
         let raw = std::fs::read(&pdf).unwrap();
         let got = super::try_ocr_recovery(&tess, &pdf, &raw, "embedded-cjk.pdf")
-            .expect("chi_sim 就绪 + 渲染面可读 → OCR 救援应产出 Clean 文本");
+            .expect("chi_sim 就绪 + 渲染面可读 → OCR 救援应产出可采信文本");
+        // #306/FG-11：`[pdf-ocr-recovered]` 标签由采纳面（parse_pdf 双乱码分叉处）
+        // 盖章——本测试直钉 try_ocr_recovery 契约，断言其产物自报 OCR 通道面
+        // （原断言 contains("[pdf-ocr-recovered]") 把采纳面职责错安在救援面，
+        // chi_sim 环境复跑才暴露）。
         assert!(
-            got.parse_summary.contains("[pdf-ocr-recovered]"),
-            "救援采信必须自报标签（实际：{}）",
+            got.parse_summary.contains("chi_sim"),
+            "救援产物应自报 OCR 通道面（实际：{}）",
             got.parse_summary
         );
         let all: String = got.blocks.iter().map(|b| b.text.as_str()).collect();

@@ -2380,6 +2380,14 @@ fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
     //
     // 口径：target_chars 取【本节叶节点配额】（父 = 子配额和，叶才是内容单元）；
     // written_chars 取本次起草后的正文字符数（含重写后的全量）。
+    //
+    // #312 篇幅产能墙——写作时刻反馈回路：黑盒实测（20,309/160,000=12.7%）
+    // 证明「返回体有数字但零警告」指不住代理——引擎在任何字数下都推 DRAFTED
+    // 且 warnings=[]，等于给「这叶完成了」的错误确认；E_CHARS_BELOW_MIN 要
+    // 到 validate/export（管道末端）才出现，距写作时刻太远无法塑形行为。
+    // 此处补齐：below_min/min_chars 字段 + 分轨主动警告（与 validate 规则 4
+    // 同源同阈值：评分叶 E 级口径、行政/实质叶 W 级口径；分类面复用
+    // bid_tools::validate::is_scoring_leaf——两处各写一份必然漂移）。
     const SEGMENT_CHARS: u64 = 4000; // 单次生成的安全字数量（模型上下文漂移阈值）
     let quota = svc
         .store()
@@ -2394,10 +2402,45 @@ fn draft_response_section(svc: &mut BidService, args: Value) -> ToolResult {
                 .map(|c| c.chars().count() as u64)
                 .unwrap_or(0);
             let remaining = target.saturating_sub(written);
+            // 80% 线（validate 规则 4 同口径）：达标最小整数 = ceil(target×0.8)
+            // ——与 `chars < target*0.80` 的浮点判定逐值一致（整数 chars 下
+            // `chars < t*0.8 ⟺ chars < ceil(t*0.8)`，无边界分叉）。
+            let min_chars = ((target as f64) * 0.80).ceil() as u64;
+            let below_min = target > 0 && written < min_chars;
+            if below_min {
+                let scoring = bid_tools::validate::is_scoring_leaf(n, svc.store());
+                let head = if scoring {
+                    format!(
+                        "篇幅不足（评分叶）：本叶 {written}/{target} 字（进度 {}%），低于 80% 线 {min_chars} 字——\
+                         validate 将报 E_CHARS_BELOW_MIN（BLOCKER，拦导出）",
+                        written * 100 / target
+                    )
+                } else {
+                    format!(
+                        "篇幅不足（行政/实质叶）：本叶 {written}/{target} 字（进度 {}%），低于 80% 线 {min_chars} 字——\
+                         validate 将报 W_CHARS_BELOW_MIN（MAJOR，不拦导出但扣内容完整度）",
+                        written * 100 / target
+                    )
+                };
+                warnings.push(format!(
+                    "{head}。继续 append_section_segment 补写至 ≥{min_chars} 字再进入下一叶；本叶未写满不算完成"
+                ));
+                // 小稿提示（#312 黑盒：300-800 字碎片稿×70 次是主要浪费面）
+                if u64::from(outcome.chars) < 1_000 {
+                    warnings.push(format!(
+                        "本稿仅 {} 字（单批建议 2,000-4,000 字）——碎片小稿是调用浪费，建议单批写满再提交",
+                        outcome.chars
+                    ));
+                }
+            }
             serde_json::json!({
                 "target_chars": target,
                 "written_chars": written,
                 "remaining": remaining,
+                // #312：80% 线与达标位（与 validate 规则 4 同口径——Agent
+                // 不用自己算「写到多少才安全」）
+                "min_chars": if target == 0 { serde_json::Value::Null } else { serde_json::json!(min_chars) },
+                "below_min": if target == 0 { serde_json::Value::Null } else { serde_json::json!(below_min) },
                 // 按 4000 字/批折算还需要几次「续写」；已达标 = 0
                 "min_segments": target.div_ceil(SEGMENT_CHARS),
                 "remaining_segments": remaining.div_ceil(SEGMENT_CHARS),
@@ -4449,6 +4492,53 @@ fn build_outline(svc: &mut BidService, args: Value) -> ToolResult {
         .collect();
     let total_target: u64 = leaves.iter().map(|n| n.target_chars as u64).sum();
 
+    // #312 篇幅产能墙——建纲配额面：黑盒实测建纲出参只有总量（69 叶/160k），
+    // 代理无每叶配额无法规划「哪叶几批」（每叶面要另调 check_bid_quality 才
+    // 可见）。leaf_quotas 全量返回（建纲即可规划，按 order 文档序）；另检
+    // 静默回退：target < 评分叶底价和时 allocate_quotas 走比例回退把评分叶
+    // 配额压低——代理不知道自己把 E_CHARS_BELOW_MIN 的 80% 线压低了
+    // （实测：160k < 20 评分叶×10k=200k → 评分叶被压到最低 500/叶）。
+    let mut leaf_quotas: Vec<serde_json::Value> = Vec::with_capacity(leaves.len());
+    let mut fallback_leaves: Vec<(String, u32)> = Vec::new();
+    let mut scoring_leaf_count: u64 = 0;
+    {
+        let mut ordered: Vec<&&bid_domain::outline::OutlineNode> = leaves.iter().collect();
+        ordered.sort_by_key(|n| n.order);
+        for n in ordered {
+            leaf_quotas.push(json!({
+                "section_id": n.id,
+                "title": n.title,
+                "target_chars": n.target_chars,
+            }));
+            // 评分叶配额 < MIN_SCORING_LEAF_CHARS = 回退面症状（正常路径评分叶
+            // 恒 ≥ 底价；分类面与 validate 同源）
+            if bid_tools::validate::is_scoring_leaf(n, svc.store()) {
+                scoring_leaf_count += 1;
+                if n.target_chars < bid_domain::outline::MIN_SCORING_LEAF_CHARS {
+                    fallback_leaves.push((n.id.clone(), n.target_chars));
+                }
+            }
+        }
+    }
+    let mut outline_warnings: Vec<String> = Vec::new();
+    if !fallback_leaves.is_empty() {
+        // 底价和按全部评分叶计（不含行政/实质轨底价——主体项，别把消息淹没）
+        let floor_sum: u64 = u64::from(bid_domain::outline::MIN_SCORING_LEAF_CHARS)
+            * scoring_leaf_count;
+        let min_seen = fallback_leaves.iter().map(|(_, t)| u64::from(*t)).min().unwrap_or(0);
+        outline_warnings.push(format!(
+            "配额回退：target_total_chars={} 低于评分叶底价和（{} 个评分叶 × {} = {}，\
+             未含行政/实质轨），{} 个评分叶配额被按比例压低（最低 {min_seen}）——它们的 \
+             80% 线（E_CHARS_BELOW_MIN）随之同步压低。建议 target_total_chars ≥ {floor_sum}，\
+             或显式确认接受压低",
+            spec.target_total_chars,
+            scoring_leaf_count,
+            bid_domain::outline::MIN_SCORING_LEAF_CHARS,
+            floor_sum,
+            fallback_leaves.len()
+        ));
+    }
+
     // #287 档位回显：生效档（或 custom）+ 生效目标 + 页数——审计面可核对
     // 「选了什么档、引擎用了多少字」；E_TOTAL_CHARS_BELOW_MIN 门禁随
     // outline_total_chars()（配额总和）动态判——档位化后自动按选中档生效
@@ -4483,6 +4573,10 @@ fn build_outline(svc: &mut BidService, args: Value) -> ToolResult {
             "excluded_blocks": cov.excluded_blocks,
             "unjudged_blocks": 0,
         },
+        // #312：每叶配额面（建纲即可规划批次——此前只有总量，黑盒代理
+        // 建纲后无从规划「哪叶几批」）
+        "leaf_quotas": leaf_quotas,
+        "warnings": outline_warnings,
         "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
         "project_version": svc.store().content_version(),
         "request_id": next_request_id(),
@@ -5414,6 +5508,40 @@ fn append_section_segment(svc: &mut BidService, args: Value) -> ToolResult {
         .append_segment(&section_id, &content, idem_key.as_deref())
         .map_err(ToolError::from)?;
 
+    // #312 篇幅产能墙——写作时刻反馈回路（与 draft_response_section 同源同
+    // 阈值；黑盒实测代理看到 remaining_chars 依然移师下一叶，末段才回头补差
+    // ——每个 append 返回都要说清「这叶还差多少才算安全」）。幂等重放
+    // （changed=false）不重复告警（账面零变动，重放者不是在写作）。
+    let mut warnings = out.warnings;
+    let mut min_chars_json = serde_json::Value::Null;
+    let mut below_min_json = serde_json::Value::Null;
+    let target_u64 = u64::from(out.target_chars);
+    let min_chars = ((target_u64 as f64) * 0.80).ceil() as u64;
+    let below_min = target_u64 > 0 && u64::from(out.assembled_chars) < min_chars;
+    if target_u64 > 0 {
+        min_chars_json = serde_json::json!(min_chars);
+        below_min_json = serde_json::json!(below_min);
+    }
+    if below_min && out.changed {
+        let scoring = svc
+            .store()
+            .sections()
+            .iter()
+            .find(|n| n.id == out.section_id)
+            .map(|n| bid_tools::validate::is_scoring_leaf(n, svc.store()))
+            .unwrap_or(false);
+        let grade = if scoring {
+            "E_CHARS_BELOW_MIN（BLOCKER，拦导出）"
+        } else {
+            "W_CHARS_BELOW_MIN（MAJOR，不拦导出但扣内容完整度）"
+        };
+        warnings.push(format!(
+            "篇幅不足（{}）：合稿 {}/{} 字，低于 80% 线 {min_chars} 字——validate 将报 {grade}。继续 append 至 ≥{min_chars} 字再进入下一叶",
+            if scoring { "评分叶" } else { "行政/实质叶" },
+            out.assembled_chars, out.target_chars
+        ));
+    }
+
     Ok(json!({
         "section_id": out.section_id,
         "segment": {
@@ -5427,11 +5555,14 @@ fn append_section_segment(svc: &mut BidService, args: Value) -> ToolResult {
         "assembled_chars": out.assembled_chars,
         "target_chars": out.target_chars,
         "remaining_chars": out.remaining_chars,
+        // #312：80% 线与达标位（无配额叶 = null）
+        "min_chars": min_chars_json,
+        "below_min": below_min_json,
         "over_target": out.over_target,
         "segment_count": out.segment_count,
         "citations": out.citations,
         "unanchored_claims": out.unanchored_claims,
-        "warnings": out.warnings,
+        "warnings": warnings,
         "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
         "project_version": svc.store().content_version(),
         "request_id": next_request_id(),

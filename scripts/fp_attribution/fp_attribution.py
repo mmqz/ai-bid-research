@@ -7,7 +7,10 @@
 import json, re
 from collections import defaultdict
 
-FP = json.load(open('/home/z/my-project/scripts/fp_diag.json'))
+# FG-16（#305）：仓外绝对路径参数化——默认仓内 fp-diag-baseline.json，FP_DIAG 可覆盖
+import os as _os, pathlib as _pl
+_REPO = _pl.Path(__file__).resolve().parent.parent.parent
+FP = json.load(open(_os.environ.get("FP_DIAG") or _REPO / "scripts" / "fp_attribution" / "fp-diag-baseline.json"))
 
 def hit(t, *pats):
     return any(re.search(p, t) for p in pats)
@@ -106,7 +109,7 @@ print('-'*70)
 print(f"合计 {sum(len(v) for v in buckets.values())} / {len(FP)} | ENGINE 可修 {eng} | GT 侧 {gt} | 未归类 {un}")
 
 json.dump({b: [x['joined'] for x, _ in v] for b, v in buckets.items()},
-          open('/home/z/my-project/scripts/fp_buckets.json','w'), ensure_ascii=False, indent=0)
+          open(_pl.Path(_os.environ.get("FP_DIAG") or _REPO / "scripts" / "fp_attribution" / "fp-diag-baseline.json").parent / 'fp_buckets.json','w'), ensure_ascii=False, indent=0)
 if 'UNATTR' in buckets:
     print('\n--- UNATTR 残余 ---')
     for x, _ in buckets['UNATTR']:

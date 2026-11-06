@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
-"""b5_engine_gt_eval —— B5 引擎路径抽取质量评测（GT-25 锚点口径，双路径对比）。
+"""b5_engine_gt_eval —— B5 引擎路径抽取质量评测（GT-25 锚点口径）。
 
-方法：
-  同一主文件（corpus-A A-招标文件.docx）分别走
-  ① 引擎路径（bid_engine::parse_docx_via_engine + extract.rs）
-  ② 旧路径（bid_parse::parse_file + extract.rs）
-  后与 GT-25 对齐：条款号命中（clause_no 相等）为主锚，excerpt 包含为内容锚。
+FG-04（#305）修复说明：
+  原「双路径对比」（引擎路径 vs 旧路径 bid_parse::parse_file）在 B4 后断裂
+  ——旧自研 docx 解析已删，parse_file 显式拒 .docx（实测 panic
+  「不支持的文件类型 .docx」）。旧路径腿已死，对比前提失效。
 
-输出：双路径召回率/类别命中对比——量化 B5 引擎交换的抽取面影响
-（对应 issue #2 §B5 验收「解析结果可复现证据」扩展面）。
+  现口径：
+  ① 活体评测 = 引擎路径（bid_engine::parse_docx_via_engine）vs GT-25，
+     三指标（条款号召回/内容锚召回/类别命中）不得低于**冻结基线**
+     （baseline 常量，锚定 HEAD 实测——回归即红，收紧须附根因，AGENTS.md 规则 9）；
+  ② 「引擎 ≥ 旧路径」的交换不丢内容保证由冻结验收证据承载：
+     artifacts/engine-diff-r3/（B3-3 r3 全量差分，A-招标文件.docx 100% EQ
+     ——引擎路径与旧路径输出逐位等价）。旧路径已删，等价性无从活体重跑，
+     以验收档案为凭。
+
+  T18a（run_tests.py）同步改判「不低于冻结基线」。
 """
 import json
 import os
@@ -20,6 +27,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 GT = REPO / "fixtures/corpus-A/ground-truth/requirements.jsonl"
 DOCX = REPO / "fixtures/corpus-A/files/A-招标文件.docx"
+
+# 冻结基线（FG-04 修复时 HEAD 4a9f7d3 实测——引擎路径 GT-25 三指标）。
+# 回归（低于任一）即红；收紧须附根因说明（不是放宽，是防漂移地板）。
+BASELINE = {"clause": 25, "excerpt": 25, "category": 22}
 
 
 def find_cargo() -> str:
@@ -35,26 +46,18 @@ def find_cargo() -> str:
     raise FileNotFoundError("cargo 不可用（Rust 工具链缺失——T18 前置依赖）")
 
 
-def extract_reqs() -> dict:
-    """经 A8 管线（引擎路径）抽取；同文件再跑旧路径对照。"""
-    # 引擎路径：直接用 bid-engine 门面 + extract（编译一次，跑两路径）
+def extract_reqs() -> list:
+    """经引擎路径（B4 后 docx 唯一活体路径）抽取。"""
     code = r'''
 fn main() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../fixtures/corpus-A/files/A-招标文件.docx");
     let engine = bid_engine::parse_docx_via_engine(&path).unwrap();
-    let legacy = bid_parse::parse_file(&path, "A-招标文件.docx").unwrap();
-    let r1 = bid_parse::extract::extract_requirements(&[engine]);
-    let r2 = bid_parse::extract::extract_requirements(&[legacy]);
-    let dump = |tag: &str, reqs: &[bid_domain::Requirement]| {
-        let out: Vec<serde_json::Value> = reqs.iter().map(|r| serde_json::json!({
-            "clause_no": r.clause_no, "category": r.category,
-            "excerpt": r.anchors.first().map(|a| a.excerpt.clone()).unwrap_or_default(),
-        })).collect();
-        println!("=== {} ===", tag);
-        println!("{}", serde_json::to_string(&out).unwrap());
-    };
-    dump("ENGINE", &r1);
-    dump("LEGACY", &r2);
+    let reqs = bid_parse::extract::extract_requirements(&[engine]);
+    let out: Vec<serde_json::Value> = reqs.iter().map(|r| serde_json::json!({
+        "clause_no": r.clause_no, "category": r.category,
+        "excerpt": r.anchors.first().map(|a| a.excerpt.clone()).unwrap_or_default(),
+    })).collect();
+    println!("{}", serde_json::to_string(&out).unwrap());
 }
 '''
     example = REPO / "bidcore/crates/bid-engine/examples/gt_eval_dump.rs"
@@ -68,14 +71,11 @@ fn main() {
         if out.returncode != 0:
             print(out.stderr[-1500:])
             sys.exit(1)
-        result = {"ENGINE": [], "LEGACY": []}
-        tag = None
+        reqs = []
         for line in out.stdout.splitlines():
-            if line.startswith("=== "):
-                tag = line.strip("= ").strip()
-            elif tag and line.startswith("["):
-                result[tag] = json.loads(line)
-        return result
+            if line.startswith("["):
+                reqs = json.loads(line)
+        return reqs
     finally:
         example.unlink(missing_ok=True)
 
@@ -86,38 +86,37 @@ def norm(t: str) -> str:
 
 def main() -> int:
     gt = [json.loads(l) for l in GT.open(encoding="utf-8")]
-    paths = extract_reqs()
+    reqs = extract_reqs()
 
-    print(f"GT-25 对齐评测（corpus-A 主文件）")
-    print(f"{'':12s} {'ENGINE':>10s} {'LEGACY':>10s}")
-    stats = {}
-    for tag, reqs in paths.items():
-        by_clause = {r["clause_no"] for r in reqs if r["clause_no"]}
-        excerpts = [norm(r["excerpt"]) for r in reqs]
-        hit_c = sum(1 for g in gt if g["clause_no"] in by_clause)
-        # 内容锚：GT excerpt 片段被抽取文本包含（容错条款号缺失/形态差）
-        hit_x = sum(
-            1 for g in gt
-            if any(norm(g["anchors"][0]["excerpt"]) in e or e in norm(g["anchors"][0]["excerpt"])
-                   for e in excerpts if e)
-        )
-        hit_cat = sum(
-            1 for g in gt
-            if g["clause_no"] in by_clause
-            and any(r["clause_no"] == g["clause_no"] and r["category"] == g["category"]
-                    for r in reqs)
-        )
-        stats[tag] = (hit_c, hit_x, hit_cat, len(reqs))
+    print("GT-25 对齐评测（corpus-A 主文件，引擎路径——B4 后唯一活体 docx 路径）")
+    by_clause = {r["clause_no"] for r in reqs if r["clause_no"]}
+    excerpts = [norm(r["excerpt"]) for r in reqs]
+    hit_c = sum(1 for g in gt if g["clause_no"] in by_clause)
+    # 内容锚：GT excerpt 片段被抽取文本包含（容错条款号缺失/形态差）
+    hit_x = sum(
+        1 for g in gt
+        if any(norm(g["anchors"][0]["excerpt"]) in e or e in norm(g["anchors"][0]["excerpt"])
+               for e in excerpts if e)
+    )
+    hit_cat = sum(
+        1 for g in gt
+        if g["clause_no"] in by_clause
+        and any(r["clause_no"] == g["clause_no"] and r["category"] == g["category"]
+                for r in reqs)
+    )
 
-    for i, metric in enumerate(["条款号召回", "内容锚召回", "类别命中"]):
-        e, l = stats["ENGINE"][i], stats["LEGACY"][i]
-        print(f"{metric:12s} {e:6d}/25  {l:6d}/25")
-    print(f"{'抽取总数':12s} {stats['ENGINE'][3]:6d}    {stats['LEGACY'][3]:6d}")
+    print(f"{'条款号召回':12s} {hit_c:6d}/25（基线 {BASELINE['clause']}/25）")
+    print(f"{'内容锚召回':12s} {hit_x:6d}/25（基线 {BASELINE['excerpt']}/25）")
+    print(f"{'类别命中':12s} {hit_cat:6d}/25（基线 {BASELINE['category']}/25）")
+    print(f"{'抽取总数':12s} {len(reqs):6d}")
 
-    # 判定：引擎路径召回不低于旧路径（内容锚口径）——B5 交换不丢内容
-    ok = stats["ENGINE"][1] >= stats["LEGACY"][1]
-    print(f"\n结论：引擎路径内容锚召回 {stats['ENGINE'][1]}/25 vs 旧路径 {stats['LEGACY'][1]}/25"
-          f" —— {'通过（不低于旧路径）' if ok else '回归（引擎路径低于旧路径）'}")
+    # 判定：三指标不低于冻结基线——引擎抽取质量回归即红
+    # （「引擎 ≥ 旧路径」的交换等价性由 engine-diff-r3 100% EQ 冻结验收承载）
+    ok = (hit_c >= BASELINE["clause"] and hit_x >= BASELINE["excerpt"]
+          and hit_cat >= BASELINE["category"])
+    print(f"\n结论：引擎路径 GT-25 三指标 {hit_c}/{hit_x}/{hit_cat} vs 冻结基线 "
+          f"{BASELINE['clause']}/{BASELINE['excerpt']}/{BASELINE['category']}"
+          f" —— {'通过（不低于冻结基线）' if ok else '回归（低于冻结基线）'}")
     return 0 if ok else 1
 
 

@@ -3,7 +3,9 @@
 import io
 import sys
 
-BASE = "/home/z/my-project/download/bid-agent-research"
+# FG-16（#305）：仓外绝对路径参数化——默认仓根（research/ 文档在仓内），DOCS_BASE 可覆盖
+import os as _os, pathlib as _pl
+BASE = _os.environ.get("DOCS_BASE") or str(_pl.Path(__file__).resolve().parent.parent)
 
 # ---------------- verification-plan ----------------
 p = f"{BASE}/research/verification-plan.md"

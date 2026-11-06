@@ -27,7 +27,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 OUT = REPO / "real-corpus" / "gov-procurement"
 # 外部参考仓库原始存档（只读）
-EXTERNAL_RAW = Path("/home/z/my-project/repos/tlyyxjz__BidAgent")
+# FG-16（#305）：仓外绝对路径参数化——外部对照仓路径经 EXTERNAL_RAW 环境变量提供
+# （审计 D-20 同族：硬编码仓外路径换环境即断）。缺省 None → 调用方自检并明确报缺。
+import os as _os
+EXTERNAL_RAW = Path(_os.environ["EXTERNAL_RAW"]) if _os.environ.get("EXTERNAL_RAW") else None
 BATCHES = ["_w3_raw", "_w4_raw", "_w5_raw"]
 
 _HDR = re.compile(r"^#\s*(.+)$")
@@ -121,6 +124,10 @@ def parse_one(path: Path, batch: str) -> dict:
 
 
 def main() -> int:
+    if EXTERNAL_RAW is None:
+        print("!! 外部对照仓未提供：export EXTERNAL_RAW=<tlyyxjz__BidAgent 检出路径>"
+              "（FG-16：不再硬编码仓外绝对路径）", file=sys.stderr)
+        return 2
     records = []
     for b in BATCHES:
         d = EXTERNAL_RAW / b

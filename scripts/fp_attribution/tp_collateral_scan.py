@@ -5,7 +5,10 @@
 """
 import json, re
 
-gt=json.load(open('/home/z/my-project/wt-fp/artifacts/veto-gt/ground-truth.json'))
+# FG-16（#305）：仓外绝对路径参数化——默认仓内 artifacts/veto-gt，VETO_GT 可覆盖
+import os as _os, pathlib as _pl
+_REPO = _pl.Path(__file__).resolve().parent.parent.parent
+gt=json.load(open(_os.environ.get("VETO_GT") or _REPO / "artifacts" / "veto-gt" / "ground-truth.json"))
 anns=[a for a in gt['annotations'] if a['is_veto']]
 print(f"GT true 总数: {len(anns)}")
 

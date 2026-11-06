@@ -1,12 +1,12 @@
 {
  "case": "00-environment",
  "transport": "mcp",
- "server_bin": "/home/z/my-project/bid-research-rw/bidcore/target/debug/bid-mcp-server",
- "server_sha256": "33d84ab7770b385083339d3c9d17fa2940ea9544a9b984afd4cec5bd88d43127",
+ "server_bin": "/tmp/cargo-target-fm65/debug/bid-mcp-server",
+ "server_sha256": "4e4012efa095fefc5e7304953a42fae86ca2b1c6c2bb34e408dc03a9902414c6",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-03T16:30:18+00:00",
+ "started_at": "2026-11-06T15:01:01+00:00",
  "stages": [
   {
    "stage": "环境留档",
@@ -14,12 +14,12 @@
    "args": {},
    "result": {
     "transport_resolved": "mcp",
-    "server_bin": "/home/z/my-project/bid-research-rw/bidcore/target/debug/bid-mcp-server",
-    "server_sha256": "33d84ab7770b385083339d3c9d17fa2940ea9544a9b984afd4cec5bd88d43127",
+    "server_bin": "/tmp/cargo-target-fm65/debug/bid-mcp-server",
+    "server_sha256": "4e4012efa095fefc5e7304953a42fae86ca2b1c6c2bb34e408dc03a9902414c6",
     "python": "3.12.16",
     "mcp_sdk": "1.27.0",
     "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
-    "rustc": "(rustc 不在 PATH)"
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)"
    },
    "checks": [
     {
@@ -40,5 +40,5 @@
  ],
  "payload_shapes": {},
  "ws": null,
- "finished_at": "2026-11-03T16:30:18+00:00"
+ "finished_at": "2026-11-06T15:01:01+00:00"
 }

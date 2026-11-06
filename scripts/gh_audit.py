@@ -6,7 +6,9 @@ import urllib.request, urllib.parse, urllib.error
 
 TOKEN = os.environ.get("GH_TOKEN", "").strip()
 BASE = "https://api.github.com"
-OUT = "/home/z/my-project/download/bid-agent-research/research/raw"
+# FG-16（#305）：仓外绝对路径参数化——默认仓内 research/raw，GH_RAW_OUT 可覆盖
+import pathlib as _pl
+OUT = os.environ.get("GH_RAW_OUT") or str(_pl.Path(__file__).resolve().parent.parent / "research" / "raw")
 os.makedirs(OUT, exist_ok=True)
 
 

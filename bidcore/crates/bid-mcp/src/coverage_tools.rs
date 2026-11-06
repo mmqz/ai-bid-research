@@ -104,12 +104,7 @@ pub fn get_document_chunks(svc: &mut BidService, args: Value) -> ToolResult {
         "returned": chunks.len(),
         "next_from": if end < total { Some(end) } else { None },
         "chunks": chunks,
-        "coverage": {
-            "covered_blocks": report.covered_blocks,
-            "complete": report.complete,
-            "uncovered_ranges": report.uncovered,
-            "by_verdict": report.by_verdict,
-        },
+        "coverage": coverage_json(&report),
     }))
 }
 
@@ -217,18 +212,29 @@ pub fn submit_block_marks(svc: &mut BidService, args: Value) -> ToolResult {
         "marks_accepted": marks_n,
         "requirements_accepted": reqs_n,
         "total_blocks": total_blocks,
-        "coverage": {
-            "covered_blocks": report.covered_blocks,
-            "complete": report.complete,
-            "uncovered_ranges": report.uncovered,
-            "by_verdict": report.by_verdict,
-        },
+        "coverage": coverage_json(&report),
         "next": if report.complete {
             "全覆盖——可以继续 build_outline"
         } else {
-            "仍有未覆盖块——用 get_document_chunks 查看后补标"
+            "仍有未判定块——用 get_document_chunks 查看后补标（已开始标记的文件必须标满才能建纲，#244）"
         },
     }))
+}
+
+/// #244 覆盖面 JSON 组装（三工具同口径）。
+///
+/// `uncovered_ranges` 键名保持（对外契约兼容——docs/SDK 已引用）；
+/// 新增 `excluded_blocks`（B 态已排除）/ `unjudged_blocks`（C 态未判定）
+/// 分账字段（#244 三态语义）。
+fn coverage_json(report: &bid_domain::coverage::CoverageReport) -> Value {
+    json!({
+        "covered_blocks": report.covered_blocks,
+        "complete": report.complete,
+        "uncovered_ranges": report.unjudged_ranges,
+        "excluded_blocks": report.excluded_blocks,
+        "unjudged_blocks": report.unjudged_blocks,
+        "by_verdict": report.by_verdict,
+    })
 }
 
 /// `get_coverage_report`：查覆盖状态（哪些块没归属）。
@@ -249,6 +255,7 @@ pub fn get_coverage_report(svc: &mut BidService, args: Value) -> ToolResult {
     let mut total_blocks = 0usize;
     let mut total_covered = 0usize;
     let mut total_uncovered_ranges = 0usize;
+    let mut total_unjudged_blocks = 0usize;
 
     for (fid, sha) in tender_files.iter() {
         let Some(f) = parsed_by_sha.get(sha.as_str()) else { continue };
@@ -256,14 +263,17 @@ pub fn get_coverage_report(svc: &mut BidService, args: Value) -> ToolResult {
         let report = svc.store().coverage_report(fid, n);
         total_blocks += n;
         total_covered += report.covered_blocks;
-        total_uncovered_ranges += report.uncovered.len();
+        total_uncovered_ranges += report.unjudged_ranges.len();
+        total_unjudged_blocks += report.unjudged_blocks;
         files.push(json!({
             "file_id": fid,
             "total_blocks": n,
             "covered_blocks": report.covered_blocks,
             "complete": report.complete,
-            "uncovered_ranges": report.uncovered.iter().take(50).collect::<Vec<_>>(),
-            "uncovered_range_count": report.uncovered.len(),
+            "uncovered_ranges": report.unjudged_ranges.iter().take(50).collect::<Vec<_>>(),
+            "uncovered_range_count": report.unjudged_ranges.len(),
+            "excluded_blocks": report.excluded_blocks,
+            "unjudged_blocks": report.unjudged_blocks,
             "by_verdict": report.by_verdict,
         }));
     }
@@ -275,13 +285,14 @@ pub fn get_coverage_report(svc: &mut BidService, args: Value) -> ToolResult {
         "total_blocks": total_blocks,
         "covered_blocks": total_covered,
         "uncovered_range_count": total_uncovered_ranges,
+        "unjudged_blocks": total_unjudged_blocks,
         "files": files,
         "next": if total_blocks == 0 {
             "还没导入文件——先 import_tender_files"
         } else if complete {
             "全覆盖——可以 build_outline"
         } else {
-            "有未覆盖块——submit_block_marks 补标"
+            "有未判定块——submit_block_marks 补标（已开始标记的文件必须标满才能建纲，#244；未标记过的文件走正则兜底不受限）"
         },
     }))
 }

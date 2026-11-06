@@ -50,7 +50,7 @@ pub enum ToolError {
     /// 只给区间号等于没给）。
     ///
     /// 门只拦「半途而废」（marks 非空且有 C 态块）；零标记文件走正则
-    /// 兑底不受此门限制（GT 红线保护——详见 tools.rs `coverage_gate`）。
+    /// 兜底不受此门限制（GT 红线保护——详见 tools.rs `coverage_gate`）。
     ECoverageIncomplete {
         /// 全项目 C 态块总数（有抽取面文件合计）。
         unjudged_blocks: usize,
@@ -103,7 +103,7 @@ impl std::fmt::Display for ToolError {
             ),
             Self::ECoverageIncomplete { unjudged_blocks, gaps } => write!(
                 f,
-                "E_COVERAGE_INCOMPLETE: 还有 {unjudged_blocks} 块未判定，不能建纲\n\n未判定区间：\n{}\n\n处置：submit_block_marks 补标（要求块 verdict=requirement + requirements 提取关键点；非要求块 verdict=noise|rule + reason）→ 重跑 extract_requirements → build_outline。未标记过的文件走正则兑底，不受此门限制。",
+                "E_COVERAGE_INCOMPLETE: 还有 {unjudged_blocks} 块未判定，不能建纲\n\n未判定区间：\n{}\n\n处置：submit_block_marks 补标（要求块 verdict=requirement + requirements 提取关键点；非要求块 verdict=noise|rule + reason）→ 重跑 extract_requirements → build_outline。未标记过的文件走正则兜底，不受此门限制。",
                 gaps.join("\n")
             ),
         }

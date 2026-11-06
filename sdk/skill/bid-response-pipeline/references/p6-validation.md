@@ -52,13 +52,22 @@ categories: {                      # #187 分类返回（四桶各自独立状�
 | `evidence` | E_EVIDENCE_EXPIRED | 部分实现 |
 | `compliance` | E_VETO_UNRESPONDED / E_QUAL_UNMET / W_FORMAT_BASELINE | 部分实现 |
 
-**篇幅门禁分级（#253）**：① **评分章节**（绑定评分项 REQ 或被
-ScoringMapping 映射的叶）正文 < 配额 × 80% → `E_CHARS_BELOW_MIN`
-**BLOCKER**（评分主体写不够 = 直接丢分）；② 行政/实质章节短稿 →
-`W_CHARS_BELOW_MIN` **MAJOR**（不翻 ok、不拦导出——内容完整即可，
-篇幅是质量提示）；③ **全稿实写总量 < 配额总和** →
-`E_TOTAL_CHARS_BELOW_MIN` **BLOCKER**（1000 页硬指标，硬比较无容差——
-章节级 ±20% 是起草容差，产品级门不吃容差）。
+**篇幅门禁分级（#253，#287 起总量门按档位判定）**：① **评分章节**（绑定
+评分项 REQ 或被 ScoringMapping 映射的叶）正文 < 配额 × 80% →
+`E_CHARS_BELOW_MIN` **BLOCKER**（评分主体写不够 = 直接丢分）；② 行政/
+实质章节短稿 → `W_CHARS_BELOW_MIN` **MAJOR**（不翻 ok、不拦导出——内容
+完整即可，篇幅是质量提示）；③ **全稿实写总量 < 当前档位目标** →
+`E_TOTAL_CHARS_BELOW_MIN` **BLOCKER**（硬比较无容差——章节级 ±20% 是
+起草容差，产品级门不吃容差）。
+
+**注意（#287）**：③ 的阈值不是固定值，而是**当前 `length_profile` 的
+`target_total_chars`**——= `outline_total_chars()`（配额总和），档位化后
+自动按建纲时选中的档位生效（选档流程见主 Skill「篇幅纪律 · 配额定标」：
+四档 + `recommend_length_profile` 推荐 + 用户确认）。`build_outline`
+响应 `length.target_total_chars` 与门禁阈值同源——选了哪档，门就按哪档
+判。档位在 `build_outline` 的状态窗口（REQUIREMENTS_EXTRACTED）内选定；
+MATRIX_READY 后不存在「悄悄改档」——重建面按 p3-matrix 状态窗口约束走，
+配额与阈值始终同源不漂移。
 
 - `status: "not_performed"` = 该类检查**没做**（如未配置模型）——**没做 ≠ 做对了**
   （issue #9 口径），不得当成通过；

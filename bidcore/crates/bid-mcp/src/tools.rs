@@ -3977,11 +3977,144 @@ pub(crate) fn route_guard(
     Ok(())
 }
 
+/// #244 建纲前覆盖闭环门的通过面（信息性回执——零阻断，只记账）。
+#[derive(Debug, Clone, Copy, Default)]
+struct CoverageGateSummary {
+    /// 有抽取面的文件数（附件/图纸/证据/格式模板不在面——与 merge 口径同源）。
+    face_files: usize,
+    /// 已启用标记流程的文件数（marks 非空）。
+    marked_files: usize,
+    /// 走正则兜底的文件数（零标记——#219 前的既有合法路径，不在门对象内）。
+    regex_fallback_files: usize,
+    /// B 态块总数（已排除：noise/rule，理由在 marks.reason 可追溯）。
+    excluded_blocks: usize,
+}
+
+/// #244 建纲前覆盖闭环门：每个有抽取面的块必居三态之一。
+///
+/// - **A 已判定为要求**：requirement / review_table 标记（产 REQ / 结构化提取）；
+/// - **B 已排除**：noise / rule 标记（理由 `marks.reason`——要求 3 可追溯：
+///   块 ID / 文件 / 区间 / 判定来源都在标记集与解析产物里）；
+/// - **C 未判定**：压根没标记 → 本门阻断（E_COVERAGE_INCOMPLETE +
+///   带块内容摘要的清单——Agent 得知道是什么内容才能判，只给区间号等于没给）。
+///
+/// **门只拦「半途而废」**：文件标记集非空且存在 C 态块才拦；零标记文件
+/// 走正则兜底（#219 前的既有合法路径）——否则 real_corpus_e2e（纯正则
+/// 全链）等既有流程被新门卡死（验收 6：新门不能卡死正常流程）。
+///
+/// **按文件粒度裁决**：「Agent 标了主件、忘了补遗件」时，补遗件零标记
+/// → 正则兜底放行（兜底是既有语义），本门只承诺「开始标的必须标完」。
+///
+/// 零副作用：只读 store + parsed，不落盘、不推版本。
+fn coverage_gate(svc: &BidService) -> Result<CoverageGateSummary, ToolError> {
+    const TOOL: &str = "build_outline";
+    // 每区间展示的块内容摘要条数（够定位 + 不吃爆错误消息）。
+    const SAMPLES_PER_GAP: usize = 3;
+    // 错误消息里 gap 条数上限（超出汇总——全量用 get_coverage_report 查）。
+    const MAX_GAPS_IN_ERROR: usize = 20;
+
+    let kind_map: std::collections::HashMap<&str, &str> = svc
+        .store()
+        .files()
+        .iter()
+        .map(|f| (f.name.as_str(), f.kind.as_str()))
+        .collect();
+    let parsed_by_sha: std::collections::HashMap<&str, &bid_parse::ParsedFile> =
+        svc.parsed().iter().map(|p| (p.sha256.as_str(), p)).collect();
+
+    let mut summary = CoverageGateSummary::default();
+    let mut gaps: Vec<String> = Vec::new();
+    let mut unjudged_total = 0usize;
+
+    for f in svc.store().files() {
+        // 与 merge 统计同源的门禁面：无抽取面的文件不进覆盖闭环
+        //（附件/图纸/证据/格式模板无条款面，无「遗漏待审」可言）。
+        if !bid_parse::merge::has_extraction_face(kind_map.get(f.name.as_str()).copied(), &f.name)
+        {
+            continue;
+        }
+        summary.face_files += 1;
+        let Some(parsed) = parsed_by_sha.get(f.sha256.as_str()) else { continue };
+        let total = parsed.blocks.len();
+        let marks = svc.store().block_marks_of(&f.id);
+        if marks.is_empty() {
+            // 零标记：正则兜底路径（GT 红线保护）——不是本门的对象。
+            summary.regex_fallback_files += 1;
+            continue;
+        }
+        summary.marked_files += 1;
+        let report = svc.store().coverage_report(&f.id, total);
+        summary.excluded_blocks += report.excluded_blocks;
+        if !report.has_unjudged() {
+            continue; // 标满：A + B 态闭环，放行
+        }
+        // C 态非零：半途而废——逐区间组装带内容摘要的清单。
+        unjudged_total += report.unjudged_blocks;
+        for (from, to) in &report.unjudged_ranges {
+            if gaps.len() >= MAX_GAPS_IN_ERROR {
+                continue;
+            }
+            let locator = parsed
+                .blocks
+                .get(*from)
+                .map(|b| b.locator.as_str())
+                .unwrap_or("");
+            let mut gap = format!(
+                "  {}（{}）块 [{from}..{to}]（{}）",
+                f.name, f.id, if locator.is_empty() { "无定位" } else { locator }
+            );
+            for b in parsed
+                .blocks
+                .iter()
+                .take(to + 1)
+                .skip(*from)
+                .take(SAMPLES_PER_GAP)
+            {
+                gap.push_str(&format!("\n    {}: {}", b.idx, truncate(&b.text, 48)));
+            }
+            let range_len = to - from + 1;
+            if range_len > SAMPLES_PER_GAP {
+                gap.push_str(&format!(
+                    "\n    ……（区间共 {range_len} 块——get_document_chunks file_id={} from={from} 看全量）",
+                    f.id
+                ));
+            }
+            gaps.push(gap);
+        }
+    }
+
+    if unjudged_total > 0 {
+        let extra = report_gap_overflow(gaps.len(), MAX_GAPS_IN_ERROR);
+        return Err(ToolError::ECoverageIncomplete {
+            unjudged_blocks: unjudged_total,
+            gaps: {
+                let mut g = gaps;
+                if let Some(e) = extra {
+                    g.push(e);
+                }
+                g
+            },
+        });
+    }
+    let _ = TOOL; // 错误面自带工具语境（E_COVERAGE_INCOMPLETE 仅建纲门产生）
+    Ok(summary)
+}
+
+/// gap 数超上限时的汇总尾条（None = 未超）。
+fn report_gap_overflow(shown: usize, cap: usize) -> Option<String> {
+    (shown >= cap).then(|| {
+        format!(
+            "  ……（仅列前 {cap} 个区间——get_coverage_report 查全量）"
+        )
+    })
+}
+
 /// `build_outline` —— 契约 §10（G1：建纲 + 矩阵首建，REQUIREMENTS_EXTRACTED 态）。
 ///
-/// 壳层职责：参数校验（spec 可选字段 + 值域）→ 三件套 → 前置（条款面非空）
-/// → 转发 `BidService::prepare_outline_and_matrix`（推导大纲树 + 矩阵首建
-/// 推进 MATRIX_READY + 写后自动落盘）→ 叶/目标字数统计组装。
+/// 壳层职责：参数校验（spec 可选字段 + 值域）→ 三件套 → 前置（#244 覆盖
+/// 闭环门 → 条款面非空）→ 转发 `BidService::prepare_outline_and_matrix`
+///（推导大纲树 + 矩阵首建推进 MATRIX_READY + 写后自动落盘）→ 叶/目标
+/// 字数统计组装。
 ///
 /// 幂等面：语义位查重在域层 `set_outline`（推导确定性）；MATRIX_READY+ 重复
 /// 调用被 guard_tool 拒（E_STATE——重建面属「补遗后增量重抽」的后续需求，
@@ -4019,6 +4152,10 @@ fn build_outline(svc: &mut BidService, args: Value) -> ToolResult {
     }
 
     route_guard(svc, &project_id, TOOL, project_version)?;
+
+    // ---- #244 建纲前覆盖闭环门：标记过的文件必须标完（C 态零容忍），
+    // 零标记文件走正则兜底不受限（GT 红线保护）。零副作用前置拒。
+    let cov = coverage_gate(svc)?;
 
     // 前置：条款面非空（空纲无意义——与 build_matrix 同口径）
     let n_reqs = svc.store().requirements().len();
@@ -4088,6 +4225,15 @@ fn build_outline(svc: &mut BidService, args: Value) -> ToolResult {
                 + u64::from(bid_domain::outline::CHARS_PER_PAGE)
                 - 1)
                 / u64::from(bid_domain::outline::CHARS_PER_PAGE),
+        },
+        // #244 覆盖闭环回执（信息性）：建纲时点的处置面分布——
+        // excluded = B 态（已排除）；regex_fallback = 零标记走兜底的文件。
+        "coverage": {
+            "face_files": cov.face_files,
+            "marked_files": cov.marked_files,
+            "regex_fallback_files": cov.regex_fallback_files,
+            "excluded_blocks": cov.excluded_blocks,
+            "unjudged_blocks": 0,
         },
         "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
         "project_version": svc.store().content_version(),

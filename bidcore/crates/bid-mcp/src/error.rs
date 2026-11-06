@@ -49,6 +49,22 @@ pub enum ToolError {
     EDraftIncomplete {
         missing: Vec<String>,
     },
+    /// #244：建纲前覆盖闭环前置拒——存在「已启用标记流程但未判完」的块
+    /// （C 态：遗漏待审）。零副作用（状态/版本/标记集均不变）。
+    ///
+    /// 与 [`Self::EDraftIncomplete`] 同构的门禁面：结构化清单 + Display
+    /// 人读指引。`gaps` 每元素 = 一个未判定区间的人读描述（文件名 /
+    /// 区间 / locator / 块内容摘要——Agent 得知道是什么内容才能判，
+    /// 只给区间号等于没给）。
+    ///
+    /// 门只拦「半途而废」（marks 非空且有 C 态块）；零标记文件走正则
+    /// 兑底不受此门限制（GT 红线保护——详见 tools.rs `coverage_gate`）。
+    ECoverageIncomplete {
+        /// 全项目 C 态块总数（有抽取面文件合计）。
+        unjudged_blocks: usize,
+        /// 未判定区间清单（每文件每区间一条，含定位与块内容摘要）。
+        gaps: Vec<String>,
+    },
 }
 
 impl ToolError {
@@ -62,6 +78,7 @@ impl ToolError {
             Self::EPartial { .. } => "E_PARTIAL",
             Self::UnimplementedInternal { .. } => "UNIMPLEMENTED_INTERNAL",
             Self::EDraftIncomplete { .. } => "E_DRAFT_INCOMPLETE",
+            Self::ECoverageIncomplete { .. } => "E_COVERAGE_INCOMPLETE",
         }
     }
 
@@ -91,6 +108,11 @@ impl std::fmt::Display for ToolError {
                 "E_DRAFT_INCOMPLETE: 起草未完成（{} 个叶未达 DRAFTED：{}）——先补起草再全稿校验，或改用 scope=sections 章节级检查",
                 missing.len(),
                 missing.join("、")
+            ),
+            Self::ECoverageIncomplete { unjudged_blocks, gaps } => write!(
+                f,
+                "E_COVERAGE_INCOMPLETE: 还有 {unjudged_blocks} 块未判定，不能建纲\n\n未判定区间：\n{}\n\n处置：submit_block_marks 补标（要求块 verdict=requirement + requirements 提取关键点；非要求块 verdict=noise|rule + reason）→ 重跑 extract_requirements → build_outline。未标记过的文件走正则兑底，不受此门限制。",
+                gaps.join("\n")
             ),
         }
     }

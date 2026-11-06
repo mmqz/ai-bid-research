@@ -1,6 +1,6 @@
 # P2 抽取细则（Agent 标记优先 + 正则兜底）
 
-> 契约依据：`docs/bid-mcp-contract.md` §3 / §17 / §18 / §19。#219 二步起
+> 契约依据：仓库根 `docs/bid-mcp-contract.md`（路径约定见 SKILL.md 头部——`docs/` 指仓库根，非本目录相对） §3 / §17 / §18 / §19。#219 二步起
 > 抽取是**两通路合并**：Agent 块标记优先（被标记块的正则产物让位），
 > 正则兜底（未覆盖块保留），冲突以 Agent 为准。无标记时与纯正则逐位一致
 > （GT 红线零位移）。重跑 extract 按整集替换重算——补标后重跑即生效。
@@ -12,9 +12,11 @@
    → 逐窗口看块（block_idx/locator/text/cells + 已标记 verdict 回显）
 2. submit_block_marks(project_id, file_id,
      marks:[{from,to,verdict,reason}],          ← 整集替换（非增量！翻页标注须带全量）
-     requirements:[{block_idx,statement,category?,mandatory?}])
+     requirements:[{block_idx,statement,category?,mandatory?,substantive?}])
    → verdict 四态：requirement（需响应）/ noise（无关）/
-     rule（招标人规则说明——#226 防死锁核心）/ review_table（审查表）
+     rule（招标人规则说明——#226 防死锁核心）/ review_table（审查表）；
+     requirements[].substantive=true 标★实质性条款（#276——见下方
+     「表格行条款」专节，废标级标记面）
 3. extract_requirements(project_id)  → 合并落库（响应带 merge 统计）
 ```
 
@@ -66,6 +68,59 @@ build_matrix 后生效）；响应（绑证据）或人工 receipt 覆写（set_
   结果记入对话，不改引擎数据（引擎已双向登记）；
 - `missing_sequence` 非空 → 缺号必须解释（格式缺号常见于附件编号跳段；
   真缺号 = 解析遗漏，重试该文件）。
+
+## 表格行条款（★商务要求表——废标级标记面，#278）
+
+**为什么单列一节**：五份真实考题（#269）的★实质性条款全部住在**同一形态**
+的商务要求表——表头 `序号｜参数性质(★)｜类型｜要求`（政府采购货物服务类
+高频形态）。此前标记质量全靠代理自己悟，六场实测方差：5/5、3/5、4/5、
+**1/5**、3/5——danqing 丢 4/5 直接威胁不废标（★一条不响应即响应无效）。
+本节是专项教学：见到此形态，按下面的映射逐行标记，不许跳过。
+
+### 列语义映射（一行 = 一条 REQ）
+
+| 列 | 标记用法 |
+|---|---|
+| `参数性质` 带★ | `substantive: true`（★实质性条款——一条不响应即响应无效） |
+| `类型` | 条款主题（如「服务地点」「验收要求」）——statement 命名参考，不单独成 REQ |
+| `要求` | statement 正文（关键点陈述照抄要求列内容，不得改写语义） |
+| `序号` | 行定位锚（跨页续行拼接依据） |
+
+标记动作：该行块 verdict 标 `requirement`，`requirements[]` 对应提交
+`{block_idx, statement: <要求列内容>, substantive: true}`。`category` 按
+七类正常判（★商务行多为 `商务要求` / `技术参数`）——**不要因为带★就归
+`否决项`**：★是实质性标记（substantive），与类别、必选性（mandatory）
+两两正交，各按原文声明独立标记，不互相推断。
+
+### 跨页续行的装配
+
+商务表常跨页：某行「要求」单元格在第 N 页截断、第 N+1 页续完。拼接依据
+= `序号` 列与列位——续行块首列为空或重复上一序号时，**归属上一行条款**
+（拼成一条），不要拆成两条。`get_document_chunks` 的 cells 按列序回显，
+跨页块先拼再判。
+
+### ★样板句的边界（rule 不是 requirement）
+
+表尾常见声明：「打"★"号条款为实质性条款，若有一条不响应或不满足则导致
+响应无效」——这是**★语义声明（招标人规则说明）**：verdict 标 `rule`，
+不产 REQ。两个方向的用法：
+
+- 看到样板句 = 本表★行都是 substantive 的**信号**——回头逐行核标记；
+- **版面归属**：声明管它紧贴的那张表（songling 实测：表尾声明紧跟商务表，
+  同文档的技术要求表无★行——勿跨表扩大化，也不因技术表无声明漏标商务表）。
+
+### 与引擎★检测的对账（P3 必做）
+
+★标记有两条写入路径，在 `params.star` 汇流（#276 数据模型）：**标记面**
+（你，`submit_block_marks.requirements[].substantive`）与**抽取面**（引擎
+语义表★字符检测，#280 起接线）。两路取并集不冲突，但**不要假设引擎一定
+检出**——非语义表形态、切块截断都可能漏，标记责任在你。
+
+**验收动作**：`get_compliance_matrix` 的 `star_summary`——`total` 必须
+与招标文件★行数一致（对着表尾声明的表逐行数）；`total=0` 而原文确有
+★表 = 标记漏了，回 P2 补标重跑 `extract_requirements`。起草完成后
+`not_responded > 0` = 废标风险在场（引擎 note 原文：一条不响应即响应
+无效），逐条补响应后重查。
 
 ## 参数槽位表
 

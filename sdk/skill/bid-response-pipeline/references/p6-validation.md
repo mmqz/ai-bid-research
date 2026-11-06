@@ -1,6 +1,6 @@
 # P6 校验细则（validate_bid_document）
 
-> 契约依据：`docs/bid-mcp-contract.md` §7。规则分层：**确定性规则代码断言、
+> 契约依据：仓库根 `docs/bid-mcp-contract.md`（路径约定见 SKILL.md 头部——`docs/` 指仓库根，非本目录相对） §7。规则分层：**确定性规则代码断言、
 > 先行必跑、BLOCKER 必须清零**；模型规则只产 finding 不改稿。
 
 ## 何时可调（#243 校验状态安全）

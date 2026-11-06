@@ -1,6 +1,6 @@
 # P8 导出细则（export_bid_document）
 
-> 契约依据：`docs/bid-mcp-contract.md` §8。导出是全链的收口闸——引擎在
+> 契约依据：仓库根 `docs/bid-mcp-contract.md`（路径约定见 SKILL.md 头部——`docs/` 指仓库根，非本目录相对） §8。导出是全链的收口闸——引擎在
 > 此做**双前置门**裁决（矩阵 blocking 清零 + 审核门全过），任一不过
 > `E_UNPROCESSABLE` 响亮拒（人话理由）。你的职责：把报价决策/主体信息
 > 给足、路径给对、产物 sha256 与对账数字向用户复述。

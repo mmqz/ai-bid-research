@@ -1,6 +1,6 @@
 # P1 导入细则（import_tender_files）
 
-> 契约依据：`docs/bid-mcp-contract.md` §2。Agent 不做解析与切块，只核对返回
+> 契约依据：仓库根 `docs/bid-mcp-contract.md`（路径约定见 SKILL.md 头部——`docs/` 指仓库根，非本目录相对） §2。Agent 不做解析与切块，只核对返回
 > 统计并重试失败件（R-01）。
 
 ## 调用形

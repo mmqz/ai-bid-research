@@ -1,6 +1,6 @@
 # P7 审校细则（record_review_gate + check_bid_quality 复核面）
 
-> 契约依据：`docs/bid-mcp-contract.md` §12（人工门）/ §9（质量诊断）。
+> 契约依据：仓库根 `docs/bid-mcp-contract.md`（路径约定见 SKILL.md 头部——`docs/` 指仓库根，非本目录相对） §12（人工门）/ §9（质量诊断）。
 > 本阶段与 P6 互补：P6 是**引擎对文档**的确定性校验（规则表见
 > `p6-validation.md`）；P7 是**人对全链**的复审门 + 你按发现面逐章收口。
 > 人工门的核心纪律：**AI 操作者不得自审自过**——过门身份由宿主签发的

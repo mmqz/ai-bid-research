@@ -336,6 +336,7 @@ fn per_file_waiver_rejects_ghost_file_and_non_human_principal() {
         actor_type: bid_domain::ActorType::Agent,
         authentication_method: "hmac_receipt_v1".into(),
         approval_receipt: String::new(),
+        scope_is_agent: false,
     };
     assert!(matches!(
         store.record_addendum_waiver(&fid, "r", &agent),
@@ -509,6 +510,7 @@ fn addendum_waiver_releases_not_provided_blocker() {
             &bid_domain::TrustedPrincipal::human("real-corpus-lead"),
             Decision::Approved,
             vec![],
+            None,
         )
         .unwrap();
     let r = check_draft_readiness(&store, "SEC-0001");
@@ -533,6 +535,7 @@ fn addendum_waiver_does_not_mask_parse_failed() {
             &bid_domain::TrustedPrincipal::human("real-corpus-lead"),
             Decision::Approved,
             vec![],
+            None,
         )
         .unwrap();
     import_addendum(&mut store, "C-补遗文件01.pdf", ParseStatus::Failed, "sha-add1");
@@ -557,6 +560,7 @@ fn addendum_waiver_does_not_mask_ocr_pending() {
             &bid_domain::TrustedPrincipal::human("real-corpus-lead"),
             Decision::Approved,
             vec![],
+            None,
         )
         .unwrap();
     import_addendum(&mut store, "C-补遗-扫描件.pdf", ParseStatus::OcrRequired, "sha-add-ocr");
@@ -581,6 +585,7 @@ fn addendum_waiver_survives_reimport_of_addendum() {
             &bid_domain::TrustedPrincipal::human("real-corpus-lead"),
             Decision::Approved,
             vec![],
+            None,
         )
         .unwrap();
     import_addendum(&mut store, "C-补遗文件02.docx", ParseStatus::Ok, "sha-add2");

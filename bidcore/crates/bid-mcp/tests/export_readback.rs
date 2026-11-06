@@ -314,7 +314,7 @@ fn fixture(tag: &str, target_chars: u32) -> Fixture {
         Gate::OutlineApproval,
     ] {
         svc.store_mut()
-            .record_review(gate, &bid_domain::TrustedPrincipal::human("readback-lead"), Decision::Approved, vec![])
+            .record_review(gate, &bid_domain::TrustedPrincipal::human("readback-lead"), Decision::Approved, vec![], None)
             .unwrap();
     }
     let parents: std::collections::HashSet<String> = svc
@@ -338,7 +338,7 @@ fn fixture(tag: &str, target_chars: u32) -> Fixture {
     // #180：定稿内容过门（夹具链到此正文已定——Fixture 交出后再改正文的
     // 用例须重过 PreExportConfirm，如 readback_docx_dark_bid_scrubbed）
     svc.store_mut()
-        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("readback-lead"), Decision::Approved, vec![])
+        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("readback-lead"), Decision::Approved, vec![], None)
         .unwrap();
     let root_titles: Vec<String> = svc
         .store()
@@ -752,7 +752,7 @@ fn readback_docx_dark_bid_scrubbed_and_structure_intact() {
     use bid_domain::review::{Decision, Gate};
     fx.svc
         .store_mut()
-        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("readback-lead"), Decision::Approved, vec![])
+        .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("readback-lead"), Decision::Approved, vec![], None)
         .unwrap();
     let r = ok_result(call(
         &mut fx.svc,

@@ -11,6 +11,7 @@
 - **错误码**：`E_AUTH` / `E_NOTFOUND` / `E_STATE`（状态机拒绝越级或非法转换）/ `E_CONFLICT`（project_version 过期）/ `E_PARTIAL`（部分条目失败，附 item_errors）/ `E_UNPROCESSABLE`（解析不可恢复）/ `E_DRAFT_INCOMPLETE`（#243——全稿最终校验前置拒：起草未完成，附 `missing` 叶清单，零副作用）/ `E_RATE` / `E_INTERNAL`。
 - **行协议信封（#279）**：stdio 裸 JSON 路径（`bid-mcp-stdio` / `dispatch_json`）每行一个 `{"tool":"...","args":{...}}`。参数放**顶层**（`{"tool":..,"name":..}`）时历史行为是 serde 静默吞掉 + 工具层报误导性的「字段缺失」（#269 六场 11 次失败调用）；#279 起顶层出现该工具已知参数名 → 直接报**信封结构错误**：`ToolCall 解析失败：参数须嵌套在 "args" 下（收到顶层字段 name、bid_deadline，未见 args）`。未知顶层字段不触发（不越权猜测，维持工具层原语义）。
 - **project_version 乐观并发（#279 第 3 项）**：写工具接受三种形态——① 非负整数：强一致 CAS，过期 `E_CONFLICT`（报错带对齐建议，不变）；② 字符串 `"latest"`：显式声明「我确认无并发」，跳过检查（单代理顺序作业不必追踪版本号）；③ 缺省/null：内部步骤语义，跳过检查（现状不变）。非法字符串 → `E_UNPROCESSABLE`（文案指明合法形态）。
+- **agent 声明过门（#277 方案 A——用户裁定「ai可以操控这个过去但是留痕」）**：审核门（record_review_gate / record_addendum_waiver）双路验签——人类签域（#182 现状）+ agent 签域（scope 带 `:agent` 后缀 + actor_type=agent，agent 持钥自签声明）。通道开关 = 工作区配置 `<ws>/.mang/config.json` 的 `require_human_receipt`（缺省 **true** 严格模式——Q1 裁定：保守，自动化跑批显式写 false）。放行面：GatePassRecord 审计账（GP-xxxx，append-only——谁/什么身份/什么方法/何时/为什么，reason 必填非空）+ 导出警告横幅（Q3 措辞）+ 响应面 `agent_waivers`/`human_review_complete` + 事后人工追认（重过门追加 human 条，最新条定警告，两账可追溯）。防线不弱化：混用签域双向拒（NOT_AGENT_ACTOR / NOT_HUMAN_ACTOR——scope 进 MAC）；System 恒拒。
 - **幂等策略**：写操作接受 `idempotency_key`；同一 key 重复调用返回首次结果（不重复执行）。文件按 `sha256` 天然幂等；条款抽取按 `dedupe_hash` 幂等合并。
 - **大结果分页（S-4，V3-5）**：列表类工具（get_compliance_matrix / list_evidence / list_tasks，及 M2-b 的 search_evidence）不得一次返回全量（12,000 行矩阵 / 10,000 条证据量级）——统一游标信封：
   `in : { project_id, filters:{...}, cursor?, limit?, page?(仅矩阵兼容) }`；
@@ -329,11 +330,19 @@ in : { project_id, format:"docx"|"pdf", output_path(必填——产物路径，�
        · 版面适配：宽超内容区 6 英寸等比缩放（A4 安全面）
      - 标题行：# / ## … → 剥号加粗段（不再字面输出井号）
 out: { artifact:{url, sha256, size}, content_version_snapshot, precheck:{blockers:0, waived:[VF-*]},
-       tables_written, table_kinds:[...], forms_written, form_titles:[...], warnings[] }
+       tables_written, table_kinds:[...], forms_written, form_titles:[...],
+       agent_waivers:[{ gate, actor, actor_type, method, human_confirmed, at, reason }](#277),
+       human_review_complete(bool)(#277), warnings[] }
      ← #117/#122 导出面对账：六表/七件全部进 docx，逐张点名（tables_written
        == 6 且 table_kinds 逐类在座；forms_written == 7）。e2e 不信任工具
        返回值——解包 docx 数节验：`<w:tbl>`==6、七件关键词、表行数下限、
        红run 数、合计一致、零 markdown 星号（#129 深断言，12_export-check.json）。
+横幅: （#277 方案 A）存在 agent 声明过门（每门最新一条 human_confirmed=false）
+       → 产物正文首页（TOC 后）插红色粗体警告段：「【警告】本标书的部分
+       审核门由 AI 声明通过，未经人工复核（门：…）」（Q3 措辞）+ warnings
+       携带同一事实 + 响应面 machine-readable 清单。真人补 human receipt
+       重过对应门后（追认，导出**前**——EXPORTED 是审核门终态）最新一条翻
+       human → 横幅消失、human_review_complete=true，审计账两条并存可追溯。
 六表: （#117 三真源 + #122 接线）①项目概况表（恒生成——REQ 参数+项目面，
       缺栏落【待填】）；②技术参数偏离表（有「技术参数」类 REQ 才生成——
       参数响应账 set_param_responses；负偏离★整行标红 5 格；无技术参数
@@ -632,28 +641,40 @@ bid_open_date 语义（#80 第三批外部 Agent 实测摩擦 #5）：证据有�
       换版升级同样依赖）。EXPORTED 终态仍拒——终态不改数据不变量。）
 ```
 
-## 12. record_review_gate（#80 第三批 · G3；#131 增第四门；#182 receipt 验签）
+## 12. record_review_gate（#80 第三批 · G3；#131 增第四门；#182 receipt 验签；#277 agent 声明面）
 
 ```
 in : { project_id, gate(matrix_approval|outline_approval|pre_export_confirm|addendum_waiver),
        decision(APPROVED|REJECTED),
-       receipt(#182——宿主签发的审批回执：v1.<actor>.human.<scope>.<issued_at>.<hmac>，
-               scope=review_gate:{gate} 门级绑定；旧 reviewer 参数显式拒——Agent
-               不得自述身份，防「以为过了人工门」的假成功),
+       receipt(#182 人类签域：v1.<actor>.human.review_gate:{gate}.<ts>.<hmac>；
+               #277 agent 签域：v1.<actor>.agent.review_gate:{gate}:agent.<ts>.<hmac>
+               ——agent 持钥自签声明，须工作区 require_human_receipt=false；
+               旧 reviewer 参数显式拒——Agent 不得自述身份),
+       reason?(#277——agent 签域路径必填非空：为什么可以过这个门；human 路径可空),
        findings?:[{ severity(BLOCKER|WARNING|INFO), code, message, section_id? }],
        project_version }
-out: { receipt:{ review_id, gate, decision, reviewer(legacy 回显——human:{actor_id} 派生),
+out: { receipt:{ review_id, gate, decision, reviewer(legacy 回显——human/agent:{actor_id} 随身份),
        finding_ids, spawned_rt_ids,
-       reviewed_content_digest(#180——本次记审绑定的章节树内容摘要；幂等重放时为既有记录的摘要) },
-       actor:{ actor_id, actor_type:"human", authentication_method:"hmac_receipt_v1" }
-       (#182 可信身份回显), gates_approved:[...], status, project_version }
-语义: #182 复审人门升级为 receipt 验签（服务层 HMAC-SHA256 是 MCP 面唯一入口
-      ——宿主持钥签发、24h 时效窗、scope 门级绑定、常量时间比对；域层再拦
-      actor_type≠Human 的纵深——borrow mdcore ReviewPolicy：AI 操作者不得
-      自审自过）、状态门
-      （窗口外拒收——矩阵/大纲门 VALIDATING+ 不再受理）、门序（矩阵先于大纲；
-      pre_export 要求前两门 Approved）全在域层 record_review 裁决——壳层零重实现。
-      gates_approved 与域层 gate_approved 同一真源。
+       reviewed_content_digest(#180——本次记审绑定的章节树内容摘要；幂等重放时为既有记录的摘要),
+       method(#277——human_receipt | agent_declared),
+       human_confirmed(#277——agent 声明面 false) },
+       actor:{ actor_id, actor_type, authentication_method }
+       (#182 可信身份回显), gates_approved:[...],
+       agent_waivers:[{ gate, actor, actor_type, method, human_confirmed, at, reason }](#277),
+       human_review_complete(bool)(#277), status, project_version }
+语义: #182 复审人门 receipt 验签（服务层 HMAC-SHA256 是 MCP 面唯一入口
+      ——宿主持钥签发、24h 时效窗、scope 门级绑定、常量时间比对）；
+      #277 方案 A（用户裁定：「我同意A，ai可以操控这个过去但是留痕」）：
+      双路验签——先验人类签域（现状不变），不过再验 agent 签域
+      （:agent 后缀 + actor_type=agent）：通过且工作区
+      require_human_receipt=false → agent 声明过门（GatePassRecord 审计账
+      GP-xxxx：谁/什么身份/什么方法/何时/为什么——append-only 追认不覆盖；
+      导出带警告）；严格模式（默认 true）→ 拒并指路配置。混用签域双向拒
+      （Human 用 agent 签域 → NOT_AGENT_ACTOR；Agent 用人类签域 →
+      NOT_HUMAN_ACTOR——scope 进 MAC，交叉必 BadSignature）。幂等区分族：
+      human 只对 human 记录幂等（agent 过的门真人补签 = 追认落新记录）；
+      agent 对同 actor 同摘要幂等（重试不刷账）、换 agent 落新记录（可统计）。
+      状态门/门序全在域层 record_review 裁决——壳层零重实现。
 三门: 导出门序链（matrix → outline → pre_export——export_allowed 逐门校验）。
 第四门 addendum_waiver（#131）：L3「无补遗阻塞」的人工出口——单件招标
       文件（无补遗件）起草会被 MissingAddendum 拒；Approved = 人工确认本项目
@@ -814,24 +835,30 @@ out: { project_id, diagnostic_only(true), result_kind("rule_heuristic"),
 错误: E_UNPROCESSABLE（价格口径非法）；E_STATE（无章节树）
 ```
 
-## 16. record_addendum_waiver（#184 补遗分级阻塞的逐件人工确认）
+## 16. record_addendum_waiver（#184 补遗分级阻塞的逐件人工确认；#277 agent 声明面）
 
 > 背景：#184 前旧判定「3 份补遗坏 1 份不拦工作流」（只有**全部**失败才阻塞），
 > 且 OcrRequired 一律放行——零文本扫描件被当「没有内容」处理。翻案理由：
 > **不知道 ≠ 没有**——坏的那份可能正是改控制价/截止时间的，按旧条款做标是
 > 不可逆的废标；工作流被拦是可修复的摩擦（修复重传 / 逐件确认），且「放行」
 > 本身也要变成留底的可审计行为，而非静默赌概率。
+> #269 六场实证：单件招标（无补遗件）常态踩 MissingAddendum 门，纯 Agent 无
+> 宿主签发面 → 设计内死锁（P5 全断的成因之一）；#277 方案 A 补 agent 声明面。
 
 ```
 in : { project_id, file_id(TF-*——须真实存在，import 响应/拒稿理由中的
        addendum_readiness.not_ready[].file_id),
-       reason(非空白——不可审计的确认不成确认),
-       receipt(#182——宿主签发的审批回执，scope=addendum_waiver:{file_id} 件级
-       绑定——TF-0003 的 receipt 免不了 TF-0004；旧 principal 参数显式拒),
+       reason(非空白——不可审计的确认不成确认；#277 agent 路径同构必填),
+       receipt(#182 人类签域：scope=addendum_waiver:{file_id} 件级绑定
+       ——TF-0003 的 receipt 免不了 TF-0004；#277 agent 签域：
+       addendum_waiver:{file_id}:agent + actor_type=agent——须工作区
+       require_human_receipt=false；旧 principal 参数显式拒),
        project_version }
 out: { recorded:{ file_id, reason, at(unix epoch 秒),
-       principal(legacy 回显——human:{actor_id} 派生),
-       actor:{ actor_id, actor_type:"human", authentication_method:"hmac_receipt_v1" } },
+       principal(legacy 回显——human/agent:{actor_id} 随身份),
+       actor:{ actor_id, actor_type, authentication_method },
+       method(#277——human_receipt | agent_declared),
+       human_confirmed(#277——agent 声明面 false) },
        addendum_waivers:[{file_id, reason, at, principal}…全部确认记录——
        追加式审计日志：同件重复确认追加不覆盖，解除不走本面],
        addendum_readiness:{ total, ready, not_ready:[{file_id, name, readiness,

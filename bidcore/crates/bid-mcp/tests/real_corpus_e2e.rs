@@ -511,6 +511,7 @@ fn real_corpus_full_chain() {
                 &bid_domain::TrustedPrincipal::human("real-corpus-lead"),
                 Decision::Approved,
                 vec![],
+                None,
             )
             .unwrap();
         // 两道前置主门（#180 审核内容绑定：矩阵/大纲批的是响应面与结构面，
@@ -518,7 +519,7 @@ fn real_corpus_full_chain() {
         // 起草完成后记审——见 ⑨ 前，与人类流程同序：审核定稿内容）
         for gate in [Gate::MatrixApproval, Gate::OutlineApproval] {
             svc.store_mut()
-                .record_review(gate, &bid_domain::TrustedPrincipal::human("real-corpus-lead"), Decision::Approved, vec![])
+                .record_review(gate, &bid_domain::TrustedPrincipal::human("real-corpus-lead"), Decision::Approved, vec![], None)
                 .unwrap();
         }
         let mut total_words = 0u64;
@@ -639,7 +640,7 @@ fn real_corpus_full_chain() {
         // ---------------- ⑧' PreExportConfirm 记审（#180：定稿内容过门——
         //      全部叶起草完成后、导出前，绑定的才是将进产物的正文摘要）
         svc.store_mut()
-            .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("real-corpus-lead"), Decision::Approved, vec![])
+            .record_review(Gate::PreExportConfirm, &bid_domain::TrustedPrincipal::human("real-corpus-lead"), Decision::Approved, vec![], None)
             .unwrap();
 
         // ---------------- ⑨ 导出（报价决策随导出——六表七件接线）

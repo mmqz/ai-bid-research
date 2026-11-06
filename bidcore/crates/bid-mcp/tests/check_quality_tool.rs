@@ -103,7 +103,7 @@ fn svc_drafted(tag: &str, ws: Option<&std::path::Path>) -> (BidService, String, 
     // 确认无补遗（本套件面在质量工具契约，不在 L3 阻塞语义）。
     use bid_domain::review::{Decision, Gate};
     svc.store_mut()
-        .record_review(Gate::AddendumWaiver, &bid_domain::TrustedPrincipal::human("quality-tool-test"), Decision::Approved, vec![])
+        .record_review(Gate::AddendumWaiver, &bid_domain::TrustedPrincipal::human("quality-tool-test"), Decision::Approved, vec![], None)
         .unwrap();
     let parents: std::collections::HashSet<&str> = svc.store().sections().iter()
         .filter_map(|n| n.parent_id.as_deref()).collect();

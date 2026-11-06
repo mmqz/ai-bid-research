@@ -90,19 +90,32 @@ impl ActorType {
 /// 1. [`verify_approval_receipt`] 验签通过（服务层——MCP 面的唯一入口）；
 /// 2. 宿主签发面直接构造（真人刚确认、receipt 即将发出的时点）。
 ///
-/// 域层（record_review / record_addendum_waiver）只校验 `actor_type == Human`
-/// （纵深防御）；真正的身份保证在服务层 HMAC 验签——域层零密钥零时钟，
-/// 不重复实现验签（单一真源）。
+/// 域层（record_review / record_addendum_waiver）只校验身份/签域匹配
+/// （#277 方案 A 的 `(actor_type, scope_is_agent)` 二元组——纵深防御）；
+/// 真正的身份保证在服务层 HMAC 验签——域层零密钥零时钟，不重复实现验签
+/// （单一真源）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TrustedPrincipal {
-    /// 操作者 id（如 "admin"、"import-lead"——宿主侧的身份命名）。
+    /// 操作者 id（如 "admin"、"import-lead"——宿主侧的身份命名；agent 面
+    /// 如 "agent-01"——调用方自述，无全局唯一性保证，审计面只保证
+    /// actor_type 真实——#277 agent 过门不冒充 Human 的结构面）。
     pub actor_id: String,
-    /// 操作者类别（过审面只认 Human）。
+    /// 操作者类别（human 过审面 + #277 agent 声明过门面）。
     pub actor_type: ActorType,
     /// 认证方式（"hmac_receipt_v1"——审计面回显）。
     pub authentication_method: String,
     /// 完整 receipt 串（审计留痕——回溯时可复验）。
     pub approval_receipt: String,
+    /// #277 方案 A：验签时所用签域族——`false` = 人类签域
+    /// （`review_gate:{gate}` / `addendum_waiver:{file_id}`，
+    /// [`verify_approval_receipt`] 验出），`true` = agent 签域
+    /// （`…:agent` 后缀，[`verify_agent_receipt`] 验出）。
+    /// **由验签函数按所验 scope 派生，不是调用方可声明面**——身份不冒充
+    /// 的结构保证：域层 match `(actor_type, scope_is_agent)`，混用签域拒绝。
+    /// `#[serde(default)]` 加性迁移（#147 先例）：旧快照验签都是人类签域
+    /// → false，行为不变（验收 8）。
+    #[serde(default)]
+    pub scope_is_agent: bool,
 }
 
 impl TrustedPrincipal {
@@ -115,6 +128,21 @@ impl TrustedPrincipal {
             actor_type: ActorType::Human,
             authentication_method: AUTH_METHOD_HMAC_RECEIPT.to_string(),
             approval_receipt: String::new(),
+            scope_is_agent: false,
+        }
+    }
+
+    /// #277 方案 A：Agent 声明面便捷构造（域层单测用——生产面的 agent
+    /// 身份只能来自 [`verify_agent_receipt`] 验签，本构造不自带身份保证；
+    /// 与 [`Self::human`] 对偶）。`scope_is_agent: true`——域层二元组
+    /// match 的 agent 侧入参。
+    pub fn agent(actor_id: &str) -> Self {
+        Self {
+            actor_id: actor_id.to_string(),
+            actor_type: ActorType::Agent,
+            authentication_method: AUTH_METHOD_HMAC_RECEIPT.to_string(),
+            approval_receipt: String::new(),
+            scope_is_agent: true,
         }
     }
 }
@@ -129,8 +157,11 @@ pub enum ReceiptError {
     BadSignature,
     /// 已过期（issued_at 早于 now-24h——陈旧重放）。
     Expired,
-    /// 非 Human 身份（Agent/System 的 receipt 不用于过审面）。
+    /// 非 Human 身份（人类签域验签面只认 Human——#182 现状口径）。
     NotHuman,
+    /// #277 方案 A：agent 签域验签面只认 Agent（Human 用 agent 签域 /
+    /// System 身份 → 拒——签域与身份不匹配的明确分类）。
+    NotAgent,
     /// 时间超前（issued_at > now+60s 容差——未来签发）。
     FutureDated,
 }
@@ -143,6 +174,7 @@ impl ReceiptError {
             ReceiptError::BadSignature => "BAD_SIGNATURE",
             ReceiptError::Expired => "EXPIRED_RECEIPT",
             ReceiptError::NotHuman => "NOT_HUMAN_ACTOR",
+            ReceiptError::NotAgent => "NOT_AGENT_ACTOR",
             ReceiptError::FutureDated => "FUTURE_DATED_RECEIPT",
         }
     }
@@ -154,7 +186,8 @@ impl fmt::Display for ReceiptError {
             ReceiptError::Malformed => "receipt 结构非法（须 v1.<actor_id>.<actor_type>.<scope>.<issued_at>.<hex_hmac> 六段）",
             ReceiptError::BadSignature => "receipt 验签失败（HMAC 不符或签域 scope 不匹配——非本密钥对本用途签发）",
             ReceiptError::Expired => "receipt 已过期（issued_at 超出 24h 有效窗——陈旧重放）",
-            ReceiptError::NotHuman => "receipt 非 Human 身份（Agent/System 不得过人工审核面）",
+            ReceiptError::NotHuman => "receipt 非 Human 身份（人类签域只认真人——Agent 声明过门走 :agent 签域，见 #277 方案 A）",
+            ReceiptError::NotAgent => "receipt 非 Agent 身份（agent 签域只认 Agent——Human 不得用 agent 签域，Agent 不得用人类签域，签域与身份必须匹配）",
             ReceiptError::FutureDated => "receipt 签发时间超前（issued_at 超出 now+60s 容差）",
         };
         f.write_str(s)
@@ -285,6 +318,83 @@ pub fn verify_approval_receipt(
         actor_type,
         authentication_method: AUTH_METHOD_HMAC_RECEIPT.to_string(),
         approval_receipt: receipt.to_string(),
+        scope_is_agent: false,
+    })
+}
+
+/// #277 方案 A：agent 签域验签面——receipt 的 actor_type 必须 Agent 且
+/// scope 为 agent 签域（`…:agent` 后缀，由调用方传入——服务层构造）。
+///
+/// 与 [`verify_approval_receipt`] 对偶：身份/签域一致性由验签函数结构保证
+/// （Agent 只能从本函数验出，`scope_is_agent` 恒 true）——域层
+/// `(actor_type, scope_is_agent)` match 的 agent 侧只能从这里构造。
+/// **验签通过 ≠ 放行**：`require_human_receipt` 工作区配置（默认 true，
+/// 严格模式）在服务层裁决——本函数只证明「receipt 是本密钥对 agent 签域
+/// 签发的」，不证明「agent 被允许过门」。
+///
+/// 裁决序与人类面同构：六段解析 → actor 门（只认 Agent）→ 时效窗 →
+/// 签域绑定 + HMAC 常量时间比对。
+pub fn verify_agent_receipt(
+    receipt: &str,
+    key: &[u8; 32],
+    agent_scope: &str,
+    now: u64,
+) -> Result<TrustedPrincipal, ReceiptError> {
+    let parts: Vec<&str> = receipt.split('.').collect();
+    if parts.len() != 6 {
+        return Err(ReceiptError::Malformed);
+    }
+    let [version, actor_id, actor_type_s, receipt_scope, issued_at_s, mac_hex] =
+        [parts[0], parts[1], parts[2], parts[3], parts[4], parts[5]];
+    if version != RECEIPT_VERSION {
+        return Err(ReceiptError::Malformed);
+    }
+    if actor_id.is_empty() || receipt_scope.is_empty() {
+        return Err(ReceiptError::Malformed);
+    }
+    let actor_type =
+        ActorType::from_str(actor_type_s).ok_or(ReceiptError::Malformed)?;
+    let issued_at: u64 = issued_at_s
+        .parse()
+        .map_err(|_| ReceiptError::Malformed)?;
+
+    // ---- agent 签域只认 Agent（Human 用 agent 签域 → 拒；System 同拒）
+    if actor_type != ActorType::Agent {
+        return Err(ReceiptError::NotAgent);
+    }
+
+    // ---- 时效窗（与人类面同参数——agent 声明同样怕陈旧重放）
+    if issued_at > now.saturating_add(RECEIPT_FUTURE_TOLERANCE_SECS) {
+        return Err(ReceiptError::FutureDated);
+    }
+    if now.saturating_sub(issued_at) > RECEIPT_TTL_SECS {
+        return Err(ReceiptError::Expired);
+    }
+
+    // ---- 签域绑定 + HMAC 常量时间比对（scope 进 MAC 输入——人类签域的
+    //      receipt 在这里自然 BadSignature，无需特判）
+    if receipt_scope != agent_scope {
+        return Err(ReceiptError::BadSignature);
+    }
+    let presented = hex::decode(mac_hex).map_err(|_| ReceiptError::Malformed)?;
+    if presented.len() != 32 {
+        return Err(ReceiptError::Malformed);
+    }
+    let expected = hmac_sha256(
+        key,
+        format!("{RECEIPT_VERSION}|{actor_id}|{actor_type_s}|{receipt_scope}|{issued_at_s}")
+            .as_bytes(),
+    );
+    if !ct_eq(&presented, &expected) {
+        return Err(ReceiptError::BadSignature);
+    }
+
+    Ok(TrustedPrincipal {
+        actor_id: actor_id.to_string(),
+        actor_type,
+        authentication_method: AUTH_METHOD_HMAC_RECEIPT.to_string(),
+        approval_receipt: receipt.to_string(),
+        scope_is_agent: true,
     })
 }
 
@@ -443,5 +553,87 @@ mod tests {
     #[should_panic(expected = "scope")]
     fn issue_panics_on_structural_scope() {
         issue_approval_receipt(&TEST_KEY, "zhang", "a.b", 0);
+    }
+
+    // ------------------------------------------------------------ #277 方案 A
+
+    const AGENT_SCOPE: &str = "review_gate:pre_export_confirm:agent";
+
+    #[test]
+    fn agent_receipt_roundtrip_yields_agent_principal() {
+        let now = 1_800_000_000u64;
+        let r = issue_approval_receipt_as(&TEST_KEY, "agent-01", ActorType::Agent, AGENT_SCOPE, now);
+        let p = verify_agent_receipt(&r, &TEST_KEY, AGENT_SCOPE, now).unwrap();
+        assert_eq!(p.actor_id, "agent-01");
+        assert_eq!(p.actor_type, ActorType::Agent);
+        assert!(p.scope_is_agent, "agent 签域验出 → scope_is_agent=true");
+    }
+
+    #[test]
+    fn human_receipt_on_agent_scope_is_not_agent() {
+        // 验收 3：Human 用 agent 签域 → 拒（防止混淆）
+        let now = 1_800_000_000u64;
+        let r = issue_approval_receipt_as(&TEST_KEY, "admin", ActorType::Human, AGENT_SCOPE, now);
+        assert_eq!(
+            verify_agent_receipt(&r, &TEST_KEY, AGENT_SCOPE, now),
+            Err(ReceiptError::NotAgent)
+        );
+    }
+
+    #[test]
+    fn agent_receipt_on_human_scope_is_not_human() {
+        // 对偶面：Agent 用人类签域 → 人类验签面拒（NotHuman）；agent 验签面
+        // 对该门的 agent 签域（{SCOPE}:agent，服务层构造口径）→ BadSignature
+        // （receipt 的 scope 段进 MAC，天然不符）
+        let now = 1_800_000_000u64;
+        let r = issue_approval_receipt_as(&TEST_KEY, "agent-01", ActorType::Agent, SCOPE, now);
+        assert_eq!(verify(&r, now), Err(ReceiptError::NotHuman));
+        let gate_agent_scope = format!("{SCOPE}:agent");
+        assert_eq!(
+            verify_agent_receipt(&r, &TEST_KEY, &gate_agent_scope, now),
+            Err(ReceiptError::BadSignature),
+            "agent receipt（人类签域签发）对该门 agent 签域：scope 段进 MAC → BadSignature"
+        );
+    }
+
+    #[test]
+    fn agent_receipt_gate_binding_and_tamper() {
+        let now = 1_800_000_000u64;
+        // 签域绑定：A 门 agent receipt 过不了 B 门
+        let other = "review_gate:matrix_approval:agent";
+        let r = issue_approval_receipt_as(&TEST_KEY, "agent-01", ActorType::Agent, other, now);
+        assert_eq!(
+            verify_agent_receipt(&r, &TEST_KEY, AGENT_SCOPE, now),
+            Err(ReceiptError::BadSignature)
+        );
+        // 篡改末段 → BadSignature
+        let mut chars = r.chars().collect::<Vec<_>>();
+        let last = chars.last_mut().unwrap();
+        *last = if *last == 'a' { 'b' } else { 'a' };
+        let tampered: String = chars.into_iter().collect();
+        assert_eq!(
+            verify_agent_receipt(&tampered, &TEST_KEY, other, now),
+            Err(ReceiptError::BadSignature)
+        );
+        // 时效窗：越 24h → Expired
+        let stale = issue_approval_receipt_as(&TEST_KEY, "agent-01", ActorType::Agent, other, now);
+        assert_eq!(
+            verify_agent_receipt(&stale, &TEST_KEY, other, now + RECEIPT_TTL_SECS + 1),
+            Err(ReceiptError::Expired)
+        );
+    }
+
+    #[test]
+    fn agent_convenience_constructor_flags_scope() {
+        let p = TrustedPrincipal::agent("bot-9");
+        assert_eq!(p.actor_type, ActorType::Agent);
+        assert!(p.scope_is_agent);
+        // 旧快照反序列化（验收 8）：无 scope_is_agent 字段的 JSON → false
+        let legacy = serde_json::json!({
+            "actor_id": "admin", "actor_type": "HUMAN",
+            "authentication_method": "hmac_receipt_v1", "approval_receipt": "v1..."
+        });
+        let p2: TrustedPrincipal = serde_json::from_value(legacy).unwrap();
+        assert!(!p2.scope_is_agent, "旧快照缺省 false（人类签域口径）");
     }
 }

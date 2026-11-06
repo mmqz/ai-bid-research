@@ -113,7 +113,7 @@ fn svc_with_outline(tag: &str) -> (BidService, String, Vec<String>) {
     // MissingAddendum 拒；本套件面在摘要字段，不在 L3 阻塞语义）
     use bid_domain::review::{Decision, Gate};
     svc.store_mut()
-        .record_review(Gate::AddendumWaiver, &bid_domain::TrustedPrincipal::human("quality-summary-test"), Decision::Approved, vec![])
+        .record_review(Gate::AddendumWaiver, &bid_domain::TrustedPrincipal::human("quality-summary-test"), Decision::Approved, vec![], None)
         .unwrap();
 
     let parents: std::collections::HashSet<String> = svc.store().sections().iter()

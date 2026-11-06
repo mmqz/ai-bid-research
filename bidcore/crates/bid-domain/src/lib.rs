@@ -485,6 +485,9 @@ pub struct DomainStore {
     reviews: Vec<review::ReviewRecord>,
     /// T-7 修订工单（RT-xxxx——BLOCKER 的关单面；全 DONE 才可导出）
     revision_tasks: Vec<review::RevisionTask>,
+    /// #277 方案 A：过门审计账（GP-xxxx——append-only；谁/什么身份/什么
+    /// 方法/何时/为什么过门；追认不覆盖，导出警告看每门最新一条）
+    gate_passes: Vec<review::GatePassRecord>,
     /// #184 补遗逐件人工确认（非 Ready 件的人工放行账——追加式审计日志）
     addendum_waivers: Vec<AddendumWaiverRecord>,
     /// #188 文件业务角色（内容身份 sha256 唯一，角色可多——追加不覆盖；
@@ -530,6 +533,7 @@ impl DomainStore {
             findings: vec![],
             reviews: vec![],
             revision_tasks: vec![],
+            gate_passes: vec![],
             addendum_waivers: vec![],
             file_roles: vec![],
             block_marks: HashMap::new(),
@@ -857,16 +861,20 @@ impl DomainStore {
     ///
     /// 裁决序（全部前置校验通过才落账——拒绝路径零副作用）：
     /// 1. project 在场（记录挂在项目下）；
-    /// 2. `principal` 须 Human 身份（#182——服务层验签是 MCP 面的唯一入口，
-    ///    域层再拦一次 actor_type 是纵深防御：即使壳层漏验，域层也不放
-    ///    Agent/System 过「带病放行」的免责面）；
-    /// 3. `reason` 非空白（不可审计的确认不成确认）；
+    /// 2. `principal` 身份/签域匹配（#182/#277——服务层验签是 MCP 面的
+    ///    唯一入口，域层拦 `(actor_type, scope_is_agent)` 二元组是纵深
+    ///    防御：Human 走人类签域（现状不变），Agent 走 :agent 签域
+    ///    （#277 声明过门——服务层 require_human_receipt 已先裁）；
+    /// 3. `reason` 非空白（不可审计的确认不成确认——human 与 agent 路径
+    ///    同构：agent 声明过门的理由就是这里的事由）；
     /// 4. `file_id` 必须存在于 files（对不存在的件做确认 = 凭空免责）。
     ///
     /// 落账：追加 `AddendumWaiverRecord`（同件重复确认追加不覆盖——审计
-    /// 日志语义）+ content_version + 1（与 record_review 的「写账即版本」
-    /// 同口径）。不设状态门：与 Gate::AddendumWaiver 同窗口语义——
-    /// 导入后任意时刻可确认（阻塞可能出现在任何后续阶段）。
+    /// 日志语义）+ `GatePassRecord`（#277 审计账——agent 声明面
+    /// human_confirmed=false，导出警告判据）+ content_version + 1（与
+    /// record_review 的「写账即版本」同口径）。不设状态门：与
+    /// Gate::AddendumWaiver 同窗口语义——导入后任意时刻可确认（阻塞可能
+    /// 出现在任何后续阶段）。
     pub fn record_addendum_waiver(
         &mut self,
         file_id: &str,
@@ -874,18 +882,39 @@ impl DomainStore {
         principal: &TrustedPrincipal,
     ) -> Result<AddendumWaiverRecord, ToolError> {
         self.project()?;
-        if principal.actor_type != ActorType::Human {
-            return Err(ToolError::EUnprocessable {
-                reason: format!(
-                    "确认人 {:?} 是 {} 身份（#182：确认面只认 Human——Agent/System 不得自审自过，「带病放行」的免责面没有理由放宽）",
-                    principal.actor_id,
-                    principal.actor_type.as_str()
-                ),
-            });
-        }
+        // #277 方案 A：与 record_review 同款二元组（Human×人类签域 /
+        // Agent×agent 签域；混用拒）——服务层 require_human_receipt 已先裁。
+        let is_agent_pass = match (principal.actor_type, principal.scope_is_agent) {
+            (ActorType::Human, false) => false,
+            (ActorType::Agent, true) => true,
+            (ActorType::System, _) => {
+                return Err(ToolError::EUnprocessable {
+                    reason: format!(
+                        "确认人 {:?} 是 system 身份（过门面不收 System）",
+                        principal.actor_id
+                    ),
+                });
+            }
+            (ActorType::Human, true) => {
+                return Err(ToolError::EUnprocessable {
+                    reason: format!(
+                        "确认人 {:?} 是 Human 身份但携带 agent 签域（签域与身份不匹配）",
+                        principal.actor_id
+                    ),
+                });
+            }
+            (ActorType::Agent, false) => {
+                return Err(ToolError::EUnprocessable {
+                    reason: format!(
+                        "确认人 {:?} 是 agent 身份但未携带 agent 签域（Agent 不得用人类签域冒充真人——agent 声明过门走 :agent 签域，require_human_receipt=false 工作区才放行，见 #277）",
+                        principal.actor_id
+                    ),
+                });
+            }
+        };
         if reason.trim().is_empty() {
             return Err(ToolError::EUnprocessable {
-                reason: "确认理由不得为空白（不可审计的确认不成确认）".into(),
+                reason: "确认理由不得为空白（不可审计的确认不成确认——agent 声明过门同构：必须说明为什么可以过这个门）".into(),
             });
         }
         if !self.files.iter().any(|f| f.id == file_id) {
@@ -897,13 +926,18 @@ impl DomainStore {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
+        // legacy 回显面从可信身份派生（human:{actor_id} / agent:{actor_id}）
+        // ——不另造第二套人设体系
+        let principal_echo = if is_agent_pass {
+            format!("agent:{}", principal.actor_id)
+        } else {
+            format!("human:{}", principal.actor_id)
+        };
         let rec = AddendumWaiverRecord {
             file_id: file_id.to_string(),
             reason: reason.trim().to_string(),
             at,
-            // #182：legacy 回显面从可信身份派生（human:{actor_id}）——
-            // 不另造第二套人设体系
-            principal: format!("human:{}", principal.actor_id),
+            principal: principal_echo.clone(),
             trusted: Some(principal.clone()),
         };
         self.addendum_waivers.push(rec.clone());
@@ -926,14 +960,31 @@ impl DomainStore {
         self.reviews.push(review::ReviewRecord {
             id: review_id,
             gate: review::Gate::AddendumWaiver,
-            // legacy 回显面同款派生（record_review 口径——human:{actor_id}）
-            reviewer: format!("{}{}", review::HUMAN_PREFIX, principal.actor_id),
+            // legacy 回显面同款派生（record_review 口径——human/agent 前缀随身份）
+            reviewer: principal_echo,
             principal: Some(principal.clone()),
             decision: review::Decision::Approved,
             findings: Vec::new(),
             at,
             reviewed_content_version,
             reviewed_content_digest,
+        });
+        // #277 方案 A：补遗门过门同步落审计账（与 record_review 的
+        // GatePassRecord 同构——导出警告判据 = 本门最新一条 human_confirmed）
+        let gp_id = self.next_id("GP");
+        self.gate_passes.push(review::GatePassRecord {
+            id: gp_id,
+            gate: review::Gate::AddendumWaiver,
+            actor_id: principal.actor_id.clone(),
+            actor_type: principal.actor_type,
+            method: if is_agent_pass {
+                review::METHOD_AGENT_DECLARED.to_string()
+            } else {
+                review::METHOD_HUMAN_RECEIPT.to_string()
+            },
+            human_confirmed: !is_agent_pass,
+            at,
+            reason: reason.trim().to_string(),
         });
         if let Some(p) = self.project.as_mut() {
             p.content_version += 1;
@@ -1203,6 +1254,11 @@ pub struct StoreSnapshot {
     pub reviews: Vec<review::ReviewRecord>,
     #[serde(default)]
     pub revision_tasks: Vec<review::RevisionTask>,
+    /// #277 方案 A：过门审计账（加性迁移——旧快照无此字段 → 空集合加载：
+    /// 无过门记录 = human_review_complete=true（无从警告），行为与旧版一致；
+    /// schema_version 不 bump，见 StoreSnapshot 头注释的加性演进纪律）
+    #[serde(default)]
+    pub gate_passes: Vec<review::GatePassRecord>,
     /// #184 补遗逐件人工确认（加性迁移——旧快照无此字段 → 空集合加载；
     /// schema_version 不 bump，见 StoreSnapshot 头注释的加性演进纪律）
     #[serde(default)]
@@ -1255,6 +1311,7 @@ impl DomainStore {
             findings: self.findings.clone(),
             reviews: self.reviews.clone(),
             revision_tasks: self.revision_tasks.clone(),
+            gate_passes: self.gate_passes.clone(),
             addendum_waivers: self.addendum_waivers.clone(),
             file_roles: self.file_roles.clone(),
             // HashMap → BTreeMap（与 idempotency 同纪律：持久化 DTO 要字节一致）
@@ -1618,6 +1675,7 @@ impl DomainStore {
             findings: snap.findings,
             reviews: snap.reviews,
             revision_tasks: snap.revision_tasks,
+            gate_passes: snap.gate_passes,
             addendum_waivers: snap.addendum_waivers,
             file_roles: snap.file_roles,
             block_marks: snap.block_marks.into_iter().collect(),
@@ -1866,6 +1924,7 @@ mod tests {
             actor_type: ActorType::Agent,
             authentication_method: "hmac_receipt_v1".into(),
             approval_receipt: String::new(),
+            scope_is_agent: false,
         };
         assert!(matches!(
             s.record_addendum_waiver(&fid, "r", &agent),

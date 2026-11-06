@@ -539,7 +539,8 @@ fn input_schema(name: &str) -> Value {
                 "project_id": pid,
                 "gate": {"type": "string", "enum": ["matrix_approval", "outline_approval", "pre_export_confirm", "addendum_waiver"]},
                 "decision": {"type": "string", "enum": ["APPROVED", "REJECTED"]},
-                "receipt": {"type": "string", "description": "#182 宿主签发的审批回执（v1.<actor_id>.human.<scope>.<issued_at>.<hmac>）——人工确认由宿主签发 receipt 提供，Agent 不得伪造；reviewer 参数已废除"},
+                "receipt": {"type": "string", "description": "#182 宿主签发的审批回执（人类签域 v1.<actor_id>.human.<scope>.<issued_at>.<hmac>）——人工确认由宿主签发 receipt 提供，Agent 不得伪造；#277 agent 声明过门走 agent 签域（scope 带 :agent 后缀 + actor_type=agent），须工作区 require_human_receipt=false；reviewer 参数已废除"},
+                "reason": {"type": "string", "description": "#277 agent 声明过门的理由（agent receipt 路径必填非空——「为什么可以过这个门」；human 路径可空）"},
                 "findings": {
                     "type": "array",
                     "items": {
@@ -590,12 +591,12 @@ fn input_schema(name: &str) -> Value {
         }),
         "record_addendum_waiver" => json!({
             "type": "object",
-            "description": "招标包输入件不就绪的逐件人工确认（#184 补遗分级阻塞 + 地图 P0-1 扩面到主件/附件）：任一输入件不处 READY（FAILED/OCR_PENDING）时 draft_response_section 被拒；人工继续必须逐件确认到具体 file_id（非全局布尔）。确认即审计面（file_id/reason/at/principal + actor）；放行后起草标 RESTRICTED（受限起草，不静默当完整输入）",
+            "description": "招标包输入件不就绪的逐件人工确认（#184 补遗分级阻塞 + 地图 P0-1 扩面到主件/附件）：任一输入件不处 READY（FAILED/OCR_PENDING）时 draft_response_section 被拒；人工继续必须逐件确认到具体 file_id（非全局布尔）。确认即审计面（file_id/reason/at/principal + actor + #277 过门方式）；放行后起草标 RESTRICTED（受限起草，不静默当完整输入）",
             "properties": {
                 "project_id": pid,
                 "file_id": {"type": "string", "description": "TF-* 输入件 id（须真实存在——import 响应 addendum_readiness.not_ready[].file_id 或任何不就绪件；receipt 签域绑定本件）"},
-                "reason": {"type": "string", "description": "人工理由（非空白——不可审计的确认不成确认）"},
-                "receipt": {"type": "string", "description": "#182 宿主签发的审批回执（签域 addendum_waiver:<file_id>，件级绑定）——principal 参数已废除，Agent 不得伪造"},
+                "reason": {"type": "string", "description": "确认理由（非空白——不可审计的确认不成确认；#277 agent 声明路径同构：为什么可以过这个门）"},
+                "receipt": {"type": "string", "description": "#182 宿主签发的审批回执（人类签域 addendum_waiver:<file_id>，件级绑定）——principal 参数已废除，Agent 不得伪造；#277 agent 声明走 agent 签域（addendum_waiver:<file_id>:agent + actor_type=agent），须工作区 require_human_receipt=false"},
                 "project_version": pv
             },
             "required": ["project_id", "file_id", "reason", "receipt"]
@@ -677,7 +678,7 @@ pub(crate) fn describe(name: &str) -> &'static str {
         "recommend_length_profile" => "只读：篇幅档位推荐（#287——P3 建纲前先调：信号面细则数/★条款数/预算/采购类型/明写篇幅→推荐档+理由+alternatives；决策权在用户，Agent 只推荐；明写篇幅覆盖一切推断）",
         "register_evidence" => "证据登记（G2——语义位查重/换版；MATRIX_READY+；#185 来源验证：source_file_id 须指向已导入文件，sha256/指纹由服务端生成；带 locator 且对账通过 → CONTENT_MATCHES + 正文摘录入账，缺省文件级锚 → FILE_EXISTS（#217 四态）；#245 占位：placeholder=true → PLACEHOLDER 占位/待核验——可绑定但不清合规阻塞（矩阵 PENDING_EVIDENCE 待补）、不得声称资质已具备，升级 = 换版重登；verification_tier 不可自报；业绩类可带 client/amount_wan/completed_on 业务面；结构化字段走可选 fields 对象）",
         "bind_evidence" => "证据批量绑定 + 矩阵重算（G2——EXPIRED 禁绑；MATRIX_READY+）",
-        "record_review_gate" => "三门记审（G3——matrix/outline/pre_export；#182 receipt 验签——人工确认由宿主签发 receipt 提供）",
+        "record_review_gate" => "三门记审（G3——matrix/outline/pre_export；#182 receipt 验签——人工确认由宿主签发 receipt 提供；#277 agent 声明过门走 :agent 签域 + reason 必填，留痕 + 导出警告 + 可追认）",
         "record_addendum_waiver" => "补遗逐件人工确认（#184——分级阻塞的免责面；#182 receipt 验签（签域绑定 file_id）；FILES_IMPORTED+）",
         "set_matrix_override" => "人工覆写条款响应状态（#226——否决项死锁出口；NOT_APPLICABLE 必带理由；覆写即重算矩阵；MATRIX_READY+）",
         "recover_validating_state" => "历史异常态恢复（#243——VALIDATING+缺章回 DRAFTING；三重约束 + 审计账；仅 VALIDATING 态）",

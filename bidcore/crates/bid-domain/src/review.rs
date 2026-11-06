@@ -242,6 +242,43 @@ pub struct ReviewReceipt {
     pub reviewed_content_digest: String,
 }
 
+// ---------------------------------------------------------------- #277 方案 A：GatePassRecord
+
+/// 过门方式（审计账的 method 面——#277 方案 A）。
+///
+/// - `human_receipt`：宿主签发的人类签域 receipt 验签通过（#182 现状路径）
+/// - `agent_declared`：agent 签域 receipt 验签通过（#277 新增——agent 自
+///   声明过门，require_human_receipt=false 的工作区才放行，导出带警告）
+pub const METHOD_HUMAN_RECEIPT: &str = "human_receipt";
+pub const METHOD_AGENT_DECLARED: &str = "agent_declared";
+
+/// 过门审计记录（#277 方案 A——**无法事后抹除**的过门四要素+理由）。
+///
+/// 与 [`ReviewRecord`] 的分工：reviews 是**裁决面**（门序/幂等/内容绑定/
+/// RT 派生的机器判据），gate_passes 是**审计面**（谁、以什么身份、用什么
+/// 方法、什么时候、为什么过门——append-only，追认不覆盖：真人补 human
+/// receipt 是**追加**一条 human_confirmed=true，两条并存可追溯，导出
+/// 警告看「每门最新一条」）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GatePassRecord {
+    pub id: String, // GP-xxxx（store 单序列）
+    pub gate: Gate,
+    /// 过门者 id（human 面 = 宿主身份命名；agent 面 = 调用方自述，如
+    /// "agent-01"——actor_type 才是结构保证，id 只是审计四要素之一）。
+    pub actor_id: String,
+    pub actor_type: crate::principal::ActorType,
+    /// `human_receipt` | `agent_declared`（见 METHOD_* 常量）。
+    pub method: String,
+    /// false = agent 声明过门（未经人工确认——导出警告的判据）；
+    /// true = human receipt 过门/追认。
+    pub human_confirmed: bool,
+    /// UNIX_EPOCH 秒（no-chrono 纪律）。
+    pub at: u64,
+    /// 过门理由（agent 路径必填非空——「为什么可以过这个门」；human 路径
+    /// 可空——receipt 本身就是理由的信任锚）。
+    pub reason: String,
+}
+
 // ---------------------------------------------------------------- DomainStore 扩面（T-7 审核闭环）
 impl DomainStore {
     /// 门是否已有 Approved 记录（门序进度的判定面——Rejected 是过程记录，
@@ -253,22 +290,31 @@ impl DomainStore {
     }
 
     // ------------------------------------------------------------ 记审（T-7 主入口）
-    /// 记审（三道门的统一写入面；#182——身份面收验签后的 TrustedPrincipal）。
+    /// 记审（三道门的统一写入面；#182——身份面收验签后的 TrustedPrincipal；
+    /// #277 方案 A——agent 声明过门面）。
     ///
     /// 裁决序（全部前置校验通过才落账——拒绝路径零副作用）：
-    /// 1. 可信身份门（#182：actor_type 只认 Human——服务层验签是 MCP 面
-    ///    的唯一入口，域层再拦一次是纵深防御：即使壳层漏验，域层也不放
-    ///    Agent/System 过门）；
-    /// 2. 状态门（裁决表，见各 match 臂注释）；
-    /// 3. 门序（OutlineApproval 需矩阵门先过；PreExportConfirm 需前两门均过
+    /// 1. 可信身份门（#182/#277：`(actor_type, scope_is_agent)` 二元组——
+    ///    Human×人类签域 = 真人（现状不变）；Agent×agent 签域 = agent
+    ///    声明过门（留痕——放行前提在服务层 require_human_receipt 已裁）；
+    ///    混用签域 / System 一律拒）；
+    /// 2. agent 路径 reason 必填非空（#277 验收 7——agent 必须说明「为什么
+    ///    可以过这个门」，不能空着过）；
+    /// 3. 状态门（裁决表，见各 match 臂注释）；
+    /// 4. 门序（OutlineApproval 需矩阵门先过；PreExportConfirm 需前两门均过
     ///    ——跳门 → E_STATE typed reject，这就是「绕过门」的裁决面）；
-    /// 4. findings 形状（category/message 非空——空发现不可审计）；
-    /// 5. Rejected 必须携带 ≥1 条 BLOCKER（Warning 不构成拒审依据——诚实状态）；
-    /// 6. 同门重复 Approved → 幂等放行（不复位既有 RT——重新过门 ≠ 已修完）。
+    /// 5. findings 形状（category/message 非空——空发现不可审计）；
+    /// 6. Rejected 必须携带 ≥1 条 BLOCKER（Warning 不构成拒审依据——诚实状态）；
+    /// 7. 同门重复 Approved → 幂等放行（#277 起 agent/human 族区分：human
+    ///    只对 human 记录幂等（agent 过的门真人补签 = 追认，落新记录）；
+    ///    agent 对同 actor 同摘要幂等（重试不刷账），换 agent 落新记录）。
     ///
     /// BLOCKER 强制派生：每条 Blocker finding 自动创建 RevisionTask（owner 空、
     /// status=Open、锚 `section_id.unwrap_or("PROJECT")`）——「每个 BLOCKER 有
     /// RT」由结构保证而非约定保证。
+    ///
+    /// #277：Approved 落账时同步追加 [`GatePassRecord`]（审计面——导出警告
+    /// 与追认判据）。`agent_reason`：agent 路径必填；human 路径可空。
     ///
     /// findings 入参四元组：(severity, category, message, section_id)。
     pub fn record_review(
@@ -277,24 +323,62 @@ impl DomainStore {
         principal: &TrustedPrincipal,
         decision: Decision,
         findings: Vec<(Severity, String, String, Option<String>)>,
+        agent_reason: Option<&str>,
     ) -> Result<ReviewReceipt, ToolError> {
         self.project()?; // 审核记录挂在项目下（M1 单项目存储）
         let status = self.project()?.status;
 
-        // ---- 1. 可信身份门（#182——纵深防御：服务层验签是唯一入口，
-        //      域层不重复实现验签（零密钥零时钟），但 identity 类别必须
-        //      Human：Agent/System 的 TrustedPrincipal 不得过门）
-        if principal.actor_type != ActorType::Human {
-            return Err(ToolError::EUnprocessable {
-                reason: format!(
-                    "复审人 {:?} 是 {} 身份（#182：过审面只认 Human——Agent/System 不得自审自过，borrow mdcore ReviewPolicy 纪律的身份面升级）",
-                    principal.actor_id,
-                    principal.actor_type.as_str()
-                ),
-            });
-        }
-        // legacy 回显面：reviewer 从可信身份派生（human:{actor_id}）
-        let reviewer = format!("{HUMAN_PREFIX}{}", principal.actor_id);
+        // ---- 1. 可信身份门（#182 纵深防御 + #277 方案 A 二元组）
+        //      服务层验签是唯一入口（域层不重复实现验签——零密钥零时钟）；
+        //      域层拦的是**身份/签域不匹配**：Human 必须人类签域（#182 口径
+        //      不变），Agent 必须 agent 签域（scope_is_agent 只能由
+        //      verify_agent_receipt 验出——构造面不可伪造）。
+        let is_agent_pass = match (principal.actor_type, principal.scope_is_agent) {
+            (ActorType::Human, false) => false, // 真人人门（现状不变）
+            (ActorType::Agent, true) => true,  // agent 声明过门（留痕）
+            (ActorType::System, _) => {
+                return Err(ToolError::EUnprocessable {
+                    reason: format!(
+                        "复审人 {:?} 是 system 身份（过门面不收 System——机器内部操作走操作日志，不走审核门）",
+                        principal.actor_id
+                    ),
+                });
+            }
+            (ActorType::Human, true) => {
+                return Err(ToolError::EUnprocessable {
+                    reason: format!(
+                        "复审人 {:?} 是 Human 身份但携带 agent 签域（签域与身份不匹配——人类签域不带 :agent 后缀，人类面不走 agent 声明通道）",
+                        principal.actor_id
+                    ),
+                });
+            }
+            (ActorType::Agent, false) => {
+                return Err(ToolError::EUnprocessable {
+                    reason: format!(
+                        "复审人 {:?} 是 agent 身份但未携带 agent 签域（Agent 不得用人类签域冒充真人过门——agent 声明过门走 :agent 签域，require_human_receipt=false 工作区才放行，见 #277）",
+                        principal.actor_id
+                    ),
+                });
+            }
+        };
+        // ---- 2. agent 路径 reason 必填（#277 验收 7）
+        let agent_reason_owned = if is_agent_pass {
+            let r = agent_reason.unwrap_or("").trim().to_string();
+            if r.is_empty() {
+                return Err(ToolError::EUnprocessable {
+                    reason: "agent 声明过门必须携带非空 reason（审计四要素之「为什么可以过这个门」——空着过 = 不可审计的确认）".into(),
+                });
+            }
+            r
+        } else {
+            String::new()
+        };
+        // legacy 回显面：reviewer 从可信身份派生（human:{actor_id} / agent:{actor_id}）
+        let reviewer = if is_agent_pass {
+            format!("agent:{}", principal.actor_id)
+        } else {
+            format!("{HUMAN_PREFIX}{}", principal.actor_id)
+        };
 
         // ---- 2. 状态门 + 3. 门序（按门分派的裁决表）
         match gate {
@@ -376,11 +460,15 @@ impl DomainStore {
         let reviewed_content_digest = self.sections_digest();
         let reviewed_content_version = self.content_version();
 
-        // ---- 6. 同门重复 Approved：幂等放行（**先比 #180 摘要**——内容
+        // ---- 7. 同门重复 Approved：幂等放行（**先比 #180 摘要**——内容
         //      已变更则不走幂等、落新 REV，否则改稿后重过门永远返回旧记录
         //      = 死锁；比对取**最后一条**同门 Approved：多轮过门时旧记录的
         //      摘要已陈旧，幂等只对最新一轮成立。legacy 空摘要视为不匹配
-        //      → 落新记录顺带补上绑定，只发生一次）
+        //      → 落新记录顺带补上绑定，只发生一次）。
+        //      #277 幂等的族区分：human 过门只对 human 族记录幂等（agent
+        //      过的门真人补签 = **追认**，落新记录 + 新 GatePass——警告才能
+        //      消失且两账可追溯）；agent 过门对**同 actor 同摘要**幂等
+        //      （重试不刷账本），换 agent actor 落新记录（审计可数）。
         if decision == Decision::Approved {
             let existing = self
                 .reviews
@@ -389,24 +477,40 @@ impl DomainStore {
                 .map(|i| &self.reviews[i]);
             if let Some(existing) = existing {
                 if existing.reviewed_content_digest == reviewed_content_digest {
-                    // 返回**既有序列号**（首次过门记录的 REV-id + 其 FND 清单 +
-                    // 首次派生的 RT 清单），不新建记录、content_version 不动。
-                    // 携带的新 findings 不入账——门已 Approved，重复过门不是登记
-                    // 新发现的通道（新发现走 Rejected 记录）。既有 RT 一律不动
-                    // （不复位/不重派/不重复派生）：**重新过门 ≠ 已修完**——修没
-                    // 修完只看 RT 状态，不看门又开了一次。
-                    let spawned_rt_ids = self.revision_tasks.iter()
-                        .filter(|rt| existing.findings.contains(&rt.finding_id))
-                        .map(|rt| rt.id.clone())
-                        .collect();
-                    return Ok(ReviewReceipt {
-                        review_id: existing.id.clone(),
-                        gate,
-                        decision,
-                        finding_ids: existing.findings.clone(),
-                        spawned_rt_ids,
-                        reviewed_content_digest: existing.reviewed_content_digest.clone(),
+                    let existing_is_human = existing
+                        .principal
+                        .as_ref()
+                        .map_or(true, |p| p.actor_type == ActorType::Human); // legacy None = #182 前的人类记录
+                    let same_agent_actor = existing.principal.as_ref().is_some_and(|p| {
+                        p.actor_type == ActorType::Agent && p.actor_id == principal.actor_id
                     });
+                    let idempotent = if is_agent_pass {
+                        same_agent_actor
+                    } else {
+                        existing_is_human
+                    };
+                    if idempotent {
+                        // 返回**既有序列号**（首次过门记录的 REV-id + 其 FND 清单 +
+                        // 首次派生的 RT 清单），不新建记录、content_version 不动。
+                        // 携带的新 findings 不入账——门已 Approved，重复过门不是登记
+                        // 新发现的通道（新发现走 Rejected 记录）。既有 RT 一律不动
+                        // （不复位/不重派/不重复派生）：**重新过门 ≠ 已修完**——修没
+                        // 修完只看 RT 状态，不看门又开了一次。
+                        let spawned_rt_ids = self.revision_tasks.iter()
+                            .filter(|rt| existing.findings.contains(&rt.finding_id))
+                            .map(|rt| rt.id.clone())
+                            .collect();
+                        return Ok(ReviewReceipt {
+                            review_id: existing.id.clone(),
+                            gate,
+                            decision,
+                            finding_ids: existing.findings.clone(),
+                            spawned_rt_ids,
+                            reviewed_content_digest: existing.reviewed_content_digest.clone(),
+                        });
+                    }
+                    // 不幂等（agent→human 追认 / human→agent 声明 / 换 agent）
+                    // → 落新记录（下方统一落账路径）。
                 }
                 // 摘要 ≠ 当前（含 legacy ""）→ 不走幂等，落新记录（下方统一
                 // 落账路径）——新记录绑当前摘要，重过门后 export_allowed
@@ -455,6 +559,26 @@ impl DomainStore {
             reviewed_content_version,
             reviewed_content_digest: reviewed_content_digest.clone(),
         });
+        // ---- #277 方案 A：Approved 过门同步落审计账（GatePassRecord——
+        //      append-only，追认不覆盖；导出警告判据 = 每门最新一条的
+        //      human_confirmed）
+        if decision == Decision::Approved {
+            let gp_id = self.next_id("GP");
+            self.gate_passes.push(GatePassRecord {
+                id: gp_id,
+                gate,
+                actor_id: principal.actor_id.clone(),
+                actor_type: principal.actor_type,
+                method: if is_agent_pass {
+                    METHOD_AGENT_DECLARED.to_string()
+                } else {
+                    METHOD_HUMAN_RECEIPT.to_string()
+                },
+                human_confirmed: !is_agent_pass,
+                at: now_epoch_secs(),
+                reason: agent_reason_owned,
+            });
+        }
         if let Some(p) = self.project.as_mut() {
             p.content_version += 1;
         }
@@ -479,6 +603,39 @@ impl DomainStore {
 
     pub fn revision_tasks(&self) -> &[RevisionTask] {
         &self.revision_tasks
+    }
+
+    /// #277 方案 A：过门审计账（append-only——追认不覆盖，两条并存可追溯）。
+    pub fn gate_passes(&self) -> &[GatePassRecord] {
+        &self.gate_passes
+    }
+
+    /// #277 方案 A：指定门的**最新一条**过门记录（导出警告的判据位——
+    /// 追认后最新条翻 human，警告消失；历史 agent 条保留在账本里）。
+    pub fn latest_gate_pass(&self, gate: Gate) -> Option<&GatePassRecord> {
+        self.gate_passes.iter().rev().find(|p| p.gate == gate)
+    }
+
+    /// #277 方案 A：agent 声明过门（未经人工确认）的门清单——每门最新一条
+    /// `human_confirmed == false` 即列入（导出警告横幅 + 响应面清单的素材）。
+    pub fn agent_gate_passes(&self) -> Vec<&GatePassRecord> {
+        [
+            Gate::MatrixApproval,
+            Gate::OutlineApproval,
+            Gate::PreExportConfirm,
+            Gate::AddendumWaiver,
+        ]
+        .iter()
+        .filter_map(|g| self.latest_gate_pass(*g))
+        .filter(|p| !p.human_confirmed)
+        .collect()
+    }
+
+    /// #277 方案 A：全部门（有过门记录的）最新一条都是 human 确认 → true
+    /// （导出无警告）；任一门最新条是 agent 声明 → false（导出带横幅）。
+    /// 无任何过门记录的空账本 → true（没有门被 agent 过——无从警告）。
+    pub fn human_review_complete(&self) -> bool {
+        self.agent_gate_passes().is_empty()
     }
 
     /// 未关单清单（status != Done 的 RT——export_allowed 的 RT 面输入）。
@@ -714,9 +871,9 @@ mod tests {
         s: &mut DomainStore,
         pre_export_findings: Vec<(Severity, String, String, Option<String>)>,
     ) -> ReviewReceipt {
-        s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("zhang"), Decision::Approved, vec![]).unwrap();
-        s.record_review(Gate::OutlineApproval, &TrustedPrincipal::human("li"), Decision::Approved, vec![]).unwrap();
-        s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Approved, pre_export_findings).unwrap()
+        s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("zhang"), Decision::Approved, vec![], None).unwrap();
+        s.record_review(Gate::OutlineApproval, &TrustedPrincipal::human("li"), Decision::Approved, vec![], None).unwrap();
+        s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Approved, pre_export_findings, None).unwrap()
     }
 
     /// #180 摘要绑定基座：基座 + 两级章节树（根 + 2 叶，全绑 REQ-0001）——
@@ -766,14 +923,14 @@ mod tests {
     fn acceptance_blocker_rt_lifecycle_and_export_gate() {
         let mut s = store_at_matrix_ready();
         // 门一：矩阵定稿（零发现——干净过门）
-        let r1 = s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("zhang"), Decision::Approved, vec![]).unwrap();
+        let r1 = s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("zhang"), Decision::Approved, vec![], None).unwrap();
         assert_eq!(r1.gate, Gate::MatrixApproval);
         assert!(r1.finding_ids.is_empty());
         assert!(r1.spawned_rt_ids.is_empty());
         // 门二：章节树定稿（1 条 Warning——不派生 RT）
         let r2 = s.record_review(Gate::OutlineApproval, &TrustedPrincipal::human("li"), Decision::Approved, vec![
             (Severity::Warning, "占位符残留".into(), "大纲第 3 章标题占位".into(), Some("SEC-0001".into())),
-        ]).unwrap();
+        ], None).unwrap();
         assert_eq!(r2.finding_ids.len(), 1);
         assert_eq!(r2.spawned_rt_ids.len(), 0, "Warning 不派生 RT——只有 BLOCKER 有 RT");
         // 门三：导出前确认（2 Blocker + 1 Warning）
@@ -781,7 +938,7 @@ mod tests {
             (Severity::Blocker, "金额冲突".into(), "报价总价与大写金额不一致".into(), Some("SEC-0007".into())),
             (Severity::Blocker, "占位符残留".into(), "服务承诺章仍有 {{待定}} 模板占位".into(), None),
             (Severity::Warning, "格式要求".into(), "页眉缺少项目编号".into(), None),
-        ]).unwrap();
+        ], None).unwrap();
         assert_eq!(r3.finding_ids.len(), 3);
         assert_eq!(r3.spawned_rt_ids.len(), 2, "2 条 BLOCKER → 2 个 RT；Warning 不派生");
         assert_eq!(s.findings().len(), 4);
@@ -825,7 +982,7 @@ mod tests {
         let mut early = store_review_base();
         let v = early.content_version();
         assert_eq!(
-            early.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("zhang"), Decision::Approved, vec![])
+            early.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("zhang"), Decision::Approved, vec![], None)
                 .unwrap_err().code(),
             "E_STATE"
         );
@@ -834,7 +991,7 @@ mod tests {
 
         // 门序强制：第三门直跳（前两门未过）→ EState 点名缺 matrix_approval
         let mut s = store_at_matrix_ready();
-        let err = s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Approved, vec![]).unwrap_err();
+        let err = s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Approved, vec![], None).unwrap_err();
         match &err {
             ToolError::EState { attempted, .. } =>
                 assert!(attempted.contains("matrix_approval"), "须点名第一缺门：{attempted}"),
@@ -842,14 +999,14 @@ mod tests {
         }
         // 乱序：大纲门先于矩阵门 → EState
         assert_eq!(
-            s.record_review(Gate::OutlineApproval, &TrustedPrincipal::human("li"), Decision::Approved, vec![])
+            s.record_review(Gate::OutlineApproval, &TrustedPrincipal::human("li"), Decision::Approved, vec![], None)
                 .unwrap_err().code(),
             "E_STATE"
         );
         assert!(s.reviews().is_empty(), "乱序记审零入账");
         // 矩阵门过后、大纲门未过 → 第三门仍拒（点名缺 outline_approval）
-        s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("zhang"), Decision::Approved, vec![]).unwrap();
-        let err = s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Approved, vec![]).unwrap_err();
+        s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("zhang"), Decision::Approved, vec![], None).unwrap();
+        let err = s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Approved, vec![], None).unwrap_err();
         match &err {
             ToolError::EState { attempted, .. } =>
                 assert!(attempted.contains("outline_approval"), "须点名缺门：{attempted}"),
@@ -872,16 +1029,25 @@ mod tests {
         let mut s = store_at_matrix_ready();
         let v = s.content_version();
         for (bad_id, bad_type) in [("glm-4", ActorType::Agent), ("cron", ActorType::System)] {
+            // 无 agent 签域的裸构造（scope_is_agent=false）：Agent 用人类签域 → 拒；
+            // System 一律拒（#277 二元组 match 的两个拒绝臂）
             let bad = TrustedPrincipal {
                 actor_id: bad_id.into(),
                 actor_type: bad_type,
                 authentication_method: "hmac_receipt_v1".into(),
                 approval_receipt: String::new(),
+                scope_is_agent: false,
             };
-            match s.record_review(Gate::MatrixApproval, &bad, Decision::Approved, vec![]) {
+            match s.record_review(Gate::MatrixApproval, &bad, Decision::Approved, vec![], None) {
                 Err(ToolError::EUnprocessable { reason }) => {
-                    assert!(reason.contains("#182"), "错误消息须引 #182 对齐：{reason}");
-                    assert!(reason.contains("Human"), "须指出身份要求：{reason}");
+                    assert!(
+                        reason.contains("签域") || reason.contains("身份"),
+                        "须指出身份/签域要求：{reason}"
+                    );
+                    assert!(
+                        reason.contains("#277") || reason.contains("system"),
+                        "须指向 agent 声明面的正确通道（#277）：{reason}"
+                    );
                 }
                 other => panic!("复审人 {bad_id:?}（{bad_type:?}）必须拒，得到 {other:?}"),
             }
@@ -889,7 +1055,7 @@ mod tests {
         assert!(s.reviews().is_empty());
         assert_eq!(s.content_version(), v, "拒绝路径零副作用");
         // Human 放行：reviewer 派生值回填 human:{actor_id}（legacy 回显口径）
-        s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("wang"), Decision::Approved, vec![]).unwrap();
+        s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("wang"), Decision::Approved, vec![], None).unwrap();
         assert_eq!(s.reviews().len(), 1);
         assert_eq!(s.reviews()[0].reviewer, "human:wang");
         // #182：新记录落 TrustedPrincipal（审计留痕——receipt 串在座）
@@ -930,11 +1096,11 @@ mod tests {
         // 纯 Warning 的 Rejected → EUnprocessable
         let err = s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("wang"), Decision::Rejected, vec![
             (Severity::Warning, "格式要求".into(), "页眉缺项目编号".into(), None),
-        ]).unwrap_err();
+        ], None).unwrap_err();
         assert_eq!(err.code(), "E_UNPROCESSABLE");
         // 零 findings 的 Rejected → 同拒
         assert_eq!(
-            s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("wang"), Decision::Rejected, vec![])
+            s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("wang"), Decision::Rejected, vec![], None)
                 .unwrap_err().code(),
             "E_UNPROCESSABLE"
         );
@@ -942,14 +1108,14 @@ mod tests {
         // 带 Blocker 的 Rejected 放行且 RT 照常派生（拒审不断关单通道）
         let r = s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("wang"), Decision::Rejected, vec![
             (Severity::Blocker, "金额冲突".into(), "报价总价与大写金额不一致".into(), Some("SEC-0007".into())),
-        ]).unwrap();
+        ], None).unwrap();
         assert_eq!(r.decision, Decision::Rejected);
         assert_eq!(r.spawned_rt_ids.len(), 1, "拒审的 Blocker 照常派生 RT");
         assert_eq!(s.reviews().len(), 1);
         // 空 message 的发现 → 拒（空发现不可审计——findings 形状门的落点）
         let err = s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("li"), Decision::Approved, vec![
             (Severity::Info, "备注".into(), "   ".into(), None),
-        ]).unwrap_err();
+        ], None).unwrap_err();
         assert_eq!(err.code(), "E_UNPROCESSABLE");
         assert_eq!(s.findings().len(), 1, "非法发现零入账");
     }
@@ -964,28 +1130,28 @@ mod tests {
         s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("wang"), Decision::Rejected, vec![
             (Severity::Blocker, "金额冲突".into(), "总价与大写不一致".into(), Some("SEC-0007".into())),
             (Severity::Warning, "格式要求".into(), "页眉缺编号".into(), None),
-        ]).unwrap();
+        ], None).unwrap();
         // 轮 2：矩阵门重审 Approved（零发现——上轮 RT 未修完不阻断过门，
         // 收紧面在 export_allowed 的 RT 判决）
-        s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("zhang"), Decision::Approved, vec![]).unwrap();
+        s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("zhang"), Decision::Approved, vec![], None).unwrap();
         // 轮 3：大纲门 Approved（1 Blocker）
         s.record_review(Gate::OutlineApproval, &TrustedPrincipal::human("li"), Decision::Approved, vec![
             (Severity::Blocker, "占位符残留".into(), "第 5 章标题占位".into(), None),
-        ]).unwrap();
+        ], None).unwrap();
         // 轮 4：第三门 Rejected（1 Blocker）
         s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Rejected, vec![
             (Severity::Blocker, "金额冲突".into(), "报价单税率与正文不一致".into(), None),
-        ]).unwrap();
+        ], None).unwrap();
         // 轮 5：第三门 Approved（1 Blocker + 1 Info）
         s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Approved, vec![
             (Severity::Blocker, "占位符残留".into(), "签署页日期占位".into(), None),
             (Severity::Info, "备注".into(), "建议附电子版目录".into(), None),
-        ]).unwrap();
+        ], None).unwrap();
         // 轮 6：Approved 后的过程记录（第三门再 Rejected + 1 Blocker——
         // Rejected 不撤回 Approved 里程碑，新问题经新 RT 收紧导出面）
         s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("li"), Decision::Rejected, vec![
             (Severity::Blocker, "金额冲突".into(), "大写金额错字".into(), None),
-        ]).unwrap();
+        ], None).unwrap();
         // —— 结构不变量断言 ——
         assert_eq!(s.findings().len(), 7);
         let blockers = s.findings().iter().filter(|f| f.severity == Severity::Blocker).count();
@@ -1012,7 +1178,7 @@ mod tests {
         let r = s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("wang"), Decision::Rejected, vec![
             (Severity::Blocker, "金额冲突".into(), "总价与大写不一致".into(), None),
             (Severity::Blocker, "占位符残留".into(), "签署页占位".into(), None),
-        ]).unwrap();
+        ], None).unwrap();
         let (rt_a, rt_b) = (r.spawned_rt_ids[0].clone(), r.spawned_rt_ids[1].clone());
         // 不存在 → ENotFound
         assert!(matches!(
@@ -1088,7 +1254,7 @@ mod tests {
         let r2 = s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Approved, vec![
             (Severity::Blocker, "金额冲突".into(), "总价与大写不一致".into(), None),
             (Severity::Blocker, "占位符残留".into(), "签署页占位".into(), None),
-        ]).unwrap();
+        ], None).unwrap();
         assert_eq!(r2.review_id, r.review_id, "返回既有 REV 序号——不新建记录");
         assert_eq!(r2.finding_ids, r.finding_ids);
         assert_eq!(r2.spawned_rt_ids.len(), 2, "回执带首次过门派生的 RT 清单");
@@ -1113,7 +1279,7 @@ mod tests {
         let r = s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("wang"), Decision::Rejected, vec![
             (Severity::Blocker, "金额冲突".into(), "总价与大写不一致".into(), Some("SEC-0007".into())),
             (Severity::Blocker, "占位符残留".into(), "全文仍有 {{待定}} 占位".into(), None),
-        ]).unwrap();
+        ], None).unwrap();
         assert_eq!(r.spawned_rt_ids.len(), 2);
         let rts = s.revision_tasks();
         assert_eq!(rts[0].section_id, "SEC-0007", "章节域发现锚原章节 id");
@@ -1204,7 +1370,7 @@ mod tests {
         s.set_section_content("SEC-0002", "正文 v2（改稿）".into()).unwrap();
         assert!(s.export_allowed().is_err(), "改稿后旧审核失效");
         // 重过门：新 REV（非幂等重放），落账绑改后摘要
-        let second = s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Approved, vec![]).unwrap();
+        let second = s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Approved, vec![], None).unwrap();
         assert_ne!(second.review_id, first.review_id, "落新 REV——幂等分支没吞");
         assert_eq!(s.reviews().len(), 4, "三门 3 条 + 重过门 1 条");
         assert_eq!(second.reviewed_content_digest, s.sections_digest(), "新记录绑改后摘要");
@@ -1212,7 +1378,7 @@ mod tests {
         assert!(rec.reviewed_content_version > 0, "辅助账面在座（判定不消费）");
         assert!(s.export_allowed().is_ok(), "重过门后恢复放行");
         // 内容不再变 → 再过门恢复幂等（比对的是**最后一条**同门 Approved）
-        let third = s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("li"), Decision::Approved, vec![]).unwrap();
+        let third = s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("li"), Decision::Approved, vec![], None).unwrap();
         assert_eq!(third.review_id, second.review_id, "摘要未变 → 幂等返回最新一轮记录");
         assert_eq!(s.reviews().len(), 4, "幂等重放零新账");
     }
@@ -1270,7 +1436,7 @@ mod tests {
             .collect();
         let r2 = s2.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"), Decision::Rejected, vec![
             (Severity::Blocker, "金额冲突".into(), "复审新发现：大写金额错字".into(), None),
-        ]).unwrap();
+        ], None).unwrap();
         assert!(!existing.contains(&r2.review_id), "新 REV id 不碰撞");
         assert!(r2.finding_ids.iter().all(|f| !existing.contains(f)), "新 FND id 不碰撞");
         assert!(r2.spawned_rt_ids.iter().all(|t| !existing.contains(t)), "新 RT id 不碰撞");
@@ -1290,7 +1456,7 @@ mod tests {
         let mut s = store_at_matrix_ready();
         s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("wang"), Decision::Rejected, vec![
             (Severity::Blocker, "金额冲突".into(), "总价与大写不一致".into(), None),
-        ]).unwrap();
+        ], None).unwrap();
         let base = s.to_snapshot();
         assert!(DomainStore::restore(base.clone()).is_ok(), "对照组：基线快照可载");
         // 孤儿 RT：finding_id 指向不存在的 FND → 拒（半个闭环）
@@ -1314,5 +1480,141 @@ mod tests {
         let mut bad = base.clone();
         bad.id_seq = 0;
         assert!(DomainStore::restore(bad).is_err());
+    }
+
+    // ------------------------------------------------------------ #277 方案 A：agent 声明过门
+
+    /// 验收 1：agent 带 agent 签域身份过门 → 成功 + 审计账留痕。
+    #[test]
+    fn agent_pass_with_agent_scope_succeeds_and_leaves_audit_trail() {
+        let mut s = store_at_matrix_ready();
+        let r = s
+            .record_review(
+                Gate::MatrixApproval,
+                &TrustedPrincipal::agent("agent-01"),
+                Decision::Approved,
+                vec![],
+                Some("单件招标无补遗，矩阵已全量核对（agent 声明——待人工追认）"),
+            )
+            .unwrap();
+        assert_eq!(r.gate, Gate::MatrixApproval);
+        assert!(s.gate_approved(Gate::MatrixApproval), "agent 过门推进门序");
+        // 审计账：method=agent_declared / human_confirmed=false / reason 在座
+        let gp = s.latest_gate_pass(Gate::MatrixApproval).unwrap();
+        assert_eq!(gp.actor_id, "agent-01");
+        assert_eq!(gp.actor_type, ActorType::Agent);
+        assert_eq!(gp.method, "agent_declared");
+        assert!(!gp.human_confirmed);
+        assert!(gp.reason.contains("agent 声明"));
+        // reviewer 回显带 agent: 前缀（不冒充 human:）
+        assert_eq!(s.reviews()[0].reviewer, "agent:agent-01");
+        // 导出警告判据：human_review_complete=false
+        assert!(!s.human_review_complete());
+        assert_eq!(s.agent_gate_passes().len(), 1);
+    }
+
+    /// 验收 3：Human 用 agent 签域（scope_is_agent=true 的 Human principal）→ 拒。
+    #[test]
+    fn human_with_agent_scope_is_rejected() {
+        let mut s = store_at_matrix_ready();
+        let bad = TrustedPrincipal {
+            scope_is_agent: true,
+            ..TrustedPrincipal::human("wang")
+        };
+        let err = s
+            .record_review(Gate::MatrixApproval, &bad, Decision::Approved, vec![], None)
+            .unwrap_err();
+        assert!(format!("{err:?}").contains("签域与身份不匹配"));
+        assert!(s.gate_passes().is_empty(), "拒绝路径零副作用");
+    }
+
+    /// 验收 4：Agent 冒充 Human（无 agent 签域的 Agent principal）→ 仍拒
+    /// （现有防线不弱化——scope_is_agent 只能由 verify_agent_receipt 验出）。
+    #[test]
+    fn agent_without_agent_scope_still_rejected() {
+        let mut s = store_at_matrix_ready();
+        let bad = TrustedPrincipal {
+            actor_type: ActorType::Agent,
+            ..TrustedPrincipal::human("imp")
+        };
+        assert!(
+            s.record_review(Gate::MatrixApproval, &bad, Decision::Approved, vec![], None).is_err()
+        );
+        assert!(s.gate_passes().is_empty());
+    }
+
+    /// 验收 7：agent 过门 reason 为空 → 拒（不能空着过）。
+    #[test]
+    fn agent_pass_requires_non_blank_reason() {
+        let mut s = store_at_matrix_ready();
+        for absent in [None, Some("   "), Some("")] {
+            let err = s
+                .record_review(Gate::MatrixApproval, &TrustedPrincipal::agent("a1"),
+                    Decision::Approved, vec![], absent)
+                .unwrap_err();
+            assert!(format!("{err:?}").contains("reason"), "reason 必填：{err:?}");
+        }
+        assert!(s.gate_passes().is_empty(), "拒绝路径零副作用");
+    }
+
+    /// 验收 6：agent 过门 → 真人补 human receipt 追认 → 警告消失 + 两账并存。
+    #[test]
+    fn human_ratification_after_agent_pass_clears_warning_keeps_both_records() {
+        let mut s = store_at_matrix_ready();
+        s.record_review(Gate::MatrixApproval, &TrustedPrincipal::agent("agent-01"),
+            Decision::Approved, vec![], Some("agent 先行放行（理由在案）")).unwrap();
+        assert!(!s.human_review_complete(), "agent 过门后警告在");
+
+        // 追认：真人同门同摘要再过 → 落新记录（不走幂等短路——human 只对
+        // human 族记录幂等）
+        s.record_review(Gate::MatrixApproval, &TrustedPrincipal::human("chief"),
+            Decision::Approved, vec![], None).unwrap();
+        // 两账并存（append-only 追认不覆盖）
+        let passes: Vec<_> = s
+            .gate_passes()
+            .iter()
+            .filter(|p| p.gate == Gate::MatrixApproval)
+            .collect();
+        assert_eq!(passes.len(), 2, "追认后两条过门记录并存");
+        // 最新一条 = human → 警告消失
+        assert!(s.human_review_complete());
+        assert!(s.agent_gate_passes().is_empty());
+        assert_eq!(s.latest_gate_pass(Gate::MatrixApproval).unwrap().method, "human_receipt");
+    }
+
+    /// agent 重试幂等（同 actor 同摘要不刷账）；换 agent actor 落新记录（审计可数）。
+    #[test]
+    fn agent_repass_idempotent_same_actor_new_record_for_different_actor() {
+        let mut s = store_at_matrix_ready();
+        let p = TrustedPrincipal::agent("agent-01");
+        let r1 = s.record_review(Gate::MatrixApproval, &p, Decision::Approved, vec![],
+            Some("首轮")).unwrap();
+        let r2 = s.record_review(Gate::MatrixApproval, &p, Decision::Approved, vec![],
+            Some("重试")).unwrap();
+        assert_eq!(r1.review_id, r2.review_id, "同 actor 同摘要 → 幂等直返");
+        assert_eq!(s.gate_passes().len(), 1, "幂等不刷审计账");
+
+        // 换 agent（第二个自动化进程）→ 新记录（Q2：不限制数量但可统计）
+        s.record_review(Gate::MatrixApproval, &TrustedPrincipal::agent("agent-02"),
+            Decision::Approved, vec![], Some("二号进程")).unwrap();
+        assert_eq!(s.gate_passes().len(), 2);
+        let n: usize = s.gate_passes().iter().filter(|g| g.actor_id == "agent-02").count();
+        assert_eq!(n, 1, "每个 agent 声明可追溯可计数");
+    }
+
+    /// 验收 8（gate_passes 面）：无 gate_passes 字段的旧快照 JSON → 空账加载，
+    /// human_review_complete=true（无从警告），行为与旧版一致。
+    #[test]
+    fn legacy_snapshot_without_gate_passes_loads_empty() {
+        let snap_json = serde_json::json!({
+            "schema_version": crate::STORE_SCHEMA_VERSION,
+            "project": null,
+            "id_seq": 0,
+            // 其余集合缺省——serde(default) 加性迁移
+        });
+        let snap: crate::StoreSnapshot = serde_json::from_value(snap_json).unwrap();
+        let s = DomainStore::restore(snap).unwrap();
+        assert!(s.gate_passes().is_empty());
+        assert!(s.human_review_complete(), "空账本无从警告");
     }
 }

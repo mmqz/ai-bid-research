@@ -333,7 +333,7 @@ fn ensure_prepared(svc: &mut BidService, ws: &Path) -> (String, String) {
     // 相位导出前——与人类流程同序：审核定稿内容）
     for gate in [Gate::MatrixApproval, Gate::OutlineApproval] {
         svc.store_mut()
-            .record_review(gate, &bid_domain::TrustedPrincipal::human("real-path-lead"), Decision::Approved, vec![])
+            .record_review(gate, &bid_domain::TrustedPrincipal::human("real-path-lead"), Decision::Approved, vec![], None)
             .unwrap();
     }
     let n_blocking = svc.store().matrix().iter().filter(|r| r.blocking).count();

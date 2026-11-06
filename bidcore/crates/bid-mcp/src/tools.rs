@@ -311,6 +311,10 @@ fn get_bid_project_state(svc: &mut BidService, args: Value) -> ToolResult {
         "status": status.as_str(),
         "allowed_next_tools": status.allowed_tools(),
         "terminal": status.next_allowed().is_empty(),
+        // #277：过门审计面（断点恢复时可见——agent 声明过的门带警告导出；
+        // human_review_complete=false 时 export_bid_document 正文插警告横幅）
+        "agent_waivers": agent_waivers_json(svc),
+        "human_review_complete": svc.store().human_review_complete(),
     }))
 }
 
@@ -3676,6 +3680,10 @@ fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
         "content_version_snapshot": svc.store().content_version(),
         "project_status": svc.store().project().map(|p| p.status.as_str()).unwrap_or("UNKNOWN"),
         "precheck": { "blockers": 0, "waived": [] },  // 双前置门已过（失败路径在 Err 面）
+        // #277 方案 A：agent 声明过门清单 + 人工复核完成度（machine-readable
+        // ——导出带警告横幅时，响应面同步携带判据与追认指引）
+        "agent_waivers": agent_waivers_json(svc),
+        "human_review_complete": svc.store().human_review_complete(),
         "warnings": warnings,
         "request_id": next_request_id(),
     });
@@ -4634,12 +4642,15 @@ fn record_review_gate(svc: &mut BidService, args: Value) -> ToolResult {
     }
     let receipt = req_str(&args, "receipt", TOOL)?;
     let findings = parse_findings(&args, TOOL)?;
+    // #277：agent 声明过门的理由（agent receipt 路径必填非空——域层裁决；
+    // human 路径可空，receipt 即信任锚）
+    let agent_reason = opt_str(&args, "reason", TOOL)?;
     let project_version = opt_cas_version(&args, TOOL)?;
 
     route_guard(svc, &project_id, TOOL, project_version)?;
 
     let (receipt, principal) = svc
-        .record_review_gate(gate, &receipt, decision, findings)
+        .record_review_gate(gate, &receipt, decision, findings, agent_reason.as_deref())
         .map_err(ToolError::from)?;
 
     // 门序进度（同一真源——域层 gate_approved）
@@ -4655,19 +4666,30 @@ fn record_review_gate(svc: &mut BidService, args: Value) -> ToolResult {
     .map(|(_, n)| *n)
     .collect();
 
+    // #277：过门方式与审计面回显（agent 声明 → human_confirmed=false——
+    // 导出警告判据；追认后最新一条翻 human_receipt）
+    let gate_pass = svc.store().latest_gate_pass(gate);
+
     Ok(json!({
         "receipt": {
             "review_id": receipt.review_id,
             "gate": receipt.gate.as_str(),
             "decision": receipt.decision.as_str(),
-            // legacy 回显面：human:{actor_id} 派生值（#182 前口径的兼容载体）
-            "reviewer": format!("human:{}", principal.actor_id),
+            // legacy 回显面：human/agent:{actor_id} 派生值（#182 前口径的兼容载体）
+            "reviewer": if principal.actor_type == bid_domain::principal::ActorType::Agent {
+                format!("agent:{}", principal.actor_id)
+            } else {
+                format!("human:{}", principal.actor_id)
+            },
             // #182 可信身份回显
             "actor": {
                 "actor_id": principal.actor_id,
                 "actor_type": principal.actor_type.as_str(),
                 "authentication_method": principal.authentication_method,
             },
+            // #277 过门方式（agent_declared 时导出带警告）
+            "method": gate_pass.as_ref().map(|p| p.method.clone()),
+            "human_confirmed": gate_pass.as_ref().map(|p| p.human_confirmed),
             "finding_ids": receipt.finding_ids,
             "spawned_rt_ids": receipt.spawned_rt_ids,
             // #180 审核内容绑定：本次记审针对的章节树内容摘要（export_allowed
@@ -4675,10 +4697,31 @@ fn record_review_gate(svc: &mut BidService, args: Value) -> ToolResult {
             "reviewed_content_digest": receipt.reviewed_content_digest,
         },
         "gates_approved": gates_approved,
+        "agent_waivers": agent_waivers_json(svc),
+        "human_review_complete": svc.store().human_review_complete(),
         "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
         "project_version": svc.store().content_version(),
         "request_id": next_request_id(),
     }))
+}
+
+/// #277：agent 声明过门清单的响应面形状（record_review_gate / 导出 / 状态
+/// 工具共用——单一真源防三处漂移）。
+fn agent_waivers_json(svc: &BidService) -> Vec<Value> {
+    svc.agent_gate_passes()
+        .iter()
+        .map(|p| {
+            json!({
+                "gate": p.gate.as_str(),
+                "actor": p.actor_id,
+                "actor_type": p.actor_type.as_str(),
+                "method": p.method,
+                "human_confirmed": p.human_confirmed,
+                "at": p.at,
+                "reason": p.reason,
+            })
+        })
+        .collect()
 }
 
 // ---------------------------------------------------------------- #184 record_addendum_waiver
@@ -4883,7 +4926,7 @@ fn record_addendum_waiver(svc: &mut BidService, args: Value) -> ToolResult {
             "file_id": recorded.file_id,
             "reason": recorded.reason,
             "at": recorded.at,
-            // legacy 回显面：human:{actor_id} 派生值
+            // legacy 回显面：human/agent:{actor_id} 派生值（随身份）
             "principal": recorded.principal,
             // #182 可信身份回显
             "actor": {
@@ -4891,9 +4934,21 @@ fn record_addendum_waiver(svc: &mut BidService, args: Value) -> ToolResult {
                 "actor_type": principal.actor_type.as_str(),
                 "authentication_method": principal.authentication_method,
             },
+            // #277 过门方式（agent_declared 时导出带警告——本记录的
+            // human_confirmed=false；追认后最新一条翻 human_receipt）
+            "method": svc
+                .store()
+                .latest_gate_pass(bid_domain::review::Gate::AddendumWaiver)
+                .map(|p| p.method.clone()),
+            "human_confirmed": svc
+                .store()
+                .latest_gate_pass(bid_domain::review::Gate::AddendumWaiver)
+                .map(|p| p.human_confirmed),
         },
         "addendum_waivers": waivers,
         "addendum_readiness": addendum_readiness_block(svc),
+        "agent_waivers": agent_waivers_json(svc),
+        "human_review_complete": svc.store().human_review_complete(),
         "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
         "project_version": svc.store().content_version(),
         "request_id": next_request_id(),

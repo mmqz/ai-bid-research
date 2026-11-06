@@ -44,7 +44,9 @@ pub mod numbering;
 pub mod pdf_text;
 pub mod review_table;
 pub mod scoring_table;
+pub mod star_scan;
 pub mod structure;
+
 pub mod table_semantics;
 pub mod veto_lexicon;
 // #226 层 2：规则说明识别（区分「招标人规则陈述」与「投标人响应要求」）。

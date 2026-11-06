@@ -1,4 +1,4 @@
-//! coverage_tools.rs —— #219 全块覆盖三工具。
+//! coverage_tools.rs —— #219 全块覆盖三工具 + #285 ★漏标检测。
 //!
 //! 架构转变：条款抽取从「正则猜边界」改为「引擎切块 + Agent 标区间」。
 //!
@@ -7,9 +7,10 @@
 //! | `get_document_chunks` | 取带 block_idx 的块（分页，防吃爆上下文） |
 //! | `submit_block_marks` | 提交区间标记 + requirements（校验后落库） |
 //! | `get_coverage_report` | 查覆盖（哪些块没归属） |
+//! | `get_star_coverage` | ★漏标检测（#285——字面★真值 vs 已抽 REQ 差集） |
 //!
-//! **职责边界**：引擎只管块 ID 稳定性、区间合法性、覆盖统计；
-//! 语义判断（哪些块是要求）全归 Agent。
+//! **职责边界**：引擎只管块 ID 稳定性、区间合法性、覆盖统计、★字面对账；
+//! 语义判断（哪些块是要求、★条款怎么标）归 Agent——本工具只报漏不补标。
 
 use std::collections::HashMap;
 
@@ -282,6 +283,126 @@ pub fn get_coverage_report(svc: &mut BidService, args: Value) -> ToolResult {
             "全覆盖——可以 build_outline"
         } else {
             "有未覆盖块——submit_block_marks 补标"
+        },
+    }))
+}
+
+// ---------------------------------------------------------------- #285 ★漏标检测
+
+/// 明细列表上限（nm-lib 实测 638 处漏标——全量回显会吃爆上下文；计数全量、明细截断）。
+const MAX_STAR_DETAIL: usize = 100;
+
+/// `get_star_coverage`：★漏标检测（只读——★字面真值 vs 已抽 REQ 的差集）。
+///
+/// 入参：`project_id`、`file_id`。
+/// 出参（口径三级恒等式：star_total = declarations + star_truth =
+/// declarations + captured + missing——不漏不重）：
+///
+/// ```text
+/// star_total      ★字面总数（含样板句——与 fixtures manifest star_count 同口径）
+/// declarations    样板句★数（「打★号条款为实质性条款」是声明不是条款——排除）
+/// star_truth      真值★数
+/// star_captured   已捕获（位置对应 REQ 在场——locator 腿 / ★前缀腿带页守卫）
+/// star_missing    漏标（真值 - 已捕获）
+/// captured[]      块级明细（req_id 优先取 star-marked REQ——「标没标」可见）
+/// missing[]       块级明细（page/line/locator/text/reason——补标定位面）
+/// warnings[]      表格行装配面提示 / 未抽取提示
+/// ```
+///
+/// **只报不补**（#285 明确不做：不自动补标、不改抽取逻辑）——补标由
+/// Agent/人决策（submit_block_marks substantive=true 或修抽取）。
+pub fn get_star_coverage(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "get_star_coverage";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let file_id = req_str(&args, "file_id", TOOL)?;
+
+    route_project(svc, &project_id, TOOL)?;
+
+    let file = find_parsed(svc, &file_id, TOOL)?;
+    let file_name = file.name.clone();
+    let reqs = svc.store().requirements().to_vec();
+    let reqs_of_file: Vec<bid_domain::Requirement> = reqs
+        .into_iter()
+        .filter(|r| {
+            r.source_file == file_name
+                || r.anchors.iter().any(|a| a.file == file_name)
+        })
+        .collect();
+    let cov = bid_parse::star_scan::star_coverage(file, &reqs_of_file);
+
+    let mut warnings: Vec<String> = Vec::new();
+    if reqs_of_file.is_empty() {
+        warnings.push(format!(
+            "本文件无任何 REQ——若尚未 extract_requirements，先抽取再查（当前口径：全部 {} 处真值★计为漏标）",
+            cov.truth_stars
+        ));
+    }
+    let table_row_missing = cov
+        .missing
+        .iter()
+        .filter(|m| m.reason.contains("表格行"))
+        .count();
+    if table_row_missing > 0 {
+        warnings.push(format!(
+            "★在表格行内（cells 非空）——{table_row_missing} 块可能因表格装配问题漏抽"
+        ));
+    }
+
+    let captured_detail: Vec<Value> = cov
+        .captured
+        .iter()
+        .take(MAX_STAR_DETAIL)
+        .map(|c| {
+            json!({
+                "req_id": c.req_id,
+                "star": c.star,
+                "page": c.page,
+                "line": c.line,
+                "block_idx": c.block_idx,
+                "stars": c.stars,
+                "locator": c.locator,
+                "text": c.text,
+            })
+        })
+        .collect();
+    let missing_detail: Vec<Value> = cov
+        .missing
+        .iter()
+        .take(MAX_STAR_DETAIL)
+        .map(|m| {
+            json!({
+                "page": m.page,
+                "line": m.line,
+                "block_idx": m.block_idx,
+                "stars": m.stars,
+                "locator": m.locator,
+                "text": m.text,
+                "reason": m.reason,
+            })
+        })
+        .collect();
+
+    Ok(json!({
+        "project_id": project_id,
+        "file_id": file_id,
+        "file_name": file_name,
+        "star_total": cov.star_total,
+        "declarations": cov.declaration_stars,
+        "declaration_samples": cov.declaration_samples,
+        "star_truth": cov.truth_stars,
+        "star_captured": cov.captured_stars,
+        "star_missing": cov.missing_stars,
+        "captured": captured_detail,
+        "missing": missing_detail,
+        "captured_truncated": cov.captured.len() > MAX_STAR_DETAIL,
+        "missing_truncated": cov.missing.len() > MAX_STAR_DETAIL,
+        "warnings": warnings,
+        "next": if cov.missing_stars == 0 && cov.truth_stars > 0 {
+            "★全覆盖——无漏标"
+        } else if cov.truth_stars == 0 {
+            "本文件无★实质性条款标记（字面无真值★）"
+        } else {
+            "有★漏标——用 missing[].block_idx 定位后 submit_block_marks 补标（substantive=true），重跑 extract_requirements 生效"
         },
     }))
 }

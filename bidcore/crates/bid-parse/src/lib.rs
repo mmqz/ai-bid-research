@@ -38,6 +38,8 @@ pub mod engines;
 pub mod env_preflight;
 pub mod extract;
 pub mod guard;
+// #285 ②：块级双向索引（派生态构建面——锚→块兜底解析 + 块→REQ 聚合）。
+pub mod bidi;
 pub mod merge;
 pub mod nesting;
 pub mod numbering;
@@ -86,6 +88,46 @@ pub struct ParsedFile {
     /// G7 零提取面逐文件可见化）。非 docx 解析面为空账本（部件概念不适用）。
     #[serde(default)]
     pub components: Vec<ComponentLedger>,
+}
+
+// ---------------------------------------------------------------- #285 ② 块级定位
+
+/// 从块/锚 locator 解析 `(页号, 行号)`（均 1 基）。
+///
+/// 在产 locator 全量形态（页门纪律：**无页号 → 行号也 None**——DOCX 章节
+/// 路径/xlsx `Sheet!行N`/表行 `…表T 行R` 的「行」是表行号不是页内行号，
+/// 解析出来是假信号）：
+/// - `第1页 行2`（poppler/engine 首选路与审查表/评分表合成件——行号后置）
+/// - `第1 页 > 第2 行`（纯 Rust 兜底路——行号前置「第M 行」）
+/// - `第1页 OCR 行2`（OCR 路——行号后置；锚面拼接后缀「 + 行接」由
+///   构造方处理，本函数只认纯形态）
+/// - DOCX `第三章 > …` / 表行 `第六章 评审 表8 行3` / xlsx `Sheet1!行3`
+///   → `(None, None)` 诚实口径（非 PDF 面无页行概念）
+pub fn page_line_of(locator: &str) -> (Option<u32>, Option<u32>) {
+    use std::sync::OnceLock;
+    // 页门：行首「第N页」（N 为 ASCII 数字，页字可前带空格——兜底路形态）
+    static RE_PAGE: OnceLock<regex::Regex> = OnceLock::new();
+    let page = RE_PAGE
+        .get_or_init(|| regex::Regex::new(r"^\s*第(\d+)\s*页").unwrap())
+        .captures(locator)
+        .and_then(|c| c[1].parse().ok());
+    if page.is_none() {
+        return (None, None); // 页门：非 PDF 面不猜行号（表行/xlsx 的「行」不是页内行）
+    }
+    // 行号双模式：后置「行M」（poppler/OCR）优先，前置「第M 行」（兜底路）次之
+    static RE_LINE_POST: OnceLock<regex::Regex> = OnceLock::new();
+    let line = RE_LINE_POST
+        .get_or_init(|| regex::Regex::new(r"行\s*(\d+)").unwrap())
+        .captures(locator)
+        .and_then(|c| c[1].parse().ok())
+        .or_else(|| {
+            static RE_LINE_PRE: OnceLock<regex::Regex> = OnceLock::new();
+            RE_LINE_PRE
+                .get_or_init(|| regex::Regex::new(r"第(\d+)\s*行").unwrap())
+                .captures(locator)
+                .and_then(|c| c[1].parse().ok())
+        });
+    (page, line)
 }
 
 /// SC-02 部件对账账本行（cpa-multi-plugins issue #38 吸收：docx 进 N 个部件，
@@ -252,5 +294,47 @@ mod norm_tests {
         // 全角Ｍ／ｓ → 半角 M/s（NFKC）；全角％ → 半角 %
         assert_eq!(norm_n3("30Ｍ／ｓ"), "30M/s");
         assert_eq!(norm_n3(" 95 ％ "), "95%");
+    }
+}
+
+#[cfg(test)]
+mod page_line_tests {
+    use super::page_line_of;
+
+    /// 三种在产 PDF 面 locator 形态全解析。
+    #[test]
+    fn pdf_face_forms_parse() {
+        // poppler/engine 首选路（行号后置）
+        assert_eq!(page_line_of("第18页 行12"), (Some(18), Some(12)));
+        // 纯 Rust 兜底路（行号前置「第M 行」、页字前带空格）
+        assert_eq!(page_line_of("第1 页 > 第2 行"), (Some(1), Some(2)));
+        // OCR 路
+        assert_eq!(page_line_of("第3页 OCR 行7"), (Some(3), Some(7)));
+        // 审查表/评分表合成件形态
+        assert_eq!(page_line_of("第25页 行3"), (Some(25), Some(3)));
+    }
+
+    /// 页门纪律：非 PDF 面（DOCX 章节路径/表行/xlsx）→ (None, None)——
+    /// 表行/xlsx 的「行」是表行号不是页内行号，解析出来是假信号。
+    #[test]
+    fn page_gate_blocks_non_pdf_faces() {
+        assert_eq!(page_line_of("第三章 > 3.2 技术要求"), (None, None));
+        assert_eq!(page_line_of("第六章 评审 表8 行3"), (None, None));
+        assert_eq!(page_line_of("Sheet1!行3"), (None, None));
+        assert_eq!(page_line_of("第四章 评标办法"), (None, None));
+        // 中文数字页号（第十章…）不在解析域——ASCII 数字才有页号
+        assert_eq!(page_line_of("第十章 投标文件格式"), (None, None));
+    }
+
+    /// 有页无行的诚实面：页可解析而行号缺失 → 行 None（不猜）。
+    #[test]
+    fn page_without_line_is_honest_none() {
+        assert_eq!(page_line_of("第5页"), (Some(5), None));
+    }
+
+    /// 锚面拼接后缀形态（OCR 续行）——后置行号先命中，不被「行接」尾骗。
+    #[test]
+    fn ocr_concat_suffix_does_not_confuse_line_parse() {
+        assert_eq!(page_line_of("第2页 OCR 行5 + 行接"), (Some(2), Some(5)));
     }
 }

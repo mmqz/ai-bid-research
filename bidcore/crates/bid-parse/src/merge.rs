@@ -197,12 +197,20 @@ pub fn merge_extraction(
                 id: format!("REQ-A{seq:04}"),
                 category,
                 clause_no: None,
-                anchors: vec![Anchor {
-                    file: f.name.to_string(),
-                    kind: block_kind_str(block.kind).to_string(),
-                    locator: block.locator.clone(),
-                    // 溯源锚 = 块原文（与正则 anchor 同纪律：创建时固化）
-                    excerpt: block.text.clone(),
+                anchors: vec![{
+                    let (page, line) = crate::page_line_of(&block.locator);
+                    Anchor {
+                        file: f.name.to_string(),
+                        kind: block_kind_str(block.kind).to_string(),
+                        locator: block.locator.clone(),
+                        // 溯源锚 = 块原文（与正则 anchor 同纪律：创建时固化）
+                        excerpt: block.text.clone(),
+                        // #285 ② 块级定位回填（Agent 项锚定块——s.block_idx 已
+                        // 校验落在 requirement 区间内，此处必中）
+                        block_idx: Some(block.idx),
+                        page,
+                        line,
+                    }
                 }],
                 params,
                 source_file: f.name.to_string(),
@@ -332,6 +340,9 @@ mod tests {
                 kind: "pdf_line".to_string(),
                 locator: locator.to_string(),
                 excerpt: text.to_string(),
+                    block_idx: None,
+                    page: None,
+                    line: None
             }],
             params: HashMap::new(),
             source_file: name.to_string(),

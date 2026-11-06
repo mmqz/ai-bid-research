@@ -57,6 +57,9 @@ fn base_store() -> DomainStore {
             kind: "para".into(),
             locator: "第三章/REQ-0001".into(),
             excerpt: "REQ-0001 的条款原文摘录".into(),
+                block_idx: None,
+                page: None,
+                line: None
         }],
         params: Default::default(),
         source_file: "A-招标文件.docx".into(),
@@ -404,6 +407,9 @@ fn no_tender_file_does_not_report_missing_addendum() {
             kind: "para".into(),
             locator: "L1".into(),
             excerpt: "摘录".into(),
+                block_idx: None,
+                page: None,
+                line: None
         }],
         params: Default::default(),
         source_file: "B1-设备清单.pdf".into(),

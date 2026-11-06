@@ -264,6 +264,49 @@ pub fn compute_coverage(marks: &[BlockMark], total_blocks: usize) -> CoverageRep
     }
 }
 
+// ---------------------------------------------------------------- #285 ② 块级双向索引
+
+/// REQ 的块级标记来源（`Requirement.params.marked_by` 的类型化镜像）。
+///
+/// 与抽取侧落库键同口径（extract.rs `marked_by: "regex"` / merge.rs
+/// `"agent"`）——派生面统一按枚举判，不再裸字符串比对。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MarkSource {
+    /// Agent 提交（`submit_block_marks` requirements → REQ-Axxxx）。
+    Agent,
+    /// 正则兜底抽取（引擎抽取面 → REQ-xxxx）。
+    #[serde(rename = "regex")]
+    RegexFallback,
+}
+
+impl MarkSource {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MarkSource::Agent => "agent",
+            MarkSource::RegexFallback => "regex",
+        }
+    }
+}
+
+/// 块级双向索引行（**派生态**——build 时从 REQ anchors + BlockMarks 聚合，
+/// 不持久化、可随时重建；`get_block_requirements` 反查的数据面）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BlockRequirementIndex {
+    /// 文件内容幂等键（`ParsedFile.sha256`——跨版本重导时锚失效判定面）。
+    pub file_sha256: String,
+    /// 块序（`ParsedFile.blocks[].idx`）。
+    pub block_idx: usize,
+    /// 该块承载的 REQ（REQ→块正向索引的反向聚合；无 REQ 块不入行——
+    /// 「无 REQ」由覆盖报告/overlay 面呈现，不混进本索引）。
+    pub req_ids: Vec<String>,
+    /// 块结论（Agent 标记面——REQ 行恒为 [`BlockVerdict::Requirement`]：
+    /// Agent REQ 必落在 requirement 区间，正则 REQ 本就是抽取的要求）。
+    pub verdict: BlockVerdict,
+    /// REQ 来源（agent / regex——`merge_extraction` ②过滤保证同块不双源）。
+    pub marked_by: MarkSource,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -279,6 +322,35 @@ mod tests {
             validate_marks(&[m], 100),
             Err(CoverageError::InvalidRange { .. })
         ));
+    }
+
+    // ---------------------------------------------------------------- #285 ②
+
+    #[test]
+    fn mark_source_serde_matches_params_key() {
+        // 落库键口径：agent / regex（extract.rs 与 merge.rs 的 params.marked_by）
+        assert_eq!(serde_json::to_string(&MarkSource::Agent).unwrap(), "\"agent\"");
+        assert_eq!(
+            serde_json::to_string(&MarkSource::RegexFallback).unwrap(),
+            "\"regex\""
+        );
+        assert_eq!(MarkSource::Agent.as_str(), "agent");
+        assert_eq!(MarkSource::RegexFallback.as_str(), "regex");
+    }
+
+    #[test]
+    fn block_requirement_index_serde_roundtrip() {
+        let row = BlockRequirementIndex {
+            file_sha256: "ab12".into(),
+            block_idx: 427,
+            req_ids: vec!["REQ-0015".into(), "REQ-0016".into()],
+            verdict: BlockVerdict::Requirement,
+            marked_by: MarkSource::Agent,
+        };
+        let j = serde_json::to_string(&row).unwrap();
+        let back: BlockRequirementIndex = serde_json::from_str(&j).unwrap();
+        assert_eq!(row, back);
+        assert!(j.contains("\"marked_by\":\"agent\""), "来源面小写蛇形：{j}");
     }
 
     #[test]

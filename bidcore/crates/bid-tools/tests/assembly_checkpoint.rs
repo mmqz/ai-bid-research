@@ -44,6 +44,9 @@ fn store_with_500_chapters() -> DomainStore {
                 locator: "第三章".into(),
                 // 逐条唯一 excerpt——同 excerpt 会被 dedupe_hash 合并，500 章基座就塌了
                 excerpt: format!("S-2 条款-{i} 的唯一原文摘录"),
+                    block_idx: None,
+                    page: None,
+                    line: None
             }],
             params: std::collections::HashMap::new(),
             source_file: "A".into(),

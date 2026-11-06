@@ -90,6 +90,9 @@ fn svc_export_ready(tag: &str, n_reqs: usize, target_chars: u32) -> (BidService,
             anchors: vec![Anchor {
                 file: "A-招标文件.docx".into(), kind: "para".into(),
                 locator: format!("第{}章", i / 10 + 1), excerpt: format!("第 {} 条合成要求", i + 1),
+                    block_idx: None,
+                    page: None,
+                    line: None
             }],
             params: Default::default(), source_file: "A-招标文件.docx".into(),
         })

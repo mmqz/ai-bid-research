@@ -238,7 +238,10 @@ mod tests {
             anchors: vec![Anchor {
                 file: "A".into(), kind: "para".into(),
                 locator: "第三章".into(),
-                excerpt: format!("条款-{i} 的原文摘录"), // 唯一锚——dedupe_hash 不互撞
+                excerpt: format!("条款-{i} 的原文摘录"), // 唯一锚——dedupe_hash 不互撞,
+                    block_idx: None,
+                    page: None,
+                    line: None
             }],
             params: std::collections::HashMap::new(),
             source_file: "A".into(),

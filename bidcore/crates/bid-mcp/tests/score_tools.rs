@@ -49,6 +49,9 @@ fn mk_req(id: &str, category: &str, excerpt: &str, score: Option<f64>) -> bid_do
             kind: "para".into(),
             locator: "第四章 评标办法".into(),
             excerpt: excerpt.into(),
+                block_idx: None,
+                page: None,
+                line: None
         }],
         params,
         source_file: "A-招标文件.docx".into(),
@@ -488,6 +491,9 @@ fn score_document_reports_mappings_unmapped_and_multi_mapping() {
                 kind: "table".into(),
                 locator: "第四章 评标办法 > 表 4-2 第 3 行".into(),
                 excerpt: "技术方案完整性 20 分，详见评审细则".into(),
+                    block_idx: None,
+                    page: None,
+                    line: None
             },
             bid_domain::scoring::MappingSource::AgentSubmitted,
         )
@@ -503,6 +509,9 @@ fn score_document_reports_mappings_unmapped_and_multi_mapping() {
                 kind: "table".into(),
                 locator: "第四章 评标办法 > 表 4-2 第 3 行".into(),
                 excerpt: "技术方案完整性 20 分，详见评审细则".into(),
+                    block_idx: None,
+                    page: None,
+                    line: None
             },
             bid_domain::scoring::MappingSource::AgentSubmitted,
         )
@@ -711,6 +720,9 @@ fn score_document_mapping_report_attributes_effective_source_only() {
                 kind: "table".into(),
                 locator: "第四章 评标办法 > 表 4-2 第 3 行".into(),
                 excerpt: "技术方案完整性 20 分，详见评审细则".into(),
+                    block_idx: None,
+                    page: None,
+                    line: None
             },
             bid_domain::scoring::MappingSource::AgentSubmitted,
         )
@@ -891,6 +903,9 @@ fn score_document_rule_checkpoints_merge_across_sections() {
                     kind: "table".into(),
                     locator: "第四章 评标办法 > 表 4-2 第 3 行".into(),
                     excerpt: "技术方案完整性 20 分，详见评审细则".into(),
+                        block_idx: None,
+                        page: None,
+                        line: None
                 },
                 bid_domain::scoring::MappingSource::AgentSubmitted,
             )

@@ -62,6 +62,9 @@ fn store_with_500_chapter_tree() -> DomainStore {
                 kind: "para".into(),
                 locator: "第三章".into(),
                 excerpt: format!("S-6 条款-{i} 的唯一原文摘录"),
+                    block_idx: None,
+                    page: None,
+                    line: None
             }],
             params: std::collections::HashMap::new(),
             source_file: "A".into(),

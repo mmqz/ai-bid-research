@@ -567,6 +567,9 @@ mod tests {
                 file: "A".into(), kind: "para".into(),
                 locator: format!("第三章 > {id}"),
                 excerpt: format!("{id} 条款原文（合成矩阵件）"),
+                    block_idx: None,
+                    page: None,
+                    line: None
             }],
             params: HashMap::new(), source_file: "A".into(),
         }

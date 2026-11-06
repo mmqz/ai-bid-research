@@ -784,6 +784,9 @@ mod tests {
                 kind: "para".into(),
                 locator: "第三章".into(),
                 excerpt: "具备安全生产许可证".into(),
+                    block_idx: None,
+                    page: None,
+                    line: None
             }],
             params: std::collections::HashMap::new(),
             source_file: "A".into(),

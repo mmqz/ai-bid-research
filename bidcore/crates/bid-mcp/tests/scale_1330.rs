@@ -70,6 +70,9 @@ fn synth_requirements(n: usize) -> Vec<Requirement> {
                     "第 {} 条：投标人应满足第 {} 项要求——{}（合成条款，用于规模验证）",
                     i + 1, i % 9 + 1, cats[i % cats.len()],
                 ),
+                    block_idx: None,
+                    page: None,
+                    line: None
             }],
             params: Default::default(),
             source_file: "A-合成招标文件.docx".into(),

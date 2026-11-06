@@ -24,6 +24,9 @@ fn req(category: &str, excerpt: &str) -> Requirement {
             kind: "para".into(),
             locator: "第六章/格式".into(),
             excerpt: excerpt.into(),
+                block_idx: None,
+                page: None,
+                line: None
         }],
         params: Default::default(),
         source_file: "A-招标文件.docx".into(),

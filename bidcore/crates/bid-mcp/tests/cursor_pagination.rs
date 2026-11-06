@@ -98,6 +98,9 @@ fn matrix_store(n: usize) -> (BidService, String) {
                     kind: "para".into(),
                     locator: format!("第三章 > 3.{}", i + 1),
                     excerpt: format!("S-4 合成条款 {i}（唯一锚——dedupe_hash 不互撞）"),
+                        block_idx: None,
+                        page: None,
+                        line: None
                 }],
                 params: HashMap::new(),
                 source_file: "A".into(),
@@ -204,6 +207,9 @@ fn task_store(n: usize) -> (BidService, String) {
                     kind: "para".into(),
                     locator: format!("第三章 > 3.{}", i + 1),
                     excerpt: format!("S-4 任务条款 {i}（唯一锚——dedupe_hash 不互撞）"),
+                        block_idx: None,
+                        page: None,
+                        line: None
                 }],
                 params: HashMap::new(),
                 source_file: "A".into(),

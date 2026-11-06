@@ -41,6 +41,9 @@ fn req(id: &str) -> Requirement {
             kind: "para".into(),
             locator: format!("第二章/{id}"),
             excerpt: format!("{id} 的要求原文摘录（逐条唯一）"),
+                block_idx: None,
+                page: None,
+                line: None
         }],
         params: Default::default(),
         source_file: "A-招标文件.docx".into(),

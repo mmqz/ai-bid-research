@@ -38,6 +38,9 @@ fn req(id: &str, category: &str, excerpt: &str) -> Requirement {
             kind: "para".into(),
             locator: format!("第三章/{id}"),
             excerpt: excerpt.into(),
+                block_idx: None,
+                page: None,
+                line: None
         }],
         params: Default::default(),
         source_file: "招标文件.docx".into(),

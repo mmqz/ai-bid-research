@@ -40,6 +40,9 @@ fn requirement(id: &str, score: Option<f64>, parent: Option<&str>, section: Opti
             kind: "para".into(),
             locator: "第四章 评标办法".into(),
             excerpt: criteria.into(),
+                block_idx: None,
+                page: None,
+                line: None
         }],
         params,
         source_file: "tender.docx".into(),

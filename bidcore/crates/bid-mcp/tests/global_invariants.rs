@@ -649,6 +649,9 @@ fn synth_req(id: &str, category: &str) -> Requirement {
             kind: "para".into(),
             locator: "第一章".into(),
             excerpt: format!("{id} 条款原文（反例件）"),
+                block_idx: None,
+                page: None,
+                line: None
         }],
         params,
         source_file: "A".into(),

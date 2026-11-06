@@ -24,6 +24,10 @@ fn anchor(excerpt: &str) -> Anchor {
         kind: "para".into(),
         locator: "第四章 评标办法".into(),
         excerpt: excerpt.into(),
+        // 旧快照形态（无块级定位）——测试合成锚
+        block_idx: None,
+        page: None,
+        line: None,
     }
 }
 

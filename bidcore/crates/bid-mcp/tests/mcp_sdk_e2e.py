@@ -40,6 +40,7 @@ EXPECTED_TOOLS = {
     # #219 全块覆盖三工具（#237 已入 main；#227 曾漏登 e2e 清单——
     # CI 无 Python SDK 抓不到，本分支合流时与 TOOL_NAMES 26 对齐）
     "get_document_chunks", "submit_block_marks", "get_coverage_report",
+    "get_star_coverage",  # #285 ① ★漏标检测（与 TOOL_NAMES 30 对齐）
     "set_matrix_override",  # #226 层 1：否决项死锁的人工出口
     "recover_validating_state",  # #243：历史异常态（VALIDATING+缺章）恢复出口
     # #254 章节级增量写入三工具（与 TOOL_NAMES 29 对齐）
@@ -80,7 +81,7 @@ async def main() -> None:
             # ---- ② list_tools（全量工具面 + inputSchema 形态）----
             tools = (await session.list_tools()).tools
             names = {t.name for t in tools}
-            check(len(tools) == 29, f"list_tools: 工具数 = {len(tools)}（29）")
+            check(len(tools) == 30, f"list_tools: 工具数 = {len(tools)}（30）")
             check(names == EXPECTED_TOOLS, "list_tools: 与 TOOL_NAMES 单一真源一致")
             for t in tools:
                 check(isinstance(t.inputSchema, dict) and t.inputSchema.get("type") == "object",

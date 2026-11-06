@@ -37,7 +37,7 @@ pub use transport::Transport;
 
 use serde_json::Value;
 
-/// 21 个工具名（单一真源；schema 声明与分发都从这里取）。
+/// 30 个工具名（单一真源；schema 声明与分发都从这里取）。
 ///
 /// V3-5（S-4 游标分页）新增 `list_evidence` / `list_tasks` 两个只读列表工具
 /// （原 8 工具契约 + `get_bid_project_state` + 2 = 11）；#42 阶段 10 增
@@ -51,7 +51,9 @@ use serde_json::Value;
 /// get_coverage_report）；#226 增 1 个：`set_matrix_override`（否决项
 /// 死锁的人工出口）；#243 增 1 个：`recover_validating_state`（历史
 /// 异常态 VALIDATING+缺章的受支持恢复出口）= 26。
-pub const TOOL_NAMES: [&str; 29] = [
+/// #285 ① 增 1 个：`get_star_coverage`（★漏标检测——字面★真值 vs 已抽
+/// REQ 差集；六场黑盒实测捕获率 1/5~5/5 波动的对账面）= 30。
+pub const TOOL_NAMES: [&str; 30] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -77,6 +79,8 @@ pub const TOOL_NAMES: [&str; 29] = [
     "get_document_chunks",
     "submit_block_marks",
     "get_coverage_report",
+    // #285 ① ★漏标检测（只读对账——★字面真值 vs 已抽 REQ）
+    "get_star_coverage",
     // #226 层 1：否决项死锁的人工出口
     "set_matrix_override",
     // #243：历史异常态（VALIDATING+缺章）的受支持恢复出口

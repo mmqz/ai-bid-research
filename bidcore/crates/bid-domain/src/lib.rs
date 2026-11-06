@@ -177,6 +177,8 @@ impl ProjectStatus {
                 "get_document_chunks",
                 "submit_block_marks",
                 "get_coverage_report",
+                // #285 ① ★漏标检测（导入后任意时刻可查——抽取前查=全部真值未捕获的诚实口径）
+                "get_star_coverage",
             ],
             RequirementsExtracted => &[
                 "import_tender_files",
@@ -192,9 +194,12 @@ impl ProjectStatus {
                 "get_document_chunks",
                 "submit_block_marks",
                 "get_coverage_report",
+                // #285 ① ★漏标检测（抽取后主查窗口）
+                "get_star_coverage",
             ],
             MatrixReady | EvidenceBound => &[
                 "get_coverage_report",
+                "get_star_coverage",
                 "get_compliance_matrix",
                 "search_evidence",
                 "get_bid_project_state",
@@ -218,6 +223,7 @@ impl ProjectStatus {
             ],
             Drafting => &[
                 "get_coverage_report",
+                "get_star_coverage",
                 "get_compliance_matrix",
                 "search_evidence",
                 "get_bid_project_state",
@@ -249,6 +255,7 @@ impl ProjectStatus {
             Validating => &[
                 "get_compliance_matrix",
                 "get_coverage_report",
+                "get_star_coverage",
                 "search_evidence",
                 "get_bid_project_state",
                 // #254 只读段账本（校验期对账面——写作工具不重开）
@@ -274,6 +281,7 @@ impl ProjectStatus {
             Reviewing | ReadyToExport => &[
                 "get_compliance_matrix",
                 "get_coverage_report",
+                "get_star_coverage",
                 "search_evidence",
                 "get_bid_project_state",
                 // #254 只读段账本（复核期对账面）
@@ -295,6 +303,7 @@ impl ProjectStatus {
             ],
             Exported => &[
                 "get_coverage_report",
+                "get_star_coverage",
                 "get_compliance_matrix",
                 "search_evidence",
                 "get_bid_project_state",

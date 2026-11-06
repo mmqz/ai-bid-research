@@ -32,8 +32,10 @@ const ALL_STATES: [ProjectStatus; 10] = [
 /// #219 增全块覆盖三工具；#226 增 `set_matrix_override`（尾插——矩阵已建
 /// 才有可覆写对象，MatrixReady 起放行）；#243 增 `recover_validating_state`
 ///（尾插——仅 VALIDATING 态放行的历史异常恢复出口）；#254 增分段三工具
-///（尾插——append/rewrite 与整稿同窗口，list 全矩阵窗口只读）= 29。
-const ALL_TOOLS: [&str; 29] = [
+///（尾插——append/rewrite 与整稿同窗口，list 全矩阵窗口只读）= 29；
+/// #285 ① 增 `get_star_coverage`（★漏标检测只读——与 get_coverage_report
+/// 同窗口，FILES_IMPORTED+ 含 Exported）= 30。
+const ALL_TOOLS: [&str; 30] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -59,6 +61,8 @@ const ALL_TOOLS: [&str; 29] = [
     "get_document_chunks",
     "submit_block_marks",
     "get_coverage_report",
+    // #285 ① ★漏标检测（只读——与 get_coverage_report 同窗口）
+    "get_star_coverage",
     // #226 层 1：否决项死锁的人工出口
     "set_matrix_override",
     // #243：历史异常态（VALIDATING+缺章）的受支持恢复出口
@@ -236,26 +240,28 @@ fn full_matrix_snapshot() {
         //   #254 尾插三位 append/rewrite/list（与整稿同窗口）；
         //   #241 在 DRAFTING..READY_TO_EXPORT 翻 5/6 位（register/bind evidence——
         //        证据补件通道）。两个 PR 各自改位串矩阵，本表为两者并集。
-        // Draft（record_addendum_waiver 拒——导入前无件可确认）
-        (ProjectStatus::Draft, "11000000000000100000000000000"),
-        // FilesImported
-        (ProjectStatus::FilesImported, "01101000100000100000111100000"),
-        // RequirementsExtracted
-        (ProjectStatus::RequirementsExtracted, "01111000100000100000111100000"),
-        // MatrixReady（#254 尾三位 111——分段写入与整稿同窗口）
-        (ProjectStatus::MatrixReady, "00001110110010110110100110111"),
-        // EvidenceBound
-        (ProjectStatus::EvidenceBound, "00001110110010110110100110111"),
-        // Drafting（#254 尾三位 111；#241 5/6 位翻 1——证据补件主战场）
-        (ProjectStatus::Drafting, "00001110110111110110100110111"),
-        // Validating（#243 尾区位 1；#254 尾三 001；#241 5/6 位翻 1）
-        (ProjectStatus::Validating, "00001110100111110110100111001"),
-        // Reviewing（#254 尾三 001；#241 5/6 位翻 1）
-        (ProjectStatus::Reviewing, "00001110100111110110100110001"),
+        // Draft（record_addendum_waiver 拒——导入前无件可确认；#285 位 24=0——
+        //   无文件可扫）
+        (ProjectStatus::Draft, "110000000000001000000000000000"),
+        // FilesImported（#285 位 24=1——★漏标检测导入后任意时刻可查）
+        (ProjectStatus::FilesImported, "011010001000001000001111100000"),
+        // RequirementsExtracted（#285 位 24=1——抽取后主查窗口）
+        (ProjectStatus::RequirementsExtracted, "011110001000001000001111100000"),
+        // MatrixReady（#254 尾三位 111——分段写入与整稿同窗口；#285 位 24=1）
+        (ProjectStatus::MatrixReady, "000011101100101101101001110111"),
+        // EvidenceBound（同上）
+        (ProjectStatus::EvidenceBound, "000011101100101101101001110111"),
+        // Drafting（#254 尾三位 111；#241 5/6 位翻 1——证据补件主战场；#285 位 24=1）
+        (ProjectStatus::Drafting, "000011101101111101101001110111"),
+        // Validating（#243 尾区位 1；#254 尾三 001；#241 5/6 位翻 1；#285 位 24=1）
+        (ProjectStatus::Validating, "000011101001111101101001111001"),
+        // Reviewing（#254 尾三 001；#241 5/6 位翻 1；#285 位 24=1）
+        (ProjectStatus::Reviewing, "000011101001111101101001110001"),
         // ReadyToExport（同上）
-        (ProjectStatus::ReadyToExport, "00001110100111110110100110001"),
-        // Exported（终态不变量：终态不改数据——#241 不被括进来；#254 仅只读 list）
-        (ProjectStatus::Exported, "00001000100011110110100110001"),
+        (ProjectStatus::ReadyToExport, "000011101001111101101001110001"),
+        // Exported（终态不变量：终态不改数据——#241 不被括进来；#254 仅只读 list；
+        //   #285 位 24=1——导出后仍可对账追溯）
+        (ProjectStatus::Exported, "000010001000111101101001110001"),
     ];
     assert_eq!(grid.len(), ALL_STATES.len());
 

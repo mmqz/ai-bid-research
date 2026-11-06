@@ -1,5 +1,6 @@
 //! bid-engine —— 引擎适配层**唯一接触面**（issue #2 §B3 预演 · T1 批；
-//! #110 任务 2：rev 提级 aa0c859d + pagination/style 接线）。
+//! #110 任务 2：rev 提级 + pagination/style 接线；#327：rev 常量改
+//! build.rs 从 Cargo.toml 单一真源注入）。
 //!
 //! **本 crate 在 T1 阶段只定义、不实现**：trait / 镜像类型 / 映射函数签名。
 //! B3（适配层接通）将：
@@ -71,11 +72,14 @@ pub use types::{
     EngineWarning,
 };
 
-/// 引擎钉住 rev（与 Cargo.toml git 依赖一致——parse_summary 溯源口径）。
-/// 升级走独立 PR（`chore(dep): bump mdcore`）并重跑基线差分（issue #2 §3.1）。
-/// #110 任务 2：3204342d → aa0c859d（87 提交——消费面公开 API 零破坏，
-/// 差分验证见 PR 描述）。
-pub const MDCORE_REV: &str = "aa0c859d956597992c2d93e9055e2f0beca017c3";
+/// 引擎钉住 rev（parse_summary 溯源口径）。
+///
+/// **单一真源 = 本 crate Cargo.toml 的 mdcore 系 git 依赖 rev**（#327）：
+/// build.rs 编译期提取注入——手改本常量无效（改回字面量会被
+/// `tests/mdcore_rev_single_source.rs` 断言红）；Cargo.toml 无 rev 钉 /
+/// mdcore 系 rev 分裂则编译失败。升级走独立 PR（`chore(dep): bump mdcore`）
+/// 并重跑基线差分（issue #2 §3.1）。
+pub const MDCORE_REV: &str = env!("MDCORE_REV");
 
 /// 门面：读文件 → 引擎解析 → 映射为 `ParsedFile`（B5 import 接线入口，docx 通道）。
 ///

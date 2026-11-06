@@ -9,19 +9,28 @@
 ## 调用形
 
 ```json
-{ "project_id": "…", "target_total_chars": 844000, "max_reqs_per_leaf": 8,
+{ "project_id": "…", "length_profile": "conservative", "max_reqs_per_leaf": 8,
   "project_version": 12 }
 ```
 
-- `target_total_chars`：总目标字数（1,000..=5,000,000，缺省 844,000 ≈
-  1000 页 × 844 字符/页——与引擎单一真源 `DEFAULT_TARGET_TOTAL_CHARS`
-  同源，#253）——长标书按实测篇幅给大值（见主 Skill「篇幅纪律」）；
+- **篇幅配额（#287 四档 + 三者优先）**：`build_outline` 的总量有三种来源，
+  优先级从高到低：
+  1. 显式传 `target_total_chars`（1,000..=5,000,000，数字直接覆盖档位
+     ——仅用户点名要非常规字数时用）；
+  2. 显式传 `length_profile`（四档键 `practical` / `standard` /
+     `conservative` / `maximum`，拼错 E_UNPROCESSABLE 显式拒）；
+  3. 都不传 → 引擎默认档 `conservative`（1,200,000 字 ≈ 1422 页，
+     用户裁定 2026-11-06，单一真源 `DEFAULT_TARGET_TOTAL_CHARS`）。
+
+  **推荐做法（#288）**：先 `recommend_length_profile` 拿建议 + 理由 +
+  全四档 alternatives，**用户确认后**传 `length_profile`——流程与呈现
+  模板见主 Skill「篇幅纪律 · 配额定标」。**不要自己拍数字**；
 - `max_reqs_per_leaf`：每叶挂载条款上限（1..=50，缺省 8）；
 - **配额分配**（#253 第二段——引擎自动分层计价，不按条款数均摊）：
   评分章节（有分值的）按分值权重吃大头；行政条款（资格/格式/合同/
   须知类）300 字/条；技术参数等实质响应 2,000 字/条；剩余让渡给评分
   章节。**不要按「条款数 × 均值」心算各章篇幅**——用 get_outline 读
-  每叶 `target_chars`（配额总和恒等于 `target_total_chars`）；
+  每叶 `target_chars`（配额总和恒等于选中档位的目标字数）；
 - 状态窗口：**REQUIREMENTS_EXTRACTED 态可调**（FilesImported/Draft →
   E_STATE；MATRIX_READY+ 重复调用 → E_STATE——重建面属「补遗后增量重抽」
   的后续需求，不隐式放行）；
@@ -29,13 +38,16 @@
 
 ```json
 → { "counts": { "sections": 18, "leaves": 9, "requirements": 108,
-     "total_target_chars": 20000, "matrix_rows": 108, "matrix_blocking": 47 },
+     "total_target_chars": 1200000, "matrix_rows": 108, "matrix_blocking": 47 },
+   "length": { "profile": "conservative", "target_total_chars": 1200000,
+     "approx_pages": 1422 },
    "status": "MATRIX_READY", "project_version": 14 }
 ```
 
-**必须向用户复述**：`建纲 N 节 / M 叶 / 矩阵 R 行 / 阻断 b 行`。
-`matrix_blocking` 是 P4 的工作量预告——资格/否决（以及未绑证据的技术参数）
-行还没绑证据时全部计入。
+**必须向用户复述**：`建纲 N 节 / M 叶 / 矩阵 R 行 / 阻断 b 行 / 篇幅档
+<档名>（N 字 ≈ M 页）`。`length` 是 #287 生效档回显（审计面可核对——
+选了什么档、落在多少字）；`matrix_blocking` 是 P4 的工作量预告——资格/
+否决（以及未绑证据的技术参数）行还没绑证据时全部计入。
 
 ## 矩阵行结构（get_compliance_matrix 返回）
 
@@ -162,7 +174,8 @@ policy/资格三态字段——`get_compliance_matrix` 行内 `response_policy` 
 
 ## 来源锚点
 
-- `docs/bid-mcp-contract.md` §10（build_outline 入出参/状态窗，L375-393）、
+- `docs/bid-mcp-contract.md` §10（build_outline 入出参/状态窗/篇幅档位，
+  L495-524）、§22（recommend_length_profile——四档推荐/信号/置信度）、
   §4（get_compliance_matrix 行结构/游标，L74-88）、§0（大结果分页约定，L13-16）
 - `bidcore/crates/bid-mcp/src/lib.rs`（TOOL_NAMES 单一真源——含矩阵人工
   覆写工具 `set_matrix_override`，#226 起入面）

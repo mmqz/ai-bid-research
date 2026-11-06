@@ -1120,3 +1120,80 @@ out: { recommended_profile("practical"|"standard"|"conservative"|"maximum"),
 门禁联动: E_TOTAL_CHARS_BELOW_MIN 按 outline_total_chars()（配额总和
       = 选中档位目标）动态判——档位化后自动按选中档生效（非固定 844,000）。
 ```
+
+## 12-A. assign_revision（#321/A-23 · RT 认领/改派）
+```
+in : { project_id, rt_id(RT-xxxx), owner(修订执行者——任意操作者面，
+       人与 AI 均可修单；与复审人不同，无 human: 前缀约束), project_version }
+out: { rt:{ id, finding_id, section_id, owner, status, resolution },
+       project_version, request_id }
+窗口: MATRIX_READY+（含 Exported——RT 随 record_review_gate 派生，
+      两窗口一致）。
+语义: DONE 终态不可改派（重走门 = 新 finding 新 RT，不复活旧单）；
+      owner 空白拒（空指派 = 无人认领的幽灵工单）。
+```
+
+## 12-B. advance_revision（#321/A-23 · RT 推进）
+```
+in : { project_id, rt_id, to(OPEN|IN_PROGRESS|DONE), project_version }
+out: { rt:{ id, status, owner, resolution }, project_version, request_id }
+语义: Open→InProgress 唯一可经本面的边；to=DONE 一律拒并指引
+      complete_revision（关单必须带 resolution——结构不变量
+      Done ⟹ resolution 非空）；DONE 终态零出边。
+```
+
+## 12-C. complete_revision（#321/A-23 · RT 关单）
+```
+in : { project_id, rt_id, resolution(必填非空——修单交代：改了什么/怎么改的),
+       project_version }
+out: { rt:{ id, status:"DONE", resolution }, open_rt_count, open_rt_ids:[],
+       export_allowed_hint, project_version, request_id }
+语义: 仅 IN_PROGRESS 可关（Open 直接 Done = 越级拒——先认领开工再关单）；
+      空说明不算修完（诚实状态）。out 即时回显导出 RT 面（全部关单才放行
+      export_bid_document——#321 修复前这里是结构性死锁：无工具可关单）。
+```
+
+## 12-D. batch_task（#321/A-23 · 分工批量派工 · T-6 Assignment）
+```
+in : { project_id, targets:[SEC-xxxx|REQ-xxxx](非空), owner,
+       deadline?(YYYY-MM-DD), project_version }
+out: { total, added, owner, deadline, project_version, request_id }
+窗口: MATRIX_READY+（大纲已在，SEC/REQ 可派工）。
+语义: target 自然键 upsert——同 owner 重批 = 只改截止日（进度轴不动）；
+      换 owner 重批 = 状态复位 ASSIGNED（换人 = 新进度轴）。查询面走
+      list_tasks（owner/status 双过滤 + target_id 字典序）。
+```
+
+## 12-E. advance_task（#321/A-23 · 分工单件推进）
+```
+in : { project_id, target_id, to(ASSIGNED|IN_PROGRESS|DONE), project_version }
+out: { task:{ target_id, owner, status, deadline }, project_version, request_id }
+语义: ASSIGNED→IN_PROGRESS→DONE 线性链，越级拒；DONE 重开走
+      batch_task 重指派显式复位，无静默回退通道。TaskStatus（人的进度）
+      与 SectionStatus（内容的进度）两轴独立、互不推导。
+```
+
+## 12-F. reopen_section（#321/A-23 · ACCEPTED 章节重开）
+```
+in : { project_id, section_id, project_version }
+out: { section:{ id, title, status:"REVISING", dirty:true }, note,
+       project_version, request_id }
+窗口: DRAFTING+（含 Exported——重导前修订面）。
+语义: 仅 ACCEPTED 可重开（→Revising + dirty——验收后修改必须显式，
+      R-06 纪律）；非终态用 advance 语义拒。重开后再起草走原验收链，
+      重导前需重过 pre_export_confirm（#180 内容摘要绑定）。
+```
+
+## 12-G. set_param_responses（#321/A-23 · 参数应答写入）
+```
+in : { project_id,
+       rows:[{ requirement_id, param_name, required_value, response_value,
+               evidence_id? }](非空), project_version }
+out: { total, added, note, project_version, request_id }
+窗口: REQUIREMENTS_EXTRACTED|MATRIX_READY|EVIDENCE_BOUND|DRAFTING
+      （与域层 set_param_responses 状态窗逐态一致）。
+语义: 技术参数偏离表的**唯一录入面**（此前无 MCP 入口恒为空账——A-07
+      上游缺口）；偏离判定是派生态（derive_deviation 单一真源：数值主判
+      > 语义标记 > 不可比），导出时自动逐行判定真偏离；幂等（同键重放
+      added=0）。
+```

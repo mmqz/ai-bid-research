@@ -1093,6 +1093,77 @@ impl BidService {
         Ok((bound, replayed, item_errors, rows, blocking))
     }
 
+    // ------------------------------------------------------------ #321（A-23）：RT/分工/重开/参数应答服务面
+
+    /// RT 认领/改派（域方法 + 写后自动落盘）。
+    ///
+    /// 此前 assign/advance/complete_revision_task 域层完备但服务层零包装、
+    /// MCP 面零工具：拒审派生 Open RT 后无任何产品出口 → export_allowed
+    /// 恒拒 = 结构性死锁（audit A-23）。本组包装把修单链打通。
+    pub fn assign_revision(&mut self, rt_id: &str, owner: &str) -> Result<(), ToolError> {
+        self.store.assign_revision_task(rt_id, owner)?;
+        self.auto_checkpoint()?;
+        Ok(())
+    }
+
+    /// RT 推进（Open→InProgress；→Done 走 [`Self::complete_revision`]——关单必须带说明）。
+    pub fn advance_revision(
+        &mut self,
+        rt_id: &str,
+        to: bid_domain::review::RTStatus,
+    ) -> Result<(), ToolError> {
+        self.store.advance_rt_status(rt_id, to)?;
+        self.auto_checkpoint()?;
+        Ok(())
+    }
+
+    /// RT 关单（resolution 必填非空——空说明不算修完）。
+    pub fn complete_revision(&mut self, rt_id: &str, resolution: &str) -> Result<(), ToolError> {
+        self.store.complete_revision_task(rt_id, resolution)?;
+        self.auto_checkpoint()?;
+        Ok(())
+    }
+
+    /// 分工批量派工（T-6 Assignment：target upsert——同 owner 改期/换 owner 复位）。
+    pub fn batch_task(
+        &mut self,
+        targets: &[String],
+        owner: &str,
+        deadline: Option<&str>,
+    ) -> Result<(usize, usize), ToolError> {
+        let r = self.store.batch_assign(targets, owner, deadline)?;
+        self.auto_checkpoint()?;
+        Ok(r)
+    }
+
+    /// 分工单件推进（ASSIGNED→IN_PROGRESS→DONE 线性链）。
+    pub fn advance_task(
+        &mut self,
+        target_id: &str,
+        to: bid_domain::assignment::TaskStatus,
+    ) -> Result<(), ToolError> {
+        self.store.advance_task(target_id, to)?;
+        self.auto_checkpoint()?;
+        Ok(())
+    }
+
+    /// ACCEPTED 章节重开（→Revising + dirty——重导前的修订面）。
+    pub fn reopen_section(&mut self, section_id: &str) -> Result<(), ToolError> {
+        self.store.reopen_section(section_id)?;
+        self.auto_checkpoint()?;
+        Ok(())
+    }
+
+    /// 参数应答批量写入（技术参数偏离表的唯一录入面——A-07 的上游缺口）。
+    pub fn set_param_responses(
+        &mut self,
+        rows: Vec<bid_domain::param::ParamInput>,
+    ) -> Result<(usize, usize), ToolError> {
+        let r = self.store.set_param_responses(rows)?;
+        self.auto_checkpoint()?;
+        Ok(r)
+    }
+
     /// `record_review_gate` 业务半边（G3 + #182 + #277 方案 A）。
     ///
     /// #182：入参从裸 `reviewer` 串改为 `receipt`（宿主签发的审批回执）。

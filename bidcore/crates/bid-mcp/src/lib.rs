@@ -59,8 +59,11 @@ use serde_json::Value;
 /// = 30；#287 增 1 个：`recommend_length_profile`（篇幅档位推荐——P3 建纲
 /// 前只读：信号面细则数/★条款数/预算/采购类型/明写篇幅）= 31；#285 ① 增 1 个：
 /// `get_star_coverage`（★漏标检测——字面★真值 vs 已抽 REQ 差集；六场黑盒
-/// 实测捕获率 1/5~5/5 波动的对账面）= 32。
-pub const TOOL_NAMES: [&str; 32] = [
+/// 实测捕获率 1/5~5/5 波动的对账面）= 32。#321（A-23）增 7 个：RT 生命周期
+/// 三工具（assign/advance/complete_revision——拒审派生 RT 的产品出口）+
+/// 分工面两工具（batch_task/advance_task）+ `reopen_section`（ACCEPTED 章节
+/// 重开）+ `set_param_responses`（参数应答录入）= 39。
+pub const TOOL_NAMES: [&str; 39] = [
 
     "create_bid_project",
     "import_tender_files",
@@ -104,6 +107,15 @@ pub const TOOL_NAMES: [&str; 32] = [
     // 都试探了 list_tools）——返回工具清单 + 行协议契约摘要；JSON-RPC 客户端
     // 用 tools/list 等价获取，本工具是行协议（stdio 裸 JSON）的握手入口
     "list_tools",
+    // #321（A-23）：RT 生命周期 + 分工 + 章节重开 + 参数应答工具族
+    // （拒审派生 RT 此前无任何产品出口 = 结构性导出死锁；域层完备但零接线）
+    "assign_revision",
+    "advance_revision",
+    "complete_revision",
+    "batch_task",
+    "advance_task",
+    "reopen_section",
+    "set_param_responses",
 ];
 
 /// 工具解析与分发入口（进程级全局服务态——stdio 默认传输面）。

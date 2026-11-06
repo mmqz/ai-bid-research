@@ -658,6 +658,82 @@ fn input_schema(name: &str) -> Value {
             "properties": {},
             "description": "无参数——发现面工具，任何状态可用"
         }),
+        // #321（A-23）：RT 生命周期 + 分工 + 章节重开 + 参数应答工具族
+        "assign_revision" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid,
+                "rt_id": {"type": "string", "description": "RT-xxxx（record_review_gate 回执 spawned_rt_ids 或 list 面获取）"},
+                "owner": {"type": "string", "description": "修订执行者（任意操作者——人与 AI 均可修单；AI 可修单不可过门）"}
+            },
+            "required": ["project_id", "rt_id", "owner"]
+        }),
+        "advance_revision" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid,
+                "rt_id": {"type": "string"},
+                "to": {"type": "string", "enum": ["OPEN", "IN_PROGRESS", "DONE"], "description": "DONE 一律拒——关单走 complete_revision（带 resolution）"}
+            },
+            "required": ["project_id", "rt_id", "to"]
+        }),
+        "complete_revision" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid,
+                "rt_id": {"type": "string"},
+                "resolution": {"type": "string", "description": "修单交代（必填非空——改了什么/怎么改的；空说明不算修完）"}
+            },
+            "required": ["project_id", "rt_id", "resolution"]
+        }),
+        "batch_task" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid,
+                "targets": {"type": "array", "items": {"type": "string"}, "description": "SEC-xxxx 章节 / REQ-xxxx 条款（自然键 upsert：同 owner 重批改期，换 owner 复位 ASSIGNED）"},
+                "owner": {"type": "string"},
+                "deadline": {"type": "string", "description": "截止日 YYYY-MM-DD（可选）"}
+            },
+            "required": ["project_id", "targets", "owner"]
+        }),
+        "advance_task" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid,
+                "target_id": {"type": "string"},
+                "to": {"type": "string", "enum": ["ASSIGNED", "IN_PROGRESS", "DONE"], "description": "线性链越级拒"}
+            },
+            "required": ["project_id", "target_id", "to"]
+        }),
+        "reopen_section" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid,
+                "section_id": {"type": "string", "description": "SEC-xxxx（须 ACCEPTED——非终态拒）"}
+            },
+            "required": ["project_id", "section_id"]
+        }),
+        "set_param_responses" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid,
+                "rows": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "requirement_id": {"type": "string"},
+                            "param_name": {"type": "string"},
+                            "required_value": {"type": "string"},
+                            "response_value": {"type": "string"},
+                            "evidence_id": {"type": "string", "description": "佐证证据（可选）"}
+                        },
+                        "required": ["requirement_id", "param_name", "required_value", "response_value"]
+                    }
+                }
+            },
+            "required": ["project_id", "rows"]
+        }),
         _ => json!({"type": "object"}),
     }
 }
@@ -698,6 +774,14 @@ pub(crate) fn describe(name: &str) -> &'static str {
         "submit_block_marks" => "提交区间标记 + requirements（#219——verdict: requirement|noise|rule|review_table；校验区间合法/不越界/不重叠/requirement 落在 requirement 区间内）",
         "get_coverage_report" => "只读：覆盖报告（#219——哪些块没归属 + 未覆盖区间 + 各类 verdict 块数；全覆盖才允许建纲）",
         "get_star_coverage" => "只读：★漏标检测（#285①——字面★真值（排除「打★号条款为实质性条款」样板句）vs 已抽 REQ 差集；star_total/declarations/star_truth/captured/missing 三级恒等式不漏不重；missing[] 带 page/line/block_idx/reason 补标定位面；只报不补——补标走 submit_block_marks substantive=true）",
+        // #321（A-23）：RT 生命周期 + 分工 + 章节重开 + 参数应答工具族
+        "assign_revision" => "RT 认领/改派（#321——拒审派生 RT 的第一个出口；owner 任意操作者：人与 AI 均可修单不可过门；DONE 终态不可改派）",
+        "advance_revision" => "RT 推进（#321——Open→InProgress 唯一可经本面的边；to=DONE 一律拒并指引 complete_revision——关单必须带 resolution）",
+        "complete_revision" => "RT 关单（#321——resolution 必填非空（改了什么要交代）；回显 open_rt_count/open_rt_ids 与导出放行提示——全部关单才可导出）",
+        "batch_task" => "分工批量派工（#321——T-6 Assignment：targets=SEC/REQ 自然键 upsert，同 owner 重批改期不改进度/换 owner 复位 ASSIGNED；查询面 list_tasks）",
+        "advance_task" => "分工单件推进（#321——ASSIGNED→IN_PROGRESS→DONE 线性链越级拒；TaskStatus 人的进度与 SectionStatus 内容的进度两轴独立）",
+        "reopen_section" => "ACCEPTED 章节重开（#321——→Revising+dirty，重导前修订面；非 ACCEPTED 拒；重开后需重过 pre_export_confirm）",
+        "set_param_responses" => "参数应答批量写入（#321——技术参数偏离表唯一录入面；偏离判定派生态 derive_deviation 单一真源，导出时自动逐行判定；幂等）",
         _ => "unknown",
     }
 }
@@ -744,5 +828,13 @@ fn is_implemented(name: &str) -> bool {
             | "list_section_segments"
             // #279 行协议发现面（tools.rs 纯只读臂，无状态前置）
             | "list_tools"
+            // #321（A-23）：RT 生命周期 + 分工 + 章节重开 + 参数应答工具族
+            | "assign_revision"
+            | "advance_revision"
+            | "complete_revision"
+            | "batch_task"
+            | "advance_task"
+            | "reopen_section"
+            | "set_param_responses"
     )
 }

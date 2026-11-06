@@ -1,0 +1,99 @@
+{
+  "url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/245",
+  "repository_url": "https://api.github.com/repos/mmqz/ai-bid-research",
+  "labels_url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/245/labels{/name}",
+  "comments_url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/245/comments",
+  "events_url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/245/events",
+  "html_url": "https://github.com/mmqz/ai-bid-research/issues/245",
+  "id": 6214444387,
+  "node_id": "I_kwDOVUcs988AAAABcmjlYw",
+  "number": 245,
+  "title": "P0: 占位资质不得冒充已核验的合规证据",
+  "user": {
+    "login": "mmqz",
+    "id": 260861911,
+    "node_id": "U_kgDOD4xv1w",
+    "avatar_url": "https://avatars.githubusercontent.com/u/260861911?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/mmqz",
+    "html_url": "https://github.com/mmqz",
+    "followers_url": "https://api.github.com/users/mmqz/followers",
+    "following_url": "https://api.github.com/users/mmqz/following{/other_user}",
+    "gists_url": "https://api.github.com/users/mmqz/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/mmqz/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/mmqz/subscriptions",
+    "organizations_url": "https://api.github.com/users/mmqz/orgs",
+    "repos_url": "https://api.github.com/users/mmqz/repos",
+    "events_url": "https://api.github.com/users/mmqz/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/mmqz/received_events",
+    "type": "User",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "labels": [
+    {
+      "id": 12804443241,
+      "node_id": "LA_kwDOVUcs988AAAAC-zRMaQ",
+      "url": "https://api.github.com/repos/mmqz/ai-bid-research/labels/bug",
+      "name": "bug",
+      "color": "d73a4a",
+      "default": true,
+      "description": "Something isn't working",
+      "archived_at": null,
+      "archived_by": null
+    },
+    {
+      "id": 12932245590,
+      "node_id": "LA_kwDOVUcs988AAAADAtJoVg",
+      "url": "https://api.github.com/repos/mmqz/ai-bid-research/labels/P0",
+      "name": "P0",
+      "color": "ededed",
+      "default": false,
+      "description": null,
+      "archived_at": null,
+      "archived_by": null
+    }
+  ],
+  "state": "open",
+  "locked": false,
+  "assignees": [
+
+  ],
+  "milestone": null,
+  "comments": 0,
+  "created_at": "2026-11-05T00:57:42Z",
+  "updated_at": "2026-11-05T00:57:42Z",
+  "closed_at": null,
+  "assignee": null,
+  "author_association": "OWNER",
+  "active_lock_reason": null,
+  "sub_issues_summary": {
+    "total": 0,
+    "completed": 0,
+    "percent_completed": 0
+  },
+  "issue_dependencies_summary": {
+    "blocked_by": 0,
+    "total_blocked_by": 0,
+    "blocking": 0,
+    "total_blocking": 0
+  },
+  "body": "## 背景\r\n\r\n#212 已验证证据来源必须指向已导入文件，且 SHA/指纹由服务端生成；但来源真实不等于证据内容已核实。当前 `EvidenceStatus` 表示有效期/换版状态（ACTIVE、EXPIRING、EXPIRED、SUPERSEDED），没有“占位/未验真”语义。2026-11-05 的真实客户端运行中，Agent 注册了占位资质并绑定到大量矩阵行，阻塞数因此归零，容易被误读为真实资质已满足。\r\n\r\n## 目标\r\n\r\n允许用户在草稿中使用明确占位文案，但占位/未验真的资质不得被当作已验证证据、不得清除合规阻塞、不得让输出宣称资质已具备。\r\n\r\n## 范围\r\n\r\n1. 先检查当前 main 的证据注册、绑定、矩阵派生、起草和导出路径，复现占位资质能否被计为有效证据；区分“来源存在”与“内容/资格已核实”。\r\n2. 为占位/待核验材料建立明确、可持久化的状态或类型；不得由 MCP 调用方自报为已验证。\r\n3. 矩阵和导出门必须区分：真实且有效的证据、占位/待核验材料、缺失证据。占位项不得让资格或否决阻塞变为已满足；如业务允许继续写作，应呈现待补状态并保留阻塞/受限标记。\r\n4. 起草可以按用户授权输出明确的 `【待补：...】` 占位，但该占位不能成为证据引用，不能生成“已具备/已满足”的结论。\r\n5. 验证状态改变必须走受控、可审计的服务路径；保留 #182 人工 receipt 边界和 #212 来源校验，不引入 Agent 自证。\r\n6. 更新 MCP 契约、Skill 和验收报告，说明占位内容与真实证据的区别。\r\n\r\n## 验收条件\r\n\r\n- 导入来源真实但内容标记为占位/待核验的资质：绑定后矩阵仍显示未满足/待补，导出门仍按既定规则拒绝或标记受限，绝不静默清零阻塞。\r\n- 经合法验证的真实证据：正常通过既有证据链，已有正向流程不回归。\r\n- 占位可以进入草稿，但在正文/验证/导出报告中可追踪并显式标记，不能伪装成资质证明。\r\n- MCP 层不能通过参数把占位状态直接改成 verified；非法状态迁移拒绝且无副作用。\r\n- 服务层、矩阵、MCP 工具和端到端导出均有正负测试；升级旧数据的兼容策略有测试。\r\n- 最新 Windows CI 全绿；基于最新 main 独立分支、逐 commit push、PR 交付，不自行合并。\r\n\r\n## 边界\r\n\r\n不重复实现 #212 的文件来源/指纹验证，也不改变 #241 的 Agent 必选阻断语义。本 Issue 关注证据内容的核验状态和占位材料不能冒充真实资质。",
+  "closed_by": null,
+  "reactions": {
+    "url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/245/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "timeline_url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/245/timeline",
+  "performed_via_github_app": null,
+  "state_reason": null,
+  "pinned_comment": null
+}

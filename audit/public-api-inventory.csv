@@ -1,0 +1,34 @@
+surface,name,crate,kind,contract_ref,audit_status,notes
+MCP,create_bid_project,bid-mcp,tool,§1,REVIEWED,见 module-audit-C 工具对账表
+MCP,import_tender_files,bid-mcp,tool,§2,REVIEWED,见 module-audit-C 工具对账表
+MCP,extract_requirements,bid-mcp,tool,§3,REVIEWED,见 module-audit-C 工具对账表
+MCP,get_document_chunks,bid-mcp,tool,§219,REVIEWED,见 module-audit-C 工具对账表
+MCP,submit_block_marks,bid-mcp,tool,§219,REVIEWED,见 module-audit-C 工具对账表
+MCP,get_coverage_report,bid-mcp,tool,§219,REVIEWED,见 module-audit-C 工具对账表
+MCP,build_outline,bid-mcp,tool,§4,REVIEWED,见 module-audit-C 工具对账表
+MCP,get_compliance_matrix,bid-mcp,tool,§5,REVIEWED,见 module-audit-C 工具对账表
+MCP,set_matrix_override,bid-mcp,tool,§18附,REVIEWED,见 module-audit-C 工具对账表
+MCP,search_evidence,bid-mcp,tool,§6,REVIEWED,见 module-audit-C 工具对账表
+MCP,list_evidence,bid-mcp,tool,§6,REVIEWED,见 module-audit-C 工具对账表
+MCP,list_tasks,bid-mcp,tool,§10,REVIEWED,见 module-audit-C 工具对账表
+MCP,register_evidence,bid-mcp,tool,§8,REVIEWED,见 module-audit-C 工具对账表
+MCP,bind_evidence,bid-mcp,tool,§8,REVIEWED,见 module-audit-C 工具对账表
+MCP,record_review_gate,bid-mcp,tool,§9,REVIEWED,见 module-audit-C 工具对账表
+MCP,record_addendum_waiver,bid-mcp,tool,§184,REVIEWED,见 module-audit-C 工具对账表
+MCP,draft_response_section,bid-mcp,tool,§7,REVIEWED,见 module-audit-C 工具对账表
+MCP,check_bid_quality,bid-mcp,tool,§11,REVIEWED,见 module-audit-C 工具对账表
+MCP,score_price,bid-mcp,tool,§13,REVIEWED,见 module-audit-C 工具对账表
+MCP,score_section,bid-mcp,tool,§12,REVIEWED,见 module-audit-C 工具对账表
+MCP,score_document,bid-mcp,tool,§12,REVIEWED,见 module-audit-C 工具对账表
+MCP,validate_bid_document,bid-mcp,tool,§7导,REVIEWED,见 module-audit-C 工具对账表
+MCP,export_bid_document,bid-mcp,tool,§8出,REVIEWED,见 module-audit-C 工具对账表
+MCP,get_bid_project_state,bid-mcp,tool,§1,REVIEWED,见 module-audit-C 工具对账表
+MCP,save_version,bid-mcp,tool,§16,REVIEWED,见 module-audit-C 工具对账表
+RUST,pub items,bid-domain,lib,docs/bid-domain-model.md 等,REVIEWED,342 pub items（rg 统计）
+RUST,pub items,bid-parse,lib,docs/bid-domain-model.md 等,REVIEWED,125 pub items（rg 统计）
+RUST,pub items,bid-kb,lib,docs/bid-domain-model.md 等,REVIEWED,16 pub items（rg 统计）
+RUST,pub items,bid-tools,lib,docs/bid-domain-model.md 等,REVIEWED,309 pub items（rg 统计）
+RUST,pub items,bid-grade,lib,docs/bid-domain-model.md 等,REVIEWED,27 pub items（rg 统计）
+RUST,pub items,bid-engine,lib,docs/bid-domain-model.md 等,REVIEWED,47 pub items（rg 统计）
+RUST,pub items,bid-mcp,lib,docs/bid-domain-model.md 等,REVIEWED,43 pub items（rg 统计）
+RUST,pub items,mang-snap,lib,docs/bid-domain-model.md 等,REVIEWED,15 pub items（rg 统计）

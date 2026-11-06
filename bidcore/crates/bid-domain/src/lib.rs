@@ -186,6 +186,8 @@ impl ProjectStatus {
                 "get_bid_project_state",
                 // #80 第三批 MCP 补齐 G1：建纲+矩阵首建（P3 的前置）
                 "build_outline",
+                // #287 篇幅档位推荐（建纲前只读——建议+理由+alternatives 交用户确认）
+                "recommend_length_profile",
                 // #184：同 FilesImported 的窗口语义（导入后任意时刻）
                 "record_addendum_waiver",
                 // #219 全块覆盖（建纲前最后机会补标——覆盖不足时 build_outline 应告警）
@@ -195,6 +197,7 @@ impl ProjectStatus {
             ],
             MatrixReady | EvidenceBound => &[
                 "get_coverage_report",
+                "recommend_length_profile",
                 "get_compliance_matrix",
                 "search_evidence",
                 "get_bid_project_state",
@@ -218,6 +221,7 @@ impl ProjectStatus {
             ],
             Drafting => &[
                 "get_coverage_report",
+                "recommend_length_profile",
                 "get_compliance_matrix",
                 "search_evidence",
                 "get_bid_project_state",
@@ -249,6 +253,7 @@ impl ProjectStatus {
             Validating => &[
                 "get_compliance_matrix",
                 "get_coverage_report",
+                "recommend_length_profile",
                 "search_evidence",
                 "get_bid_project_state",
                 // #254 只读段账本（校验期对账面——写作工具不重开）
@@ -274,6 +279,7 @@ impl ProjectStatus {
             Reviewing | ReadyToExport => &[
                 "get_compliance_matrix",
                 "get_coverage_report",
+                "recommend_length_profile",
                 "search_evidence",
                 "get_bid_project_state",
                 // #254 只读段账本（复核期对账面）
@@ -295,6 +301,7 @@ impl ProjectStatus {
             ],
             Exported => &[
                 "get_coverage_report",
+                "recommend_length_profile",
                 "get_compliance_matrix",
                 "search_evidence",
                 "get_bid_project_state",

@@ -24,7 +24,8 @@
 //!      `pad_to_target` 的 80% 同口径）；行政/实质章节 → `W_CHARS_BELOW_MIN`
 //!      （MAJOR——issue #253 的 WARNING 语义：不翻 ok、不拦导出）；
 //!   7c. `E_TOTAL_CHARS_BELOW_MIN`（BLOCKER，文档级）：全稿实写总量 <
-//!      `outline_total_chars()`（1000 页硬指标——产品级硬比较无容差）；
+//!      `outline_total_chars()`（选中档位硬指标——产品级硬比较无容差；
+//!      #287 起随篇幅档位动态：默认 Conservative 1,200,000 ≈ 1422 页）；
 //!   8. `W_FORMAT_BASELINE`（MINOR）：格式条款零命中按工程基线（Lead
 //!      「不准硬编码」的降级告知面）。
 //! - **第二层（模型复核，可选）**——[`ModelReviewer`] trait 注入（表述质量/
@@ -581,8 +582,9 @@ fn is_scoring_leaf(
 
 /// 文档级总篇幅门（#253 验收 7：总篇幅 < 1000 页 → BLOCKER——用户硬指标）。
 ///
-/// 阈值 = `outline_total_chars()`（配额总和，单一真源；默认 844,000 =
-/// 1000 页 × 844 字符/页）：**硬比较无容差**——章节级 ±20% 容差是起草
+/// 阈值 = `outline_total_chars()`（配额总和，单一真源；#287 起随选中档位
+/// 动态：默认档 Conservative 1,200,000 ≈ 1422 页，Practical 400,000 ≈
+/// 474 页……——非固定 844,000）：**硬比较无容差**——章节级 ±20% 容差是起草
 /// 容差（迭代中可短写），产品级门是硬指标（导出的标书必须达到目标总量；
 /// 若容忍 −20%，全带下限起草的标书只有 800 页，违背用户硬要求）。
 fn total_chars_below_min(store: &DomainStore) -> Option<ValidationFinding> {
@@ -604,8 +606,8 @@ fn total_chars_below_min(store: &DomainStore) -> Option<ValidationFinding> {
             section_id: None,
             requirement_id: None,
             message: format!(
-                "全稿正文字数 {actual} 低于总篇幅目标 {target}（1000 页硬指标，现状约 {} 页）——总篇幅不足不得达标/导出，逐章补写后重校",
-                actual / 844,
+                "全稿正文字数 {actual} 低于总篇幅目标 {target}（选中档位硬指标，现状约 {} 页）——总篇幅不足不得达标/导出，逐章补写后重校",
+                actual / u64::from(bid_domain::outline::CHARS_PER_PAGE),
             ),
         })
     } else {

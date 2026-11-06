@@ -434,7 +434,8 @@ fn parent_chain_contains(
 }
 
 /// 配额分布门（issue #252 评论的强制项 + 验收 10 的结构前提）：
-/// - outline_total_chars ≥ 844,000（1000 页硬指标）；
+/// - outline_total_chars ≥ 1,200,000（#287 默认档 Conservative 硬指标——
+///   取代 #253 的 844,000/1000 页口径，用户裁定 2026-11-06）；
 /// - 评分章节配额合计 ≥ 60%；
 /// - 行政章节配额合计 ≤ 25%；
 /// - 每个评分 L2 小节配额 ≥ 10,000 字。
@@ -449,13 +450,13 @@ fn pdf_engine_outline_quota_distribution() {
     let sections = store.sections();
     let chapters = expected_chapters();
 
-    // ---- 门 5：总配额 ≥ 844,000（恒等守恒断言——derive 的配额总和 = target；
-    // 此门防 #253 分配重构时的总量回归）
+    // ---- 门 5：总配额 ≥ 1,200,000（恒等守恒断言——derive 的配额总和 = target；
+    // 此门防 #253 分配重构时的总量回归；#287 起默认档 1.2M）
     let total = store.outline_total_chars();
     eprintln!("[songling-252] outline_total_chars = {total}");
-    if total < 844_000 {
+    if total < 1_200_000 {
         panic!(
-            "[outline_total] 总配额 {total} < 844,000（1000 页硬指标——建纲总量回归，见 #253 单一真源常量）"
+            "[outline_total] 总配额 {total} < 1,200,000（#287 默认档 Conservative 硬指标——建纲总量回归，见单一真源常量）"
         );
     }
 

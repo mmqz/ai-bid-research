@@ -126,20 +126,314 @@ pub struct OutlineSpec {
     pub max_reqs_per_leaf: usize,
 }
 
-/// `target_total_chars` 缺省值——**单一真源**（#253 第一段）。
+/// `target_total_chars` 缺省值——**单一真源**（#253 第一段立、#287 改档位化）。
 ///
-/// 推导：实测密度 844 字符/页（97 页真实产物 81,850 字符反推），
-/// 1000 页硬指标 → 1000 × 844 = **844,000**。
+/// #287 用户裁定（2026-11-06 原文）：「改成 1,200,000 字 ≈ 1422 页，
+/// 上限：2500-3000 页，在 skill 让用户按招标文件自己选，agent 给出合适的
+/// 档位」→ 默认 = [`LengthProfile::Conservative`]。
+///
+/// 实测依据：10 份真实招标文件（黑龙江 5 + 内蒙古 3 + 询价 1 + 吉林 1）
+/// **无一条篇幅限制**——招标文件通常不限制投标文件篇幅；密度 844 字符/页
+/// （97 页真实产物 81,850 字符反推），1,200,000 字 ≈ 1422 页。
 ///
 /// 三层统一：MCP 层（`bid-mcp/src/tools.rs` 的 `unwrap_or`）与工具描述
 /// （`bid-mcp/src/schema.rs` build_outline 入参说明）必须引用本常量，
 /// 不得另写数字。历史病灶：三层曾各自为政（1,000,000 / 20,000 /「缺省
 /// 20000」），Agent 按描述不传参 → 20,000 覆盖域层默认 → 建纲只出 24 页。
-pub const DEFAULT_TARGET_TOTAL_CHARS: u32 = 844_000;
+pub const DEFAULT_TARGET_TOTAL_CHARS: u32 = 1_200_000;
+
+// ---------------------------------------------------------------- 篇幅档位（#287）
+
+/// 页面密度（字符/页）——页数换算单一真源。
+///
+/// 实测：松岭 97 页真实产物 81,850 字符 → 844 字符/页。
+/// [`LengthProfile::approx_pages`] 与 validate 的页数口径共用。
+pub const CHARS_PER_PAGE: u32 = 844;
+
+/// 篇幅档位（#287——用户/Agent 按招标文件选择，四档 + 默认）。
+///
+/// 用户裁定：默认 Conservative（1,200,000 字 ≈ 1422 页）；上限档
+/// Maximum（2,500,000 字 ≈ 2963 页，接近胶装/评标时间现实约束——
+/// 一本胶装标书 ≈ 500 页，2000 页要 4 册；3-7 天评 20-50 家看不了
+/// 2000+ 页/家）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LengthProfile {
+    /// 实用型：不注水，每页有信息。小型采购/表单类项目。
+    Practical,
+    /// 标准型：国内主流投标。中型服务/设备采购。
+    Standard,
+    /// 保险型（**默认**）：大项目/竞争激烈/评分细则多。
+    Conservative,
+    /// 极限型：超大型工程/多标段。注意装订与评标时间。
+    Maximum,
+}
+
+impl LengthProfile {
+    /// 全档位序（alternatives 呈现面）。
+    pub const ALL: [LengthProfile; 4] = [
+        LengthProfile::Practical,
+        LengthProfile::Standard,
+        LengthProfile::Conservative,
+        LengthProfile::Maximum,
+    ];
+
+    /// 档位目标字数（#287 验收 1：400k / 800k / 1.2M / 2.5M）。
+    pub fn target_total_chars(self) -> u32 {
+        match self {
+            LengthProfile::Practical => 400_000,   // ≈  474 页
+            LengthProfile::Standard => 800_000,    // ≈  948 页
+            LengthProfile::Conservative => 1_200_000, // ≈ 1422 页 ← 默认
+            LengthProfile::Maximum => 2_500_000,   // ≈ 2963 页（接近装订上限）
+        }
+    }
+
+    /// 页数换算（844 字符/页，向上取整——按「能写满几页」口径）。
+    pub fn approx_pages(self) -> u32 {
+        (self.target_total_chars() + CHARS_PER_PAGE - 1) / CHARS_PER_PAGE
+    }
+
+    /// 中文档名。
+    pub fn label_zh(self) -> &'static str {
+        match self {
+            LengthProfile::Practical => "实用型",
+            LengthProfile::Standard => "标准型",
+            LengthProfile::Conservative => "保险型",
+            LengthProfile::Maximum => "极限型",
+        }
+    }
+
+    /// 适用场景（alternatives 的 when 提示）。
+    pub fn when_zh(self) -> &'static str {
+        match self {
+            LengthProfile::Practical => "小型采购、表单类、评分细则 < 10",
+            LengthProfile::Standard => "中型服务、设备采购、评分细则 10-19",
+            LengthProfile::Conservative => "大项目、竞争激烈、评分细则 20+（默认档）",
+            LengthProfile::Maximum => "超大型工程、多标段（注意装订与评标时间）",
+        }
+    }
+
+    /// snake_case 键（MCP 入参/出参形态）→ 档位。非法键 → None（工具层
+    /// 显式拒，不静默兜底——防拼写错档静默落到默认档）。
+    pub fn from_key(key: &str) -> Option<Self> {
+        match key {
+            "practical" => Some(LengthProfile::Practical),
+            "standard" => Some(LengthProfile::Standard),
+            "conservative" => Some(LengthProfile::Conservative),
+            "maximum" => Some(LengthProfile::Maximum),
+            _ => None,
+        }
+    }
+
+    /// 档位序数（0-3）——上调一档的基元。
+    fn ordinal(self) -> u8 {
+        match self {
+            LengthProfile::Practical => 0,
+            LengthProfile::Standard => 1,
+            LengthProfile::Conservative => 2,
+            LengthProfile::Maximum => 3,
+        }
+    }
+
+    /// 按序数取档（饱和：越界取端点）。
+    fn from_ordinal(n: u8) -> Self {
+        match n {
+            0 => LengthProfile::Practical,
+            1 => LengthProfile::Standard,
+            2 => LengthProfile::Conservative,
+            _ => LengthProfile::Maximum,
+        }
+    }
+
+    /// 上调一档（#287 修正项基元——饱和于 Maximum，验收 7 上限保护）。
+    fn raise(self) -> Self {
+        LengthProfile::from_ordinal(self.ordinal().saturating_add(1))
+    }
+}
+
+impl Default for LengthProfile {
+    /// 用户裁定（#287）：默认保险型 1,200,000 字 ≈ 1422 页。
+    fn default() -> Self {
+        LengthProfile::Conservative
+    }
+}
+
+/// 采购类型（推荐算法修正项之一：工程类天然厚重 → 上调一档）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TenderType {
+    /// 工程（施工/装修/监理/安装……）——天然厚重。
+    Engineering,
+    /// 服务（运维/运营/咨询/传媒……）。
+    Service,
+    /// 货物（设备/货物采购/询价……）。
+    Goods,
+}
+
+impl TenderType {
+    pub fn label_zh(self) -> &'static str {
+        match self {
+            TenderType::Engineering => "工程",
+            TenderType::Service => "服务",
+            TenderType::Goods => "货物",
+        }
+    }
+}
+
+/// 推荐置信度（信号强弱如实报告——弱信号时用户确认的责任更重）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Confidence {
+    /// 信号清晰：招标文件明写篇幅，或评分细则 ≥ 10（最可靠信号）。
+    High,
+    /// 信号偏弱：评分细则 1-9（评分表可能识别不全）。
+    Medium,
+    /// 信号缺失：评分细则 0（未识别评分表——按实用型兜底，用户务必确认）。
+    Low,
+}
+
+/// 篇幅档位建议（#287——纯函数产物，人可读理由随行）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LengthRecommendation {
+    /// 推荐档位。
+    pub profile: LengthProfile,
+    /// 人可读推荐理由（逐信号一行——命中与未命中都写，用户可核对）。
+    pub reasons: Vec<String>,
+    /// 招标文件明写的字数（最高优先级信号——存在时覆盖一切推断；
+    /// 建档时以 `build_outline(target_total_chars=此值)` 直接采用）。
+    pub from_tender_spec: Option<u32>,
+    /// 置信度。
+    pub confidence: Confidence,
+}
+
+/// 篇幅档位推荐（#287 核心算法——纯函数，可测；Agent 可覆盖，决策权在用户）。
+///
+/// 信号优先级（issue #287）：
+/// 1. `explicit_limit`（招标文件明写篇幅）→ 直接用（覆盖一切推断）
+/// 2. 评分细则数（最可靠信号）：< 10 → Practical；10-19 → Standard；
+///    20-39 → Conservative；≥ 40 → Maximum
+/// 3. 修正项（任一命中上调一档，饱和于 Maximum）：★条款 > 30（废标风险
+///    高要写细）/ 预算 > 1000 万 / 工程类。（多标段无引擎面信号——由
+///    Agent 显式选档，不参与本函数。）
+pub fn recommend_length(
+    scoring_detail_count: usize,
+    star_count: usize,
+    budget_yuan: Option<u64>,
+    tender_type: TenderType,
+    explicit_limit: Option<u32>,
+) -> LengthRecommendation {
+    let mut reasons: Vec<String> = Vec::new();
+
+    // ---- 信号 1：招标文件明写篇幅（最高优先级——覆盖一切推断，验收 6）
+    if let Some(limit) = explicit_limit {
+        let profile = LengthProfile::ALL
+            .into_iter()
+            .find(|p| p.target_total_chars() >= limit)
+            .unwrap_or(LengthProfile::Maximum);
+        reasons.push(format!(
+            "招标文件明写篇幅要求 {limit} 字（最高优先级——覆盖一切推断）"
+        ));
+        if profile == LengthProfile::Maximum && limit > LengthProfile::Maximum.target_total_chars() {
+            reasons.push(format!(
+                "明写值 {limit} 超出极限档 {}（≈{} 页）——按极限档执行；注意装订（一本胶装 ≈ 500 页）与评标时间现实约束",
+                LengthProfile::Maximum.target_total_chars(),
+                LengthProfile::Maximum.approx_pages()
+            ));
+        }
+        reasons.push(format!(
+            "建议直接 build_outline(target_total_chars={limit}) 采用明写值"
+        ));
+        return LengthRecommendation {
+            profile,
+            reasons,
+            from_tender_spec: Some(limit),
+            confidence: Confidence::High,
+        };
+    }
+
+    // ---- 信号 2：评分细则数（最可靠信号）
+    let base = match scoring_detail_count {
+        0..=9 => LengthProfile::Practical,
+        10..=19 => LengthProfile::Standard,
+        20..=39 => LengthProfile::Conservative,
+        _ => LengthProfile::Maximum,
+    };
+    reasons.push(match scoring_detail_count {
+        0 => "评分细则 0 个（未识别评分表——信号缺失，按实用型兜底；请用户确认）".to_string(),
+        n => format!(
+            "评分细则 {n} 个（{} → {}）",
+            match n {
+                0..=9 => "< 10 区间",
+                10..=19 => "10-19 区间",
+                20..=39 => "20-39 区间",
+                _ => "≥ 40 区间",
+            },
+            base.label_zh()
+        ),
+    });
+
+    // ---- 信号 3：修正项（任一命中上调一档；饱和于 Maximum——验收 5/7）
+    let mut corrections: Vec<&str> = Vec::new();
+    if star_count > 30 {
+        corrections.push("★条款 > 30");
+    }
+    reasons.push(if star_count > 30 {
+        format!("★条款 {star_count} 个（> 30 → 上调一档：废标风险高要写细）")
+    } else {
+        format!("★条款 {star_count} 个（未触发上调）")
+    });
+    let budget_hit = budget_yuan.is_some_and(|b| b > 10_000_000);
+    reasons.push(match budget_yuan {
+        Some(b) if budget_hit => format!("预算 {} 万元（> 1000 万 → 上调一档）", b / 10_000),
+        Some(b) => format!("预算 {} 万元（未触发上调）", b / 10_000),
+        None => "预算未知（未参与判定）".to_string(),
+    });
+    if budget_hit {
+        corrections.push("预算 > 1000 万");
+    }
+    if tender_type == TenderType::Engineering {
+        corrections.push("工程类");
+    }
+    reasons.push(match tender_type {
+        TenderType::Engineering => "采购类型：工程（天然厚重 → 上调一档）".to_string(),
+        t => format!("采购类型：{}（未触发上调）", t.label_zh()),
+    });
+
+    let profile = if corrections.is_empty() {
+        base
+    } else {
+        let raised = base.raise();
+        reasons.push(format!(
+            "修正项命中 {} 项（{}）→ {} 上调至 {}",
+            corrections.len(),
+            corrections.join("、"),
+            base.label_zh(),
+            raised.label_zh()
+        ));
+        if raised == LengthProfile::Maximum && base != LengthProfile::Maximum {
+            reasons.push(
+                "已达极限档（2,500,000 字 ≈ 2963 页）——上限保护生效，不再上调；起草成本极高，这是显式选择的结果".to_string(),
+            );
+        }
+        raised
+    };
+
+    LengthRecommendation {
+        profile,
+        reasons,
+        from_tender_spec: None,
+        confidence: match scoring_detail_count {
+            0 => Confidence::Low,
+            1..=9 => Confidence::Medium,
+            _ => Confidence::High,
+        },
+    }
+}
 
 impl Default for OutlineSpec {
     fn default() -> Self {
-        // 844,000 字 / (12,000 REQ ÷ 24) ≈ 500 章——批次 v3 §零 的规模口径
+        // #287：默认 = LengthProfile::Conservative（1,200,000 字 ≈ 1422 页，
+        // 用户裁定 2026-11-06）；单一真源 DEFAULT_TARGET_TOTAL_CHARS 与档位同值
         OutlineSpec { target_total_chars: DEFAULT_TARGET_TOTAL_CHARS, max_reqs_per_leaf: 24 }
     }
 }
@@ -1325,6 +1619,143 @@ mod tests {
     use super::*;
     use crate::ParseStatus;
 
+    // ---------------------------------------------------------------- #287 篇幅档位
+
+    /// 验收 1：四档常量正确（400k / 800k / 1.2M / 2.5M）。
+    #[test]
+    fn length_profile_four_tier_constants() {
+        assert_eq!(LengthProfile::Practical.target_total_chars(), 400_000);
+        assert_eq!(LengthProfile::Standard.target_total_chars(), 800_000);
+        assert_eq!(LengthProfile::Conservative.target_total_chars(), 1_200_000);
+        assert_eq!(LengthProfile::Maximum.target_total_chars(), 2_500_000);
+        // 键解析（MCP 入参形态）
+        for (key, expect) in [
+            ("practical", LengthProfile::Practical),
+            ("standard", LengthProfile::Standard),
+            ("conservative", LengthProfile::Conservative),
+            ("maximum", LengthProfile::Maximum),
+        ] {
+            assert_eq!(LengthProfile::from_key(key), Some(expect), "键 {key}");
+        }
+        assert_eq!(LengthProfile::from_key("insurance"), None, "非法键显式拒");
+        // serde snake_case（快照/出参形态）
+        assert_eq!(
+            serde_json::to_string(&LengthProfile::Conservative).unwrap(),
+            "\"conservative\""
+        );
+    }
+
+    /// 验收 2：默认档 = Conservative（1,200,000）——三层同源
+    /// （LengthProfile::default / DEFAULT_TARGET_TOTAL_CHARS / OutlineSpec::default）。
+    #[test]
+    fn length_profile_default_is_conservative() {
+        assert_eq!(LengthProfile::default(), LengthProfile::Conservative);
+        assert_eq!(DEFAULT_TARGET_TOTAL_CHARS, 1_200_000);
+        assert_eq!(
+            DEFAULT_TARGET_TOTAL_CHARS,
+            LengthProfile::default().target_total_chars(),
+            "单一真源常量与默认档同值"
+        );
+        assert_eq!(OutlineSpec::default().target_total_chars, 1_200_000);
+    }
+
+    /// 验收 3：approx_pages 按 844 字符/页换算（向上取整）。
+    #[test]
+    fn length_profile_approx_pages() {
+        assert_eq!(LengthProfile::Practical.approx_pages(), 474);
+        assert_eq!(LengthProfile::Standard.approx_pages(), 948);
+        assert_eq!(LengthProfile::Conservative.approx_pages(), 1422);
+        assert_eq!(LengthProfile::Maximum.approx_pages(), 2963);
+        // 密度单一真源反推：chars / pages ≤ 844（向上取整口径）
+        for p in LengthProfile::ALL {
+            assert!(
+                p.target_total_chars() / p.approx_pages() <= CHARS_PER_PAGE,
+                "{p:?} 密度超限"
+            );
+        }
+    }
+
+    /// 验收 4：细则数判定规则（8→Practical / 15→Standard / 25→Conservative / 45→Maximum）。
+    #[test]
+    fn recommend_by_scoring_detail_count() {
+        let neutral = |n: usize| {
+            recommend_length(n, 0, None, TenderType::Goods, None)
+        };
+        assert_eq!(neutral(8).profile, LengthProfile::Practical);
+        assert_eq!(neutral(15).profile, LengthProfile::Standard);
+        assert_eq!(neutral(25).profile, LengthProfile::Conservative);
+        assert_eq!(neutral(45).profile, LengthProfile::Maximum);
+        // 边界：9/10、19/20、39/40
+        assert_eq!(neutral(9).profile, LengthProfile::Practical);
+        assert_eq!(neutral(10).profile, LengthProfile::Standard);
+        assert_eq!(neutral(19).profile, LengthProfile::Standard);
+        assert_eq!(neutral(20).profile, LengthProfile::Conservative);
+        assert_eq!(neutral(39).profile, LengthProfile::Conservative);
+        assert_eq!(neutral(40).profile, LengthProfile::Maximum);
+        // 置信度：细则 0 → Low；1-9 → Medium；≥10 → High
+        assert_eq!(neutral(0).confidence, Confidence::Low);
+        assert_eq!(neutral(5).confidence, Confidence::Medium);
+        assert_eq!(neutral(15).confidence, Confidence::High);
+    }
+
+    /// 验收 5：修正项生效（★>30 或工程类 → 上调一档）。
+    #[test]
+    fn recommend_corrections_raise_one_tier() {
+        // 细则 15（Standard）+ ★ 40 → Conservative
+        let r = recommend_length(15, 40, None, TenderType::Goods, None);
+        assert_eq!(r.profile, LengthProfile::Conservative);
+        assert!(r.reasons.iter().any(|s| s.contains("★条款 40 个")), "{r:?}");
+        // 细则 25（Conservative）+ 工程类 → Maximum
+        let r = recommend_length(25, 0, None, TenderType::Engineering, None);
+        assert_eq!(r.profile, LengthProfile::Maximum);
+        assert!(r.reasons.iter().any(|s| s.contains("工程")), "{r:?}");
+        // 预算 > 1000 万 → 上调：细则 8（Practical）+ 预算 1200 万 → Standard
+        let r = recommend_length(8, 0, Some(12_000_000), TenderType::Goods, None);
+        assert_eq!(r.profile, LengthProfile::Standard);
+        // 多修正项叠加也只升一档（任一命中 → 上调一档，不连跳）：
+        // 细则 15（Standard）+ ★40 + 工程 → Conservative（非 Maximum）
+        let r = recommend_length(15, 40, None, TenderType::Engineering, None);
+        assert_eq!(r.profile, LengthProfile::Conservative, "修正只升一档，不连跳");
+        assert!(r.reasons.iter().any(|s| s.contains("修正项命中 2 项")), "{r:?}");
+    }
+
+    /// 验收 6：招标文件明写篇幅 → 覆盖一切推断。
+    #[test]
+    fn recommend_explicit_limit_overrides() {
+        // 细则 45（本应 Maximum）+ 明写 500,000 → 档位取 ≥ 明写值的最小档（Standard）
+        let r = recommend_length(45, 100, Some(99_000_000), TenderType::Engineering, Some(500_000));
+        assert_eq!(r.profile, LengthProfile::Standard, "明写 50 万 → Standard 档");
+        assert_eq!(r.from_tender_spec, Some(500_000));
+        assert_eq!(r.confidence, Confidence::High);
+        assert!(r.reasons.iter().any(|s| s.contains("明写篇幅")), "{r:?}");
+        // 明写值恰等某档 → 该档
+        let r = recommend_length(0, 0, None, TenderType::Goods, Some(1_200_000));
+        assert_eq!(r.profile, LengthProfile::Conservative);
+        // 明写值超极限档 → 按极限档 + 风险提示
+        let r = recommend_length(25, 0, None, TenderType::Goods, Some(3_000_000));
+        assert_eq!(r.profile, LengthProfile::Maximum);
+        assert!(r.reasons.iter().any(|s| s.contains("超出极限档")), "{r:?}");
+    }
+
+    /// 验收 7：上限保护——Maximum 不再上调。
+    #[test]
+    fn recommend_maximum_cap() {
+        // 细则 45（Maximum 基档）+ 三修正项全中 → 仍 Maximum
+        let r = recommend_length(45, 99, Some(99_000_000), TenderType::Engineering, None);
+        assert_eq!(r.profile, LengthProfile::Maximum, "Maximum 上限保护");
+    }
+
+    /// 推荐理由完整性：命中与未命中信号都成行（用户可核对面）。
+    #[test]
+    fn recommend_reasons_complete() {
+        let r = recommend_length(25, 13, Some(1_200_000), TenderType::Service, None);
+        assert_eq!(r.profile, LengthProfile::Conservative);
+        let joined = r.reasons.join("\n");
+        for expect in ["评分细则 25 个", "★条款 13 个", "预算 120 万元", "采购类型：服务"] {
+            assert!(joined.contains(expect), "理由缺行 {expect}：{joined}");
+        }
+    }
+
     /// 章节树基座：项目 + 文件 + N 条 REQ。
     fn store_with_reqs(n_reqs: usize) -> DomainStore {
         let mut s = DomainStore::new();
@@ -1442,7 +1873,8 @@ mod tests {
     ///
     /// 评分轨在当前分组面不出现（评分项不进正文），此处直测
     /// [`allocate_quotas`]：20 细则叶（分值 5/5/4/5/5/2 × 按章分布）+
-    /// 行政 254 条（松岭实测）+ 实质 34 条，target = 844,000。
+    /// 行政 254 条（松岭实测）+ 实质 34 条，target = 默认档（#287 起
+    /// Conservative 1,200,000——断言均按常量动态计算，与档位取值解耦）。
     /// 断言 #253 验收 2/3/4/5：评分 ≥60%、行政 ≤25%、细则 ≥10,000、守恒 ±5%。
     #[test]
     fn quota_253_scoring_weight_allocation() {

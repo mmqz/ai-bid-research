@@ -74,6 +74,8 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         "get_document_chunks" => crate::coverage_tools::get_document_chunks(svc, args),
         "submit_block_marks" => crate::coverage_tools::submit_block_marks(svc, args),
         "get_coverage_report" => crate::coverage_tools::get_coverage_report(svc, args),
+        // ---- #285 ① ★漏标检测（只读——★字面真值 vs 已抽 REQ 差集，只报不补） ----
+        "get_star_coverage" => crate::coverage_tools::get_star_coverage(svc, args),
         "score_section" => score_section(svc, args),
         "score_document" => score_document(svc, args),
         // ---- #145 任务 1：双通道证据检索（契约 §5——朴素实现，真向量库见 M2-b）----
@@ -945,6 +947,27 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
         }
     }
 
+    // ---- #285 ① ★漏标检测：字面★真值 vs 已抽 REQ（抽取面汇总 + 警告）。
+    //
+    // 口径与 get_star_coverage 同源（star_scan 三级恒等式）；此处只汇总
+    // 抽取面文件（has_extraction_face 同口径——格式模板/证据件不进），
+    // 逐文件明细用 get_star_coverage(project_id, file_id) 查。
+    // 纯读计算（不落库不 bump）——REQ 产物零位移（GT 红线保护）。
+    let (mut star_total, mut star_decl, mut star_captured, mut star_missing) =
+        (0usize, 0usize, 0usize, 0usize);
+    for p in svc.parsed().iter().filter(|p| {
+        bid_parse::merge::has_extraction_face(
+            kind_map.get(&p.name).map(String::as_str),
+            &p.name,
+        )
+    }) {
+        let cov = bid_parse::star_scan::star_coverage(p, &reqs);
+        star_total += cov.truth_stars;
+        star_decl += cov.declaration_stars;
+        star_captured += cov.captured_stars;
+        star_missing += cov.missing_stars;
+    }
+
     // ---- 落库（#219 二步：整集替换 + 状态转换 FILES_IMPORTED →
     // REQUIREMENTS_EXTRACTED；替换而非只增合并——「先 extract → Agent
     // 标 noise → 重跑 extract」时被覆盖块上的旧正则 REQ 必须消失。
@@ -975,6 +998,13 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
         warnings.push(format!(
             "CONFLICTS: {} 对主文件/补遗条款冲突（双向登记）",
             conflicts.len()
+        ));
+    }
+    // #285 ① ★漏标警告（不是 BLOCKER——可能误报，逐文件核实面在
+    // get_star_coverage；样板句已排除，误报面已收敛到位置对账）
+    if star_missing > 0 {
+        warnings.push(format!(
+            "STAR_MISSING: ★漏标警告：{star_missing} 处★未见对应 REQ——用 get_star_coverage 查看后补标",
         ));
     }
     for p in svc.parsed() {
@@ -1027,6 +1057,15 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
             "agent_requirements": merge_stats.agent_requirements,
             "uncovered_blocks": merge_stats.uncovered_blocks,
             "coverage_complete": merge_stats.coverage_complete,
+        },
+        // #285 ① ★漏标检测汇总（抽取面文件口径；total 为真值★——样板句
+        // 已排除，captured + missing == total 恒成立；逐文件明细走
+        // get_star_coverage）
+        "star_summary": {
+            "total": star_total,
+            "captured": star_captured,
+            "missing": star_missing,
+            "declarations": star_decl,
         },
         "conflicts": conflicts,
         "missing_sequence": missing_sequence,

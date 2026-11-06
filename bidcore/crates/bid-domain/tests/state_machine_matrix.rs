@@ -35,43 +35,40 @@ const ALL_STATES: [ProjectStatus; 10] = [
 ///（尾插——append/rewrite 与整稿同窗口，list 全矩阵窗口只读）= 29；
 /// #287 增 `recommend_length_profile`（尾插——篇幅档位推荐只读，
 /// REQUIREMENTS_EXTRACTED+ 含 Exported：信号来自 REQ 面，建纲前后均可查）= 30。
-const ALL_TOOLS: [&str; 30] = [
+
+const ALL_TOOLS: [&str; 32] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
-    "build_outline",
     "get_compliance_matrix",
-    "register_evidence",
-    "bind_evidence",
     "list_evidence",
+    "list_tasks",
     "search_evidence",
     "draft_response_section",
-    "save_version",
     "validate_bid_document",
-    "check_bid_quality",
     "export_bid_document",
     "get_bid_project_state",
+    "save_version",
+    "check_bid_quality",
+    "build_outline",
+    "register_evidence",
+    "bind_evidence",
     "record_review_gate",
+    "record_addendum_waiver",
     "score_price",
     "score_section",
     "score_document",
-    "score_tender",
-    "record_addendum_waiver",
-    // #219 全块覆盖三工具
     "get_document_chunks",
     "submit_block_marks",
     "get_coverage_report",
-    // #226 层 1：否决项死锁的人工出口
+    "get_star_coverage",
     "set_matrix_override",
-    // #243：历史异常态（VALIDATING+缺章）的受支持恢复出口
     "recover_validating_state",
-    // #254 分段写入三工具（append/rewrite 与整稿同窗口；list 只读延伸到
-    // 导出后追溯面）
     "append_section_segment",
     "rewrite_section_segment",
     "list_section_segments",
-    // #287 篇幅档位推荐（只读——REQUIREMENTS_EXTRACTED+ 含 Exported）
     "recommend_length_profile",
+    "list_tools",
 ];
 
 // ---------------------------------------------------------------- 1. 前向迁移表
@@ -236,32 +233,33 @@ fn terminal_state_blocks_write_tools() {
 #[test]
 fn full_matrix_snapshot() {
     let grid: Vec<(ProjectStatus, &str)> = vec![
-        // 29 工具位串（ALL_TOOLS 顺序）。合并说明（2026-11-05 三方并集）：
+        // 32 工具位串（ALL_TOOLS 顺序）。合并说明（2026-11-05 三方并集）：
         //   #254 尾插三位 append/rewrite/list（与整稿同窗口）；
         //   #241 在 DRAFTING..READY_TO_EXPORT 翻 5/6 位（register/bind evidence——
         //        证据补件通道）。两个 PR 各自改位串矩阵，本表为两者并集。
         // Draft（record_addendum_waiver 拒——导入前无件可确认；#287 尾位 0
         //   ——无 REQ 面，推荐信号不存在）
-        (ProjectStatus::Draft, "110000000000001000000000000000"),
+        (ProjectStatus::Draft, "11000000001000000000000000000000"),
         // FilesImported（#287 尾位 0——同上，抽取前无信号）
-        (ProjectStatus::FilesImported, "011010001000001000001111000000"),
+        (ProjectStatus::FilesImported, "01110010001000000100011110000000"),
         // RequirementsExtracted（#287 尾位 1——推荐主窗口：P3 建纲前）
-        (ProjectStatus::RequirementsExtracted, "011110001000001000001111000001"),
+        (ProjectStatus::RequirementsExtracted, "01110010001001000100011110000010"),
         // MatrixReady（#254 尾三位 111——分段写入与整稿同窗口；#287 尾位 1）
-        (ProjectStatus::MatrixReady, "000011101100101101101001101111"),
+        (ProjectStatus::MatrixReady, "00010011001010111101100111011110"),
         // EvidenceBound（同上）
-        (ProjectStatus::EvidenceBound, "000011101100101101101001101111"),
+        (ProjectStatus::EvidenceBound, "00010011001010111101100111011110"),
         // Drafting（#254 尾三位 111；#241 5/6 位翻 1——证据补件主战场；#287 尾位 1）
-        (ProjectStatus::Drafting, "000011101101111101101001101111"),
+        (ProjectStatus::Drafting, "00010011111010111101100111011110"),
         // Validating（#243 尾区位 1；#254 尾三 001；#241 5/6 位翻 1；#287 尾位 1）
-        (ProjectStatus::Validating, "000011101001111101101001110011"),
+        (ProjectStatus::Validating, "00010010111010111101100111100110"),
         // Reviewing（#254 尾三 001；#241 5/6 位翻 1；#287 尾位 1）
-        (ProjectStatus::Reviewing, "000011101001111101101001100011"),
+        (ProjectStatus::Reviewing, "00010010111010111101100111000110"),
         // ReadyToExport（同上）
-        (ProjectStatus::ReadyToExport, "000011101001111101101001100011"),
+        (ProjectStatus::ReadyToExport, "00010010111010111101100111000110"),
         // Exported（终态不变量：终态不改数据——#241 不被括进来；#254 仅只读
         //   list；#287 尾位 1——导出后仍可查推荐口径追溯）
-        (ProjectStatus::Exported, "000010001000111101101001100011"),
+        (ProjectStatus::Exported, "00010010011010001101100111000110"),
+
     ];
     assert_eq!(grid.len(), ALL_STATES.len());
 

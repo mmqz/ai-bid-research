@@ -199,6 +199,10 @@ impl ProjectStatus {
                 "get_coverage_report",
                 // #285 ① ★漏标检测（抽取后主查窗口）
                 "get_star_coverage",
+                // #321：参数应答写入（域层状态窗 RequirementsExtracted+
+                // MatrixReady/EvidenceBound/Drafting——技术参数偏离表的唯一
+                // 录入面，此前无 MCP 入口恒为空账 A-07/A-23）
+                "set_param_responses",
             ],
             MatrixReady | EvidenceBound => &[
                 "get_coverage_report",
@@ -228,6 +232,16 @@ impl ProjectStatus {
                 // 主工作面，与分段写入同窗口）
                 "register_addendum_changes",
                 "rewrite_section_partial",
+                // #321（A-23）：RT 生命周期出口——拒审派生的 Open RT 从本态起
+                // 可认领/推进/关单（此前无工具 = 结构性导出死锁）；
+                // 分工面（batch/advance）同窗口（大纲已在，SEC/REQ 可派工）
+                "assign_revision",
+                "advance_revision",
+                "complete_revision",
+                "batch_task",
+                "advance_task",
+                // #321：参数应答写入（域层窗含本态）
+                "set_param_responses",
             ],
             Drafting => &[
                 "get_coverage_report",
@@ -263,6 +277,15 @@ impl ProjectStatus {
                 // #319：起草中补遗到达——DIRTY 章节的局部改写出口
                 "register_addendum_changes",
                 "rewrite_section_partial",
+                // #321（A-23）：RT 生命周期出口（拒审 BLOCKER 派生的修单链）+
+                // 分工推进 + ACCEPTED 章节重开（重导前修订面）+ 参数应答
+                "assign_revision",
+                "advance_revision",
+                "complete_revision",
+                "batch_task",
+                "advance_task",
+                "reopen_section",
+                "set_param_responses",
             ],
             Validating => &[
                 "get_compliance_matrix",
@@ -293,6 +316,15 @@ impl ProjectStatus {
                 // #319：校验期补遗到达/复验发现需改稿——局部改写出口
                 "register_addendum_changes",
                 "rewrite_section_partial",
+                // #321（A-23）：RT 出口 + 分工推进 + 章节重开（复核期发现的
+                // 问题要能修——RT/分工/重开都是修复面；set_param_responses
+                // 域层窗不含本态，不注册）
+                "assign_revision",
+                "advance_revision",
+                "complete_revision",
+                "batch_task",
+                "advance_task",
+                "reopen_section",
             ],
             Reviewing | ReadyToExport => &[
                 "get_compliance_matrix",
@@ -320,6 +352,14 @@ impl ProjectStatus {
                 // #319：导出前补遗到达——局部改写后重验重导
                 "register_addendum_changes",
                 "rewrite_section_partial",
+                // #321（A-23）：RT 出口 + 分工推进 + 章节重开（与 Validating
+                // 同理由——导出前是问题的最后解处）
+                "assign_revision",
+                "advance_revision",
+                "complete_revision",
+                "batch_task",
+                "advance_task",
+                "reopen_section",
             ],
             Exported => &[
                 "get_coverage_report",
@@ -342,6 +382,12 @@ impl ProjectStatus {
                 // #319：已导出后补遗到达——登记变更+局部改写+重验，再导出即新稿
                 "register_addendum_changes",
                 "rewrite_section_partial",
+                // #321（A-23）：导出后再审可派新 RT（record_review_gate 在
+                // 本态可用——没有 RT 出口就是新死锁）+ 重导前章节重开面
+                "assign_revision",
+                "advance_revision",
+                "complete_revision",
+                "reopen_section",
             ],
         }
     }
@@ -1976,6 +2022,14 @@ fn tool_name(tool: &str) -> &'static str {
         "get_requirement_provenance" => "get_requirement_provenance",
         "get_block_requirements" => "get_block_requirements",
         "get_annotation_overlay" => "get_annotation_overlay",
+        // #321（A-23）：RT 生命周期 + 分工 + 章节重开 + 参数应答工具族
+        "assign_revision" => "assign_revision",
+        "advance_revision" => "advance_revision",
+        "complete_revision" => "complete_revision",
+        "batch_task" => "batch_task",
+        "advance_task" => "advance_task",
+        "reopen_section" => "reopen_section",
+        "set_param_responses" => "set_param_responses",
         _ => "unknown_tool",
     }
 }

@@ -1034,7 +1034,7 @@ async def _case_error_envelope(rec: Recorder, ws: Path) -> None:
     async with open_client(ws) as client:
         results: list[dict] = []
 
-        # ① 无项目时调只读工具 → E_NOT_FOUND
+        # ① 无项目时调只读工具 → E_NOTFOUND（#325：线格式钉回契约字面量）
         try:
             await call(client, "get_compliance_matrix", {"project_id": "PRJ-9999", "limit": 10})
             results.append({"case": "无项目查矩阵", "err": None})
@@ -1096,14 +1096,14 @@ async def _case_error_envelope(rec: Recorder, ws: Path) -> None:
         by_case = {x["case"]: x for x in results}
         # 实测（#137 交付后的协议层行为）：
         #   · 未知工具由【协议层】拦（JSON-RPC -32602），不是工具层 E_NOTFOUND；
-        #   · 无项目查矩阵 = E_NOT_FOUND（工具层路由守卫）
+        #   · 无项目查矩阵 = E_NOTFOUND（工具层路由守卫；#325 契约字面量）
         expect_notfound = {"无项目查矩阵"}
         expect_unprocessable = {"建项缺参", "mode 非法", "external 缺 content",
                                "content×generator 互斥"}
         expect_state = {"未导入先抽取"}
         checks = [
-            (f"E_NOT_FOUND 面（{expect_notfound}）",
-             all(by_case.get(c, {}).get("code") == "E_NOT_FOUND" for c in expect_notfound)),
+            (f"E_NOTFOUND 面（{expect_notfound}）（#325 契约字面量）",
+             all(by_case.get(c, {}).get("code") == "E_NOTFOUND" for c in expect_notfound)),
             (f"E_UNPROCESSABLE 面（{expect_unprocessable}）",
              all(by_case.get(c, {}).get("code") == "E_UNPROCESSABLE" for c in expect_unprocessable)),
             (f"E_STATE 面（{expect_state}）",
@@ -1531,7 +1531,7 @@ async def _case_search_evidence(rec: Recorder, ws: Path) -> None:
         checks = [
             (f"⑤b: 参数面全拒 E_UNPROCESSABLE（{len(expect_unprocessable)} 例）",
              all(by_case.get(c, {}).get("code") == "E_UNPROCESSABLE" for c in expect_unprocessable)),
-            ("⑤b: 项目路由 E_NOT_FOUND", by_case.get("项目不存在", {}).get("code") == "E_NOT_FOUND"),
+            ("⑤b: 项目路由 E_NOTFOUND（#325 契约字面量）", by_case.get("项目不存在", {}).get("code") == "E_NOTFOUND"),
             ("⑤b: 无静默成功（全 8 例都被拒）",
              all(x.get("code") for x in results)),
         ]

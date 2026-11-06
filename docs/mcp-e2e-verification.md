@@ -153,8 +153,8 @@ Agent 的分支处理依赖 `E_*` 错误码。七种失败面实测归类：
 
 | 失败面 | 错误码 |
 |---|---|
-| 无项目时查矩阵 | `E_NOT_FOUND` |
-| 调用未知工具 | `E_NOT_FOUND` |
+| 无项目时查矩阵 | `E_NOTFOUND`（#325：契约字面量） |
+| 调用未知工具 | `E_NOTFOUND` |
 | 建项缺 `name` | `E_UNPROCESSABLE` |
 | `mode` 非法（非 明标/暗标） | `E_UNPROCESSABLE` |
 | `generator=external` 缺 `content` | `E_UNPROCESSABLE` |

@@ -125,10 +125,10 @@ echo '{"tool":"get_bid_project_state","args":{}}' | .\bid-mcp-stdio.exe
 
 **期望输出**：
 ```json
-{"ok":false,"tool":"get_bid_project_state","error":{"code":"E_NOT_FOUND","what":"project 未创建"}}
+{"ok":false,"tool":"get_bid_project_state","error":{"code":"E_NOTFOUND","what":"project 未创建"}}
 ```
 
-能回 JSON 就说明 exe 正常（`E_NOT_FOUND` 是对的——还没建项目）。
+能回 JSON 就说明 exe 正常（`E_NOTFOUND` 是对的——还没建项目；#325：契约字面量）。
 
 ---
 

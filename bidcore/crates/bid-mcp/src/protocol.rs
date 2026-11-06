@@ -535,15 +535,17 @@ mod tests {
             serde_json::from_str(&s.handle_line(&line, |c| call(&mut svc, c)).unwrap()).unwrap();
         assert_eq!(resp["id"], "e1");
         assert_eq!(resp["result"]["isError"], true);
-        // 注意：wire 序列化是 SCREAMING_SNAKE_CASE 变体名 → "E_NOT_FOUND"，
-        // 而 ToolError::code() 返回契约字面量 "E_NOTFOUND"（预先存在的不
-        // 一致，#137 只透传不改——旧路径线格式不动是验收项）；MCP 层与
-        // dispatch_json 同一序列化真源，值以旧路径实测为准。
-        assert_eq!(resp["result"]["structuredContent"]["code"], "E_NOT_FOUND");
+        // #325（R-13）：wire tag 已钉回契约字面量 "E_NOTFOUND"（变体级
+        // serde rename——此前 SCREAMING_SNAKE_CASE 机械展开成 "E_NOT_FOUND"，
+        // 与 ToolError::code() / 契约 §0 漂移，#137 时期选择只透传不改，
+        // 现按 #325 裁定单真源=契约并修复）；MCP 层与 dispatch_json 同一
+        // 序列化真源，一致性由 error.rs 的
+        // wire_tag_matches_code_literal_all_variants 测试把守。
+        assert_eq!(resp["result"]["structuredContent"]["code"], "E_NOTFOUND");
         let text = resp["result"]["content"][0]["text"].as_str().unwrap();
         let wire: Value = serde_json::from_str(text).unwrap();
         assert_eq!(wire["ok"], false);
-        assert_eq!(wire["error"]["code"], "E_NOT_FOUND", "契约包装 JSON 原样进 content");
+        assert_eq!(wire["error"]["code"], "E_NOTFOUND", "契约包装 JSON 原样进 content（#325 钉回契约字面量）");
     }
 
     #[test]

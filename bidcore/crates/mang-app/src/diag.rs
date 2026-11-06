@@ -85,11 +85,12 @@ pub fn mcp_status() -> Result<Value, IpcError> {
                 .count()
         })
         .unwrap_or(0);
-    // 分发自检：未知工具必须给出 E_NOT_FOUND JSON 帧——证明「同一套引擎代码
+    // 分发自检：未知工具必须给出 E_NOTFOUND JSON 帧（#325：线格式钉回
+    // 契约字面量）——证明「同一套引擎代码
     // 在本进程里能应答」（与 bid-mcp-stdio 同源编译）。这不是探测外部进程
     // （stdio 服务由 AI 客户端拉起，本壳看不见它的生死），如实标注。
     let probe = bid_mcp::dispatch_json(r#"{"tool":"__mang_selftest__","args":{}}"#);
-    let probe_ok = probe.contains("E_NOT_FOUND");
+    let probe_ok = probe.contains("E_NOTFOUND");
     Ok(json!({
         "channel": "stdio",
         "server": "bid-mcp-stdio（由 MCP 客户端拉起；本壳不监听端口）",
@@ -302,7 +303,7 @@ mod tests {
         assert_eq!(v["channel"], "stdio");
         assert_eq!(v["tools"], 13, "工具面 13 个（#68 阶段 2 后）");
         assert_eq!(v["implemented"], 11);
-        assert_eq!(v["ready"], true, "未知工具探测应答 E_NOT_FOUND 即就绪");
+        assert_eq!(v["ready"], true, "未知工具探测应答 E_NOTFOUND 即就绪（#325 契约字面量）");
     }
 
     #[test]

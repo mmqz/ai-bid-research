@@ -792,28 +792,45 @@ pub fn derive_outline_with_mappings(
     // 守恒：allocate_quotas(target − 槽位总额) 构造性恒等 + 槽位固定值
     // → 统一账总和 == target（#199 回归锁继续有效）。
     let n_leaf = leaves.len();
-    // 评分节点中「配额承载位」= L2 节点 + 槽位叶（L1 聚合位事后由子和重算）
-    let scoring_quota_slots: Vec<usize> = scoring_nodes
-        .iter()
-        .enumerate()
-        .filter(|(_, n)| n.level == 2 || n.parent_id.is_none())
-        .filter(|(_, n)| {
-            // 槽位 L1 叶（无子）与 L2 都承载；评分章节 L1（有子）不承载
-            n.level == 2 || !scoring_nodes.iter().any(|m| m.parent_id.as_deref() == Some(&n.id[..]))
-        })
-        .map(|(i, _)| i)
-        .collect();
+    // 评分节点中「配额承载位」= 评分 L2（细则）+ 槽位 L1 叶（独立响应位）
+    // + **无细则评分章节的 L1**（空章的章头即内容承载叶——见下）。
+    // L1 聚合位（有子章头）事后由子和重算，不承载。
+    let scoring_quota_slots: Vec<usize> = {
+        // 识别纪律：**槽位按构建序末段定位**（scoring_nodes 的 slots 循环
+        // 恒在最后 push——见 scoring_outline::scoring_nodes）；空细则章节
+        // 的 L1 按结构特征识别（无父 + 无子 + 非槽位区）。**不用**旧口径
+        // 「无父无子 = 槽位」反推——那会把空章 L1 误判成槽位叶：真实评分表
+        // （wenming 六章三空章实测）触面即 quota_slots 计数虚增 → 统一账
+        // [body 叶 | 评分条目 | 槽位] 布局错位 → 回写越界 panic
+        // （quotas[n_leaf + qi] index out of bounds）。
+        let n_slots_count = scoring_build.as_ref().map(|b| b.slots.len()).unwrap_or(0);
+        let slot_zone_start = scoring_nodes.len().saturating_sub(n_slots_count);
+        scoring_nodes
+            .iter()
+            .enumerate()
+            .filter(|(i, n)| {
+                if n.level == 2 || *i >= slot_zone_start {
+                    return true; // L2 细则 / 槽位叶
+                }
+                // 空细则章节的 L1（无父无子的章头）：评分轨整章一条目
+                n.level == 1
+                    && n.parent_id.is_none()
+                    && !scoring_nodes
+                        .iter()
+                        .any(|m| m.parent_id.as_deref() == Some(&n.id[..]))
+            })
+            .map(|(i, _)| i)
+            .collect()
+    };
     let n_slots = scoring_build.as_ref().map(|b| b.slots.len()).unwrap_or(0) as u64;
     let slot_total = n_slots * u64::from(crate::scoring_outline::SLOT_FIXED_CHARS);
     let effective_target = u64::from(spec.target_total_chars).saturating_sub(slot_total);
-    // 三轨输入（统一账叶序：legacy 叶 → 评分 L2——scoring_nodes 构建序）
-    let n_scoring_l2 = scoring_quota_slots
-        .iter()
-        .filter(|&&i| scoring_nodes[i].level == 2)
-        .count();
-    let mut tracks: Vec<Track> = Vec::with_capacity(n_leaf + n_scoring_l2);
-    let mut weights: Vec<u64> = vec![0; n_leaf + n_scoring_l2];
-    let mut counts: Vec<u64> = Vec::with_capacity(n_leaf + n_scoring_l2);
+    // 三轨输入（统一账叶序：legacy 叶 → 评分条目（L2 与空章 L1，按章节序）
+    // ——与 scoring_quota_slots 的节点序逐一对应）
+    let n_scoring_entries = scoring_quota_slots.len() - n_slots as usize;
+    let mut tracks: Vec<Track> = Vec::with_capacity(n_leaf + n_scoring_entries);
+    let mut weights: Vec<u64> = vec![0; n_leaf + n_scoring_entries];
+    let mut counts: Vec<u64> = Vec::with_capacity(n_leaf + n_scoring_entries);
     for l in &leaves {
         tracks.push(if is_admin_group(&l.group) {
             Track::Admin
@@ -825,12 +842,17 @@ pub fn derive_outline_with_mappings(
     if let Some(build) = &scoring_build {
         for ch in &build.chapters {
             let n_l2 = ch.l2_titles.len();
-            // 章分值均摊到细则（×1000 整数——两位小数分值无损；零细则跳过）
-            let w = if n_l2 == 0 {
-                0
-            } else {
-                (ch.score * 1000.0 / n_l2 as f64).round() as u64
-            };
+            if n_l2 == 0 {
+                // 空细则章：L1 直接承载（评分轨整章一条目——章分值权重）。
+                // 旧代码此处跳过（w=0 死分支）→ 空章 target 恒 0 且配额
+                // 错位——见 quota_slots 注释。
+                tracks.push(Track::Scoring);
+                weights[tracks.len() - 1] = (ch.score * 1000.0).round() as u64;
+                counts.push(1);
+                continue;
+            }
+            // 章分值均摊到细则（×1000 整数——两位小数分值无损）
+            let w = (ch.score * 1000.0 / n_l2 as f64).round() as u64;
             for _ in 0..n_l2 {
                 tracks.push(Track::Scoring);
                 weights[tracks.len() - 1] = w;
@@ -2046,6 +2068,113 @@ mod tests {
                 "叶配额不得低于下限：{}",
                 l.target_chars
             );
+        }
+    }
+
+    /// #269 预验证发现（wenming 真题触面）：**无细则评分章节**的 L1（无父
+    /// 无子）被旧 quota_slots 过滤器（「无父无子 = 槽位叶」）误判 → 统一账
+    /// [body 叶 | L2 | 槽位] 布局错位 → 回写 quotas[n_leaf + qi] 越界 panic。
+    /// 真实评分表（黑龙江 wenming 六章含三空章）实测：n_leaf=57、L2=15、
+    /// 槽=2，quota_slots 虚增 3（20≠17）→ index 74 越界（len 74）。
+    /// 修复：槽位按构建序末段定位（scoring_nodes 的 slots 循环恒在最后），
+    /// 空细则章节 L1 不承载配额（target_chars 0——与「无 L2 → 无配额条目」
+    /// 的 tracks 构建序一致）。
+    #[test]
+    fn quota_slots_empty_scoring_chapter_does_not_panic_or_misalign() {
+        let reqs = vec![
+            // 正常评分章（2 细则）
+            scoring_req_for_outline("R1", "服务方案", 25.0, "技术评审", &["方案一", "方案二"]),
+            // 空细则评分章（真实评分表形态：章节行无细则子行）——旧代码的
+            // panic 触发件（L1 无父无子被当槽位叶）
+            scoring_req_for_outline("R2", "企业荣誉", 3.0, "技术评审", &[]),
+            // 槽位（商务评审）
+            scoring_req_for_outline("R3", "业绩", 5.0, "商务评审", &[]),
+            // 正文 REQ（技术参数——body 叶在座）
+            req_with_anchor(
+                "REQ-B1", "技术参数", Some("2.1"), "第5页 行2",
+                "响应时间不超过 30 分钟",
+            ),
+        ];
+        let nodes = derive_outline(
+            &reqs,
+            OutlineSpec { target_total_chars: 100_000, max_reqs_per_leaf: 6 },
+            &mut counting_ids(),
+        );
+        // ① 不 panic（回归面——修复前 quotas[n_leaf + qi] index OOB）
+        // ② 槽位叶拿到固定配额（不被错位成 L2 轨配额）
+        let slot = nodes
+            .iter()
+            .find(|n| n.title.starts_with("业绩证明材料"))
+            .expect("槽位叶在座");
+        assert_eq!(
+            slot.target_chars,
+            crate::scoring_outline::SLOT_FIXED_CHARS,
+            "槽位固定配额（统一账尾——不错位）"
+        );
+        // ③ 空细则章节 L1：承载评分轨配额（章分值权重——修复前 agg 空 +
+        //    配额错位双缺陷）且绑定章 REQ（树不变量「每节点 ≥1 REQ」）
+        let empty_ch = nodes
+            .iter()
+            .find(|n| n.title.contains("企业荣誉"))
+            .expect("空细则章节 L1 在座");
+        assert!(
+            empty_ch.target_chars >= crate::scoring_outline::SLOT_FIXED_CHARS,
+            "空章承载评分轨配额 ≥ 槽位固定值: {}",
+            empty_ch.target_chars
+        );
+        assert!(
+            empty_ch.requirement_ids.contains(&"R2".to_string()),
+            "空章 L1 绑定章 REQ（修复前 agg 折叠零 L2 → 空 REQ 违反树不变量）"
+        );
+        assert!(
+            empty_ch.parent_id.is_none(),
+            "空细则章节是 L1 叶（无子）——树结构不变"
+        );
+        // ④ 树不变量 + 守恒（根配额和 = 目标：body 轨 + 评分轨 + 槽位固定）
+        assert!(validate_outline(&nodes).is_ok(), "树不变量: {:?}", validate_outline(&nodes));
+        let total: u64 = nodes
+            .iter()
+            .filter(|n| n.parent_id.is_none())
+            .map(|n| u64::from(n.target_chars))
+            .sum();
+        assert_eq!(total, 100_000, "统一账守恒（body + 评分轨（含空章）+ 槽位固定 = 目标）");
+        // ⑤ L2 配额在座（评分轨有量——空章不挤占兄弟）
+        let l2s: Vec<&OutlineNode> = nodes
+            .iter()
+            .filter(|n| n.level == 2 && n.parent_id.is_some())
+            .filter(|n| n.title.starts_with("方案"))
+            .collect();
+        assert_eq!(l2s.len(), 2, "正常章（服务方案）2 细则");
+        assert!(
+            l2s.iter().all(|n| n.target_chars > 0),
+            "L2 配额 > 0（评分轨不被空章挤占）"
+        );
+    }
+
+    /// outline.rs 测试面的评分 REQ 构造（与 scoring_outline.rs 的 scoring_req
+    /// 同构——本模块复用 req_with_anchor 的参数面）。
+    fn scoring_req_for_outline(
+        id: &str, name: &str, score: f64, track: &str, subs: &[&str],
+    ) -> Requirement {
+        Requirement {
+            id: id.into(),
+            category: "评分项".into(),
+            clause_no: Some(format!("综合评分表-{id}")),
+            anchors: vec![crate::Anchor {
+                file: "A".into(),
+                kind: "table".into(),
+                locator: "第25页 行8".into(),
+                excerpt: format!("{name}（{score}分 {track}）：…"),
+            }],
+            params: [
+                ("name".to_string(), serde_json::json!(name)),
+                ("score".to_string(), serde_json::json!(score)),
+                ("track".to_string(), serde_json::json!(track)),
+                ("sub_items".to_string(), serde_json::json!(subs)),
+            ]
+            .into_iter()
+            .collect(),
+            source_file: "A".into(),
         }
     }
 }

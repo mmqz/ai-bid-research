@@ -9,10 +9,18 @@ description: >
 # 标书编制管线（bid-response-pipeline）
 
 > 职责分界：**Agent 编排与写正文，引擎裁决与保真**。本 Skill 驱动一个封闭的
-> 确定性后端（bid-mcp，24 个 MCP 工具）——你按阶段表走、守门禁、向用户复述
-> 数字；状态机裁决、引用回查、CAS 落盘、校验、导出全部由引擎完成。
-> 工具契约单一真源：`docs/bid-mcp-contract.md`（本文工具名与之逐一对齐，
-> 不新增任何绕过状态机的写路径）。
+> 确定性后端（bid-mcp）——你按阶段表走、守门禁、向用户复述数字；状态机
+> 裁决、引用回查、CAS 落盘、校验、导出全部由引擎完成。
+> 工具契约单一真源：仓库根 `docs/bid-mcp-contract.md`（本文工具名与之
+> 逐一对齐，不新增任何绕过状态机的写路径）。
+>
+> **文档路径约定（#278——防 Skill 分发场景断链）**：本文与 `references/`
+> 里所有 `docs/…` 路径一律指**仓库根（分发包根）的 `docs/` 目录**，不是
+> 本 Skill 目录的相对路径。两种形态的解析：仓库检出（本 Skill 在
+> `sdk/skill/bid-response-pipeline/`）→ 回溯 `../../../docs/`；独立分发
+> 包（本 Skill 在 `mang-bid/skill/bid-response-pipeline/`）→ `../../docs/`
+> （docs/ 与 skill/ 平级）。找不到时向上层目录搜索最近的
+> `bid-mcp-contract.md`，不要在 Skill 目录下新建同名文件。
 
 ## 阶段表（顺序锁死，禁止跨步——防低能力模型跑偏）
 

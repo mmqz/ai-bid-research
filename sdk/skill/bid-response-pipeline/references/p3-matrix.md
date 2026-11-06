@@ -1,6 +1,6 @@
 # P3 矩阵细则（build_outline → get_compliance_matrix）
 
-> 契约依据：`docs/bid-mcp-contract.md` §10（建纲）/ §4（矩阵只读）。本阶段
+> 契约依据：仓库根 `docs/bid-mcp-contract.md`（路径约定见 SKILL.md 头部——`docs/` 指仓库根，非本目录相对） §10（建纲）/ §4（矩阵只读）。本阶段
 > 两个动作：`build_outline` 一次性完成「大纲树推导 + 矩阵首建」（推进
 > MATRIX_READY——draft 的硬前置）；之后 `get_compliance_matrix` 只读查询、
 > 随时重查。Agent 不算矩阵——矩阵行是引擎从（条款 × 绑定 × 章节 × 覆写）

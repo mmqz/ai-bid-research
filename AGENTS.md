@@ -424,6 +424,87 @@ gh run view <run_id> --repo mmqz/<repo> --log-failed | grep -E "FAILED|panicked|
 
 ---
 
+
+---
+
+# 二之三、CI 卡住时的判断
+
+## 15.1 区分「代码失败」和「基础设施卡住」
+
+**这条是 2026-11-06 PR #289 的教训。**
+
+### 现象
+
+```
+CI 显示 in_progress 超过 40 分钟；
+但日志里所有测试都通过了（137 行 test result: ok，0 行 FAILED）。
+```
+
+### 判断方法
+
+```bash
+# 1. 看每个步骤的状态
+gh api repos/<repo>/actions/runs/<run_id>/jobs \
+  --jq '.jobs[0].steps[] | "\(.number) \(.name): \(.status)/\(.conclusion)"'
+
+# 2. 如果所有「测试」步骤都是 completed/success
+#    只有 Post Cache / Post Checkout 等收尾步骤卡在 in_progress
+#    → 这是 GitHub Actions 基础设施问题，不是代码问题
+
+# 3. 再确认日志里零失败
+gh run view <run_id> --repo <repo> --log | grep -c "test result: FAILED"
+# 输出 0 → 代码是好的
+```
+
+### 处理
+
+```bash
+# 取消卡住的 run
+gh run cancel <run_id> --repo <repo>
+
+# 重新触发（会用同一个 commit，不产生新 commit）
+gh run rerun <run_id> --repo <repo>
+```
+
+**注意：rerun 会重新跑整个 workflow，通常第二次就不会卡了。**
+
+### 常见的卡住步骤
+
+```
+Post Cache cargo          ← 缓存上传，最常见
+Post Run actions/checkout ← 清理
+Set up job                ← 分配 runner
+```
+
+**这些都不是你的代码问题。**
+
+## 15.2 不要因为 CI 卡住就改代码
+
+```
+❌ 错误：
+  CI 卡 40 分钟 → 慌了 → 改代码 → push → 又卡
+
+✅ 正确：
+  CI 卡 40 分钟 → 查步骤状态 → 确认是基础设施 → cancel + rerun
+  代码一行不改
+```
+
+## 15.3 什么时候该怀疑代码
+
+```
+该怀疑代码：
+  · 有测试步骤 completed/failure
+  · 日志里有 test result: FAILED
+  · 有 error[E 编译错误
+
+不该怀疑代码：
+  · 所有测试步骤 success，但 run 不结束
+  · 卡在 Post 类步骤
+  · runner 分配失败（Set up job 长时间 pending）
+```
+
+---
+
 # 三、环境与资源
 
 ## 11. 硬盘管理
@@ -756,6 +837,13 @@ ai-bid 依赖 mdcore（通过 crates.io 或 git rev）
 [ ] 看 PR 最新评论，有没有「必须修 X」的 Review
 [ ] CI 红过的话，看日志找到具体失败的测试，不要猜
 [ ] 修完本地验证再 push
+```
+
+**CI 卡住时**：
+```
+[ ] 查步骤状态：所有测试步骤 success 但 run 不结束 = 基础设施问题
+[ ] 日志里 test result: FAILED 计数为 0 = 代码是好的
+[ ] 处理：gh run cancel + gh run rerun，代码一行不改
 ```
 
 **PR 合并后**：

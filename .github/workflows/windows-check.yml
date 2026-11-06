@@ -110,15 +110,13 @@ jobs:
         working-directory: bidcore
         run: cargo check --workspace --all-targets
 
-      # #76：mang-app 是独立 workspace（自己的 [workspace] 段，bidcore 的
-      # --workspace 不含它）——此前零 CI 覆盖，桌面壳改动只靠 Lead 手验。
-      # 桌面壳是 Windows 交付面，在这里补一道编译门禁（tao/wry 在
-      # windows-latest 编译无需 WebView2 运行时，仅链接时需要，runner 自带）。
-      - name: cargo check (mang-app 独立 workspace)
-        working-directory: bidcore/crates/mang-app
-        run: cargo check --all-targets
+      # FG-01（#303）：mang-app 已并入 bidcore workspace（撤掉空 [workspace] 表，
+      # 见 bidcore/Cargo.toml members）。上面的 --workspace 已覆盖它的编译面，
+      # 下方 cargo test --workspace 会实际执行它的 39 个测试——此前它有独立
+      # check 步骤但**零测试执行**（独立 target 目录还不进缓存，每轮重编 tao/wry）。
+      # 旧的「cargo check (mang-app 独立 workspace)」步骤随之删除。
 
-      - name: cargo test (SKIP 机制护航，全量 workspace)
+      - name: cargo test (SKIP 机制护航，全量 workspace 含 mang-app)
         working-directory: bidcore
         # issue #9 SKIP 机制已落地：外部工具缺件时，PDF 全链测试
         # （corpus_probe / kb_probe / e2e_m1）打 SKIP 横幅并提前 return，
@@ -130,25 +128,73 @@ jobs:
         # 二进制**从来没在 CI 里跑过**——#168 修好一个红灯后，
         # 下一个红灯（addendum_recovery 的 CJK 乱码，见 #169）才浮现。
         # 全量报错能一次看全，而不是每次只揭露一个（20 分钟/轮）。
-        # #295：输出 tee 到文件——后述 SKIP 汇总/横幅核验步骤读日志回放，
-        # 不再为了看横幅重跑一遍全量（旧 Verify 步骤的重跑每次白烧 ~15 分钟）。
-        # pwsh 管道下 $LASTEXITCODE 仍取 cargo 的退出码（Tee-Object 是 cmdlet
-        # 不碰它）——测试失败照样红，语义不变。
+        #
+        # FG-03（#303）修复面，三点：
+        # ① 输出 tee 到 $RUNNER_TEMP\test-output.log——下方「Verify SKIP banner」
+        #    读日志回放，不再为了看横幅把全量重跑一遍（旧 Verify 步骤每轮
+        #    白烧 ~20 分钟，审计点名）。
+        # ② 显式保存 $LASTEXITCODE 并 exit——pwsh 管道的步骤退出码取自最后一个
+        #    cmdlet（Out-String/Tee-Object 恒 0），cargo test 失败也被吞——这是
+        #    FG-03 假绿的根因（审计原话：「比不做更糟」）。实测（pwsh 7.4）：
+        #    `native 2>&1 | Tee-Object` 之后 $LASTEXITCODE 仍是 native 的退出码，
+        #    显式 exit $code 才把它交还给步骤。
+        # ③ -- --nocapture——Rust 1.99 的 libtest 对「通过中的测试」同时捕获
+        #    stdout 与 stderr（实测：eprintln! 横幅在默认捕获下不可见），issue #9
+        #    设计的「输出首屏即见 SKIP 与原因」失效，横幅核验/汇总步骤永远扑空。
+        #    --nocapture 恢复横幅可见性（横幅是单行 eprintln!，写 stderr 原子，
+        #    并行测试不撕裂）。corpus_probe.rs 头注释本就以该模式运行。
         shell: pwsh
-        run: cargo test --workspace --no-fail-fast 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP\test-output.log"
+        run: |
+          cargo test --workspace --no-fail-fast -- --nocapture 2>&1 |
+            Tee-Object -FilePath "$env:RUNNER_TEMP\test-output.log" | Out-Host
+          $code = $LASTEXITCODE
+          Write-Host "cargo test exit code: $code"
+          exit $code
 
-      # #295（横幅核验改为日志回放）：旧步骤为了看一条 SKIP 横幅把
-      # `cargo test --workspace` **整个重跑一遍**（每轮白烧 ~15 分钟）——
-      # 现在读上一步 tee 的日志，语义不变（两种环境都容忍）。
-      - name: Verify SKIP banner emitted (#295 起读日志回放，不重跑)
+      # FG-03（#303）：横幅核验改「日志回放 + 环境探测双向断言」。
+      # 旧步骤两处假绿：① 退出码被 Out-String 吞（cargo 失败也绿）；
+      # ② 无横幅分支被无条件解释成「工具在位真跑」（从不实测工具在不在）——
+      # 加上 libtest 捕获问题，横幅根本进不了输出，该分支恒走。
+      # 现在：① 零测试执行（读上一步 tee 的日志）；② 按探针测试的真实环境门
+      # （bid-parse FULL_PDF_CHAIN = pdftotext/pdftoppm/pdfinfo/tesseract +
+      # chi_sim.traineddata）实测环境；③ 两个方向都可能显式红：
+      # 缺件却无横幅 = SKIP 机制静默失效；工具齐备却出横幅 = 横幅误报。
+      - name: Verify SKIP banner emitted (日志回放 + 双向断言)
         working-directory: bidcore
         shell: pwsh
         run: |
           $log = "$env:RUNNER_TEMP\test-output.log"
-          if ((Test-Path $log) -and (Select-String -Path $log -Pattern 'SKIP: probe_corpus_a_full_chain' -Quiet)) {
-            echo 'SKIP banner verified: probe_corpus_a_full_chain correctly skipped (ENV_MISSING)'
+          if (-not (Test-Path $log)) {
+            Write-Host "::error::测试日志缺失（$log）——上一步未产出，无法核验横幅"
+            exit 1
+          }
+          $out = Get-Content $log -Raw
+          $banner = $out -match 'SKIP: probe_corpus_a_full_chain'
+
+          # 探针环境门 = bid-parse env_preflight::FULL_PDF_CHAIN（四工具 +
+          # chi_sim 语言数据）。chi_sim 探测口径与 env_preflight::tessdata_dir
+          # 一致：TESSDATA_PREFIX 优先，否则用户主目录 .tessdata。
+          $cmds = @('pdftotext','pdftoppm','pdfinfo','tesseract')
+          $missing = @($cmds | Where-Object { -not (Get-Command $_ -ErrorAction SilentlyContinue) })
+          $tessdata = if ($env:TESSDATA_PREFIX) { Join-Path $env:TESSDATA_PREFIX 'chi_sim.traineddata' } else { Join-Path $HOME '.tessdata\chi_sim.traineddata' }
+          if (-not (Test-Path $tessdata)) { $missing += 'chi_sim.traineddata' }
+
+          Write-Host ("环境探测: missing=[{0}] banner={1}" -f ($missing -join ', '), $banner)
+          if ($missing.Count -gt 0) {
+            if ($banner) {
+              Write-Host "PASS: 环境缺件（$($missing -join ', ')）且 SKIP 横幅在案——机制自证成立"
+            } else {
+              Write-Host "::error::环境缺件（$($missing -join ', ')）但无 SKIP 横幅——SKIP 机制静默失效（FG-03 假绿形态：全跑全绿掩盖缺件）"
+              exit 1
+            }
+
           } else {
-            echo 'No SKIP banner (tools present on runner) - full chain executed'
+            if ($banner) {
+              Write-Host "::error::环境工具齐备却出现 SKIP 横幅——横幅误报（测试没跳却报跳）"
+              exit 1
+            } else {
+              Write-Host "PASS: 工具齐备，全链真跑，无横幅（符合预期）"
+            }
           }
 
       # #295（方案 C）：SKIP 可见性——「CI 全绿 ≠ 稳定」的止血面。

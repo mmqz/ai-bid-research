@@ -187,6 +187,8 @@ pub fn submit_block_marks(svc: &mut BidService, args: Value) -> ToolResult {
                 statement,
                 category: r.get("category").and_then(|v| v.as_str()).map(String::from),
                 mandatory: r.get("mandatory").and_then(|v| v.as_bool()).unwrap_or(false),
+                // #276：★实质性条款（缺省 false——未声明视为非★，与 mandatory 同宽）
+                substantive: r.get("substantive").and_then(|v| v.as_bool()).unwrap_or(false),
             });
         }
     }

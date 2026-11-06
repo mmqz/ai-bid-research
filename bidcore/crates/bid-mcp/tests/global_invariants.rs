@@ -665,6 +665,8 @@ fn row(req_id: &str, section: Option<&str>, evs: &[&str], status: ResponseStatus
         // #241 裁定正交标记：反例面只测不变式判定（不消费证据标记），缺省 false
         evidence_required: false,
         evidence_missing: false,
+        // #276：★实质性标记——不变式面不消费，缺省 false
+        substantive: false,
         status,
         deviation: None,
         blocking: false,

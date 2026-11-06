@@ -1016,6 +1016,9 @@ fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
                 // 响应是文本事实，缺不缺材料是合规事实，两列各自可查）。
                 "evidence_required": row.map(|m| m.evidence_required).unwrap_or(false),
                 "evidence_missing": row.map(|m| m.evidence_missing).unwrap_or(false),
+                // #276：★实质性条款（识别列——不参与 blocking 派生；统计口见
+                // star_summary。★响应 N/M 从外部文本刮变为引擎可编程）
+                "substantive": row.map(|m| m.substantive).unwrap_or(false),
                 "gap": Value::Null,
                 "response_policy": "default",
                 "draft_section_id": row.and_then(|m| m.response_section.clone()),
@@ -1023,6 +1026,47 @@ fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
             })
         })
         .collect();
+
+    // #276：★实质性条款统计口（全量口径——不受 filters 影响，验收面
+    // 「★全部识别并响应（对照 manifest.star_count）」的可编程基础）。
+    // responded = RESPONDED（含人工覆写不适用？否——NOT_APPLICABLE 单列，
+    // 不计入 responded：不适用是免除响应而非满足响应，验收上应单独对账）。
+    let mut star_total = 0usize;
+    let mut star_responded = 0usize;
+    let mut star_partial = 0usize;
+    let mut star_not_responded = 0usize;
+    let mut star_not_applicable = 0usize;
+    for r in reqs {
+        if !bid_domain::matrix::substantive(r) {
+            continue;
+        }
+        star_total += 1;
+        let st = row_by_req
+            .get(r.id.as_str())
+            .map(|m| m.status)
+            .unwrap_or(ResponseStatus::NotResponded);
+        match st {
+            ResponseStatus::Responded => star_responded += 1,
+            ResponseStatus::Partial => star_partial += 1,
+            ResponseStatus::PendingEvidence => star_not_responded += 1,
+            ResponseStatus::NotResponded => star_not_responded += 1,
+            ResponseStatus::NotApplicable => star_not_applicable += 1,
+        }
+    }
+    let star_summary = json!({
+        "total": star_total,
+        "responded": star_responded,
+        "partial": star_partial,
+        "not_responded": star_not_responded,
+        "not_applicable": star_not_applicable,
+        // ★响应率（responded/total，无★时为 null——不是 0/0 假象）
+        "responded_share": if star_total > 0 {
+            json!((star_responded as f64) / (star_total as f64))
+        } else {
+            Value::Null
+        },
+        "note": "★实质性条款（params.star）——一条不响应即响应无效；not_responded>0 时不废标风险存在",
+    });
 
     let mut warnings: Vec<String> = Vec::new();
     if svc.store().requirements().is_empty() {
@@ -1043,6 +1087,8 @@ fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
             "page": window.offset / window.limit + 1,
             "page_size": window.limit,
         },
+        // #276：★实质性条款统计口（全量口径——见上方注释）
+        "star_summary": star_summary,
         "warnings": warnings,
         "project_version": svc.store().content_version(),
         "request_id": next_request_id(),

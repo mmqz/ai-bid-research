@@ -214,7 +214,8 @@ fn input_schema(name: &str) -> Value {
                             "statement": {"type": "string", "description": "关键点陈述（不得为空）"},
                             "category": {"type": "string", "enum": ["资格条件", "否决项", "评分项", "技术参数", "商务要求", "格式要求", "其他"],
                                          "description": "分类由 Agent 判断（引擎只校验枚举）"},
-                            "mandatory": {"type": "boolean", "description": "漏响应会废标 → true"}
+                            "mandatory": {"type": "boolean", "description": "漏响应会废标 → true"},
+                            "substantive": {"type": "boolean", "description": "★实质性条款（#276）→ true：招标文件★号标记或「打★号条款为实质性条款」声明覆盖的条款，一条不响应即响应无效。语义正交于 mandatory（必选性）：★未必必选、必选未必★——两类标记都按原文声明，不要互相推断"}
                         },
                         "required": ["block_idx", "statement"]
                     }

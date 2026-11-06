@@ -188,6 +188,9 @@ pub fn merge_extraction(
             params.insert("mandatory".into(), serde_json::json!(s.mandatory));
             params.insert("block_idx".into(), serde_json::json!(s.block_idx));
             params.insert("marked_by".into(), serde_json::json!("agent"));
+            // #276：★实质性条款显式落库（bool 都写——false = Agent 看过并判非★，
+            // 区别于抽取面的「仅在检测到★时写 true」；派生面统一按 == true 判）
+            params.insert("star".into(), serde_json::json!(s.substantive));
             agent_reqs.push(Requirement {
                 id: format!("REQ-A{seq:04}"),
                 category,
@@ -265,7 +268,56 @@ mod tests {
             statement: statement.to_string(),
             category: None,
             mandatory: false,
+            substantive: false,
         }
+    }
+
+    /// #276：★实质性条款标记面落库——substantive → params.star
+    /// （bool 都写：true=Agent 判★，false=看过判非★；与 #280 抽取面的
+    /// 「仅★时写 true」在派生面 == true 判定下统一）。
+    #[test]
+    fn agent_substantive_marks_params_star() {
+        let blocks = vec![block(0, "p1", "★接到通知2小时内响应"), block(1, "p1", "普通条款")];
+        let marks = vec![BlockMark {
+            from: 0,
+            to: 1,
+            verdict: bid_domain::coverage::BlockVerdict::Requirement,
+            reason: String::new(),
+        }];
+        let subs = vec![
+            SubmittedRequirement {
+                block_idx: 0,
+                statement: "★接到通知2小时内响应".into(),
+                category: Some("技术参数".into()),
+                mandatory: false,
+                substantive: true,
+            },
+            SubmittedRequirement {
+                block_idx: 1,
+                statement: "普通条款（非★）".into(),
+                category: Some("技术参数".into()),
+                mandatory: false,
+                substantive: false,
+            },
+        ];
+        let (out, _) = merge_extraction(&[face("A-主文件", &blocks, &marks, &subs)], vec![]);
+        assert_eq!(out.len(), 2);
+        assert_eq!(
+            out[0].params.get("star").and_then(|v| v.as_bool()),
+            Some(true),
+            "Agent 标★ → params.star = true"
+        );
+        assert_eq!(
+            out[1].params.get("star").and_then(|v| v.as_bool()),
+            Some(false),
+            "Agent 显式判非★ → params.star = false（看过与没看过的审计区分）"
+        );
+        // ★与 mandatory 正交：★条款可以非必选（★技术参数不属类别阻断面）
+        assert_eq!(
+            out[0].params.get("mandatory").and_then(|v| v.as_bool()),
+            Some(false),
+            "substantive=true 不改变 mandatory=false（两条轴独立）"
+        );
     }
 
     fn regex_req(id: &str, locator: &str, text: &str, name: &str) -> Requirement {
@@ -443,6 +495,7 @@ mod tests {
             statement: "A件要求".into(),
             category: Some("资格条件".into()),
             mandatory: true,
+            substantive: true,
         }];
         let subs_c = vec![
             SubmittedRequirement {
@@ -450,12 +503,14 @@ mod tests {
                 statement: "C件必选".into(),
                 category: Some("商务要求".into()),
                 mandatory: true,
+                substantive: true,
             },
             SubmittedRequirement {
                 block_idx: 0,
                 statement: "C件普通".into(),
                 category: Some("其他".into()),
                 mandatory: false,
+                substantive: false,
             },
         ];
         let fa = face("A-主文件", &blocks_a, &marks_a, &subs_a);

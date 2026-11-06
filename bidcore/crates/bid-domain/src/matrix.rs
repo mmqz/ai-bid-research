@@ -111,6 +111,13 @@ pub struct MatrixRow {
     /// 标记。serde default：旧快照零位移。
     #[serde(default)]
     pub evidence_missing: bool,
+    /// #276：★实质性条款（数据源 `params.star`——标记面 Agent 显式判定 ∪
+    /// 抽取面★检测两条路径统一，见 [`substantive`]）。**不参与 blocking
+    /// 派生**（★响应门的分级是 Lead 裁决面）——本列只做识别与统计
+    /// （★响应 N/M，不废标校验从外部文本刮变为引擎可编程）。
+    /// serde default：旧快照零位移。
+    #[serde(default)]
+    pub substantive: bool,
     pub status: ResponseStatus,
     /// 偏离说明（NOT_APPLICABLE 必填——不适用必须给理由，诚实状态）
     pub deviation: Option<String>,
@@ -163,6 +170,20 @@ pub fn is_mandatory(category: &str) -> bool {
 pub fn agent_mandatory(r: &Requirement) -> bool {
     r.params.get("marked_by").and_then(|v| v.as_str()) == Some("agent")
         && r.params.get("mandatory").and_then(|v| v.as_bool()) == Some(true)
+}
+
+/// #276：★实质性条款（两条路径统一派生面）。
+///
+/// 数据源 `params.star == true`，两个写入方在此汇流：
+/// - **标记面**（本 PR）：`submit_block_marks.requirements[].substantive`
+///   → merge 转换 `params.star`（bool 都写——Agent 显式判定）；
+/// - **抽取面**（#280）：语义表/★字符检测，仅在检测到★时写 true。
+///
+/// 金标准口径：songling `requirements.reviewed.json` 的 `star` 字段（#251）。
+/// **不参与 blocking 派生**（★未响应是否阻断导出是门禁分级，Lead 裁决）——
+/// 本函数只做「可编程」：识别 + 统计（★响应 N/M，见 get_compliance_matrix）。
+pub fn substantive(r: &Requirement) -> bool {
+    r.params.get("star").and_then(|v| v.as_bool()) == Some(true)
 }
 
 /// #241 裁定：证据要求词（原文含任一 → 本条款要求证明材料）。
@@ -323,6 +344,7 @@ pub fn derive_matrix_rows(
             pending_evidence_ids: pends.into_iter().map(|e| e.to_string()).collect(),
             evidence_required,
             evidence_missing,
+            substantive: substantive(r),
             status,
             deviation,
             blocking,
@@ -577,6 +599,61 @@ mod tests {
         r.params.insert("marked_by".into(), serde_json::json!("agent"));
         r.params.insert("mandatory".into(), serde_json::json!(mandatory));
         r
+    }
+
+    /// #276：★实质性派生面——两条写入路径（标记面 bool 都写 / 抽取面仅★写
+    /// true / 正则无键）在 `== true` 判定下统一；MatrixRow.substantive 随行；
+    /// 不参与 blocking 派生（★响应门分级是 Lead 裁决面）。
+    #[test]
+    fn substantive_two_write_paths_unified_derivation() {
+        // 标记面：Agent 显式判★（params.star = true）
+        let mut marked_star = req("REQ-0001", "技术参数");
+        marked_star.params.insert("marked_by".into(), serde_json::json!("agent"));
+        marked_star.params.insert("star".into(), serde_json::json!(true));
+        // 标记面：Agent 看过判非★（params.star = false——显式审计面）
+        let mut marked_plain = req("REQ-0002", "技术参数");
+        marked_plain.params.insert("marked_by".into(), serde_json::json!("agent"));
+        marked_plain.params.insert("star".into(), serde_json::json!(false));
+        // 抽取面（#280 口径）：仅检测到★时写 true
+        let mut extracted_star = req("REQ-0003", "商务要求");
+        extracted_star.params.insert("star".into(), serde_json::json!(true));
+        // 正则形状：无 star 键（绝大多数既有 REQ——serde 旧快照同形态）
+        let regex_plain = req("REQ-0004", "商务要求");
+
+        assert!(substantive(&marked_star));
+        assert!(!substantive(&marked_plain), "显式 false ≠ ★（看过判非★）");
+        assert!(substantive(&extracted_star), "抽取面★检测 → 统一派生 true");
+        assert!(!substantive(&regex_plain), "无键 = 非★（缺省语义）");
+
+        let rows = derive_matrix_rows(
+            &[marked_star, marked_plain, extracted_star, regex_plain],
+            &[], &[], &[], &HashMap::new(),
+        );
+        assert!(rows[0].substantive && rows[2].substantive);
+        assert!(!rows[1].substantive && !rows[3].substantive);
+        // ★未响应不改变 blocking（本测试四条均非阻断面类别/必选——blocking 全 false；
+        // 若未来★接门，由 Lead 裁定后另测——本断言锁定「不参与派生」现状）
+        assert!(rows.iter().all(|r| !r.blocking));
+    }
+
+    /// #276：旧快照零位移——无 substantive 键的 MatrixRow JSON 反序列化
+    /// 缺省 false（serde default；快照互操作不因加列破）。
+    #[test]
+    fn matrix_row_substantive_old_snapshot_zero_shift() {
+        let old_json = serde_json::json!({
+            "id": "CMP-0001",
+            "requirement_id": "REQ-0001",
+            "response_section": null,
+            "evidence_ids": [],
+            "pending_evidence_ids": [],
+            "evidence_required": false,
+            "evidence_missing": false,
+            "status": "NOT_RESPONDED",
+            "deviation": null,
+            "blocking": false
+        });
+        let row: MatrixRow = serde_json::from_value(old_json).expect("旧快照反序列化");
+        assert!(!row.substantive, "旧快照 substantive 缺省 false（零位移）");
     }
 
     /// Agent 必选标记接线：类别不在阻断面（资格条件/否决项）的 Agent 必选条款，

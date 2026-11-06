@@ -211,6 +211,7 @@
   "quota_scoring_share": 0.873,
   "quota_admin_share": 0.07,
   "quota_scoring_l2_floor": 20,
+  "admin_bound_reqs": 272,
   "coverage_key_params_in_sections": 1,
   "findings": [
    "scoring_l1_chapters=6/6：服务方案/重点难点/保密工作/服务承诺/质量保证/应急方案全部以 L1 入纲（标题=规范名+分值），85 分技术标主体在大纲有对应位置（#252 核心矛盾解决）",

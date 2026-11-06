@@ -1,12 +1,12 @@
 {
  "case": "02-full-pipeline",
  "transport": "mcp",
- "server_bin": "/home/z/my-project/bid-research-rw/bidcore/target/debug/bid-mcp-server",
- "server_sha256": "33d84ab7770b385083339d3c9d17fa2940ea9544a9b984afd4cec5bd88d43127",
+ "server_bin": "/home/z/my-project/.cargo-target-agente/debug/bid-mcp-server",
+ "server_sha256": "b70966dc89b99ee9ac4029adc56f6e28dcfdd8f8ccdc0f794932df4202560806",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-03T16:30:19+00:00",
+ "started_at": "2026-11-06T14:57:27+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.807641000250442
+   "elapsed_ms": 8.755818998906761
   },
   {
    "stage": "P1 import_tender_files",
@@ -95,6 +95,7 @@
       "deduplicated": false,
       "file_id": "TF-0002",
       "filename": "A-招标文件.docx",
+      "kind": "招标文件",
       "ocr_tier": "none",
       "pages": 0,
       "parse_status": "ok",
@@ -107,6 +108,7 @@
       "deduplicated": false,
       "file_id": "TF-0003",
       "filename": "C-补遗文件01.docx",
+      "kind": "补遗",
       "ocr_tier": "none",
       "pages": 0,
       "parse_status": "ok",
@@ -119,10 +121,11 @@
       "deduplicated": false,
       "file_id": "TF-0004",
       "filename": "evidence/EV-01-营业执照.pdf",
+      "kind": "附件",
       "ocr_tier": "none",
       "pages": 1,
       "parse_status": "ok",
-      "parse_summary": "pdf 文本层: 1 页 8 行块",
+      "parse_summary": "pdf 文本层: 1 页 8 行块；结构形态[未识别]: 0 章标记；【结构告警】未识别到顶层章节骨架（无「第X章/第X部分/N.标题」形态）——章节上下文为空，分类将依赖词面/表格/否决词典兜底（issue #272：不静默失败，响亮登记）",
       "sha256": "b1b4811b9c1b96e1bff95a49dcba07434cd391d7939e82b7453d18142b80258c",
       "tables": 0
      },
@@ -131,10 +134,11 @@
       "deduplicated": false,
       "file_id": "TF-0005",
       "filename": "evidence/EV-02-电子与智能化工程专业承包二级资质证书.pdf",
+      "kind": "附件",
       "ocr_tier": "none",
       "pages": 1,
       "parse_status": "ok",
-      "parse_summary": "pdf 文本层: 1 页 7 行块",
+      "parse_summary": "pdf 文本层: 1 页 7 行块；结构形态[未识别]: 0 章标记；【结构告警】未识别到顶层章节骨架（无「第X章/第X部分/N.标题」形态）——章节上下文为空，分类将依赖词面/表格/否决词典兜底（issue #272：不静默失败，响亮登记）",
       "sha256": "60a2e9ce86ccab9bb8ad89be98bcfd8e802ee8d9ff6e20ce7ea4f2e23964c7b6",
       "tables": 0
      }
@@ -168,7 +172,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 263.578483999936
+   "elapsed_ms": 241.35566300174105
   },
   {
    "stage": "P2 extract_requirements",
@@ -199,6 +203,12 @@
     "missing_sequence": [],
     "project_version": 6,
     "request_id": "req-000004",
+    "star_summary": {
+     "captured": 0,
+     "declarations": 0,
+     "missing": 0,
+     "total": 0
+    },
     "status": "REQUIREMENTS_EXTRACTED",
     "warnings": [
      "ENGINE_PATH: A-招标文件.docx 经引擎路径解析（已知缺口：嵌套表 mdcore#39 / 域边界 mdcore#40——docs/b3-3-acceptance-report.md §6）",
@@ -215,7 +225,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 66.34722799981319
+   "elapsed_ms": 63.65677299982053
   },
   {
    "stage": "P3 build_outline",
@@ -229,6 +239,11 @@
      "requirements": 121,
      "sections": 28,
      "total_target_chars": 11000
+    },
+    "length": {
+     "approx_pages": 8,
+     "profile": "custom",
+     "target_total_chars": 6000
     },
     "project_version": 8,
     "request_id": "req-000005",
@@ -248,7 +263,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.240335000005871
+   "elapsed_ms": 8.862365000823047
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -262,16 +277,21 @@
      {
       "blocking": true,
       "cmp_id": "CMP-0001",
-      "draft_section_id": "SEC-0007",
+      "draft_section_id": "SEC-0008",
       "evidence": [],
+      "evidence_missing": false,
+      "evidence_required": false,
       "gap": null,
+      "pending_evidence_ids": [],
       "requirement": {
        "category": "否决项",
        "category_key": "veto",
        "clause_no": null,
        "id": "REQ-0001",
        "mandatory": true,
-       "params": {},
+       "params": {
+        "marked_by": "regex"
+       },
        "source_anchor": {
         "excerpt": "本项目预算金额：设备采购预算 350 万元（含税）；最高限价（招标控制价）：人民币 480 万元（含税），投标报价超过最高限价的作否决投标处理。",
         "file": "A-招标文件.docx",
@@ -281,21 +301,27 @@
        "statement": "本项目预算金额：设备采购预算 350 万元（含税）；最高限价（招标控制价）：人民币 480 万元（含税），投标报价超过最高限价的作否决投标处理。"
       },
       "response_policy": "default",
-      "status": "NOT_RESPONDED"
+      "status": "NOT_RESPONDED",
+      "substantive": false
      },
      {
       "blocking": true,
       "cmp_id": "CMP-0002",
-      "draft_section_id": "SEC-0007",
+      "draft_section_id": "SEC-0008",
       "evidence": [],
+      "evidence_missing": false,
+      "evidence_required": false,
       "gap": null,
+      "pending_evidence_ids": [],
       "requirement": {
        "category": "否决项",
        "category_key": "veto",
        "clause_no": "前附表-10",
        "id": "REQ-0002",
        "mandatory": true,
-       "params": {},
+       "params": {
+        "marked_by": "regex"
+       },
        "source_anchor": {
         "excerpt": "10 否决条款提示 未按本表第 9 项规定格式填写技术偏离表的，其投标作否决投标处理",
         "file": "A-招标文件.docx",
@@ -305,21 +331,27 @@
        "statement": "10 否决条款提示 未按本表第 9 项规定格式填写技术偏离表的，其投标作否决投标处理"
       },
       "response_policy": "default",
-      "status": "NOT_RESPONDED"
+      "status": "NOT_RESPONDED",
+      "substantive": false
      },
      {
       "blocking": false,
       "cmp_id": "CMP-0003",
       "draft_section_id": "SEC-0012",
       "evidence": [],
+      "evidence_missing": false,
+      "evidence_required": false,
       "gap": null,
+      "pending_evidence_ids": [],
       "requirement": {
        "category": "其他",
        "category_key": "other",
        "clause_no": "3.1.1",
        "id": "REQ-0003",
        "mandatory": false,
-       "params": {},
+       "params": {
+        "marked_by": "regex"
+       },
        "source_anchor": {
         "excerpt": "3.1.1 适用范围：本须知适用于本项目投标、开标、评标、定标及合同签订全过程。",
         "file": "A-招标文件.docx",
@@ -329,7 +361,8 @@
        "statement": "3.1.1 适用范围：本须知适用于本项目投标、开标、评标、定标及合同签订全过程。"
       },
       "response_policy": "default",
-      "status": "NOT_RESPONDED"
+      "status": "NOT_RESPONDED",
+      "substantive": false
      }
     ],
     "n_blocking": 19
@@ -356,16 +389,16 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 19.331917999807047,
+   "elapsed_ms": 23.817450000933604,
    "extra": {
     "sections": {
-     "SEC-0007": [
+     "SEC-0008": [
       "REQ-0001",
       "REQ-0002",
-      "REQ-0005",
-      "REQ-0006",
-      "REQ-0007",
-      "REQ-0008"
+      "REQ-0010",
+      "REQ-0013",
+      "REQ-0014",
+      "REQ-0016"
      ],
      "SEC-0012": [
       "REQ-0003",
@@ -374,13 +407,13 @@
       "REQ-0018",
       "REQ-0024"
      ],
-     "SEC-0008": [
+     "SEC-0007": [
+      "REQ-0005",
+      "REQ-0006",
+      "REQ-0007",
+      "REQ-0008",
       "REQ-0009",
-      "REQ-0010",
-      "REQ-0013",
-      "REQ-0014",
-      "REQ-0016",
-      "REQ-0017"
+      "REQ-0051"
      ],
      "SEC-0016": [
       "REQ-0011",
@@ -390,12 +423,12 @@
       "REQ-0050"
      ],
      "SEC-0009": [
+      "REQ-0017",
       "REQ-0019",
       "REQ-0020",
       "REQ-0021",
       "REQ-0022",
-      "REQ-0023",
-      "REQ-0051"
+      "REQ-0023"
      ],
      "SEC-0018": [
       "REQ-0029",
@@ -535,8 +568,9 @@
     "ev_id": "EV-0034",
     "excerpt": null,
     "excerpt_locator": null,
-    "hint": "新 EV 已签发（若为同 key 换版，旧记录已单向降级 SUPERSEDED；全新登记则无旧记录）",
+    "hint": "新 EV 已签发（若为同 key 换版，旧记录已单向降级 SUPERSEDED 且既有绑定迁移到新记录；全新登记则无旧记录）",
     "kind": "qualification",
+    "placeholder": false,
     "project_version": 9,
     "request_id": "req-000007",
     "status": "ACTIVE",
@@ -556,7 +590,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.427828000141744
+   "elapsed_ms": 7.1839519987406675
   },
   {
    "stage": "P4 bind_evidence",
@@ -572,6 +606,7 @@
      "blocking": 0,
      "rows": 121
     },
+    "placeholder": false,
     "project_version": 111,
     "replayed": 0,
     "request_id": "req-000008",
@@ -588,7 +623,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.5942799999211275
+   "elapsed_ms": 8.418296001764247
   },
   {
    "stage": "G3 record_review_gate ×2",
@@ -604,10 +639,12 @@
     }
    },
    "result": {
+    "agent_waivers": [],
     "gates_approved": [
      "matrix_approval",
      "outline_approval"
     ],
+    "human_review_complete": true,
     "project_version": 113,
     "receipt": {
      "actor": {
@@ -618,8 +655,10 @@
      "decision": "APPROVED",
      "finding_ids": [],
      "gate": "outline_approval",
-     "review_id": "REV-0036",
-     "reviewed_content_digest": "257eeb460a0d96aae417bdef0e27b8b94f6a02e8152c5ad7457e3880a5dd5724",
+     "human_confirmed": true,
+     "method": "human_receipt",
+     "review_id": "REV-0037",
+     "reviewed_content_digest": "453cce6f1392862efb60f30645220a23ed80b1688b47b8a36f97381054ca7c92",
      "reviewer": "human:mcp-e2e-lead",
      "spawned_rt_ids": []
     },
@@ -648,164 +687,14 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 15.272280999852228
-  },
-  {
-   "stage": "P5 draft(external) SEC-0007",
-   "tool": "draft_response_section",
-   "args": {
-    "section_id": "SEC-0007",
-    "chars": 344
-   },
-   "result": {
-    "content_ref": "DOC-SEC-0007-v1",
-    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
-    "input_integrity": {
-     "status": "COMPLETE",
-     "waived_files": []
-    },
-    "project_status": "DRAFTING",
-    "project_version": 119,
-    "quota": {
-     "min_segments": 1,
-     "progress_pct": 68,
-     "remaining": 156,
-     "remaining_segments": 1,
-     "target_chars": 500,
-     "written_chars": 344
-    },
-    "request_id": "req-000011",
-    "section_id": "SEC-0007",
-    "section_status": "DRAFTED",
-    "stats": {
-     "citations": 7,
-     "cited_ids": [
-      "REQ-0001",
-      "REQ-0002",
-      "REQ-0005",
-      "REQ-0006",
-      "REQ-0007",
-      "REQ-0008",
-      "EV-0034"
-     ],
-     "generator": "external",
-     "unanchored_claims": 0,
-     "uncovered_requirements": [],
-     "words": 344
-    },
-    "version": 1,
-    "warnings": [
-     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
-    ]
-   },
-   "checks": [
-    {
-     "desc": "P5[SEC-0007]: generator=external",
-     "pass": true
-    },
-    {
-     "desc": "P5[SEC-0007]: section_status=DRAFTED",
-     "pass": true
-    },
-    {
-     "desc": "P5[SEC-0007]: 字数 > 0",
-     "pass": true
-    },
-    {
-     "desc": "P5[SEC-0007]: 引用覆盖本章全部 REQ",
-     "pass": true
-    },
-    {
-     "desc": "P5[SEC-0007]: uncovered_requirements 为空",
-     "pass": true
-    },
-    {
-     "desc": "P5[SEC-0007]: unanchored_claims == 0",
-     "pass": true
-    }
-   ],
-   "elapsed_ms": null
-  },
-  {
-   "stage": "P5 draft(external) SEC-0012",
-   "tool": "draft_response_section",
-   "args": {
-    "section_id": "SEC-0012",
-    "chars": 256
-   },
-   "result": {
-    "content_ref": "DOC-SEC-0012-v1",
-    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
-    "input_integrity": {
-     "status": "COMPLETE",
-     "waived_files": []
-    },
-    "project_status": "DRAFTING",
-    "project_version": 123,
-    "quota": {
-     "min_segments": 1,
-     "progress_pct": 51,
-     "remaining": 244,
-     "remaining_segments": 1,
-     "target_chars": 500,
-     "written_chars": 256
-    },
-    "request_id": "req-000012",
-    "section_id": "SEC-0012",
-    "section_status": "DRAFTED",
-    "stats": {
-     "citations": 5,
-     "cited_ids": [
-      "REQ-0003",
-      "REQ-0004",
-      "REQ-0015",
-      "REQ-0018",
-      "REQ-0024"
-     ],
-     "generator": "external",
-     "unanchored_claims": 0,
-     "uncovered_requirements": [],
-     "words": 256
-    },
-    "version": 1,
-    "warnings": [
-     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
-    ]
-   },
-   "checks": [
-    {
-     "desc": "P5[SEC-0012]: generator=external",
-     "pass": true
-    },
-    {
-     "desc": "P5[SEC-0012]: section_status=DRAFTED",
-     "pass": true
-    },
-    {
-     "desc": "P5[SEC-0012]: 字数 > 0",
-     "pass": true
-    },
-    {
-     "desc": "P5[SEC-0012]: 引用覆盖本章全部 REQ",
-     "pass": true
-    },
-    {
-     "desc": "P5[SEC-0012]: uncovered_requirements 为空",
-     "pass": true
-    },
-    {
-     "desc": "P5[SEC-0012]: unanchored_claims == 0",
-     "pass": true
-    }
-   ],
-   "elapsed_ms": null
+   "elapsed_ms": 16.574844001297606
   },
   {
    "stage": "P5 draft(external) SEC-0008",
    "tool": "draft_response_section",
    "args": {
     "section_id": "SEC-0008",
-    "chars": 344
+    "chars": 522
    },
    "result": {
     "content_ref": "DOC-SEC-0008-v1",
@@ -815,33 +704,33 @@
      "waived_files": []
     },
     "project_status": "DRAFTING",
-    "project_version": 127,
+    "project_version": 119,
     "quota": {
      "min_segments": 1,
-     "progress_pct": 68,
-     "remaining": 156,
-     "remaining_segments": 1,
+     "progress_pct": 104,
+     "remaining": 0,
+     "remaining_segments": 0,
      "target_chars": 500,
-     "written_chars": 344
+     "written_chars": 522
     },
-    "request_id": "req-000013",
+    "request_id": "req-000012",
     "section_id": "SEC-0008",
     "section_status": "DRAFTED",
     "stats": {
      "citations": 7,
      "cited_ids": [
-      "REQ-0009",
+      "REQ-0001",
+      "REQ-0002",
       "REQ-0010",
       "REQ-0013",
       "REQ-0014",
       "REQ-0016",
-      "REQ-0017",
       "EV-0034"
      ],
      "generator": "external",
      "unanchored_claims": 0,
      "uncovered_requirements": [],
-     "words": 344
+     "words": 522
     },
     "version": 1,
     "warnings": [
@@ -877,11 +766,161 @@
    "elapsed_ms": null
   },
   {
+   "stage": "P5 draft(external) SEC-0012",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0012",
+    "chars": 505
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0012-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "input_integrity": {
+     "status": "COMPLETE",
+     "waived_files": []
+    },
+    "project_status": "DRAFTING",
+    "project_version": 124,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 101,
+     "remaining": 0,
+     "remaining_segments": 0,
+     "target_chars": 500,
+     "written_chars": 505
+    },
+    "request_id": "req-000013",
+    "section_id": "SEC-0012",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 5,
+     "cited_ids": [
+      "REQ-0003",
+      "REQ-0004",
+      "REQ-0015",
+      "REQ-0018",
+      "REQ-0024"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 505
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0012]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0012]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0012]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0012]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0012]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0012]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
+   "stage": "P5 draft(external) SEC-0007",
+   "tool": "draft_response_section",
+   "args": {
+    "section_id": "SEC-0007",
+    "chars": 522
+   },
+   "result": {
+    "content_ref": "DOC-SEC-0007-v1",
+    "draft_note": "起草指令：按招标文件逐项响应，突出同类业绩与实施方案",
+    "input_integrity": {
+     "status": "COMPLETE",
+     "waived_files": []
+    },
+    "project_status": "DRAFTING",
+    "project_version": 128,
+    "quota": {
+     "min_segments": 1,
+     "progress_pct": 104,
+     "remaining": 0,
+     "remaining_segments": 0,
+     "target_chars": 500,
+     "written_chars": 522
+    },
+    "request_id": "req-000014",
+    "section_id": "SEC-0007",
+    "section_status": "DRAFTED",
+    "stats": {
+     "citations": 7,
+     "cited_ids": [
+      "REQ-0005",
+      "REQ-0006",
+      "REQ-0007",
+      "REQ-0008",
+      "REQ-0009",
+      "REQ-0051",
+      "EV-0034"
+     ],
+     "generator": "external",
+     "unanchored_claims": 0,
+     "uncovered_requirements": [],
+     "words": 522
+    },
+    "version": 1,
+    "warnings": [
+     "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
+    ]
+   },
+   "checks": [
+    {
+     "desc": "P5[SEC-0007]: generator=external",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0007]: section_status=DRAFTED",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0007]: 字数 > 0",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0007]: 引用覆盖本章全部 REQ",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0007]: uncovered_requirements 为空",
+     "pass": true
+    },
+    {
+     "desc": "P5[SEC-0007]: unanchored_claims == 0",
+     "pass": true
+    }
+   ],
+   "elapsed_ms": null
+  },
+  {
    "stage": "P5 draft(external) SEC-0016",
    "tool": "draft_response_section",
    "args": {
     "section_id": "SEC-0016",
-    "chars": 256
+    "chars": 505
    },
    "result": {
     "content_ref": "DOC-SEC-0016-v1",
@@ -891,16 +930,16 @@
      "waived_files": []
     },
     "project_status": "DRAFTING",
-    "project_version": 131,
+    "project_version": 133,
     "quota": {
      "min_segments": 1,
-     "progress_pct": 51,
-     "remaining": 244,
-     "remaining_segments": 1,
+     "progress_pct": 101,
+     "remaining": 0,
+     "remaining_segments": 0,
      "target_chars": 500,
-     "written_chars": 256
+     "written_chars": 505
     },
-    "request_id": "req-000014",
+    "request_id": "req-000015",
     "section_id": "SEC-0016",
     "section_status": "DRAFTED",
     "stats": {
@@ -915,7 +954,7 @@
      "generator": "external",
      "unanchored_claims": 0,
      "uncovered_requirements": [],
-     "words": 256
+     "words": 505
     },
     "version": 1,
     "warnings": [
@@ -955,7 +994,7 @@
    "tool": "draft_response_section",
    "args": {
     "section_id": "SEC-0009",
-    "chars": 344
+    "chars": 522
    },
    "result": {
     "content_ref": "DOC-SEC-0009-v1",
@@ -965,33 +1004,33 @@
      "waived_files": []
     },
     "project_status": "DRAFTING",
-    "project_version": 135,
+    "project_version": 137,
     "quota": {
      "min_segments": 1,
-     "progress_pct": 68,
-     "remaining": 156,
-     "remaining_segments": 1,
+     "progress_pct": 104,
+     "remaining": 0,
+     "remaining_segments": 0,
      "target_chars": 500,
-     "written_chars": 344
+     "written_chars": 522
     },
-    "request_id": "req-000015",
+    "request_id": "req-000016",
     "section_id": "SEC-0009",
     "section_status": "DRAFTED",
     "stats": {
      "citations": 7,
      "cited_ids": [
+      "REQ-0017",
       "REQ-0019",
       "REQ-0020",
       "REQ-0021",
       "REQ-0022",
       "REQ-0023",
-      "REQ-0051",
       "EV-0034"
      ],
      "generator": "external",
      "unanchored_claims": 0,
      "uncovered_requirements": [],
-     "words": 344
+     "words": 522
     },
     "version": 1,
     "warnings": [
@@ -1031,7 +1070,7 @@
    "tool": "draft_response_section",
    "args": {
     "section_id": "SEC-0018",
-    "chars": 344
+    "chars": 522
    },
    "result": {
     "content_ref": "DOC-SEC-0018-v1",
@@ -1041,16 +1080,16 @@
      "waived_files": []
     },
     "project_status": "DRAFTING",
-    "project_version": 139,
+    "project_version": 141,
     "quota": {
      "min_segments": 1,
-     "progress_pct": 68,
-     "remaining": 156,
-     "remaining_segments": 1,
+     "progress_pct": 104,
+     "remaining": 0,
+     "remaining_segments": 0,
      "target_chars": 500,
-     "written_chars": 344
+     "written_chars": 522
     },
-    "request_id": "req-000016",
+    "request_id": "req-000017",
     "section_id": "SEC-0018",
     "section_status": "DRAFTED",
     "stats": {
@@ -1067,7 +1106,7 @@
      "generator": "external",
      "unanchored_claims": 0,
      "uncovered_requirements": [],
-     "words": 344
+     "words": 522
     },
     "version": 1,
     "warnings": [
@@ -1107,7 +1146,7 @@
    "tool": "draft_response_section",
    "args": {
     "section_id": "SEC-0019",
-    "chars": 344
+    "chars": 522
    },
    "result": {
     "content_ref": "DOC-SEC-0019-v1",
@@ -1117,16 +1156,16 @@
      "waived_files": []
     },
     "project_status": "DRAFTING",
-    "project_version": 143,
+    "project_version": 145,
     "quota": {
      "min_segments": 1,
-     "progress_pct": 68,
-     "remaining": 156,
-     "remaining_segments": 1,
+     "progress_pct": 104,
+     "remaining": 0,
+     "remaining_segments": 0,
      "target_chars": 500,
-     "written_chars": 344
+     "written_chars": 522
     },
-    "request_id": "req-000017",
+    "request_id": "req-000018",
     "section_id": "SEC-0019",
     "section_status": "DRAFTED",
     "stats": {
@@ -1143,7 +1182,7 @@
      "generator": "external",
      "unanchored_claims": 0,
      "uncovered_requirements": [],
-     "words": 344
+     "words": 522
     },
     "version": 1,
     "warnings": [
@@ -1183,7 +1222,7 @@
    "tool": "draft_response_section",
    "args": {
     "section_id": "SEC-0020",
-    "chars": 344
+    "chars": 522
    },
    "result": {
     "content_ref": "DOC-SEC-0020-v1",
@@ -1193,16 +1232,16 @@
      "waived_files": []
     },
     "project_status": "DRAFTING",
-    "project_version": 147,
+    "project_version": 149,
     "quota": {
      "min_segments": 1,
-     "progress_pct": 68,
-     "remaining": 156,
-     "remaining_segments": 1,
+     "progress_pct": 104,
+     "remaining": 0,
+     "remaining_segments": 0,
      "target_chars": 500,
-     "written_chars": 344
+     "written_chars": 522
     },
-    "request_id": "req-000018",
+    "request_id": "req-000019",
     "section_id": "SEC-0020",
     "section_status": "DRAFTED",
     "stats": {
@@ -1219,7 +1258,7 @@
      "generator": "external",
      "unanchored_claims": 0,
      "uncovered_requirements": [],
-     "words": 344
+     "words": 522
     },
     "version": 1,
     "warnings": [
@@ -1259,7 +1298,7 @@
    "tool": "draft_response_section",
    "args": {
     "section_id": "SEC-0033",
-    "chars": 166
+    "chars": 522
    },
    "result": {
     "content_ref": "DOC-SEC-0033-v1",
@@ -1269,16 +1308,16 @@
      "waived_files": []
     },
     "project_status": "DRAFTING",
-    "project_version": 151,
+    "project_version": 154,
     "quota": {
      "min_segments": 1,
-     "progress_pct": 33,
-     "remaining": 334,
-     "remaining_segments": 1,
+     "progress_pct": 104,
+     "remaining": 0,
+     "remaining_segments": 0,
      "target_chars": 500,
-     "written_chars": 166
+     "written_chars": 522
     },
-    "request_id": "req-000019",
+    "request_id": "req-000020",
     "section_id": "SEC-0033",
     "section_status": "DRAFTED",
     "stats": {
@@ -1291,7 +1330,7 @@
      "generator": "external",
      "unanchored_claims": 0,
      "uncovered_requirements": [],
-     "words": 166
+     "words": 522
     },
     "version": 1,
     "warnings": [
@@ -1331,7 +1370,7 @@
    "tool": "draft_response_section",
    "args": {
     "section_id": "SEC-0014",
-    "chars": 166
+    "chars": 522
    },
    "result": {
     "content_ref": "DOC-SEC-0014-v1",
@@ -1341,16 +1380,16 @@
      "waived_files": []
     },
     "project_status": "DRAFTING",
-    "project_version": 155,
+    "project_version": 159,
     "quota": {
      "min_segments": 1,
-     "progress_pct": 33,
-     "remaining": 334,
-     "remaining_segments": 1,
+     "progress_pct": 104,
+     "remaining": 0,
+     "remaining_segments": 0,
      "target_chars": 500,
-     "written_chars": 166
+     "written_chars": 522
     },
-    "request_id": "req-000020",
+    "request_id": "req-000021",
     "section_id": "SEC-0014",
     "section_status": "DRAFTED",
     "stats": {
@@ -1363,7 +1402,7 @@
      "generator": "external",
      "unanchored_claims": 0,
      "uncovered_requirements": [],
-     "words": 166
+     "words": 522
     },
     "version": 1,
     "warnings": [
@@ -1403,7 +1442,7 @@
    "tool": "draft_response_section",
    "args": {
     "section_id": "SEC-0021",
-    "chars": 344
+    "chars": 522
    },
    "result": {
     "content_ref": "DOC-SEC-0021-v1",
@@ -1413,16 +1452,16 @@
      "waived_files": []
     },
     "project_status": "DRAFTING",
-    "project_version": 159,
+    "project_version": 163,
     "quota": {
      "min_segments": 1,
-     "progress_pct": 68,
-     "remaining": 156,
-     "remaining_segments": 1,
+     "progress_pct": 104,
+     "remaining": 0,
+     "remaining_segments": 0,
      "target_chars": 500,
-     "written_chars": 344
+     "written_chars": 522
     },
-    "request_id": "req-000021",
+    "request_id": "req-000022",
     "section_id": "SEC-0021",
     "section_status": "DRAFTED",
     "stats": {
@@ -1439,7 +1478,7 @@
      "generator": "external",
      "unanchored_claims": 0,
      "uncovered_requirements": [],
-     "words": 344
+     "words": 522
     },
     "version": 1,
     "warnings": [
@@ -1479,7 +1518,7 @@
    "tool": "draft_response_section",
    "args": {
     "section_id": "SEC-0022",
-    "chars": 344
+    "chars": 522
    },
    "result": {
     "content_ref": "DOC-SEC-0022-v1",
@@ -1489,16 +1528,16 @@
      "waived_files": []
     },
     "project_status": "DRAFTING",
-    "project_version": 163,
+    "project_version": 167,
     "quota": {
      "min_segments": 1,
-     "progress_pct": 68,
-     "remaining": 156,
-     "remaining_segments": 1,
+     "progress_pct": 104,
+     "remaining": 0,
+     "remaining_segments": 0,
      "target_chars": 500,
-     "written_chars": 344
+     "written_chars": 522
     },
-    "request_id": "req-000022",
+    "request_id": "req-000023",
     "section_id": "SEC-0022",
     "section_status": "DRAFTED",
     "stats": {
@@ -1515,7 +1554,7 @@
      "generator": "external",
      "unanchored_claims": 0,
      "uncovered_requirements": [],
-     "words": 344
+     "words": 522
     },
     "version": 1,
     "warnings": [
@@ -1555,7 +1594,7 @@
    "tool": "draft_response_section",
    "args": {
     "section_id": "SEC-0023",
-    "chars": 344
+    "chars": 522
    },
    "result": {
     "content_ref": "DOC-SEC-0023-v1",
@@ -1565,16 +1604,16 @@
      "waived_files": []
     },
     "project_status": "DRAFTING",
-    "project_version": 167,
+    "project_version": 171,
     "quota": {
      "min_segments": 1,
-     "progress_pct": 68,
-     "remaining": 156,
-     "remaining_segments": 1,
+     "progress_pct": 104,
+     "remaining": 0,
+     "remaining_segments": 0,
      "target_chars": 500,
-     "written_chars": 344
+     "written_chars": 522
     },
-    "request_id": "req-000023",
+    "request_id": "req-000024",
     "section_id": "SEC-0023",
     "section_status": "DRAFTED",
     "stats": {
@@ -1591,7 +1630,7 @@
      "generator": "external",
      "unanchored_claims": 0,
      "uncovered_requirements": [],
-     "words": 344
+     "words": 522
     },
     "version": 1,
     "warnings": [
@@ -1631,7 +1670,7 @@
    "tool": "draft_response_section",
    "args": {
     "section_id": "SEC-0024",
-    "chars": 344
+    "chars": 522
    },
    "result": {
     "content_ref": "DOC-SEC-0024-v1",
@@ -1641,16 +1680,16 @@
      "waived_files": []
     },
     "project_status": "DRAFTING",
-    "project_version": 171,
+    "project_version": 175,
     "quota": {
      "min_segments": 1,
-     "progress_pct": 68,
-     "remaining": 156,
-     "remaining_segments": 1,
+     "progress_pct": 104,
+     "remaining": 0,
+     "remaining_segments": 0,
      "target_chars": 500,
-     "written_chars": 344
+     "written_chars": 522
     },
-    "request_id": "req-000024",
+    "request_id": "req-000025",
     "section_id": "SEC-0024",
     "section_status": "DRAFTED",
     "stats": {
@@ -1667,7 +1706,7 @@
      "generator": "external",
      "unanchored_claims": 0,
      "uncovered_requirements": [],
-     "words": 344
+     "words": 522
     },
     "version": 1,
     "warnings": [
@@ -1707,7 +1746,7 @@
    "tool": "draft_response_section",
    "args": {
     "section_id": "SEC-0025",
-    "chars": 344
+    "chars": 522
    },
    "result": {
     "content_ref": "DOC-SEC-0025-v1",
@@ -1717,16 +1756,16 @@
      "waived_files": []
     },
     "project_status": "DRAFTING",
-    "project_version": 175,
+    "project_version": 179,
     "quota": {
      "min_segments": 1,
-     "progress_pct": 68,
-     "remaining": 156,
-     "remaining_segments": 1,
+     "progress_pct": 104,
+     "remaining": 0,
+     "remaining_segments": 0,
      "target_chars": 500,
-     "written_chars": 344
+     "written_chars": 522
     },
-    "request_id": "req-000025",
+    "request_id": "req-000026",
     "section_id": "SEC-0025",
     "section_status": "DRAFTED",
     "stats": {
@@ -1743,7 +1782,7 @@
      "generator": "external",
      "unanchored_claims": 0,
      "uncovered_requirements": [],
-     "words": 344
+     "words": 522
     },
     "version": 1,
     "warnings": [
@@ -1783,7 +1822,7 @@
    "tool": "draft_response_section",
    "args": {
     "section_id": "SEC-0026",
-    "chars": 344
+    "chars": 522
    },
    "result": {
     "content_ref": "DOC-SEC-0026-v1",
@@ -1793,16 +1832,16 @@
      "waived_files": []
     },
     "project_status": "DRAFTING",
-    "project_version": 179,
+    "project_version": 183,
     "quota": {
      "min_segments": 1,
-     "progress_pct": 68,
-     "remaining": 156,
-     "remaining_segments": 1,
+     "progress_pct": 104,
+     "remaining": 0,
+     "remaining_segments": 0,
      "target_chars": 500,
-     "written_chars": 344
+     "written_chars": 522
     },
-    "request_id": "req-000026",
+    "request_id": "req-000027",
     "section_id": "SEC-0026",
     "section_status": "DRAFTED",
     "stats": {
@@ -1819,7 +1858,7 @@
      "generator": "external",
      "unanchored_claims": 0,
      "uncovered_requirements": [],
-     "words": 344
+     "words": 522
     },
     "version": 1,
     "warnings": [
@@ -1859,7 +1898,7 @@
    "tool": "draft_response_section",
    "args": {
     "section_id": "SEC-0027",
-    "chars": 344
+    "chars": 522
    },
    "result": {
     "content_ref": "DOC-SEC-0027-v1",
@@ -1869,16 +1908,16 @@
      "waived_files": []
     },
     "project_status": "DRAFTING",
-    "project_version": 183,
+    "project_version": 187,
     "quota": {
      "min_segments": 1,
-     "progress_pct": 68,
-     "remaining": 156,
-     "remaining_segments": 1,
+     "progress_pct": 104,
+     "remaining": 0,
+     "remaining_segments": 0,
      "target_chars": 500,
-     "written_chars": 344
+     "written_chars": 522
     },
-    "request_id": "req-000027",
+    "request_id": "req-000028",
     "section_id": "SEC-0027",
     "section_status": "DRAFTED",
     "stats": {
@@ -1895,7 +1934,7 @@
      "generator": "external",
      "unanchored_claims": 0,
      "uncovered_requirements": [],
-     "words": 344
+     "words": 522
     },
     "version": 1,
     "warnings": [
@@ -1935,7 +1974,7 @@
    "tool": "draft_response_section",
    "args": {
     "section_id": "SEC-0028",
-    "chars": 344
+    "chars": 522
    },
    "result": {
     "content_ref": "DOC-SEC-0028-v1",
@@ -1945,16 +1984,16 @@
      "waived_files": []
     },
     "project_status": "DRAFTING",
-    "project_version": 187,
+    "project_version": 191,
     "quota": {
      "min_segments": 1,
-     "progress_pct": 68,
-     "remaining": 156,
-     "remaining_segments": 1,
+     "progress_pct": 104,
+     "remaining": 0,
+     "remaining_segments": 0,
      "target_chars": 500,
-     "written_chars": 344
+     "written_chars": 522
     },
-    "request_id": "req-000028",
+    "request_id": "req-000029",
     "section_id": "SEC-0028",
     "section_status": "DRAFTED",
     "stats": {
@@ -1971,7 +2010,7 @@
      "generator": "external",
      "unanchored_claims": 0,
      "uncovered_requirements": [],
-     "words": 344
+     "words": 522
     },
     "version": 1,
     "warnings": [
@@ -2011,7 +2050,7 @@
    "tool": "draft_response_section",
    "args": {
     "section_id": "SEC-0029",
-    "chars": 344
+    "chars": 522
    },
    "result": {
     "content_ref": "DOC-SEC-0029-v1",
@@ -2021,16 +2060,16 @@
      "waived_files": []
     },
     "project_status": "DRAFTING",
-    "project_version": 191,
+    "project_version": 195,
     "quota": {
      "min_segments": 1,
-     "progress_pct": 68,
-     "remaining": 156,
-     "remaining_segments": 1,
+     "progress_pct": 104,
+     "remaining": 0,
+     "remaining_segments": 0,
      "target_chars": 500,
-     "written_chars": 344
+     "written_chars": 522
     },
-    "request_id": "req-000029",
+    "request_id": "req-000030",
     "section_id": "SEC-0029",
     "section_status": "DRAFTED",
     "stats": {
@@ -2047,7 +2086,7 @@
      "generator": "external",
      "unanchored_claims": 0,
      "uncovered_requirements": [],
-     "words": 344
+     "words": 522
     },
     "version": 1,
     "warnings": [
@@ -2087,7 +2126,7 @@
    "tool": "draft_response_section",
    "args": {
     "section_id": "SEC-0030",
-    "chars": 344
+    "chars": 522
    },
    "result": {
     "content_ref": "DOC-SEC-0030-v1",
@@ -2097,16 +2136,16 @@
      "waived_files": []
     },
     "project_status": "DRAFTING",
-    "project_version": 195,
+    "project_version": 199,
     "quota": {
      "min_segments": 1,
-     "progress_pct": 68,
-     "remaining": 156,
-     "remaining_segments": 1,
+     "progress_pct": 104,
+     "remaining": 0,
+     "remaining_segments": 0,
      "target_chars": 500,
-     "written_chars": 344
+     "written_chars": 522
     },
-    "request_id": "req-000030",
+    "request_id": "req-000031",
     "section_id": "SEC-0030",
     "section_status": "DRAFTED",
     "stats": {
@@ -2123,7 +2162,7 @@
      "generator": "external",
      "unanchored_claims": 0,
      "uncovered_requirements": [],
-     "words": 344
+     "words": 522
     },
     "version": 1,
     "warnings": [
@@ -2163,7 +2202,7 @@
    "tool": "draft_response_section",
    "args": {
     "section_id": "SEC-0031",
-    "chars": 254
+    "chars": 503
    },
    "result": {
     "content_ref": "DOC-SEC-0031-v1",
@@ -2173,16 +2212,16 @@
      "waived_files": []
     },
     "project_status": "DRAFTING",
-    "project_version": 199,
+    "project_version": 203,
     "quota": {
      "min_segments": 1,
-     "progress_pct": 50,
-     "remaining": 246,
-     "remaining_segments": 1,
+     "progress_pct": 100,
+     "remaining": 0,
+     "remaining_segments": 0,
      "target_chars": 500,
-     "written_chars": 254
+     "written_chars": 503
     },
-    "request_id": "req-000031",
+    "request_id": "req-000032",
     "section_id": "SEC-0031",
     "section_status": "DRAFTED",
     "stats": {
@@ -2197,7 +2236,7 @@
      "generator": "external",
      "unanchored_claims": 0,
      "uncovered_requirements": [],
-     "words": 254
+     "words": 503
     },
     "version": 1,
     "warnings": [
@@ -2237,7 +2276,7 @@
    "tool": "draft_response_section",
    "args": {
     "section_id": "SEC-0010",
-    "chars": 119
+    "chars": 509
    },
    "result": {
     "content_ref": "DOC-SEC-0010-v1",
@@ -2247,16 +2286,16 @@
      "waived_files": []
     },
     "project_status": "DRAFTING",
-    "project_version": 203,
+    "project_version": 207,
     "quota": {
      "min_segments": 1,
-     "progress_pct": 23,
-     "remaining": 381,
-     "remaining_segments": 1,
+     "progress_pct": 101,
+     "remaining": 0,
+     "remaining_segments": 0,
      "target_chars": 500,
-     "written_chars": 119
+     "written_chars": 509
     },
-    "request_id": "req-000032",
+    "request_id": "req-000033",
     "section_id": "SEC-0010",
     "section_status": "DRAFTED",
     "stats": {
@@ -2268,7 +2307,7 @@
      "generator": "external",
      "unanchored_claims": 0,
      "uncovered_requirements": [],
-     "words": 119
+     "words": 509
     },
     "version": 1,
     "warnings": [
@@ -2310,134 +2349,134 @@
    "result": {
     "n_sections": 22,
     "draft_stats": {
-     "SEC-0007": {
-      "words": 344,
+     "SEC-0008": {
+      "words": 522,
       "citations": 7,
       "uncovered": [],
       "unanchored": 0
      },
      "SEC-0012": {
-      "words": 256,
+      "words": 505,
       "citations": 5,
       "uncovered": [],
       "unanchored": 0
      },
-     "SEC-0008": {
-      "words": 344,
+     "SEC-0007": {
+      "words": 522,
       "citations": 7,
       "uncovered": [],
       "unanchored": 0
      },
      "SEC-0016": {
-      "words": 256,
+      "words": 505,
       "citations": 5,
       "uncovered": [],
       "unanchored": 0
      },
      "SEC-0009": {
-      "words": 344,
+      "words": 522,
       "citations": 7,
       "uncovered": [],
       "unanchored": 0
      },
      "SEC-0018": {
-      "words": 344,
+      "words": 522,
       "citations": 7,
       "uncovered": [],
       "unanchored": 0
      },
      "SEC-0019": {
-      "words": 344,
+      "words": 522,
       "citations": 7,
       "uncovered": [],
       "unanchored": 0
      },
      "SEC-0020": {
-      "words": 344,
+      "words": 522,
       "citations": 7,
       "uncovered": [],
       "unanchored": 0
      },
      "SEC-0033": {
-      "words": 166,
+      "words": 522,
       "citations": 3,
       "uncovered": [],
       "unanchored": 0
      },
      "SEC-0014": {
-      "words": 166,
+      "words": 522,
       "citations": 3,
       "uncovered": [],
       "unanchored": 0
      },
      "SEC-0021": {
-      "words": 344,
+      "words": 522,
       "citations": 7,
       "uncovered": [],
       "unanchored": 0
      },
      "SEC-0022": {
-      "words": 344,
+      "words": 522,
       "citations": 7,
       "uncovered": [],
       "unanchored": 0
      },
      "SEC-0023": {
-      "words": 344,
+      "words": 522,
       "citations": 7,
       "uncovered": [],
       "unanchored": 0
      },
      "SEC-0024": {
-      "words": 344,
+      "words": 522,
       "citations": 7,
       "uncovered": [],
       "unanchored": 0
      },
      "SEC-0025": {
-      "words": 344,
+      "words": 522,
       "citations": 7,
       "uncovered": [],
       "unanchored": 0
      },
      "SEC-0026": {
-      "words": 344,
+      "words": 522,
       "citations": 7,
       "uncovered": [],
       "unanchored": 0
      },
      "SEC-0027": {
-      "words": 344,
+      "words": 522,
       "citations": 7,
       "uncovered": [],
       "unanchored": 0
      },
      "SEC-0028": {
-      "words": 344,
+      "words": 522,
       "citations": 7,
       "uncovered": [],
       "unanchored": 0
      },
      "SEC-0029": {
-      "words": 344,
+      "words": 522,
       "citations": 7,
       "uncovered": [],
       "unanchored": 0
      },
      "SEC-0030": {
-      "words": 344,
+      "words": 522,
       "citations": 7,
       "uncovered": [],
       "unanchored": 0
      },
      "SEC-0031": {
-      "words": 254,
+      "words": 503,
       "citations": 5,
       "uncovered": [],
       "unanchored": 0
      },
      "SEC-0010": {
-      "words": 119,
+      "words": 509,
       "citations": 2,
       "uncovered": [],
       "unanchored": 0
@@ -2463,63 +2502,90 @@
    "result": {
     "artifact": {
      "path": "/tmp/bid-mcp-e2e/full-pipeline/ws/artifacts/quality-report.json",
-     "size": 38056
+     "size": 91558
     },
-    "needs_human": {
-     "count": 22,
-     "head": [
-      "SEC-0007",
-      "SEC-0008",
-      "SEC-0009",
-      "SEC-0010",
-      "SEC-0012",
-      "SEC-0014",
-      "SEC-0016",
-      "SEC-0018",
-      "SEC-0019",
-      "SEC-0020",
-      "SEC-0021",
-      "SEC-0022"
-     ]
-    },
+    "needs_human": [],
     "project_id": "PRJ-0001",
-    "request_id": "req-000033",
+    "request_id": "req-000034",
     "sections": {
      "count": 22,
      "head": [
       {
-       "chars": 344,
+       "chars": 522,
        "cited_evs": [
         "EV-0034"
        ],
        "covered_reqs": [
-        "REQ-0001",
-        "REQ-0002",
         "REQ-0005",
         "REQ-0006",
         "REQ-0007",
-        "REQ-0008"
+        "REQ-0008",
+        "REQ-0009",
+        "REQ-0051"
        ],
-       "dup_with": [
-        [
-         "SEC-0010",
-         0.6667
-        ],
-        [
-         "SEC-0031",
-         0.3333
+       "dup_with": {
+        "count": 21,
+        "head": [
+         [
+          "SEC-0010",
+          0.875
+         ],
+         [
+          "SEC-0033",
+          0.6667
+         ],
+         [
+          "SEC-0014",
+          0.6667
+         ],
+         [
+          "SEC-0031",
+          0.6364
+         ],
+         [
+          "SEC-0012",
+          0.5455
+         ],
+         [
+          "SEC-0016",
+          0.5455
+         ],
+         [
+          "SEC-0018",
+          0.5385
+         ],
+         [
+          "SEC-0021",
+          0.5385
+         ],
+         [
+          "SEC-0023",
+          0.5385
+         ],
+         [
+          "SEC-0028",
+          0.5385
+         ],
+         [
+          "SEC-0026",
+          0.5385
+         ],
+         [
+          "SEC-0027",
+          0.5385
+         ]
         ]
-       ],
+       },
        "error": null,
        "ghost_reqs": [],
-       "needs_human": true,
+       "needs_human": false,
        "requirement_ids": [
-        "REQ-0001",
-        "REQ-0002",
         "REQ-0005",
         "REQ-0006",
         "REQ-0007",
-        "REQ-0008"
+        "REQ-0008",
+        "REQ-0009",
+        "REQ-0051"
        ],
        "score": {
         "covered_items": [],
@@ -2545,46 +2611,89 @@
         "verifiable_claims": 7
        },
        "target_chars": 500,
-       "title": "资格与响应（第1块）",
+       "title": "资格证明材料响应",
        "unanchored_claims": 0,
        "uncited_evs": [],
        "uncovered_reqs": [],
        "unknown_citations": [],
-       "within_band": false
+       "within_band": true
       },
       {
-       "chars": 344,
+       "chars": 522,
        "cited_evs": [
         "EV-0034"
        ],
        "covered_reqs": [
-        "REQ-0009",
+        "REQ-0001",
+        "REQ-0002",
         "REQ-0010",
         "REQ-0013",
         "REQ-0014",
-        "REQ-0016",
-        "REQ-0017"
+        "REQ-0016"
        ],
-       "dup_with": [
-        [
-         "SEC-0010",
-         0.6667
-        ],
-        [
-         "SEC-0031",
-         0.3333
+       "dup_with": {
+        "count": 21,
+        "head": [
+         [
+          "SEC-0010",
+          0.875
+         ],
+         [
+          "SEC-0033",
+          0.6667
+         ],
+         [
+          "SEC-0014",
+          0.6667
+         ],
+         [
+          "SEC-0031",
+          0.6364
+         ],
+         [
+          "SEC-0012",
+          0.5455
+         ],
+         [
+          "SEC-0016",
+          0.5455
+         ],
+         [
+          "SEC-0018",
+          0.5385
+         ],
+         [
+          "SEC-0029",
+          0.5385
+         ],
+         [
+          "SEC-0019",
+          0.5385
+         ],
+         [
+          "SEC-0028",
+          0.5385
+         ],
+         [
+          "SEC-0020",
+          0.5385
+         ],
+         [
+          "SEC-0030",
+          0.5385
+         ]
         ]
-       ],
+       },
        "error": null,
        "ghost_reqs": [],
-       "needs_human": true,
+       "needs_human": false,
        "requirement_ids": [
-        "REQ-0009",
+        "REQ-0001",
+        "REQ-0002",
         "REQ-0010",
         "REQ-0013",
         "REQ-0014",
-        "REQ-0016",
-        "REQ-0017"
+        "REQ-0016"
        ],
        "score": {
         "covered_items": [],
@@ -2610,46 +2719,89 @@
         "verifiable_claims": 7
        },
        "target_chars": 500,
-       "title": "资格与响应（第2块）",
+       "title": "否决情形响应（第1组 6条）",
        "unanchored_claims": 0,
        "uncited_evs": [],
        "uncovered_reqs": [],
        "unknown_citations": [],
-       "within_band": false
+       "within_band": true
       },
       {
-       "chars": 344,
+       "chars": 522,
        "cited_evs": [
         "EV-0034"
        ],
        "covered_reqs": [
+        "REQ-0017",
         "REQ-0019",
         "REQ-0020",
         "REQ-0021",
         "REQ-0022",
-        "REQ-0023",
-        "REQ-0051"
+        "REQ-0023"
        ],
-       "dup_with": [
-        [
-         "SEC-0010",
-         0.6667
-        ],
-        [
-         "SEC-0031",
-         0.3333
+       "dup_with": {
+        "count": 21,
+        "head": [
+         [
+          "SEC-0010",
+          0.875
+         ],
+         [
+          "SEC-0033",
+          0.6667
+         ],
+         [
+          "SEC-0014",
+          0.6667
+         ],
+         [
+          "SEC-0031",
+          0.6364
+         ],
+         [
+          "SEC-0012",
+          0.5455
+         ],
+         [
+          "SEC-0016",
+          0.5455
+         ],
+         [
+          "SEC-0021",
+          0.5385
+         ],
+         [
+          "SEC-0022",
+          0.5385
+         ],
+         [
+          "SEC-0007",
+          0.5385
+         ],
+         [
+          "SEC-0008",
+          0.5385
+         ],
+         [
+          "SEC-0028",
+          0.5385
+         ],
+         [
+          "SEC-0019",
+          0.5385
+         ]
         ]
-       ],
+       },
        "error": null,
        "ghost_reqs": [],
-       "needs_human": true,
+       "needs_human": false,
        "requirement_ids": [
+        "REQ-0017",
         "REQ-0019",
         "REQ-0020",
         "REQ-0021",
         "REQ-0022",
-        "REQ-0023",
-        "REQ-0051"
+        "REQ-0023"
        ],
        "score": {
         "covered_items": [],
@@ -2675,15 +2827,15 @@
         "verifiable_claims": 7
        },
        "target_chars": 500,
-       "title": "资格与响应（第3块）",
+       "title": "否决情形响应（条款 3.5.1-3.7.2.4）",
        "unanchored_claims": 0,
        "uncited_evs": [],
        "uncovered_reqs": [],
        "unknown_citations": [],
-       "within_band": false
+       "within_band": true
       },
       {
-       "chars": 119,
+       "chars": 509,
        "cited_evs": [
         "EV-0034"
        ],
@@ -2694,58 +2846,58 @@
         "count": 21,
         "head": [
          [
-          "SEC-0028",
-          0.6667
-         ],
-         [
-          "SEC-0022",
-          0.6667
-         ],
-         [
-          "SEC-0009",
-          0.6667
+          "SEC-0020",
+          0.875
          ],
          [
           "SEC-0024",
-          0.6667
+          0.875
          ],
          [
           "SEC-0030",
-          0.6667
+          0.875
+         ],
+         [
+          "SEC-0031",
+          0.875
          ],
          [
           "SEC-0025",
-          0.6667
+          0.875
          ],
          [
-          "SEC-0021",
-          0.6667
+          "SEC-0007",
+          0.875
          ],
          [
-          "SEC-0027",
-          0.6667
-         ],
-         [
-          "SEC-0019",
-          0.6667
+          "SEC-0008",
+          0.875
          ],
          [
           "SEC-0018",
-          0.6667
+          0.875
          ],
          [
-          "SEC-0020",
-          0.6667
+          "SEC-0021",
+          0.875
          ],
          [
-          "SEC-0026",
-          0.6667
+          "SEC-0022",
+          0.875
+         ],
+         [
+          "SEC-0027",
+          0.875
+         ],
+         [
+          "SEC-0019",
+          0.875
          ]
         ]
        },
        "error": null,
        "ghost_reqs": [],
-       "needs_human": true,
+       "needs_human": false,
        "requirement_ids": [
         "REQ-0121"
        ],
@@ -2773,15 +2925,15 @@
         "verifiable_claims": 2
        },
        "target_chars": 500,
-       "title": "资格与响应（第4块）",
+       "title": "否决情形响应（第3组 1条）",
        "unanchored_claims": 0,
        "uncited_evs": [],
        "uncovered_reqs": [],
        "unknown_citations": [],
-       "within_band": false
+       "within_band": true
       },
       {
-       "chars": 256,
+       "chars": 505,
        "cited_evs": [],
        "covered_reqs": [
         "REQ-0003",
@@ -2790,15 +2942,62 @@
         "REQ-0018",
         "REQ-0024"
        ],
-       "dup_with": [
-        [
-         "SEC-0010",
-         0.3333
+       "dup_with": {
+        "count": 21,
+        "head": [
+         [
+          "SEC-0010",
+          0.75
+         ],
+         [
+          "SEC-0033",
+          0.6667
+         ],
+         [
+          "SEC-0014",
+          0.6667
+         ],
+         [
+          "SEC-0027",
+          0.5455
+         ],
+         [
+          "SEC-0016",
+          0.5455
+         ],
+         [
+          "SEC-0009",
+          0.5455
+         ],
+         [
+          "SEC-0008",
+          0.5455
+         ],
+         [
+          "SEC-0018",
+          0.5455
+         ],
+         [
+          "SEC-0028",
+          0.5455
+         ],
+         [
+          "SEC-0021",
+          0.5455
+         ],
+         [
+          "SEC-0007",
+          0.5455
+         ],
+         [
+          "SEC-0024",
+          0.5455
+         ]
         ]
-       ],
+       },
        "error": null,
        "ghost_reqs": [],
-       "needs_human": true,
+       "needs_human": false,
        "requirement_ids": [
         "REQ-0003",
         "REQ-0004",
@@ -2835,25 +3034,72 @@
        "uncited_evs": [],
        "uncovered_reqs": [],
        "unknown_citations": [],
-       "within_band": false
+       "within_band": true
       },
       {
-       "chars": 166,
+       "chars": 522,
        "cited_evs": [],
        "covered_reqs": [
         "REQ-0052",
         "REQ-0053",
         "REQ-0054"
        ],
-       "dup_with": [
-        [
-         "SEC-0010",
-         0.3333
+       "dup_with": {
+        "count": 21,
+        "head": [
+         [
+          "SEC-0010",
+          0.75
+         ],
+         [
+          "SEC-0008",
+          0.6667
+         ],
+         [
+          "SEC-0021",
+          0.6667
+         ],
+         [
+          "SEC-0020",
+          0.6667
+         ],
+         [
+          "SEC-0033",
+          0.6667
+         ],
+         [
+          "SEC-0019",
+          0.6667
+         ],
+         [
+          "SEC-0025",
+          0.6667
+         ],
+         [
+          "SEC-0027",
+          0.6667
+         ],
+         [
+          "SEC-0028",
+          0.6667
+         ],
+         [
+          "SEC-0030",
+          0.6667
+         ],
+         [
+          "SEC-0022",
+          0.6667
+         ],
+         [
+          "SEC-0023",
+          0.6667
+         ]
         ]
-       ],
+       },
        "error": null,
        "ghost_reqs": [],
-       "needs_human": true,
+       "needs_human": false,
        "requirement_ids": [
         "REQ-0052",
         "REQ-0053",
@@ -2888,10 +3134,10 @@
        "uncited_evs": [],
        "uncovered_reqs": [],
        "unknown_citations": [],
-       "within_band": false
+       "within_band": true
       },
       {
-       "chars": 256,
+       "chars": 505,
        "cited_evs": [],
        "covered_reqs": [
         "REQ-0011",
@@ -2900,15 +3146,62 @@
         "REQ-0049",
         "REQ-0050"
        ],
-       "dup_with": [
-        [
-         "SEC-0010",
-         0.3333
+       "dup_with": {
+        "count": 21,
+        "head": [
+         [
+          "SEC-0010",
+          0.75
+         ],
+         [
+          "SEC-0014",
+          0.6667
+         ],
+         [
+          "SEC-0033",
+          0.6667
+         ],
+         [
+          "SEC-0024",
+          0.5455
+         ],
+         [
+          "SEC-0027",
+          0.5455
+         ],
+         [
+          "SEC-0030",
+          0.5455
+         ],
+         [
+          "SEC-0012",
+          0.5455
+         ],
+         [
+          "SEC-0007",
+          0.5455
+         ],
+         [
+          "SEC-0008",
+          0.5455
+         ],
+         [
+          "SEC-0019",
+          0.5455
+         ],
+         [
+          "SEC-0023",
+          0.5455
+         ],
+         [
+          "SEC-0009",
+          0.5455
+         ]
         ]
-       ],
+       },
        "error": null,
        "ghost_reqs": [],
-       "needs_human": true,
+       "needs_human": false,
        "requirement_ids": [
         "REQ-0011",
         "REQ-0012",
@@ -2945,10 +3238,10 @@
        "uncited_evs": [],
        "uncovered_reqs": [],
        "unknown_citations": [],
-       "within_band": false
+       "within_band": true
       },
       {
-       "chars": 344,
+       "chars": 522,
        "cited_evs": [
         "EV-0034"
        ],
@@ -2960,19 +3253,62 @@
         "REQ-0033",
         "REQ-0034"
        ],
-       "dup_with": [
-        [
-         "SEC-0010",
-         0.6667
-        ],
-        [
-         "SEC-0031",
-         0.3333
+       "dup_with": {
+        "count": 21,
+        "head": [
+         [
+          "SEC-0010",
+          0.875
+         ],
+         [
+          "SEC-0014",
+          0.6667
+         ],
+         [
+          "SEC-0033",
+          0.6667
+         ],
+         [
+          "SEC-0031",
+          0.6364
+         ],
+         [
+          "SEC-0016",
+          0.5455
+         ],
+         [
+          "SEC-0012",
+          0.5455
+         ],
+         [
+          "SEC-0007",
+          0.5385
+         ],
+         [
+          "SEC-0023",
+          0.5385
+         ],
+         [
+          "SEC-0026",
+          0.5385
+         ],
+         [
+          "SEC-0022",
+          0.5385
+         ],
+         [
+          "SEC-0028",
+          0.5385
+         ],
+         [
+          "SEC-0027",
+          0.5385
+         ]
         ]
-       ],
+       },
        "error": null,
        "ghost_reqs": [],
-       "needs_human": true,
+       "needs_human": false,
        "requirement_ids": [
         "REQ-0029",
         "REQ-0030",
@@ -3005,15 +3341,15 @@
         "verifiable_claims": 7
        },
        "target_chars": 500,
-       "title": "技术参数（第1块）",
+       "title": "技术参数（条款 5.0-5.2）",
        "unanchored_claims": 0,
        "uncited_evs": [],
        "uncovered_reqs": [],
        "unknown_citations": [],
-       "within_band": false
+       "within_band": true
       },
       {
-       "chars": 344,
+       "chars": 522,
        "cited_evs": [
         "EV-0034"
        ],
@@ -3025,19 +3361,62 @@
         "REQ-0039",
         "REQ-0040"
        ],
-       "dup_with": [
-        [
-         "SEC-0010",
-         0.6667
-        ],
-        [
-         "SEC-0031",
-         0.3333
+       "dup_with": {
+        "count": 21,
+        "head": [
+         [
+          "SEC-0010",
+          0.875
+         ],
+         [
+          "SEC-0033",
+          0.6667
+         ],
+         [
+          "SEC-0014",
+          0.6667
+         ],
+         [
+          "SEC-0031",
+          0.6364
+         ],
+         [
+          "SEC-0012",
+          0.5455
+         ],
+         [
+          "SEC-0016",
+          0.5455
+         ],
+         [
+          "SEC-0022",
+          0.5385
+         ],
+         [
+          "SEC-0020",
+          0.5385
+         ],
+         [
+          "SEC-0023",
+          0.5385
+         ],
+         [
+          "SEC-0028",
+          0.5385
+         ],
+         [
+          "SEC-0018",
+          0.5385
+         ],
+         [
+          "SEC-0025",
+          0.5385
+         ]
         ]
-       ],
+       },
        "error": null,
        "ghost_reqs": [],
-       "needs_human": true,
+       "needs_human": false,
        "requirement_ids": [
         "REQ-0035",
         "REQ-0036",
@@ -3070,15 +3449,15 @@
         "verifiable_claims": 7
        },
        "target_chars": 500,
-       "title": "技术参数（第2块）",
+       "title": "技术参数（条款 5.2-5.4）",
        "unanchored_claims": 0,
        "uncited_evs": [],
        "uncovered_reqs": [],
        "unknown_citations": [],
-       "within_band": false
+       "within_band": true
       },
       {
-       "chars": 344,
+       "chars": 522,
        "cited_evs": [
         "EV-0034"
        ],
@@ -3090,19 +3469,62 @@
         "REQ-0055",
         "REQ-0056"
        ],
-       "dup_with": [
-        [
-         "SEC-0010",
-         0.6667
-        ],
-        [
-         "SEC-0031",
-         0.3333
+       "dup_with": {
+        "count": 21,
+        "head": [
+         [
+          "SEC-0010",
+          0.875
+         ],
+         [
+          "SEC-0014",
+          0.6667
+         ],
+         [
+          "SEC-0033",
+          0.6667
+         ],
+         [
+          "SEC-0031",
+          0.6364
+         ],
+         [
+          "SEC-0012",
+          0.5455
+         ],
+         [
+          "SEC-0016",
+          0.5455
+         ],
+         [
+          "SEC-0021",
+          0.5385
+         ],
+         [
+          "SEC-0018",
+          0.5385
+         ],
+         [
+          "SEC-0022",
+          0.5385
+         ],
+         [
+          "SEC-0023",
+          0.5385
+         ],
+         [
+          "SEC-0024",
+          0.5385
+         ],
+         [
+          "SEC-0007",
+          0.5385
+         ]
         ]
-       ],
+       },
        "error": null,
        "ghost_reqs": [],
-       "needs_human": true,
+       "needs_human": false,
        "requirement_ids": [
         "REQ-0041",
         "REQ-0042",
@@ -3135,15 +3557,15 @@
         "verifiable_claims": 7
        },
        "target_chars": 500,
-       "title": "技术参数（第3块）",
+       "title": "技术参数（条款 5.4-9.1.2）",
        "unanchored_claims": 0,
        "uncited_evs": [],
        "uncovered_reqs": [],
        "unknown_citations": [],
-       "within_band": false
+       "within_band": true
       },
       {
-       "chars": 344,
+       "chars": 522,
        "cited_evs": [
         "EV-0034"
        ],
@@ -3155,19 +3577,62 @@
         "REQ-0061",
         "REQ-0062"
        ],
-       "dup_with": [
-        [
-         "SEC-0010",
-         0.6667
-        ],
-        [
-         "SEC-0031",
-         0.3333
+       "dup_with": {
+        "count": 21,
+        "head": [
+         [
+          "SEC-0010",
+          0.875
+         ],
+         [
+          "SEC-0014",
+          0.6667
+         ],
+         [
+          "SEC-0033",
+          0.6667
+         ],
+         [
+          "SEC-0031",
+          0.6364
+         ],
+         [
+          "SEC-0012",
+          0.5455
+         ],
+         [
+          "SEC-0016",
+          0.5455
+         ],
+         [
+          "SEC-0027",
+          0.5385
+         ],
+         [
+          "SEC-0024",
+          0.5385
+         ],
+         [
+          "SEC-0025",
+          0.5385
+         ],
+         [
+          "SEC-0022",
+          0.5385
+         ],
+         [
+          "SEC-0028",
+          0.5385
+         ],
+         [
+          "SEC-0007",
+          0.5385
+         ]
         ]
-       ],
+       },
        "error": null,
        "ghost_reqs": [],
-       "needs_human": true,
+       "needs_human": false,
        "requirement_ids": [
         "REQ-0057",
         "REQ-0058",
@@ -3200,15 +3665,15 @@
         "verifiable_claims": 7
        },
        "target_chars": 500,
-       "title": "技术参数（第4块）",
+       "title": "技术参数（条款 9.1.3-9.3.2）",
        "unanchored_claims": 0,
        "uncited_evs": [],
        "uncovered_reqs": [],
        "unknown_citations": [],
-       "within_band": false
+       "within_band": true
       },
       {
-       "chars": 344,
+       "chars": 522,
        "cited_evs": [
         "EV-0034"
        ],
@@ -3220,19 +3685,62 @@
         "REQ-0067",
         "REQ-0068"
        ],
-       "dup_with": [
-        [
-         "SEC-0010",
-         0.6667
-        ],
-        [
-         "SEC-0031",
-         0.3333
+       "dup_with": {
+        "count": 21,
+        "head": [
+         [
+          "SEC-0010",
+          0.875
+         ],
+         [
+          "SEC-0033",
+          0.6667
+         ],
+         [
+          "SEC-0014",
+          0.6667
+         ],
+         [
+          "SEC-0031",
+          0.6364
+         ],
+         [
+          "SEC-0012",
+          0.5455
+         ],
+         [
+          "SEC-0016",
+          0.5455
+         ],
+         [
+          "SEC-0023",
+          0.5385
+         ],
+         [
+          "SEC-0025",
+          0.5385
+         ],
+         [
+          "SEC-0021",
+          0.5385
+         ],
+         [
+          "SEC-0007",
+          0.5385
+         ],
+         [
+          "SEC-0019",
+          0.5385
+         ],
+         [
+          "SEC-0018",
+          0.5385
+         ]
         ]
-       ],
+       },
        "error": null,
        "ghost_reqs": [],
-       "needs_human": true,
+       "needs_human": false,
        "requirement_ids": [
         "REQ-0063",
         "REQ-0064",
@@ -3265,24 +3773,33 @@
         "verifiable_claims": 7
        },
        "target_chars": 500,
-       "title": "技术参数（第5块）",
+       "title": "技术参数（条款 9.3.3-9.5.2）",
        "unanchored_claims": 0,
        "uncited_evs": [],
        "uncovered_reqs": [],
        "unknown_citations": [],
-       "within_band": false
+       "within_band": true
       }
      ]
     },
+    "submission_readiness": {
+     "blockers": 0,
+     "evidence_missing": [],
+     "evidence_missing_count": 0,
+     "not_built": false,
+     "ready": true,
+     "unresponded": [],
+     "unresponded_count": 0
+    },
     "summary": {
-     "char_deviation_pct": -38.9,
+     "char_deviation_pct": 3.8,
      "char_target": 11000,
-     "char_total": 6721,
+     "char_total": 11418,
      "drafted": 22,
-     "dup_max_similarity": 0.6667,
-     "dup_pairs": 0,
+     "dup_max_similarity": 0.875,
+     "dup_pairs": 17,
      "failed": 0,
-     "out_of_band": 22,
+     "out_of_band": 0,
      "pending": 0,
      "total": 22,
      "unanchored_total": 0,
@@ -3296,7 +3813,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 129.33690899990324
+   "elapsed_ms": 127.97662999946624
   },
   {
    "stage": "P7 validate_bid_document",
@@ -3327,241 +3844,44 @@
       "status": "not_performed"
      },
      "structural": {
-      "findings": {
-       "count": 22,
-       "head": [
-        {
-         "kind": "DETERMINISTIC",
-         "message": "章节「资格与响应（第1块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-         "requirement_id": null,
-         "rule_code": "W_CHARS_OFF_TARGET",
-         "section_id": "SEC-0007",
-         "severity": "MINOR"
-        },
-        {
-         "kind": "DETERMINISTIC",
-         "message": "章节「资格与响应（第2块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-         "requirement_id": null,
-         "rule_code": "W_CHARS_OFF_TARGET",
-         "section_id": "SEC-0008",
-         "severity": "MINOR"
-        },
-        {
-         "kind": "DETERMINISTIC",
-         "message": "章节「资格与响应（第3块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-         "requirement_id": null,
-         "rule_code": "W_CHARS_OFF_TARGET",
-         "section_id": "SEC-0009",
-         "severity": "MINOR"
-        },
-        {
-         "kind": "DETERMINISTIC",
-         "message": "章节「资格与响应（第4块）」字数 119 偏离配额 500（±20% 带外：[400, 600]）",
-         "requirement_id": null,
-         "rule_code": "W_CHARS_OFF_TARGET",
-         "section_id": "SEC-0010",
-         "severity": "MINOR"
-        },
-        {
-         "kind": "DETERMINISTIC",
-         "message": "章节「第三章 投标人须知」字数 256 偏离配额 500（±20% 带外：[400, 600]）",
-         "requirement_id": null,
-         "rule_code": "W_CHARS_OFF_TARGET",
-         "section_id": "SEC-0012",
-         "severity": "MINOR"
-        },
-        {
-         "kind": "DETERMINISTIC",
-         "message": "章节「第八章 合同主要条款（摘要）」字数 166 偏离配额 500（±20% 带外：[400, 600]）",
-         "requirement_id": null,
-         "rule_code": "W_CHARS_OFF_TARGET",
-         "section_id": "SEC-0014",
-         "severity": "MINOR"
-        },
-        {
-         "kind": "DETERMINISTIC",
-         "message": "章节「格式要求」字数 256 偏离配额 500（±20% 带外：[400, 600]）",
-         "requirement_id": null,
-         "rule_code": "W_CHARS_OFF_TARGET",
-         "section_id": "SEC-0016",
-         "severity": "MINOR"
-        },
-        {
-         "kind": "DETERMINISTIC",
-         "message": "章节「技术参数（第1块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-         "requirement_id": null,
-         "rule_code": "W_CHARS_OFF_TARGET",
-         "section_id": "SEC-0018",
-         "severity": "MINOR"
-        },
-        {
-         "kind": "DETERMINISTIC",
-         "message": "章节「技术参数（第2块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-         "requirement_id": null,
-         "rule_code": "W_CHARS_OFF_TARGET",
-         "section_id": "SEC-0019",
-         "severity": "MINOR"
-        },
-        {
-         "kind": "DETERMINISTIC",
-         "message": "章节「技术参数（第3块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-         "requirement_id": null,
-         "rule_code": "W_CHARS_OFF_TARGET",
-         "section_id": "SEC-0020",
-         "severity": "MINOR"
-        },
-        {
-         "kind": "DETERMINISTIC",
-         "message": "章节「技术参数（第4块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-         "requirement_id": null,
-         "rule_code": "W_CHARS_OFF_TARGET",
-         "section_id": "SEC-0021",
-         "severity": "MINOR"
-        },
-        {
-         "kind": "DETERMINISTIC",
-         "message": "章节「技术参数（第5块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-         "requirement_id": null,
-         "rule_code": "W_CHARS_OFF_TARGET",
-         "section_id": "SEC-0022",
-         "severity": "MINOR"
-        }
-       ]
-      },
-      "status": "failed"
+      "status": "passed"
      }
     },
     "counts": {
      "blocker": 0,
-     "deterministic": 23,
+     "deterministic": 1,
      "major": 0,
-     "minor": 23,
+     "minor": 1,
      "model": 0
     },
     "errors": [],
-    "findings": {
-     "count": 23,
-     "head": [
-      {
-       "kind": "DETERMINISTIC",
-       "message": "章节「资格与响应（第1块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-       "requirement_id": null,
-       "rule_code": "W_CHARS_OFF_TARGET",
-       "section_id": "SEC-0007",
-       "severity": "MINOR"
-      },
-      {
-       "kind": "DETERMINISTIC",
-       "message": "章节「资格与响应（第2块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-       "requirement_id": null,
-       "rule_code": "W_CHARS_OFF_TARGET",
-       "section_id": "SEC-0008",
-       "severity": "MINOR"
-      },
-      {
-       "kind": "DETERMINISTIC",
-       "message": "章节「资格与响应（第3块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-       "requirement_id": null,
-       "rule_code": "W_CHARS_OFF_TARGET",
-       "section_id": "SEC-0009",
-       "severity": "MINOR"
-      },
-      {
-       "kind": "DETERMINISTIC",
-       "message": "章节「资格与响应（第4块）」字数 119 偏离配额 500（±20% 带外：[400, 600]）",
-       "requirement_id": null,
-       "rule_code": "W_CHARS_OFF_TARGET",
-       "section_id": "SEC-0010",
-       "severity": "MINOR"
-      },
-      {
-       "kind": "DETERMINISTIC",
-       "message": "章节「第三章 投标人须知」字数 256 偏离配额 500（±20% 带外：[400, 600]）",
-       "requirement_id": null,
-       "rule_code": "W_CHARS_OFF_TARGET",
-       "section_id": "SEC-0012",
-       "severity": "MINOR"
-      },
-      {
-       "kind": "DETERMINISTIC",
-       "message": "章节「第八章 合同主要条款（摘要）」字数 166 偏离配额 500（±20% 带外：[400, 600]）",
-       "requirement_id": null,
-       "rule_code": "W_CHARS_OFF_TARGET",
-       "section_id": "SEC-0014",
-       "severity": "MINOR"
-      },
-      {
-       "kind": "DETERMINISTIC",
-       "message": "章节「格式要求」字数 256 偏离配额 500（±20% 带外：[400, 600]）",
-       "requirement_id": null,
-       "rule_code": "W_CHARS_OFF_TARGET",
-       "section_id": "SEC-0016",
-       "severity": "MINOR"
-      },
-      {
-       "kind": "DETERMINISTIC",
-       "message": "章节「技术参数（第1块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-       "requirement_id": null,
-       "rule_code": "W_CHARS_OFF_TARGET",
-       "section_id": "SEC-0018",
-       "severity": "MINOR"
-      },
-      {
-       "kind": "DETERMINISTIC",
-       "message": "章节「技术参数（第2块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-       "requirement_id": null,
-       "rule_code": "W_CHARS_OFF_TARGET",
-       "section_id": "SEC-0019",
-       "severity": "MINOR"
-      },
-      {
-       "kind": "DETERMINISTIC",
-       "message": "章节「技术参数（第3块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-       "requirement_id": null,
-       "rule_code": "W_CHARS_OFF_TARGET",
-       "section_id": "SEC-0020",
-       "severity": "MINOR"
-      },
-      {
-       "kind": "DETERMINISTIC",
-       "message": "章节「技术参数（第4块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-       "requirement_id": null,
-       "rule_code": "W_CHARS_OFF_TARGET",
-       "section_id": "SEC-0021",
-       "severity": "MINOR"
-      },
-      {
-       "kind": "DETERMINISTIC",
-       "message": "章节「技术参数（第5块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-       "requirement_id": null,
-       "rule_code": "W_CHARS_OFF_TARGET",
-       "section_id": "SEC-0022",
-       "severity": "MINOR"
-      }
-     ]
-    },
+    "findings": [
+     {
+      "kind": "DETERMINISTIC",
+      "message": "招标文件存在格式候选条款但未提取到字号/字体/行距/边距参数——导出将按工程基线（仿宋_GB2312/12pt/1.5 倍行距）执行，请人工确认形式评审要求",
+      "requirement_id": null,
+      "rule_code": "W_FORMAT_BASELINE",
+      "section_id": null,
+      "severity": "MINOR"
+     }
+    ],
     "ok": true,
     "project_status": "VALIDATING",
-    "project_version": 204,
-    "request_id": "req-000034",
+    "project_version": 208,
+    "request_id": "req-000035",
     "sections_checked": 22,
-    "warnings": {
-     "count": 23,
-     "head": [
-      "章节「资格与响应（第1块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-      "章节「资格与响应（第2块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-      "章节「资格与响应（第3块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-      "章节「资格与响应（第4块）」字数 119 偏离配额 500（±20% 带外：[400, 600]）",
-      "章节「第三章 投标人须知」字数 256 偏离配额 500（±20% 带外：[400, 600]）",
-      "章节「第八章 合同主要条款（摘要）」字数 166 偏离配额 500（±20% 带外：[400, 600]）",
-      "章节「格式要求」字数 256 偏离配额 500（±20% 带外：[400, 600]）",
-      "章节「技术参数（第1块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-      "章节「技术参数（第2块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-      "章节「技术参数（第3块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-      "章节「技术参数（第4块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）",
-      "章节「技术参数（第5块）」字数 344 偏离配额 500（±20% 带外：[400, 600]）"
-     ]
-    }
+    "submission_readiness": {
+     "blockers": 0,
+     "evidence_missing": [],
+     "evidence_missing_count": 0,
+     "not_built": false,
+     "ready": true,
+     "unresponded": [],
+     "unresponded_count": 0
+    },
+    "warnings": [
+     "招标文件存在格式候选条款但未提取到字号/字体/行距/边距参数——导出将按工程基线（仿宋_GB2312/12pt/1.5 倍行距）执行，请人工确认形式评审要求"
+    ]
    },
    "checks": [
     {
@@ -3581,22 +3901,24 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 52.74132000022291
+   "elapsed_ms": 46.72746199867106
   },
   {
    "stage": "P7.5 record_review_gate pre_export_confirm",
    "tool": "record_review_gate",
    "args": {
     "gate": "pre_export_confirm",
-    "digest": "160919630aaeca9ca31eca408072d7ee83017a3940e17c7745b00c23e24a5386"
+    "digest": "ebb728c0907274c4b98f7cb775b165a82035e57d44fbc307c7d24ac2787b5eec"
    },
    "result": {
+    "agent_waivers": [],
     "gates_approved": [
      "matrix_approval",
      "outline_approval",
      "pre_export_confirm"
     ],
-    "project_version": 205,
+    "human_review_complete": true,
+    "project_version": 209,
     "receipt": {
      "actor": {
       "actor_id": "mcp-e2e-lead",
@@ -3606,12 +3928,14 @@
      "decision": "APPROVED",
      "finding_ids": [],
      "gate": "pre_export_confirm",
-     "review_id": "REV-0037",
-     "reviewed_content_digest": "160919630aaeca9ca31eca408072d7ee83017a3940e17c7745b00c23e24a5386",
+     "human_confirmed": true,
+     "method": "human_receipt",
+     "review_id": "REV-0039",
+     "reviewed_content_digest": "ebb728c0907274c4b98f7cb775b165a82035e57d44fbc307c7d24ac2787b5eec",
      "reviewer": "human:mcp-e2e-lead",
      "spawned_rt_ids": []
     },
-    "request_id": "req-000035",
+    "request_id": "req-000036",
     "status": "VALIDATING"
    },
    "checks": [
@@ -3624,7 +3948,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 9.430930999769771
+   "elapsed_ms": 10.456258001795504
   },
   {
    "stage": "P8 export_bid_document",
@@ -3634,13 +3958,14 @@
     "output_path": "out/投标文件-技术标.docx"
    },
    "result": {
+    "agent_waivers": [],
     "artifact": {
-     "sha256": "f4fc535f56942b1d5228eceb1680883586c7097ae2390f10beb33c0736374ae4",
-     "size": 169477,
+     "sha256": "6c7a033022adb128c16542871b6d86cd61ed9ffff2e29d34010860bd39d2b659",
+     "size": 197344,
      "url": "/tmp/bid-mcp-e2e/full-pipeline/ws/out/投标文件-技术标.docx"
     },
     "chapters_written": 22,
-    "content_version_snapshot": 208,
+    "content_version_snapshot": 212,
     "form_titles": [
      "附件一、投标函",
      "附件二、法定代表人身份证明书",
@@ -3651,19 +3976,20 @@
      "附件七、廉洁承诺书"
     ],
     "forms_written": 7,
+    "human_review_complete": true,
     "precheck": {
      "blockers": 0,
      "waived": []
     },
     "project_status": "EXPORTED",
-    "request_id": "req-000036",
+    "request_id": "req-000037",
     "table_kinds": [
      "技术参数偏离表",
      "项目概况表"
     ],
     "tables_written": 2,
     "toc_field_present": true,
-    "total_chars": 6721,
+    "total_chars": 11418,
     "warnings": {
      "count": 14,
      "head": [
@@ -3704,15 +4030,15 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 41.666732000066986
+   "elapsed_ms": 46.29906799891614
   },
   {
    "stage": "产物深检 docx",
    "tool": null,
    "args": {},
    "result": {
-    "size": 169477,
-    "sha256": "f4fc535f56942b1d5228eceb1680883586c7097ae2390f10beb33c0736374ae4"
+    "size": 197344,
+    "sha256": "6c7a033022adb128c16542871b6d86cd61ed9ffff2e29d34010860bd39d2b659"
    },
    "checks": [
     {
@@ -3745,16 +4071,16 @@
    "result": {
     "n_chapters": 22,
     "sample": {
-     "section_id": "SEC-0007",
+     "section_id": "SEC-0008",
      "attempt": 1,
-     "char_count": 344,
+     "char_count": 522,
      "citations": [
       "REQ-0001",
       "REQ-0002",
-      "REQ-0005",
-      "REQ-0006",
-      "REQ-0007",
-      "REQ-0008"
+      "REQ-0010",
+      "REQ-0013",
+      "REQ-0014",
+      "REQ-0016"
      ]
     }
    },
@@ -3787,18 +4113,25 @@
    "tool": "get_bid_project_state",
    "args": {},
    "result": {
-    "allowed_next_tools": [
-     "get_coverage_report",
-     "get_compliance_matrix",
-     "search_evidence",
-     "get_bid_project_state",
-     "export_bid_document",
-     "check_bid_quality",
-     "record_review_gate",
-     "record_addendum_waiver",
-     "score_section",
-     "score_document"
-    ],
+    "agent_waivers": [],
+    "allowed_next_tools": {
+     "count": 14,
+     "head": [
+      "get_coverage_report",
+      "recommend_length_profile",
+      "get_star_coverage",
+      "get_compliance_matrix",
+      "search_evidence",
+      "get_bid_project_state",
+      "export_bid_document",
+      "list_section_segments",
+      "check_bid_quality",
+      "record_review_gate",
+      "record_addendum_waiver",
+      "score_section"
+     ]
+    },
+    "human_review_complete": true,
     "status": "EXPORTED",
     "terminal": true
    },
@@ -3824,5 +4157,5 @@
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/full-pipeline/ws",
- "finished_at": "2026-11-03T16:30:20+00:00"
+ "finished_at": "2026-11-06T14:57:28+00:00"
 }

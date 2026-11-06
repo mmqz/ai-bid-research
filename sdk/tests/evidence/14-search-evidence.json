@@ -1,12 +1,12 @@
 {
  "case": "14-search-evidence",
  "transport": "mcp",
- "server_bin": "/home/z/my-project/bid-research-rw/bidcore/target/debug/bid-mcp-server",
- "server_sha256": "33d84ab7770b385083339d3c9d17fa2940ea9544a9b984afd4cec5bd88d43127",
+ "server_bin": "/home/z/my-project/.cargo-target-agente/debug/bid-mcp-server",
+ "server_sha256": "b70966dc89b99ee9ac4029adc56f6e28dcfdd8f8ccdc0f794932df4202560806",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-03T16:30:23+00:00",
+ "started_at": "2026-11-06T14:57:30+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.512001999908534
+   "elapsed_ms": 8.396134999202332
   },
   {
    "stage": "P1 import_tender_files",
@@ -95,6 +95,7 @@
       "deduplicated": false,
       "file_id": "TF-0002",
       "filename": "A-招标文件.docx",
+      "kind": "招标文件",
       "ocr_tier": "none",
       "pages": 0,
       "parse_status": "ok",
@@ -107,6 +108,7 @@
       "deduplicated": false,
       "file_id": "TF-0003",
       "filename": "C-补遗文件01.docx",
+      "kind": "补遗",
       "ocr_tier": "none",
       "pages": 0,
       "parse_status": "ok",
@@ -119,10 +121,11 @@
       "deduplicated": false,
       "file_id": "TF-0004",
       "filename": "evidence/EV-01-营业执照.pdf",
+      "kind": "附件",
       "ocr_tier": "none",
       "pages": 1,
       "parse_status": "ok",
-      "parse_summary": "pdf 文本层: 1 页 8 行块",
+      "parse_summary": "pdf 文本层: 1 页 8 行块；结构形态[未识别]: 0 章标记；【结构告警】未识别到顶层章节骨架（无「第X章/第X部分/N.标题」形态）——章节上下文为空，分类将依赖词面/表格/否决词典兜底（issue #272：不静默失败，响亮登记）",
       "sha256": "b1b4811b9c1b96e1bff95a49dcba07434cd391d7939e82b7453d18142b80258c",
       "tables": 0
      },
@@ -131,10 +134,11 @@
       "deduplicated": false,
       "file_id": "TF-0005",
       "filename": "evidence/EV-02-电子与智能化工程专业承包二级资质证书.pdf",
+      "kind": "附件",
       "ocr_tier": "none",
       "pages": 1,
       "parse_status": "ok",
-      "parse_summary": "pdf 文本层: 1 页 7 行块",
+      "parse_summary": "pdf 文本层: 1 页 7 行块；结构形态[未识别]: 0 章标记；【结构告警】未识别到顶层章节骨架（无「第X章/第X部分/N.标题」形态）——章节上下文为空，分类将依赖词面/表格/否决词典兜底（issue #272：不静默失败，响亮登记）",
       "sha256": "60a2e9ce86ccab9bb8ad89be98bcfd8e802ee8d9ff6e20ce7ea4f2e23964c7b6",
       "tables": 0
      }
@@ -168,7 +172,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 244.26580099998318
+   "elapsed_ms": 239.2080139979953
   },
   {
    "stage": "P2 extract_requirements",
@@ -199,6 +203,12 @@
     "missing_sequence": [],
     "project_version": 6,
     "request_id": "req-000004",
+    "star_summary": {
+     "captured": 0,
+     "declarations": 0,
+     "missing": 0,
+     "total": 0
+    },
     "status": "REQUIREMENTS_EXTRACTED",
     "warnings": [
      "ENGINE_PATH: A-招标文件.docx 经引擎路径解析（已知缺口：嵌套表 mdcore#39 / 域边界 mdcore#40——docs/b3-3-acceptance-report.md §6）",
@@ -215,7 +225,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 69.86595099988335
+   "elapsed_ms": 65.77666600060184
   },
   {
    "stage": "P3 build_outline",
@@ -229,6 +239,11 @@
      "requirements": 121,
      "sections": 28,
      "total_target_chars": 11000
+    },
+    "length": {
+     "approx_pages": 8,
+     "profile": "custom",
+     "target_total_chars": 6000
     },
     "project_version": 8,
     "request_id": "req-000005",
@@ -248,7 +263,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.428284000070562
+   "elapsed_ms": 8.64655600162223
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -262,16 +277,21 @@
      {
       "blocking": true,
       "cmp_id": "CMP-0001",
-      "draft_section_id": "SEC-0007",
+      "draft_section_id": "SEC-0008",
       "evidence": [],
+      "evidence_missing": false,
+      "evidence_required": false,
       "gap": null,
+      "pending_evidence_ids": [],
       "requirement": {
        "category": "否决项",
        "category_key": "veto",
        "clause_no": null,
        "id": "REQ-0001",
        "mandatory": true,
-       "params": {},
+       "params": {
+        "marked_by": "regex"
+       },
        "source_anchor": {
         "excerpt": "本项目预算金额：设备采购预算 350 万元（含税）；最高限价（招标控制价）：人民币 480 万元（含税），投标报价超过最高限价的作否决投标处理。",
         "file": "A-招标文件.docx",
@@ -281,21 +301,27 @@
        "statement": "本项目预算金额：设备采购预算 350 万元（含税）；最高限价（招标控制价）：人民币 480 万元（含税），投标报价超过最高限价的作否决投标处理。"
       },
       "response_policy": "default",
-      "status": "NOT_RESPONDED"
+      "status": "NOT_RESPONDED",
+      "substantive": false
      },
      {
       "blocking": true,
       "cmp_id": "CMP-0002",
-      "draft_section_id": "SEC-0007",
+      "draft_section_id": "SEC-0008",
       "evidence": [],
+      "evidence_missing": false,
+      "evidence_required": false,
       "gap": null,
+      "pending_evidence_ids": [],
       "requirement": {
        "category": "否决项",
        "category_key": "veto",
        "clause_no": "前附表-10",
        "id": "REQ-0002",
        "mandatory": true,
-       "params": {},
+       "params": {
+        "marked_by": "regex"
+       },
        "source_anchor": {
         "excerpt": "10 否决条款提示 未按本表第 9 项规定格式填写技术偏离表的，其投标作否决投标处理",
         "file": "A-招标文件.docx",
@@ -305,21 +331,27 @@
        "statement": "10 否决条款提示 未按本表第 9 项规定格式填写技术偏离表的，其投标作否决投标处理"
       },
       "response_policy": "default",
-      "status": "NOT_RESPONDED"
+      "status": "NOT_RESPONDED",
+      "substantive": false
      },
      {
       "blocking": false,
       "cmp_id": "CMP-0003",
       "draft_section_id": "SEC-0012",
       "evidence": [],
+      "evidence_missing": false,
+      "evidence_required": false,
       "gap": null,
+      "pending_evidence_ids": [],
       "requirement": {
        "category": "其他",
        "category_key": "other",
        "clause_no": "3.1.1",
        "id": "REQ-0003",
        "mandatory": false,
-       "params": {},
+       "params": {
+        "marked_by": "regex"
+       },
        "source_anchor": {
         "excerpt": "3.1.1 适用范围：本须知适用于本项目投标、开标、评标、定标及合同签订全过程。",
         "file": "A-招标文件.docx",
@@ -329,7 +361,8 @@
        "statement": "3.1.1 适用范围：本须知适用于本项目投标、开标、评标、定标及合同签订全过程。"
       },
       "response_policy": "default",
-      "status": "NOT_RESPONDED"
+      "status": "NOT_RESPONDED",
+      "substantive": false
      }
     ],
     "n_blocking": 19
@@ -356,16 +389,16 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 20.391506999658304,
+   "elapsed_ms": 24.105631000566063,
    "extra": {
     "sections": {
-     "SEC-0007": [
+     "SEC-0008": [
       "REQ-0001",
       "REQ-0002",
-      "REQ-0005",
-      "REQ-0006",
-      "REQ-0007",
-      "REQ-0008"
+      "REQ-0010",
+      "REQ-0013",
+      "REQ-0014",
+      "REQ-0016"
      ],
      "SEC-0012": [
       "REQ-0003",
@@ -374,13 +407,13 @@
       "REQ-0018",
       "REQ-0024"
      ],
-     "SEC-0008": [
+     "SEC-0007": [
+      "REQ-0005",
+      "REQ-0006",
+      "REQ-0007",
+      "REQ-0008",
       "REQ-0009",
-      "REQ-0010",
-      "REQ-0013",
-      "REQ-0014",
-      "REQ-0016",
-      "REQ-0017"
+      "REQ-0051"
      ],
      "SEC-0016": [
       "REQ-0011",
@@ -390,12 +423,12 @@
       "REQ-0050"
      ],
      "SEC-0009": [
+      "REQ-0017",
       "REQ-0019",
       "REQ-0020",
       "REQ-0021",
       "REQ-0022",
-      "REQ-0023",
-      "REQ-0051"
+      "REQ-0023"
      ],
      "SEC-0018": [
       "REQ-0029",
@@ -535,8 +568,9 @@
     "ev_id": "EV-0034",
     "excerpt": null,
     "excerpt_locator": null,
-    "hint": "新 EV 已签发（若为同 key 换版，旧记录已单向降级 SUPERSEDED；全新登记则无旧记录）",
+    "hint": "新 EV 已签发（若为同 key 换版，旧记录已单向降级 SUPERSEDED 且既有绑定迁移到新记录；全新登记则无旧记录）",
     "kind": "qualification",
+    "placeholder": false,
     "project_version": 9,
     "request_id": "req-000007",
     "status": "ACTIVE",
@@ -556,7 +590,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.777131000035297
+   "elapsed_ms": 7.233613003336359
   },
   {
    "stage": "P4 bind_evidence",
@@ -572,6 +606,7 @@
      "blocking": 0,
      "rows": 121
     },
+    "placeholder": false,
     "project_version": 111,
     "replayed": 0,
     "request_id": "req-000008",
@@ -588,7 +623,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.578613000077894
+   "elapsed_ms": 7.927152997581288
   },
   {
    "stage": "G3 record_review_gate ×2",
@@ -604,10 +639,12 @@
     }
    },
    "result": {
+    "agent_waivers": [],
     "gates_approved": [
      "matrix_approval",
      "outline_approval"
     ],
+    "human_review_complete": true,
     "project_version": 113,
     "receipt": {
      "actor": {
@@ -618,8 +655,10 @@
      "decision": "APPROVED",
      "finding_ids": [],
      "gate": "outline_approval",
-     "review_id": "REV-0036",
-     "reviewed_content_digest": "257eeb460a0d96aae417bdef0e27b8b94f6a02e8152c5ad7457e3880a5dd5724",
+     "human_confirmed": true,
+     "method": "human_receipt",
+     "review_id": "REV-0037",
+     "reviewed_content_digest": "453cce6f1392862efb60f30645220a23ed80b1688b47b8a36f97381054ca7c92",
      "reviewer": "human:mcp-e2e-lead",
      "spawned_rt_ids": []
     },
@@ -648,7 +687,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 15.35144300032698
+   "elapsed_ms": 16.567760998441372
   },
   {
    "stage": "S0 register_evidence ×4",
@@ -658,10 +697,10 @@
    },
    "result": {
     "ev_ids": {
-     "ISO9001 质量管理体系认证证书": "EV-0037",
-     "营业执照": "EV-0038",
-     "智慧园区弱电工程合同": "EV-0039",
-     "ISO14001 环境管理体系认证证书": "EV-0040"
+     "ISO9001 质量管理体系认证证书": "EV-0039",
+     "营业执照": "EV-0040",
+     "智慧园区弱电工程合同": "EV-0041",
+     "ISO14001 环境管理体系认证证书": "EV-0042"
     }
    },
    "checks": [
@@ -674,7 +713,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 39.46675099996355
+   "elapsed_ms": 29.139444999600528
   },
   {
    "stage": "① exact cert=ISO9001",
@@ -688,9 +727,9 @@
    "result": {
     "hits": [
      {
-      "chunk_id": "EV-0037#whole",
+      "chunk_id": "EV-0039#whole",
       "content": "ISO9001 质量管理体系认证证书；质量管理体系；投标人",
-      "ev_id": "EV-0037",
+      "ev_id": "EV-0039",
       "excerpt": null,
       "excerpt_locator": null,
       "kind": "certificate",
@@ -757,7 +796,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 1.5131860000110464
+   "elapsed_ms": 1.1697690024448093
   },
   {
    "stage": "①b exact amount/date",
@@ -788,7 +827,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 1.7709939997985202
+   "elapsed_ms": 1.4403790009964723
   },
   {
    "stage": "② semantic 营业执照/部分覆盖",
@@ -801,9 +840,9 @@
     "r1": {
      "hits": [
       {
-       "chunk_id": "EV-0038#whole",
+       "chunk_id": "EV-0040#whole",
        "content": "营业执照；中华人民共和国境内注册的法人；投标人",
-       "ev_id": "EV-0038",
+       "ev_id": "EV-0040",
        "excerpt": null,
        "excerpt_locator": null,
        "kind": "qualification",
@@ -835,9 +874,9 @@
     "r2": {
      "hits": [
       {
-       "chunk_id": "EV-0039#whole",
+       "chunk_id": "EV-0041#whole",
        "content": "智慧园区弱电工程合同；弱电工程；投标人；某某工业园区管委会",
-       "ev_id": "EV-0039",
+       "ev_id": "EV-0041",
        "excerpt": null,
        "excerpt_locator": null,
        "kind": "performance",
@@ -889,7 +928,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 1.3481280002451967
+   "elapsed_ms": 1.0328360003768466
   },
   {
    "stage": "③ hybrid 合并去重",
@@ -904,9 +943,9 @@
    "result": {
     "hits": [
      {
-      "chunk_id": "EV-0037#whole",
+      "chunk_id": "EV-0039#whole",
       "content": "ISO9001 质量管理体系认证证书；质量管理体系；投标人",
-      "ev_id": "EV-0037",
+      "ev_id": "EV-0039",
       "excerpt": null,
       "excerpt_locator": null,
       "kind": "certificate",
@@ -961,7 +1000,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 0.7237979998535593
+   "elapsed_ms": 0.5395179978222586
   },
   {
    "stage": "④ 过期降权+warning",
@@ -973,16 +1012,16 @@
    "result": {
     "hits": [
      {
-      "ev_id": "EV-0037",
+      "ev_id": "EV-0039",
       "score": 1.0
      },
      {
-      "ev_id": "EV-0040",
+      "ev_id": "EV-0042",
       "score": 0.5
      }
     ],
     "warnings": [
-     "EVIDENCE_EXPIRED: EV-0040（ISO14001 环境管理体系认证证书）有效期至 2026-11-30，早于开标日 2026-12-31——已降权 score×0.5（禁绑口径见 bind_evidence）"
+     "EVIDENCE_EXPIRED: EV-0042（ISO14001 环境管理体系认证证书）有效期至 2026-11-30，早于开标日 2026-12-31——已降权 score×0.5（禁绑口径见 bind_evidence）"
     ]
    },
    "checks": [
@@ -1007,7 +1046,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 0.9654640002736414
+   "elapsed_ms": 0.7181569999374915
   },
   {
    "stage": "⑤ 排序确定性",
@@ -1035,7 +1074,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 3.068448999783868
+   "elapsed_ms": 2.334266999241663
   },
   {
    "stage": "⑤b 错误信封（E_* 归类）",
@@ -1099,10 +1138,10 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 2.873769999951037
+   "elapsed_ms": 2.563124999142019
   }
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/search-evidence/ws",
- "finished_at": "2026-11-03T16:30:23+00:00"
+ "finished_at": "2026-11-06T14:57:31+00:00"
 }

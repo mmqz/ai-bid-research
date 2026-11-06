@@ -43,6 +43,138 @@
 
 **例外：无。** 即使是「一行文档改动」「紧急修复」也必须走 PR。
 
+
+---
+
+# 零之二、认领与身份（必须先做）
+
+## 0.1 开工前认领 issue
+
+**开始任何工作之前，必须在 issue 上留言认领。**
+
+```bash
+gh issue comment <number> --repo mmqz/<repo> --body "认领：<你的身份> 承接本任务，预计 <时间>"
+```
+
+**为什么**：
+
+```
+· 多个代理同时看到同一个 issue → 不认领就会重复劳动
+· Lead 需要知道每个 issue 归属谁，才能派单和催进度
+· 认领记录是「谁做的」的第一手证据
+```
+
+## 0.2 身份命名规则
+
+### 情况 A：用户已命名
+
+```
+用户说「你叫 C」→ 你的身份就是 C
+所有提交、PR、issue 评论都用这个名字
+```
+
+### 情况 B：用户没命名
+
+**自己生成一个不重复的随机后缀，格式 Agent-<4位小写字母数字>**
+
+```
+示例：Agent-hd2k4 / Agent-x7m2 / Agent-p9qr
+
+生成方法（任选）：
+  Linux:   echo "Agent-$(head -c4 /dev/urandom | xxd -p | head -c4)"
+  Python:  python3 -c "import secrets,string;print(chr(34)+chr(65)+chr(103)+chr(101)+chr(110)+chr(116)+chr(45)+chr(34) + ...)"
+  手动:    随机敲 4 个字符
+```
+
+**避免重复**：
+
+```
+生成后先查一下有没有被占用：
+  在任务面板 #229 看已有的名字列表
+  或 gh api repos/mmqz/<repo>/issues?state=all --jq 筛选
+
+重复了 → 重新生成一个
+```
+
+### 身份一旦确定，全程不变
+
+```
+❌ 今天叫 Agent-hd2k4，明天叫 Agent-temp1
+✅ 一个会话内所有产出都用同一个名字
+   跨会话如果记得上次的名字，继续用；不记得就新生成
+```
+
+---
+
+## 0.3 身份必须出现在四个地方
+
+### ① issue 认领评论
+
+```markdown
+认领：Agent-hd2k4
+
+承接本任务，预计 2 小时。
+计划：
+  1. xxx
+  2. xxx
+```
+
+### ② commit message 末尾
+
+```bash
+git commit -m "fix(#285): 标题" -m "Co-Authored-By: Agent-hd2k4 <agent-hd2k4@mang.local>"
+```
+
+**格式固定**：`Co-Authored-By: <身份> <agent-<小写>@mang.local>`
+
+### ③ PR 描述开头
+
+```markdown
+**提交者**：Agent-hd2k4
+
+## 交付概要
+...
+```
+
+### ④ 完成时在 issue 的关闭评论
+
+```markdown
+Agent-hd2k4 交付完成
+
+PR #xxx 已合并，commit abc1234
+
+验收对照：
+| 要求 | 证据 |
+|---|---|
+...
+```
+
+---
+
+# 0.4 为什么身份要可追溯
+
+```
+· 出问题时知道找谁（「这个 PR 是 Agent-x7m2 交付的，问他」）
+· 质量统计（谁的 PR 一次过、谁的总要返工）
+· 避免「无人认领」的悬空工作
+· 避免 A 的代码记到 B 头上
+```
+
+## 0.5 认领冲突处理
+
+```
+如果发现 issue 已被人认领：
+  · 不要重复做
+  · 在评论里说明「看到 Agent-xxx 已认领，我不重复」
+  · 去做别的 issue
+
+如果发现认领者很久没动静（>1 天）：
+  · 先问一句「Agent-xxx 还在做吗？」
+  · 对方确认放弃后才接手，不要直接抢
+```
+
+---
+
 # 一、工作流铁律
 
 ## 1. 开分支前必须同步 main
@@ -360,6 +492,12 @@ ai-bid 依赖 mdcore（通过 crates.io 或 git rev）
 
 # 八、快速检查清单
 
+**开工前**：
+```
+[ ] 在 issue 上留言认领（含身份）
+[ ] 确认 issue 没被别人认领
+```
+
 **开分支前**：
 ```
 [ ] git fetch origin main && git checkout -f origin/main
@@ -374,6 +512,7 @@ ai-bid 依赖 mdcore（通过 crates.io 或 git rev）
 
 **开 PR 后**：
 ```
+[ ] PR 描述开头有「**提交者**：<身份>」
 [ ] 立即开下一项，不等 CI
 [ ] PR 描述含：验收对照 + 实测证据 + 未做的
 ```

@@ -32,8 +32,10 @@ const ALL_STATES: [ProjectStatus; 10] = [
 /// #219 增全块覆盖三工具；#226 增 `set_matrix_override`（尾插——矩阵已建
 /// 才有可覆写对象，MatrixReady 起放行）；#243 增 `recover_validating_state`
 ///（尾插——仅 VALIDATING 态放行的历史异常恢复出口）；#254 增分段三工具
-///（尾插——append/rewrite 与整稿同窗口，list 全矩阵窗口只读）= 29。
-const ALL_TOOLS: [&str; 29] = [
+///（尾插——append/rewrite 与整稿同窗口，list 全矩阵窗口只读）= 29；
+/// #287 增 `recommend_length_profile`（尾插——篇幅档位推荐只读，
+/// REQUIREMENTS_EXTRACTED+ 含 Exported：信号来自 REQ 面，建纲前后均可查）= 30。
+const ALL_TOOLS: [&str; 30] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -68,6 +70,8 @@ const ALL_TOOLS: [&str; 29] = [
     "append_section_segment",
     "rewrite_section_segment",
     "list_section_segments",
+    // #287 篇幅档位推荐（只读——REQUIREMENTS_EXTRACTED+ 含 Exported）
+    "recommend_length_profile",
 ];
 
 // ---------------------------------------------------------------- 1. 前向迁移表
@@ -236,26 +240,28 @@ fn full_matrix_snapshot() {
         //   #254 尾插三位 append/rewrite/list（与整稿同窗口）；
         //   #241 在 DRAFTING..READY_TO_EXPORT 翻 5/6 位（register/bind evidence——
         //        证据补件通道）。两个 PR 各自改位串矩阵，本表为两者并集。
-        // Draft（record_addendum_waiver 拒——导入前无件可确认）
-        (ProjectStatus::Draft, "11000000000000100000000000000"),
-        // FilesImported
-        (ProjectStatus::FilesImported, "01101000100000100000111100000"),
-        // RequirementsExtracted
-        (ProjectStatus::RequirementsExtracted, "01111000100000100000111100000"),
-        // MatrixReady（#254 尾三位 111——分段写入与整稿同窗口）
-        (ProjectStatus::MatrixReady, "00001110110010110110100110111"),
-        // EvidenceBound
-        (ProjectStatus::EvidenceBound, "00001110110010110110100110111"),
-        // Drafting（#254 尾三位 111；#241 5/6 位翻 1——证据补件主战场）
-        (ProjectStatus::Drafting, "00001110110111110110100110111"),
-        // Validating（#243 尾区位 1；#254 尾三 001；#241 5/6 位翻 1）
-        (ProjectStatus::Validating, "00001110100111110110100111001"),
-        // Reviewing（#254 尾三 001；#241 5/6 位翻 1）
-        (ProjectStatus::Reviewing, "00001110100111110110100110001"),
+        // Draft（record_addendum_waiver 拒——导入前无件可确认；#287 尾位 0
+        //   ——无 REQ 面，推荐信号不存在）
+        (ProjectStatus::Draft, "110000000000001000000000000000"),
+        // FilesImported（#287 尾位 0——同上，抽取前无信号）
+        (ProjectStatus::FilesImported, "011010001000001000001111000000"),
+        // RequirementsExtracted（#287 尾位 1——推荐主窗口：P3 建纲前）
+        (ProjectStatus::RequirementsExtracted, "011110001000001000001111000001"),
+        // MatrixReady（#254 尾三位 111——分段写入与整稿同窗口；#287 尾位 1）
+        (ProjectStatus::MatrixReady, "000011101100101101101001101111"),
+        // EvidenceBound（同上）
+        (ProjectStatus::EvidenceBound, "000011101100101101101001101111"),
+        // Drafting（#254 尾三位 111；#241 5/6 位翻 1——证据补件主战场；#287 尾位 1）
+        (ProjectStatus::Drafting, "000011101101111101101001101111"),
+        // Validating（#243 尾区位 1；#254 尾三 001；#241 5/6 位翻 1；#287 尾位 1）
+        (ProjectStatus::Validating, "000011101001111101101001110011"),
+        // Reviewing（#254 尾三 001；#241 5/6 位翻 1；#287 尾位 1）
+        (ProjectStatus::Reviewing, "000011101001111101101001100011"),
         // ReadyToExport（同上）
-        (ProjectStatus::ReadyToExport, "00001110100111110110100110001"),
-        // Exported（终态不变量：终态不改数据——#241 不被括进来；#254 仅只读 list）
-        (ProjectStatus::Exported, "00001000100011110110100110001"),
+        (ProjectStatus::ReadyToExport, "000011101001111101101001100011"),
+        // Exported（终态不变量：终态不改数据——#241 不被括进来；#254 仅只读
+        //   list；#287 尾位 1——导出后仍可查推荐口径追溯）
+        (ProjectStatus::Exported, "000010001000111101101001100011"),
     ];
     assert_eq!(grid.len(), ALL_STATES.len());
 

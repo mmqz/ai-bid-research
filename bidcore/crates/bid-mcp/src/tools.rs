@@ -55,6 +55,8 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         "check_bid_quality" => check_bid_quality(svc, args),
         // ---- #80 第三批 MCP 补齐（G1/G2/G3——外部 Agent 纯 MCP 驱动全链）----
         "build_outline" => build_outline(svc, args),
+        // ---- #287 篇幅档位推荐（只读——P3 建纲前：建议+理由+alternatives 交用户确认） ----
+        "recommend_length_profile" => recommend_length_profile(svc, args),
         "register_evidence" => register_evidence(svc, args),
         "bind_evidence" => bind_evidence(svc, args),
         "record_review_gate" => record_review_gate(svc, args),
@@ -3939,6 +3941,17 @@ fn build_outline(svc: &mut BidService, args: Value) -> ToolResult {
     let project_version = opt_cas_version(&args, TOOL)?;
     let target_total_chars = opt_u64(&args, "target_total_chars", TOOL)?;
     let max_reqs_per_leaf = opt_u64(&args, "max_reqs_per_leaf", TOOL)?;
+    // #287 篇幅档位：四档键显式校验（拼错档不得静默落默认档）
+    let length_profile = opt_str(&args, "length_profile", TOOL)?;
+    if let Some(k) = &length_profile {
+        if bid_domain::outline::LengthProfile::from_key(k).is_none() {
+            return Err(ToolError::EUnprocessable {
+                what: format!(
+                    "{TOOL}: length_profile 非法：{k}（合法值：practical|standard|conservative|maximum——对应 400,000/800,000/1,200,000/2,500,000 字）"
+                ),
+            });
+        }
+    }
     if let Some(t) = target_total_chars {
         if !(1_000..=5_000_000).contains(&t) {
             return Err(ToolError::EUnprocessable {
@@ -3970,10 +3983,16 @@ fn build_outline(svc: &mut BidService, args: Value) -> ToolResult {
         });
     }
 
+    // #287 三者优先：target_total_chars 显式给 → 用它；length_profile 显式
+    // 给 → 档位字数；都不给 → 默认档（Conservative 1,200,000——单一真源
+    // 常量，此处不得另写数字；曾 unwrap_or(20_000) 覆盖域层默认 → 24 页纲）
+    let profile_target = length_profile
+        .as_deref()
+        .and_then(bid_domain::outline::LengthProfile::from_key)
+        .map(|p| p.target_total_chars());
     let spec = bid_domain::outline::OutlineSpec {
-        // #253 第一段：默认值单一真源在 bid-domain——此处不得另写数字
-        // （曾 unwrap_or(20_000) 覆盖域层默认 → 24 页纲）。
         target_total_chars: target_total_chars
+            .or(profile_target.map(u64::from))
             .unwrap_or(u64::from(bid_domain::outline::DEFAULT_TARGET_TOTAL_CHARS))
             .min(u32::MAX as u64) as u32,
         max_reqs_per_leaf: max_reqs_per_leaf.unwrap_or(8) as usize,
@@ -3994,6 +4013,12 @@ fn build_outline(svc: &mut BidService, args: Value) -> ToolResult {
         .collect();
     let total_target: u64 = leaves.iter().map(|n| n.target_chars as u64).sum();
 
+    // #287 档位回显：生效档（或 custom）+ 生效目标 + 页数——审计面可核对
+    // 「选了什么档、引擎用了多少字」；E_TOTAL_CHARS_BELOW_MIN 门禁随
+    // outline_total_chars()（配额总和）动态判——档位化后自动按选中档生效
+    let effective_profile = bid_domain::outline::LengthProfile::ALL
+        .into_iter()
+        .find(|p| p.target_total_chars() == spec.target_total_chars);
     Ok(json!({
         "counts": {
             "sections": n_sections,
@@ -4003,9 +4028,199 @@ fn build_outline(svc: &mut BidService, args: Value) -> ToolResult {
             "matrix_rows": n_rows,
             "matrix_blocking": n_blocking,
         },
+        "length": {
+            "profile": effective_profile
+                .map(|p| serde_json::to_value(p).unwrap_or(json!("custom")))
+                .unwrap_or(json!("custom")),
+            "target_total_chars": spec.target_total_chars,
+            "approx_pages": (u64::from(spec.target_total_chars)
+                + u64::from(bid_domain::outline::CHARS_PER_PAGE)
+                - 1)
+                / u64::from(bid_domain::outline::CHARS_PER_PAGE),
+        },
         "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
         "project_version": svc.store().content_version(),
         "request_id": next_request_id(),
+    }))
+}
+
+// ---------------------------------------------------------------- #287 篇幅档位推荐
+
+/// 采购类型推断（#287 修正项信号——关键词面，best-effort）。
+///
+/// 依据：项目名 + REQ 锚文关键词（工程类天然厚重 → 上调一档）。Agent
+/// 可通过显式选档覆盖（决策权在用户——推断只是建议信号）。
+fn infer_tender_type(text: &str) -> bid_domain::outline::TenderType {
+    use bid_domain::outline::TenderType;
+    let has = |kws: &[&str]| kws.iter().any(|k| text.contains(k));
+    if has(&["工程", "施工", "建筑", "装修", "监理", "安装", "市政", "水利", "公路", "EPC"]) {
+        TenderType::Engineering
+    } else if has(&["服务", "运维", "运营", "维护", "咨询", "传媒", "传播", "租赁", "培训", "平台"]) {
+        TenderType::Service
+    } else {
+        TenderType::Goods
+    }
+}
+
+/// 招标文件明写篇幅扫描（#287 信号 1——最高优先级）。
+///
+/// 模式（保守面——只认明确的限值表述；10 份真实语料实测无一条篇幅
+/// 限制，本扫描主要服务「有明写时自动采用」）：
+/// - 「不超过/不得超过/最多/限制在 … N 页/字」
+/// - 「N 页/字 以内/之内」
+/// 返回字数（页 × 844 换算）；无 → None。
+fn scan_explicit_length_limit(text: &str) -> Option<u32> {
+    let chars: Vec<char> = text.chars().collect();
+    let n = chars.len();
+    let mut best: Option<u32> = None;
+    for i in 0..n {
+        // 找数字起点
+        if !chars[i].is_ascii_digit() {
+            continue;
+        }
+        let start = i;
+        let mut j = i;
+        while j < n && chars[j].is_ascii_digit() {
+            j += 1;
+        }
+        let num: String = chars[start..j].iter().collect();
+        let Ok(v) = num.parse::<u64>() else { continue };
+        if !(50..=5_000_000).contains(&v) {
+            continue; // 页/字合理域（防序号/价格误伤）
+        }
+        let after = &chars[j..(n.min(j + 12))];
+        let after_s: String = after.iter().collect();
+        let before_win = chars[start.saturating_sub(12)..start]
+            .iter()
+            .collect::<String>();
+        let is_page = after_s.starts_with('页');
+        let is_char = after_s.starts_with('字');
+        if !is_page && !is_char {
+            continue;
+        }
+        let limit_before = before_win.contains("不超过")
+            || before_win.contains("不得超过")
+            || before_win.contains("最多")
+            || before_win.contains("限制在");
+        let limit_after = after_s.contains("以内") || after_s.contains("之内");
+        if limit_before || limit_after {
+            let chars_value = if is_page {
+                v.saturating_mul(u64::from(bid_domain::outline::CHARS_PER_PAGE))
+            } else {
+                v
+            } as u32;
+            best = Some(best.map_or(chars_value, |b: u32| b.min(chars_value)));
+        }
+    }
+    best
+}
+
+/// `recommend_length_profile`（#287——只读：P3 建纲前先调，把建议+理由+
+/// alternatives 呈现给用户确认；**决策权在用户**，Agent 只推荐）。
+///
+/// 信号面（引擎可编程信号）：
+/// - 细则数：`collect_scoring_rows` 的 `sub_items` 总和（#252 预派生——无需先建纲）
+/// - ★条款数：REQ `params.star == true` 计数（#276 标记面 ∪ #280 抽取面汇流；
+///   #285 star_scan 字面真值口径在其 PR 合并后接入——两口径档位结论等价）
+/// - 预算：REQ `params.amount_wan` 最大值（万元 ×10⁴ → 元）
+/// - 采购类型：项目名 + 锚文关键词推断（工程/服务/货物）
+/// - 明写篇幅：锚文限值模式扫描（页 ×844 换算）
+fn recommend_length_profile(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "recommend_length_profile";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    route_project(svc, &project_id, TOOL)?;
+
+    let reqs = svc.store().requirements().to_vec();
+    if reqs.is_empty() {
+        return Err(ToolError::EState {
+            what: "条款集为空——先 extract_requirements（推荐信号来自 REQ 面）".into(),
+        });
+    }
+
+    // ---- #287 信号收集（原始值随行回显——用户可核对）
+    let scoring_detail_count: usize = bid_domain::scoring_outline::collect_scoring_rows(&reqs)
+        .iter()
+        .map(|r| r.sub_items.len())
+        .sum();
+    // ★计数：params.star 标记面（#276 标记面 ∪ #280 抽取面汇流；#285
+    // star_scan 字面真值口径在其 PR 合并后接入——两口径档位结论等价：
+    // 真实语料实测 hq-dev 47/53 均>30、nm-health 8/10 均≤30、wenming 5/7
+    // 均≤30，修正项触发面一致）
+    let star_count: usize = reqs
+        .iter()
+        .filter(|r| r.params.get("star").and_then(|v| v.as_bool()) == Some(true))
+        .count();
+    let budget_yuan: Option<u64> = reqs
+        .iter()
+        .filter_map(|r| {
+            r.params
+                .get("amount_wan")
+                .and_then(|v| v.as_f64())
+                .filter(|v| *v > 0.0)
+                .map(|v| v as u64)
+        })
+        .fold(None::<u64>, |acc, v| Some(acc.map_or(v, |a| a.max(v))));
+    // 类型/明写篇幅的文本面：项目名 + 锚文（前 300 条 × 每锚前 120 字）
+    let mut text_face = String::new();
+    if let Ok(p) = svc.store().project() {
+        text_face.push_str(&p.name);
+    }
+    for r in reqs.iter().take(300) {
+        for a in r.anchors.iter().take(3) {
+            text_face.push_str(&a.excerpt.chars().take(120).collect::<String>());
+        }
+    }
+    let tender_type = infer_tender_type(&text_face);
+    let explicit_limit = scan_explicit_length_limit(&text_face);
+
+    let rec = bid_domain::outline::recommend_length(
+        scoring_detail_count,
+        star_count,
+        budget_yuan,
+        tender_type,
+        explicit_limit,
+    );
+    let target_chars = rec
+        .from_tender_spec
+        .unwrap_or(rec.profile.target_total_chars());
+
+    let alternatives: Vec<Value> = bid_domain::outline::LengthProfile::ALL
+        .iter()
+        .map(|p| {
+            json!({
+                "profile": serde_json::to_value(p).unwrap(),
+                "label": p.label_zh(),
+                "chars": p.target_total_chars(),
+                "pages": p.approx_pages(),
+                "when": p.when_zh(),
+            })
+        })
+        .collect();
+
+    Ok(json!({
+        "project_id": project_id,
+        "recommended_profile": serde_json::to_value(rec.profile).unwrap(),
+        "profile_label": rec.profile.label_zh(),
+        "target_chars": target_chars,
+        "approx_pages": (u64::from(target_chars)
+            + u64::from(bid_domain::outline::CHARS_PER_PAGE) - 1)
+            / u64::from(bid_domain::outline::CHARS_PER_PAGE),
+        "confidence": serde_json::to_value(rec.confidence).unwrap(),
+        "reasons": rec.reasons,
+        "from_tender_spec": rec.from_tender_spec,
+        "alternatives": alternatives,
+        "signals": {
+            "scoring_detail_count": scoring_detail_count,
+            "star_count": star_count,
+            "budget_yuan": budget_yuan,
+            "tender_type": serde_json::to_value(tender_type).unwrap(),
+            "explicit_limit_chars": explicit_limit,
+        },
+        "next": if rec.from_tender_spec.is_some() {
+            "招标文件明写篇幅——build_outline(target_total_chars=明写值) 直接采用，无需用户选档"
+        } else {
+            "把建议 + 理由 + alternatives 呈现给用户确认后 build_outline(length_profile=…)——决策权在用户，推荐可被覆盖"
+        },
     }))
 }
 

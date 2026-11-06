@@ -1,0 +1,3570 @@
+{
+ "issue_refs": {
+  "1": [
+   {
+    "sha": "62c240f332",
+    "date": "2026-10-27 19:59",
+    "subject": "feat(bid-mcp): M0 工具解析与分发骨架 + Windows 编译修复（PR #1 合并）"
+   }
+  ],
+  "2": [
+   {
+    "sha": "c331241776",
+    "date": "2026-10-28 11:08",
+    "subject": "feat(b3-5): pdf 文本层引擎通道——extract_pdf_text 实装 + 映射 + 导入路由回退（issue #2 §B3, PR #22）"
+   },
+   {
+    "sha": "619743f970",
+    "date": "2026-10-28 02:59",
+    "subject": "feat(b3-5): pdf 文本层引擎通道——extract_pdf_text 实装 + 映射 + 导入路由回退（issue #2 §B3）"
+   },
+   {
+    "sha": "4c836feb23",
+    "date": "2026-10-28 10:52",
+    "subject": "feat(test): B5 引擎路径 GT-25 抽取质量评测——T18 双路径对比固化（issue #2 §B5, PR #21）"
+   },
+   {
+    "sha": "b8a11348dc",
+    "date": "2026-10-28 02:48",
+    "subject": "feat(test): B5 引擎路径 GT-25 抽取质量评测——T18 双路径对比固化（issue #2 §B5 证据面）"
+   },
+   {
+    "sha": "b34dcfcab4",
+    "date": "2026-10-28 10:45",
+    "subject": "feat(b3-4): xlsx 引擎通道——read_xlsx 实装 + 映射 + import 路由（issue #2 §B3, PR #20）"
+   },
+   {
+    "sha": "90331bd6f0",
+    "date": "2026-10-28 02:40",
+    "subject": "feat(b3-4): xlsx 引擎通道——read_xlsx 实装 + xlsx_to_parsed_file 映射 + import 路由（issue #2 §B3）"
+   },
+   {
+    "sha": "2cbf62070a",
+    "date": "2026-10-28 10:33",
+    "subject": "feat(b5): 业务闭环批次 1——引擎路径导入 + extract_requirements + get_compliance_matrix + A8 端到端（issue #"
+   },
+   {
+    "sha": "eed008550b",
+    "date": "2026-10-28 02:26",
+    "subject": "feat(b5): 业务闭环批次 1——docx 引擎路径导入 + extract_requirements + get_compliance_matrix + A8 端到端（is"
+   },
+   {
+    "sha": "54ab2ec3d7",
+    "date": "2026-10-28 10:12",
+    "subject": "feat(b3-3): 双跑差分全量验收——engine_diff v4 + 嵌套表格引擎缺口实证（issue #2 §B3 验收 2/3, PR #18）"
+   },
+   {
+    "sha": "d8697746af",
+    "date": "2026-10-28 08:59",
+    "subject": "feat(bid-engine): B3-2 EngineReader::read_docx 实装——引擎→镜像全字段搬运 + 15 项保真测试 (issue #2 §B3, PR"
+   },
+   {
+    "sha": "c9fd3d6758",
+    "date": "2026-10-27 14:54",
+    "subject": "issue #2 · T3：mdcore#17/#18/#19 验收复测（差分总账 + A1/A2 连带实证）"
+   },
+   {
+    "sha": "da6d119efa",
+    "date": "2026-10-27 05:01",
+    "subject": "issue #2 · T3 mdcore 三单验收复测（PR 预案→引擎已自研作废转验收）：探针基线前移 f7ddd39 + d6rev 后验全绿（ins 入读回/rev_inse"
+   },
+   {
+    "sha": "efeeb530cb",
+    "date": "2026-10-27 04:45",
+    "subject": "issue #2 · T1 B3 接口预演：bid-engine crate 只定义（EngineReader trait + 镜像类型 + 映射签名，编译绿零新依赖）+ engi"
+   },
+   {
+    "sha": "f6d63237ac",
+    "date": "2026-10-27 04:28",
+    "subject": "issue #2 · T2 修订/批注专项用例集：D6-revisions 5 变体+期望读回契约（mdcore#17/#19 验收夹具）+ 双侧当前行为真跑留证（engine d"
+   },
+   {
+    "sha": "8ec7f9a671",
+    "date": "2026-10-27 04:04",
+    "subject": "issue #2 · PR #3 精简：experiment.json 出库改存 summary.json（3.3KB 确定性摘要+口径断言）+ engine-probe bloc"
+   },
+   {
+    "sha": "315041d598",
+    "date": "2026-10-27 03:03",
+    "subject": "issue #2 · B1.5+B2+B2.5：语料扩充至118件基线 + 引擎缺口清单16条全实测 + 标题影响面量化"
+   },
+   {
+    "sha": "e57cac2de2",
+    "date": "2026-10-26 18:13",
+    "subject": "issue #2 · B1 盘点与基线冻结：93 件语料双跑基线（24 ok/69 显式拒绝）+ 6 类敌意件安全基线（5 拒 1 如实登记）+ capability-map 三套"
+   }
+  ],
+  "3": [
+   {
+    "sha": "8ec7f9a671",
+    "date": "2026-10-27 04:04",
+    "subject": "issue #2 · PR #3 精简：experiment.json 出库改存 summary.json（3.3KB 确定性摘要+口径断言）+ engine-probe bloc"
+   }
+  ],
+  "9": [
+   {
+    "sha": "2fc426fc26",
+    "date": "2026-10-28 07:32",
+    "subject": "test(skip): 依赖真实样本的测试全量加缺件 SKIP 横幅——issue #9 机制文件面"
+   },
+   {
+    "sha": "7672bd7d3c",
+    "date": "2026-10-27 20:27",
+    "subject": "feat(test): issue #9 SKIP 机制——环境缺件显式跳过，不伪装成业务 FAIL（PR #12）"
+   },
+   {
+    "sha": "6977b9e580",
+    "date": "2026-10-27 12:21",
+    "subject": "feat(test): issue #9 SKIP 机制——环境缺件显式跳过，不伪装成业务 FAIL"
+   }
+  ],
+  "11": [
+   {
+    "sha": "46ff02eadd",
+    "date": "2026-10-29 21:38",
+    "subject": "feat(b4): 删自研 docx/xlsx 解析——引擎单一真源 + guard zip 面收敛（issue #11 任务 3）"
+   },
+   {
+    "sha": "50e63327e5",
+    "date": "2026-10-29 21:15",
+    "subject": "feat(b4): 删自研 docx/xlsx 解析——引擎单一真源 + guard zip 面收敛（cargo tree 无 zip/quick-xml/calamine）（is"
+   },
+   {
+    "sha": "5edf49abb5",
+    "date": "2026-10-29 03:24",
+    "subject": "feat(e): 竞品体检——power_grid 真实语料 15 件六维基线（否决召回 0.386 暴露 PDF 行级碎片 P0）+ veto 词表 + REPORT Top10"
+   },
+   {
+    "sha": "9080d3a20f",
+    "date": "2026-10-29 01:12",
+    "subject": "feat(v3-5): S-6 组装与流式导出——docx-rs 逐章流式 + TOC 域 + 幂等导出清单 + 原子落盘 + paraId 确定化（500章/百万字 VmHWM "
+   },
+   {
+    "sha": "a2b8aa69d6",
+    "date": "2026-10-28 16:28",
+    "subject": "chore(dep): bump mdcore to 3204342d——#39 嵌套表格修复落地 + B3-3 r3 差分重跑（NESTED-TABLE 归零 / EQ+ED 9"
+   },
+   {
+    "sha": "22d236ef56",
+    "date": "2026-10-28 15:37",
+    "subject": "feat(v3-5): S-7 上下文预算与证据裁剪——四阶梯溢出策略 + 约束区永不截断 + truncated_evidence 标记（单章 ≤8k 实测验收）（issue #"
+   },
+   {
+    "sha": "c66aae0c2e",
+    "date": "2026-10-28 15:30",
+    "subject": "feat(v3-5): S-4 游标分页——opaque cursor 信封 + get_compliance_matrix 升级 + list_evidence/list_tas"
+   },
+   {
+    "sha": "a071cd40da",
+    "date": "2026-10-28 13:06",
+    "subject": "feat(v3-4): S-5 审核分片——局部按章并行 + 全局特征元组单列（六类冲突检出 + 内存峰值验收）（issue #11 批次 v3 / V3-4）"
+   },
+   {
+    "sha": "ed5884d7d4",
+    "date": "2026-10-28 13:06",
+    "subject": "feat(v3-4): T-7 审核闭环——三道门 + BLOCKER 强制派生 RT + 导出前置裁决（issue #11 批次 v3 / V3-4）"
+   },
+   {
+    "sha": "d2c30f6248",
+    "date": "2026-10-28 13:04",
+    "subject": "feat(v3-4): T-6 Assignment 任务分工——批量分配 + owner/status 过滤 + 重指派复位语义（issue #11 批次 v3 / V3-4）"
+   },
+   {
+    "sha": "7533a46865",
+    "date": "2026-10-28 12:35",
+    "subject": "feat(v3-3): S-2 断点续跑章节组装——每章立即落盘 + 原子提交 + 强杀重启字节不变（issue #11 批次 v3 / V3-3）"
+   },
+   {
+    "sha": "f3042b0642",
+    "date": "2026-10-28 12:29",
+    "subject": "feat(v3-3): S-3 索引分片——文件级分片 + 章节段级指纹增量 + 跨片检索等价（issue #11 批次 v3 / V3-3）"
+   },
+   {
+    "sha": "a5f7c838c5",
+    "date": "2026-10-28 12:24",
+    "subject": "feat(v3-3): T-4 ParamResponse 参数响应表——偏离自动检出（正/负/无/不可比）+ 废标级负偏离查询面（issue #11 批次 v3 / V3-3）"
+   },
+   {
+    "sha": "7ed4906f26",
+    "date": "2026-10-28 14:01",
+    "subject": "V3-1：Evidence 证据台账 ‖ Outline 章节树 ‖ DomainStore 持久化（issue #11 批次 v3）"
+   },
+   {
+    "sha": "c08c122c36",
+    "date": "2026-10-28 05:43",
+    "subject": "feat(v3-2): T-2 MatrixRow 响应矩阵 + blocking 导出闸门 ‖ T-3 ScoringItem 评分矩阵（issue #11 批次 v3 / V3"
+   },
+   {
+    "sha": "42ca288284",
+    "date": "2026-10-28 04:48",
+    "subject": "feat(v3-1): T-1 Evidence 台账 ‖ T-5 章节树 ‖ T-8 DomainStore 扩面+持久化（issue #11 批次 v3 / V3-1）"
+   },
+   {
+    "sha": "e05a59a98f",
+    "date": "2026-10-27 16:34",
+    "subject": "feat(bid-mcp): B-1 import_tender_files 接线——runner 服务化 + DomainStore 落库 + sha256 幂等（issue #"
+   }
+  ],
+  "12": [
+   {
+    "sha": "7672bd7d3c",
+    "date": "2026-10-27 20:27",
+    "subject": "feat(test): issue #9 SKIP 机制——环境缺件显式跳过，不伪装成业务 FAIL（PR #12）"
+   }
+  ],
+  "15": [
+   {
+    "sha": "d8697746af",
+    "date": "2026-10-28 08:59",
+    "subject": "feat(bid-engine): B3-2 EngineReader::read_docx 实装——引擎→镜像全字段搬运 + 15 项保真测试 (issue #2 §B3, PR"
+   },
+   {
+    "sha": "ac16f742b4",
+    "date": "2026-10-27 15:55",
+    "subject": "fix(bid-engine): PR #15 Lead review 整改——BlockSource 分流 + CI 条件步骤 + 差分 HF 双规则"
+   }
+  ],
+  "17": [
+   {
+    "sha": "55d7f6c98c",
+    "date": "2026-10-29 01:12",
+    "subject": "fix: env_preflight_sim TOCTOU 竞态——ENV_LOCK 串行化环境读写方（PR #17 同型修复延伸）"
+   },
+   {
+    "sha": "c87fe11fde",
+    "date": "2026-10-28 09:48",
+    "subject": "fix(bid-parse): env_preflight 测试竞态治本——env 变更移出测试体（PR #17）"
+   },
+   {
+    "sha": "c9fd3d6758",
+    "date": "2026-10-27 14:54",
+    "subject": "issue #2 · T3：mdcore#17/#18/#19 验收复测（差分总账 + A1/A2 连带实证）"
+   },
+   {
+    "sha": "f6d63237ac",
+    "date": "2026-10-27 04:28",
+    "subject": "issue #2 · T2 修订/批注专项用例集：D6-revisions 5 变体+期望读回契约（mdcore#17/#19 验收夹具）+ 双侧当前行为真跑留证（engine d"
+   }
+  ],
+  "18": [
+   {
+    "sha": "54ab2ec3d7",
+    "date": "2026-10-28 10:12",
+    "subject": "feat(b3-3): 双跑差分全量验收——engine_diff v4 + 嵌套表格引擎缺口实证（issue #2 §B3 验收 2/3, PR #18）"
+   },
+   {
+    "sha": "c9fd3d6758",
+    "date": "2026-10-27 14:54",
+    "subject": "issue #2 · T3：mdcore#17/#18/#19 验收复测（差分总账 + A1/A2 连带实证）"
+   }
+  ],
+  "19": [
+   {
+    "sha": "2cbf62070a",
+    "date": "2026-10-28 10:33",
+    "subject": "feat(b5): 业务闭环批次 1——引擎路径导入 + extract_requirements + get_compliance_matrix + A8 端到端（issue #"
+   },
+   {
+    "sha": "c9fd3d6758",
+    "date": "2026-10-27 14:54",
+    "subject": "issue #2 · T3：mdcore#17/#18/#19 验收复测（差分总账 + A1/A2 连带实证）"
+   },
+   {
+    "sha": "f6d63237ac",
+    "date": "2026-10-27 04:28",
+    "subject": "issue #2 · T2 修订/批注专项用例集：D6-revisions 5 变体+期望读回契约（mdcore#17/#19 验收夹具）+ 双侧当前行为真跑留证（engine d"
+   }
+  ],
+  "20": [
+   {
+    "sha": "b34dcfcab4",
+    "date": "2026-10-28 10:45",
+    "subject": "feat(b3-4): xlsx 引擎通道——read_xlsx 实装 + 映射 + import 路由（issue #2 §B3, PR #20）"
+   }
+  ],
+  "21": [
+   {
+    "sha": "4c836feb23",
+    "date": "2026-10-28 10:52",
+    "subject": "feat(test): B5 引擎路径 GT-25 抽取质量评测——T18 双路径对比固化（issue #2 §B5, PR #21）"
+   }
+  ],
+  "22": [
+   {
+    "sha": "c331241776",
+    "date": "2026-10-28 11:08",
+    "subject": "feat(b3-5): pdf 文本层引擎通道——extract_pdf_text 实装 + 映射 + 导入路由回退（issue #2 §B3, PR #22）"
+   }
+  ],
+  "35": [
+   {
+    "sha": "63745a74c6",
+    "date": "2026-10-29 07:52",
+    "subject": "fix(veto-p0a): PDF 行级碎片——段落重组+词表扩展+语境传播（#35 P0-A）"
+   },
+   {
+    "sha": "937c199161",
+    "date": "2026-10-29 07:29",
+    "subject": "fix(veto-p0b): DOCX 否决分类信号源+后置否定从句+表格否决面（#35 P0-B）"
+   },
+   {
+    "sha": "0846168886",
+    "date": "2026-10-29 05:30",
+    "subject": "feat(veto-measure): #35 第三步前置——可复现测量器（块对齐+文本双通道）+ main 基线快照"
+   },
+   {
+    "sha": "b7a8dd626e",
+    "date": "2026-10-29 03:25",
+    "subject": "feat(veto-gt): #35 第一步+第二步——否决项标注集 1212 条 + 基线测量（L1 抽取召回 0.3861 / L2 否决分类召回 0.0429 / PDF 0"
+   }
+  ],
+  "39": [
+   {
+    "sha": "65914f6e19",
+    "date": "2026-10-29 08:23",
+    "subject": "chore(dep): bump mdcore to 3204342d（#39 嵌套表落地 + B3-3 r3 差分：NESTED-TABLE 归零，等价率 90.82%→91.5"
+   },
+   {
+    "sha": "a2b8aa69d6",
+    "date": "2026-10-28 16:28",
+    "subject": "chore(dep): bump mdcore to 3204342d——#39 嵌套表格修复落地 + B3-3 r3 差分重跑（NESTED-TABLE 归零 / EQ+ED 9"
+   }
+  ],
+  "42": [
+   {
+    "sha": "be23df4aef",
+    "date": "2026-10-30 09:12",
+    "subject": "feat(#42): 阶段 7+8+9+10——版本历史 + 来源标注 + md diff + MCP save_version"
+   },
+   {
+    "sha": "669e629137",
+    "date": "2026-10-30 08:49",
+    "subject": "feat(#42): mang 桌面壳完整实现——12 模块 Rust 壳 + VSCode 风格 UI + 四渲染器"
+   },
+   {
+    "sha": "dabfb07ba9",
+    "date": "2026-10-30 00:00",
+    "subject": "feat(#42): 阶段 8 来源标注浮层——覆盖层角标 + 来源详情 + 认校验三态（绝不修改文件）"
+   },
+   {
+    "sha": "51e0246e27",
+    "date": "2026-10-29 23:53",
+    "subject": "feat(#42): 阶段 10 MCP save_version + skill 纪律——AI 存版本与桌面壳同一真源"
+   },
+   {
+    "sha": "039a0aa881",
+    "date": "2026-10-29 23:44",
+    "subject": "feat(#42): 阶段 9 md 层 diff——版本预览浮层升级「与当前对比 / 与上一版对比」"
+   },
+   {
+    "sha": "d26ca1f353",
+    "date": "2026-10-29 23:37",
+    "subject": "feat(#42): 阶段 7 版本历史——30s 自动快照 + 改动面板列版本 + 预览浮层 + 安全回滚"
+   },
+   {
+    "sha": "c1cbaf5901",
+    "date": "2026-10-29 21:57",
+    "subject": "feat(#42): mang 桌面壳——tao+wry WebView + 直链 bidcore + VSCode 风格 UI"
+   }
+  ],
+  "48": [
+   {
+    "sha": "5f0ef2f878",
+    "date": "2026-10-29 23:35",
+    "subject": "feat(#48): GT 增补轮1 修尺子——候选池盲区补标 +540 true，精确率 0.5057→0.7519"
+   },
+   {
+    "sha": "860ddfde88",
+    "date": "2026-10-29 15:06",
+    "subject": "feat(#48): GT 增补轮1 修尺子——候选池盲区补标 +540 true，P 0.5057→0.7519 达标"
+   }
+  ],
+  "50": [
+   {
+    "sha": "4299110907",
+    "date": "2026-10-30 00:06",
+    "subject": "fix(#50): 标题栏拖拽/双击/上边缘缩放——三处根因修复"
+   },
+   {
+    "sha": "017d186075",
+    "date": "2026-10-29 22:35",
+    "subject": "fix(#50): 标题栏拖拽/双击——JS 发起 + IPC drag 动作"
+   }
+  ],
+  "52": [
+   {
+    "sha": "9089481139",
+    "date": "2026-10-30 20:48",
+    "subject": "gt(#52,#68): RELATION/RECUSE 口径统一 + 补标 3 条"
+   },
+   {
+    "sha": "945e0b80b7",
+    "date": "2026-10-30 19:40",
+    "subject": "gt(#52,#68): Lead 裁决①落地——RELATION/RECUSE 口径统一 true，补标 3 条"
+   },
+   {
+    "sha": "a382f3579d",
+    "date": "2026-10-30 08:51",
+    "subject": "fix(#52): 引擎排除面——493 FP 归因 + 句级形态锁，P 0.7519→0.8762（红线零损失）"
+   },
+   {
+    "sha": "34a8468b17",
+    "date": "2026-10-29 16:58",
+    "subject": "fix(#52): 引擎排除面——493 FP 归因 + 句级形态锁，P 0.7519→0.8762（红线 L1/L2 零损失）"
+   }
+  ],
+  "53": [
+   {
+    "sha": "fac312deb8",
+    "date": "2026-10-30 08:58",
+    "subject": "feat(#53): xlsx 公式三件套——公式栏原文 + shared 从句展开 + 加载骨架屏"
+   },
+   {
+    "sha": "4d47577339",
+    "date": "2026-10-29 23:20",
+    "subject": "feat(#53): xlsx 公式三件套——公式栏显示公式原文 + shared 从句展开 + 加载骨架屏"
+   }
+  ],
+  "54": [
+   {
+    "sha": "5f78fba9d0",
+    "date": "2026-10-30 08:54",
+    "subject": "feat(#54): 文档大纲面板 + 页码显示 + 修复 docx 滚不动"
+   },
+   {
+    "sha": "7d260e0b8e",
+    "date": "2026-10-29 17:13",
+    "subject": "feat(#54): 文档大纲面板 + 页码显示——侧边栏大纲树 + docx 页码回调 + 滚动修复"
+   }
+  ],
+  "59": [
+   {
+    "sha": "12e2f715e6",
+    "date": "2026-10-30 12:33",
+    "subject": "docs(#59): 阶段 8 文档——USER-GUIDE + HANDOFF-NOTES 接手须知"
+   },
+   {
+    "sha": "e3a45b0e70",
+    "date": "2026-10-30 12:26",
+    "subject": "feat(#59): validate_bid_document——双层校验（防废标最后一道关）"
+   },
+   {
+    "sha": "cecd2acc38",
+    "date": "2026-10-30 12:25",
+    "subject": "feat(#59): e2e 全链——招标文件进 → 成品标书出"
+   },
+   {
+    "sha": "ee0d4629c6",
+    "date": "2026-10-30 12:24",
+    "subject": "feat(#59): export_bid_document——导出（双前置门 + format-spec + 暗标 + 路径逃逸校验）"
+   },
+   {
+    "sha": "45bd2599e1",
+    "date": "2026-10-30 12:23",
+    "subject": "feat(#59): format-spec——格式规格解析/验证/提取"
+   },
+   {
+    "sha": "462b525025",
+    "date": "2026-10-30 12:20",
+    "subject": "feat(#59): PDF 导出——LibreOffice headless 通道"
+   },
+   {
+    "sha": "8c1b9f0608",
+    "date": "2026-10-30 12:19",
+    "subject": "test(#59): 规模验证——50 万字 252 章全链红线实测"
+   },
+   {
+    "sha": "679e2619ae",
+    "date": "2026-10-30 11:46",
+    "subject": "feat(#59): draft_response_section——单章起草（mock + 引用回查 + CAS）"
+   },
+   {
+    "sha": "039dee6a2f",
+    "date": "2026-10-30 03:17",
+    "subject": "docs(#59): 阶段 8 文档——USER-GUIDE 用户手册 + HANDOFF-NOTES 接手须知大版本"
+   },
+   {
+    "sha": "93c544655c",
+    "date": "2026-10-30 03:15",
+    "subject": "feat(#59): 阶段 7 PDF 导出——LibreOffice headless 通道（298 页 2.7s / 幂等不重写 / 环境诚实拒）"
+   },
+   {
+    "sha": "a79c6f4676",
+    "date": "2026-10-30 03:06",
+    "subject": "test(#59): 阶段 6 规模验证——50 万字 252 章全链红线实测（导出 0.3s / 峰值 44MB / 零 OOM）"
+   },
+   {
+    "sha": "a7dabff879",
+    "date": "2026-10-30 03:03",
+    "subject": "feat(#59): 阶段 5 e2e 全链——招标文件进 → 成品标书出（真件 8 步 + 一键脚本）"
+   },
+   {
+    "sha": "d54469c34c",
+    "date": "2026-10-30 02:59",
+    "subject": "feat(#59): 阶段 3 validate_bid_document——双层校验落地（防废标最后一道关）"
+   },
+   {
+    "sha": "7cc930b22e",
+    "date": "2026-10-30 02:29",
+    "subject": "feat(#59): 阶段 2 export_bid_document——导出落地（双前置门 + format-spec 应用 + 暗标脱敏）"
+   },
+   {
+    "sha": "53757f909f",
+    "date": "2026-10-30 02:20",
+    "subject": "feat(#59): 阶段 4（提前）format-spec——格式规格解析/验证/从招标文件提取/docx 应用桥"
+   },
+   {
+    "sha": "6378b2662f",
+    "date": "2026-10-30 02:16",
+    "subject": "feat(#59): 阶段 4（提前）format-spec——格式规格解析/验证/从招标文件提取/docx 应用桥"
+   },
+   {
+    "sha": "5ae8493fd7",
+    "date": "2026-10-30 02:06",
+    "subject": "feat(#59): 阶段 1 draft_response_section——单章起草落地（mock 生成 + 引用回查 + CAS 写入 + S-2 落盘）"
+   }
+  ],
+  "68": [
+   {
+    "sha": "9089481139",
+    "date": "2026-10-30 20:48",
+    "subject": "gt(#52,#68): RELATION/RECUSE 口径统一 + 补标 3 条"
+   },
+   {
+    "sha": "945e0b80b7",
+    "date": "2026-10-30 19:40",
+    "subject": "gt(#52,#68): Lead 裁决①落地——RELATION/RECUSE 口径统一 true，补标 3 条"
+   },
+   {
+    "sha": "ef690475d7",
+    "date": "2026-10-30 19:38",
+    "subject": "docs(#68): 阶段 5 mang-shell 迁移评估——结论不换（工程面四条）"
+   },
+   {
+    "sha": "ecc8271126",
+    "date": "2026-10-30 19:37",
+    "subject": "docs(#68): Windows 构建运行手册 + 绿色版打包脚本"
+   },
+   {
+    "sha": "63e34f699a",
+    "date": "2026-10-30 08:28",
+    "subject": "docs(#68): 任务 A——Windows 构建与运行验证手册 + 任务 B 绿色版打包脚本"
+   },
+   {
+    "sha": "73e26975f6",
+    "date": "2026-10-30 15:57",
+    "subject": "docs(#68): 阶段 6 清理与文档——USER-GUIDE 补 LLM 配置章"
+   },
+   {
+    "sha": "4a5445b0a3",
+    "date": "2026-10-30 15:56",
+    "subject": "fix(#68): 阶段 4 PDF L2 残差——0.6960→0.8067（红线全过）"
+   },
+   {
+    "sha": "b6ac1c505e",
+    "date": "2026-10-30 15:56",
+    "subject": "feat(#68): 阶段 3 图片与表格嵌入——md 块渲染进 docx"
+   },
+   {
+    "sha": "b34758ef81",
+    "date": "2026-10-30 15:55",
+    "subject": "feat(#68): 阶段 2 生成质量验证——覆盖度检查 + 失败重试 + quality-report"
+   },
+   {
+    "sha": "811b7cc2a6",
+    "date": "2026-10-30 15:53",
+    "subject": "feat(#68): 阶段 1 真实 LLM 通路——RealGenerator + 三态切换 + 成本超时控制"
+   },
+   {
+    "sha": "52eba9f44f",
+    "date": "2026-10-30 07:10",
+    "subject": "docs(#68): 阶段 6 清理与文档——USER-GUIDE 补 LLM 配置/生成器区别/成本预估"
+   },
+   {
+    "sha": "ce10d9d741",
+    "date": "2026-10-30 07:08",
+    "subject": "docs(#68): 阶段 5 mang-shell 迁移评估——结论不换（GPL 硬阻断 + 四工程阻断）"
+   },
+   {
+    "sha": "1635773010",
+    "date": "2026-10-30 07:03",
+    "subject": "fix(#68): 阶段 4 PDF L2 残差修复——语境传播工程化，0.6960→0.8067（红线全过）"
+   },
+   {
+    "sha": "0a94de1ec5",
+    "date": "2026-10-30 06:23",
+    "subject": "feat(#68): 阶段 3 图片与表格嵌入——md 块渲染进 docx（图/表/标题行）"
+   },
+   {
+    "sha": "d9008adc95",
+    "date": "2026-10-30 06:11",
+    "subject": "feat(#68): 阶段 2 生成质量验证——覆盖度检查 + 失败重试策略 + quality-report 落盘"
+   },
+   {
+    "sha": "ffb410b542",
+    "date": "2026-10-30 05:48",
+    "subject": "feat(#68): 阶段 1 真实 LLM 通路——RealGenerator + 三态切换 + 成本超时控制"
+   }
+  ],
+  "76": [
+   {
+    "sha": "58b6806ca3",
+    "date": "2026-10-30 19:38",
+    "subject": "fix(#76): 桌面壳细节——拖拽黑边 + 设置面板 7 分组（MCP/LLM/工作区/格式规范）"
+   },
+   {
+    "sha": "c74895e31d",
+    "date": "2026-10-30 09:27",
+    "subject": "fix(#76): mang-app 补 serde 直接依赖——diag.rs 的 derive 面（CI 新门禁抓出）"
+   },
+   {
+    "sha": "350372face",
+    "date": "2026-10-30 09:19",
+    "subject": "fix(#76): 桌面壳细节——拖拽黑边修复 + 设置面板补全（MCP/LLM/工作区/格式规范/关于）"
+   }
+  ],
+  "80": [
+   {
+    "sha": "f658bfe049",
+    "date": "2026-10-31 14:27",
+    "subject": "feat(#80): 规模轮——115 章 83.6 万字全子代理撰写（skill 零偏移 + MCP 全链规模验证）"
+   },
+   {
+    "sha": "732c7f7d75",
+    "date": "2026-10-31 05:19",
+    "subject": "feat(#80): 规模轮——115 章 83.6 万字全子代理撰写（Lead 反馈：3 章样本量不足）"
+   },
+   {
+    "sha": "5d6fdf6cc9",
+    "date": "2026-10-31 09:46",
+    "subject": "feat(#80): 第三批——子代理 LLM 多章实测 + MCP 工具 13→17"
+   },
+   {
+    "sha": "a0a871ffa3",
+    "date": "2026-10-30 17:15",
+    "subject": "feat(#80): 第三批任务 B——MCP 缺口 G1/G2/G3 补齐（工具面 13→17，外部 Agent 纯 MCP 可驱动全链）"
+   },
+   {
+    "sha": "ca63e5c726",
+    "date": "2026-10-30 16:40",
+    "subject": "feat(#80): 第三批——子代理 LLM 多章实测（skill 偏移 + MCP 缺口双评估）"
+   },
+   {
+    "sha": "a58acfaff0",
+    "date": "2026-10-30 16:40",
+    "subject": "fix(#80): 扫描件 OCR 全页失败零产出改判解析失败——堵环境 C 静默空导入"
+   },
+   {
+    "sha": "d2c819891d",
+    "date": "2026-10-30 15:10",
+    "subject": "feat(#80): 第二批——真实生成通路跑通一章（人肉 LLM）+ e2e 十件套产物 + v0.2 答案修订"
+   },
+   {
+    "sha": "6dd7ae16dd",
+    "date": "2026-10-30 22:38",
+    "subject": "feat(#80): synth-tender 合成招标夹具——7 坑 + 95 条参考答案 + 差距评测"
+   },
+   {
+    "sha": "ab3560f4d6",
+    "date": "2026-10-30 14:18",
+    "subject": "feat(#80): synth-tender 合成招标夹具——路线 1 保底（7 坑 + 95 条人工核对参考答案 + 差距评测）"
+   }
+  ],
+  "82": [
+   {
+    "sha": "247ffe9cb5",
+    "date": "2026-10-31 00:21",
+    "subject": "Merge pull request #82 from mmqz/feat/e2e-real-path"
+   }
+  ],
+  "84": [
+   {
+    "sha": "dd92ed36e6",
+    "date": "2026-10-31 08:08",
+    "subject": "feat(#84) B1-5/5: 下浮率法 DiscountRate（B1 收口——五方法全量交付）"
+   },
+   {
+    "sha": "d413e2eb0a",
+    "date": "2026-10-31 08:02",
+    "subject": "feat(#84) B1-4/5: 复合法 Composite（剔高剔低 + 控制价加权 + 候选集精确最优）"
+   },
+   {
+    "sha": "c107796a65",
+    "date": "2026-10-31 07:50",
+    "subject": "feat(#84) B1-3/5: 平均价法 AveragePrice（含最优报价闭式解）"
+   },
+   {
+    "sha": "a368d16d3d",
+    "date": "2026-10-31 07:43",
+    "subject": "feat(#84) B1-2/5: 最低价法 LowestPrice + 87号令比率口径"
+   },
+   {
+    "sha": "07e493ca78",
+    "date": "2026-10-31 07:39",
+    "subject": "feat(#84) B1-1/5: 价格分引擎骨架 + 基准价法 BenchmarkPrice（从零到一）"
+   }
+  ],
+  "86": [
+   {
+    "sha": "f95defc1b3",
+    "date": "2026-10-31 14:23",
+    "subject": "fix(#86): 摩擦清单后续项清偿——查询口/契约对齐/告警补全（7 条）"
+   },
+   {
+    "sha": "469a02d95d",
+    "date": "2026-10-31 05:32",
+    "subject": "fix(#86): 摩擦清单后续项清偿——查询口/契约对齐/告警补全（7 条）"
+   }
+  ],
+  "88": [
+   {
+    "sha": "bb13eaec48",
+    "date": "2026-10-31 15:39",
+    "subject": "Merge pull request #88 from mmqz/feat/84-b1-pricing"
+   }
+  ],
+  "89": [
+   {
+    "sha": "c8676f03df",
+    "date": "2026-10-31 15:44",
+    "subject": "Merge pull request #89 from mmqz/feat/84-b1-pricing-lowest"
+   }
+  ],
+  "90": [
+   {
+    "sha": "88a2ecd0be",
+    "date": "2026-10-31 15:50",
+    "subject": "Merge pull request #90 from mmqz/feat/84-b1-pricing-average"
+   }
+  ],
+  "91": [
+   {
+    "sha": "ac13b02a48",
+    "date": "2026-10-31 16:03",
+    "subject": "Merge pull request #91 from mmqz/feat/84-b1-pricing-composite"
+   }
+  ],
+  "92": [
+   {
+    "sha": "ca8f0bfdb3",
+    "date": "2026-10-31 16:09",
+    "subject": "Merge pull request #92 from mmqz/feat/84-b1-pricing-discount"
+   }
+  ],
+  "94": [
+   {
+    "sha": "1790f370a8",
+    "date": "2026-10-31 18:58",
+    "subject": "feat(#94 B2-3/3): 章节自评 SectionScorer——四维档位判定 + 技术/商务/价格合成"
+   },
+   {
+    "sha": "35e2867b90",
+    "date": "2026-10-31 18:57",
+    "subject": "feat(#94 B2-1/2): ScoringItem 五新面 + 派生树"
+   },
+   {
+    "sha": "62430871c2",
+    "date": "2026-10-31 10:26",
+    "subject": "feat(#94) B2-3/3: SectionScorer 自评——四维规则判定 + 三段聚合 + B1 接线（B2 收口）"
+   },
+   {
+    "sha": "f8a130b69c",
+    "date": "2026-10-31 09:53",
+    "subject": "feat(#94) B2-1/2: ScoringItem 五新面 + 派生树（任务1+2——从「一个数字」到「有结构的树」）"
+   }
+  ],
+  "97": [
+   {
+    "sha": "1a2a99c9cd",
+    "date": "2026-10-31 21:06",
+    "subject": "feat(#97) B4: 生成-自评-改写循环 IterativeDrafter"
+   },
+   {
+    "sha": "7091aa5f34",
+    "date": "2026-10-31 21:06",
+    "subject": "feat(#97) B3-4/4: 质量检查与 B2 自评联动——三面并存报告"
+   },
+   {
+    "sha": "af6be5c486",
+    "date": "2026-10-31 21:06",
+    "subject": "feat(#97) B3-3/4: 重复度 detect_duplication——句级 Jaccard + 包含率"
+   },
+   {
+    "sha": "26b02eebcb",
+    "date": "2026-10-31 21:05",
+    "subject": "feat(#97) B3-2/4: 实质性 assess_substance——空话占比 + 可验证陈述"
+   },
+   {
+    "sha": "37fdd3951b",
+    "date": "2026-10-31 21:05",
+    "subject": "feat(#97) B3-1/4: 针对性 assess_specificity——专名锚 + 参数阶梯 + 空话占比"
+   },
+   {
+    "sha": "7d69cc04dd",
+    "date": "2026-10-31 12:08",
+    "subject": "feat(#97) B4: 生成-自评-改写循环 IterativeDrafter——从「一次生成完」到「达标才停」"
+   },
+   {
+    "sha": "8cf153160f",
+    "date": "2026-10-31 11:58",
+    "subject": "feat(#97) B3-4/4: 质量检查与 B2 自评联动——三面并存报告（B3 收口）"
+   },
+   {
+    "sha": "05809270e3",
+    "date": "2026-10-31 11:46",
+    "subject": "feat(#97) B3-3/4: 重复度 detect_duplication——句级 Jaccard + 包含率补盲"
+   },
+   {
+    "sha": "ecded4d5b3",
+    "date": "2026-10-31 11:42",
+    "subject": "feat(#97) B3-2/4: 实质性 assess_substance——空话占比+可验证陈述双面计分"
+   },
+   {
+    "sha": "97ec776f13",
+    "date": "2026-10-31 11:36",
+    "subject": "feat(#97) B3-1/4: 针对性 assess_specificity——专名锚+参数阶梯+可用权重归一"
+   }
+  ],
+  "100": [
+   {
+    "sha": "d6e2ae5fe8",
+    "date": "2026-10-31 22:47",
+    "subject": "feat(#100 T3): B1/B2 接线——score_price/score_section/score_document 三工具 + e2e 自评产物"
+   },
+   {
+    "sha": "5076e7a0b0",
+    "date": "2026-10-31 14:05",
+    "subject": "feat(#100) T3: B1/B2 接线——score_price/score_section/score_document 三工具 + e2e 11_self-score."
+   },
+   {
+    "sha": "60e449a964",
+    "date": "2026-10-31 21:48",
+    "subject": "feat(#100 T2): external 生成态——外部手稿直注"
+   },
+   {
+    "sha": "e960c8ad8f",
+    "date": "2026-10-31 21:47",
+    "subject": "feat(#100 T1): 章节标题语义化——其他类二次分组"
+   },
+   {
+    "sha": "91d70c6e52",
+    "date": "2026-10-31 13:44",
+    "subject": "feat(#100) T2: external 生成态——外部手稿直注（content 参数 + ExternalGenerator）"
+   },
+   {
+    "sha": "baf0ace0ea",
+    "date": "2026-10-31 13:38",
+    "subject": "feat(#100) T1: 章节标题语义化——其他类二次分组（锚点章节>关键词主题>条款号兜底）"
+   }
+  ],
+  "103": [
+   {
+    "sha": "e363ba0076",
+    "date": "2026-11-01 11:01",
+    "subject": "feat(#103 后续 L3/L1): 补遗缺失阻塞 + PDF 引擎三态探测"
+   },
+   {
+    "sha": "e629f84782",
+    "date": "2026-11-01 02:06",
+    "subject": "feat(#103 跟进): pdf_text 扩面——ToUnicode CMap + ASCIIHex/RunLength + Tm 定位行合成"
+   },
+   {
+    "sha": "ab91c0c1d9",
+    "date": "2026-11-01 01:41",
+    "subject": "feat(#103 跟进): 补遗降级路——纯 Rust PDF 文本兜底"
+   },
+   {
+    "sha": "172123432c",
+    "date": "2026-10-31 15:54",
+    "subject": "merge: 合入 main（#103 B 表格生成——与本 PR 零文件交集，合并态回归）"
+   },
+   {
+    "sha": "c80f90f4ac",
+    "date": "2026-10-31 23:42",
+    "subject": "[本地] feat(#103 B): 表格生成——六种标书表格 + 技术参数偏离表负偏离标红"
+   },
+   {
+    "sha": "1d16286f21",
+    "date": "2026-10-31 23:40",
+    "subject": "feat(#103 B): 表格生成——六种标书表格 + 技术参数偏离表负偏离标红"
+   },
+   {
+    "sha": "f3d2517e9b",
+    "date": "2026-10-31 22:06",
+    "subject": "[本地] feat(#103 A): 标书固定格式件——7 个标准格式 + BidderProfile"
+   },
+   {
+    "sha": "0120cf88cd",
+    "date": "2026-10-31 21:41",
+    "subject": "[本地] feat(#103 C): 缺失回报——生成前置检查 + 占位符机制"
+   },
+   {
+    "sha": "48b2e5792c",
+    "date": "2026-10-31 21:38",
+    "subject": "feat(#103 C): 缺失回报——生成前置检查 + 占位符机制"
+   },
+   {
+    "sha": "50e001a58f",
+    "date": "2026-10-31 21:14",
+    "subject": "feat(#103 A): 标书固定格式件——7 个标准格式 + BidderProfile"
+   }
+  ],
+  "110": [
+   {
+    "sha": "1bfeac7ca2",
+    "date": "2026-11-01 11:18",
+    "subject": "feat(#110 跟进): L3 补遗缺失改为阻塞 + L1 pdfium 三态探测"
+   },
+   {
+    "sha": "e814ecde01",
+    "date": "2026-11-01 02:14",
+    "subject": "fix(#110 任务3 步1): G4 分值形态锁加否决旁路 + G1-G7 七缺口逐个分析"
+   },
+   {
+    "sha": "3346f302bc",
+    "date": "2026-11-01 02:13",
+    "subject": "feat(#110 任务2): B5 引擎接全——rev 提级 + pagination/style 接线"
+   },
+   {
+    "sha": "3e5abeee89",
+    "date": "2026-11-01 02:13",
+    "subject": "feat(#110 任务1): 缺失回报接线——draft_section 前置 readiness 检查"
+   },
+   {
+    "sha": "74370df74d",
+    "date": "2026-10-31 17:51",
+    "subject": "fix(#110) 任务3 步1: G4 分值形态锁加否决旁路——形态+否决并存时否决优先"
+   },
+   {
+    "sha": "52649403b9",
+    "date": "2026-10-31 17:21",
+    "subject": "feat(#110) 任务2: B5 引擎接全——rev 提级 aa0c859d + pagination/style 双能力接线"
+   },
+   {
+    "sha": "683e50bfb4",
+    "date": "2026-10-31 15:52",
+    "subject": "feat(#110) 任务1: 缺失回报接线——draft_section 前置 readiness 闸"
+   }
+  ],
+  "117": [
+   {
+    "sha": "8d4f1e837b",
+    "date": "2026-11-01 23:48",
+    "subject": "test: 修 e2e_artifacts H1 断言口径——#117 起文末多格式件部分"
+   },
+   {
+    "sha": "695e3f37aa",
+    "date": "2026-11-01 23:41",
+    "subject": "test: 修 e2e_artifacts 的 H1 断言口径——#117 起文末多「投标文件格式件」部分"
+   },
+   {
+    "sha": "f1ab0a004d",
+    "date": "2026-11-01 08:38",
+    "subject": "fix(main 回归): matrix.rs 测试初始化补 #117 业绩三面——#122 拆分版漏改致 --all-targets 编译断"
+   },
+   {
+    "sha": "11c48ddebf",
+    "date": "2026-11-01 12:47",
+    "subject": "[拆分版] feat(#117): 表格+格式件接线——六表从三真源派生 + 七件从 BidderProfile 构造"
+   },
+   {
+    "sha": "5777ba8021",
+    "date": "2026-11-01 12:43",
+    "subject": "feat(#117): 表格+格式件接线到导出链——六表从三真源派生 + 七件从 BidderProfile 构造（docx <w:tbl> 0→6，格式件 0→7）"
+   }
+  ],
+  "121": [
+   {
+    "sha": "883a344ae7",
+    "date": "2026-11-01 15:46",
+    "subject": "fix(#121 P0-1): 否决项不进正文——改并入「资格与响应」组"
+   },
+   {
+    "sha": "6443d84afa",
+    "date": "2026-11-01 15:45",
+    "subject": "fix(#121 P0-1): 否决项不进正文——改并入「资格与响应」组"
+   }
+  ],
+  "122": [
+   {
+    "sha": "e7bd778852",
+    "date": "2026-11-01 10:08",
+    "subject": "docs(#131 任务2b): 文档同步——#122/#126/#128/#129/#134 写进契约/域模型/计划/README"
+   },
+   {
+    "sha": "f1ab0a004d",
+    "date": "2026-11-01 08:38",
+    "subject": "fix(main 回归): matrix.rs 测试初始化补 #117 业绩三面——#122 拆分版漏改致 --all-targets 编译断"
+   }
+  ],
+  "123": [
+   {
+    "sha": "2c1bba6c16",
+    "date": "2026-11-01 19:03",
+    "subject": "feat(#123 G6): 引号括号嵌套——nesting.rs 配对与保护切分"
+   },
+   {
+    "sha": "3344edbd0c",
+    "date": "2026-11-01 19:02",
+    "subject": "feat(#123 任务3/G6): 引号括号嵌套——nesting.rs 配对与保护切分（未配对优雅降级）"
+   },
+   {
+    "sha": "53eaba45c4",
+    "date": "2026-11-01 09:53",
+    "subject": "feat(#123 任务2/G5): 多级编号——numbering.rs 七形态全枚举 + clause_boundary 薄封装化"
+   },
+   {
+    "sha": "c8eb176dbe",
+    "date": "2026-11-01 06:44",
+    "subject": "feat(#123 任务1/G1): 条款跨行合并——clause.rs 边界判定 + docx 续行吸收（分页符碎片还原）"
+   }
+  ],
+  "124": [
+   {
+    "sha": "fdc72932f4",
+    "date": "2026-11-01 14:40",
+    "subject": "Merge pull request #124 from mmqz/fix/addendum-test-env-portable"
+   }
+  ],
+  "125": [
+   {
+    "sha": "3fc2339b06",
+    "date": "2026-11-01 14:44",
+    "subject": "Merge pull request #125 from mmqz/feat/b6-multiline"
+   }
+  ],
+  "126": [
+   {
+    "sha": "5c79fc6259",
+    "date": "2026-11-02 09:44",
+    "subject": "docs(#170): 写明 score_section 对评分项恒空——#126 语义的必然结果（方案 C）"
+   },
+   {
+    "sha": "3421da0c36",
+    "date": "2026-11-02 07:27",
+    "subject": "fix(#168): 放弃硬编码 SEC id——#126 后「评分项→章节」映射对评分项已失效"
+   },
+   {
+    "sha": "b377226d22",
+    "date": "2026-11-02 01:50",
+    "subject": "merge: 并入 #161（score_tools #126 对齐）"
+   },
+   {
+    "sha": "50fb397245",
+    "date": "2026-11-02 01:50",
+    "subject": "merge: 并入 #161（score_tools #126 对齐）"
+   },
+   {
+    "sha": "7b506571f0",
+    "date": "2026-11-02 01:50",
+    "subject": "merge: 并入 #161（score_tools #126 对齐）"
+   },
+   {
+    "sha": "202d8f9680",
+    "date": "2026-11-02 01:50",
+    "subject": "merge: 并入 #161（score_tools #126 对齐）"
+   },
+   {
+    "sha": "3f5bd11bf9",
+    "date": "2026-11-02 01:47",
+    "subject": "fix(#141 回归·干净版): 归一化双视图 + score_tools 按 #126 语义对齐"
+   },
+   {
+    "sha": "45d650cc82",
+    "date": "2026-11-02 01:28",
+    "subject": "fix(#161): score_tools 2 例按 #126 语义更新——评分项不进正文"
+   },
+   {
+    "sha": "e7bd778852",
+    "date": "2026-11-01 10:08",
+    "subject": "docs(#131 任务2b): 文档同步——#122/#126/#128/#129/#134 写进契约/域模型/计划/README"
+   }
+  ],
+  "127": [
+   {
+    "sha": "51874cd3c7",
+    "date": "2026-11-01 16:52",
+    "subject": "feat(#127 P0-3): e2e 深断言——解包 docx 验产物 + 行内粗体渲染修复"
+   },
+   {
+    "sha": "1ec4ae76ef",
+    "date": "2026-11-01 16:51",
+    "subject": "fix(#127 P0-2): 缺失回报移出正文——draft_note 账面化 + fixture 适配债清理"
+   },
+   {
+    "sha": "a508055dd7",
+    "date": "2026-11-01 08:46",
+    "subject": "feat(#127 P0-3): e2e 深断言——解包 docx 数字节验产物，不信任工具返回值"
+   },
+   {
+    "sha": "7feeb2ff8f",
+    "date": "2026-11-01 08:38",
+    "subject": "feat(#127 P0-2): 缺失回报错位修复——指令与正文分离，draft_note 账面化"
+   }
+  ],
+  "128": [
+   {
+    "sha": "e7bd778852",
+    "date": "2026-11-01 10:08",
+    "subject": "docs(#131 任务2b): 文档同步——#122/#126/#128/#129/#134 写进契约/域模型/计划/README"
+   }
+  ],
+  "129": [
+   {
+    "sha": "e7bd778852",
+    "date": "2026-11-01 10:08",
+    "subject": "docs(#131 任务2b): 文档同步——#122/#126/#128/#129/#134 写进契约/域模型/计划/README"
+   }
+  ],
+  "131": [
+   {
+    "sha": "aec01331a2",
+    "date": "2026-11-01 23:20",
+    "subject": "fix(#131 回归): 康熙部首归一化改在【匹配瞬间】——水科/synth 红线零影响"
+   },
+   {
+    "sha": "1cc96f68b2",
+    "date": "2026-11-01 12:23",
+    "subject": "test(#131 遗留清偿)+docs(#137): 测试夹具适配 L3 补遗闸 + README 双 bin 说明"
+   },
+   {
+    "sha": "2df77347e8",
+    "date": "2026-11-01 20:02",
+    "subject": "fix(#131): 真实标书覆盖——康熙部首归一化 + 章节关键词扩展"
+   },
+   {
+    "sha": "e76d9de491",
+    "date": "2026-11-01 20:00",
+    "subject": "fix(#131): 真实标书覆盖——康熙部首归一化 + 章节关键词扩展"
+   },
+   {
+    "sha": "2a0e311738",
+    "date": "2026-11-01 19:07",
+    "subject": "feat(#131 任务1): 真实语料全链验证 + AddendumWaiver + B3 评分接线"
+   },
+   {
+    "sha": "5e0a2948f3",
+    "date": "2026-11-01 19:04",
+    "subject": "test(#131 任务3): B3 评分接线回归——已起草章三维度非 null + 值域合法 + 评分器判别力"
+   },
+   {
+    "sha": "a9f7f66791",
+    "date": "2026-11-01 19:04",
+    "subject": "feat(#131 任务1): 真实语料全链验证——3 件水科 PDF 跑通全链，红线 L1/P 逐位复现"
+   },
+   {
+    "sha": "e7bd778852",
+    "date": "2026-11-01 10:08",
+    "subject": "docs(#131 任务2b): 文档同步——#122/#126/#128/#129/#134 写进契约/域模型/计划/README"
+   }
+  ],
+  "134": [
+   {
+    "sha": "e7bd778852",
+    "date": "2026-11-01 10:08",
+    "subject": "docs(#131 任务2b): 文档同步——#122/#126/#128/#129/#134 写进契约/域模型/计划/README"
+   }
+  ],
+  "137": [
+   {
+    "sha": "b6d182c0d5",
+    "date": "2026-11-01 15:26",
+    "subject": "test(#145 任务1): 同步 #137 SDK e2e 断言——search_evidence 已接线，描述诚实性检查随实装状态翻转"
+   },
+   {
+    "sha": "24410c2745",
+    "date": "2026-11-01 15:26",
+    "subject": "test(#145 任务1): e2e evidence 再生——rebase 到 #137 协议层后走真 MCP 握手（auto→bid-mcp-server），9/9 全绿"
+   },
+   {
+    "sha": "a0abdc77ba",
+    "date": "2026-11-01 21:22",
+    "subject": "fix(#139): MCP e2e 脚本适配 #137 协议层——8/8 全绿（真握手）"
+   },
+   {
+    "sha": "bb1eb6832a",
+    "date": "2026-11-01 21:20",
+    "subject": "fix(#139): MCP e2e 脚本适配 #137 协议层——8/8 全绿（真 MCP 握手）"
+   },
+   {
+    "sha": "f0bf5b0db2",
+    "date": "2026-11-01 20:30",
+    "subject": "feat(#137 交付阻断): MCP 协议层——JSON-RPC 2.0 + initialize/tools-list/tools-call"
+   },
+   {
+    "sha": "1cc96f68b2",
+    "date": "2026-11-01 12:23",
+    "subject": "test(#131 遗留清偿)+docs(#137): 测试夹具适配 L3 补遗闸 + README 双 bin 说明"
+   },
+   {
+    "sha": "4209ec69fc",
+    "date": "2026-11-01 12:22",
+    "subject": "test(#137 验收①): 官方 Python mcp SDK 端到端——initialize + list_tools + call_tool"
+   },
+   {
+    "sha": "c6878fe961",
+    "date": "2026-11-01 12:22",
+    "subject": "feat(#137 任务1+3): MCP 协议层——JSON-RPC 2.0 + initialize / tools/list / tools/call"
+   },
+   {
+    "sha": "0d26ca2666",
+    "date": "2026-11-01 12:22",
+    "subject": "feat(#137 任务2): tools/list 应答体补 inputSchema——20 工具逐个合法 JSON Schema"
+   }
+  ],
+  "138": [
+   {
+    "sha": "74e5f485c5",
+    "date": "2026-11-01 20:07",
+    "subject": "feat(#138): SKILL 包 + Agent 接入文档 + 可运行示例——外部 Agent 按阶段表驱动，external 模式正文直注"
+   }
+  ],
+  "139": [
+   {
+    "sha": "a0abdc77ba",
+    "date": "2026-11-01 21:22",
+    "subject": "fix(#139): MCP e2e 脚本适配 #137 协议层——8/8 全绿（真握手）"
+   },
+   {
+    "sha": "bb1eb6832a",
+    "date": "2026-11-01 21:20",
+    "subject": "fix(#139): MCP e2e 脚本适配 #137 协议层——8/8 全绿（真 MCP 握手）"
+   },
+   {
+    "sha": "6809346c90",
+    "date": "2026-11-01 20:10",
+    "subject": "test(#139 交付阻断): MCP 端到端验证 + 8 份实测证据"
+   },
+   {
+    "sha": "3fca0a2df6",
+    "date": "2026-11-01 20:07",
+    "subject": "test(#139): MCP e2e 验证脚本 + 真客户端工具层全链实测 + 验收报告"
+   }
+  ],
+  "141": [
+   {
+    "sha": "3f5bd11bf9",
+    "date": "2026-11-02 01:47",
+    "subject": "fix(#141 回归·干净版): 归一化双视图 + score_tools 按 #126 语义对齐"
+   },
+   {
+    "sha": "081a4617e9",
+    "date": "2026-11-01 23:21",
+    "subject": "fix(#141 回归): 康熙部首归一化改在匹配瞬间——红线零影响"
+   }
+  ],
+  "144": [
+   {
+    "sha": "3ed8176924",
+    "date": "2026-11-02 00:38",
+    "subject": "feat(#144): 三张核心审查表结构化抽取——去掉 10 万行产物，只留代码"
+   }
+  ],
+  "145": [
+   {
+    "sha": "077a855a04",
+    "date": "2026-11-02 00:08",
+    "subject": "feat(#145 任务3): check_bid_quality 跨章查重摘要 + 篇幅核对"
+   },
+   {
+    "sha": "d76c7e1ac2",
+    "date": "2026-11-01 23:54",
+    "subject": "test(#145 任务 3): quality_summary 套件——查重摘要 + 篇幅核对（零配额走 set_outline）"
+   },
+   {
+    "sha": "c78bad9600",
+    "date": "2026-11-01 23:47",
+    "subject": "feat(#145 任务 3): check_bid_quality 跨章查重摘要 + 篇幅核对"
+   },
+   {
+    "sha": "bfd4af91fa",
+    "date": "2026-11-01 23:31",
+    "subject": "test(#145 任务2): 审查表矩阵验证骨架——fixture 20 行 + 验证器自检 + gated 验收"
+   },
+   {
+    "sha": "6ea34304b8",
+    "date": "2026-11-01 23:30",
+    "subject": "feat(#145 任务1): search_evidence 接线——双通道检索 + 过期降权 + 确定性排序"
+   },
+   {
+    "sha": "dd3222ee42",
+    "date": "2026-11-01 15:28",
+    "subject": "fix(#145 任务2): 补 Cargo.lock——docx-rs 挂入 bid-mcp 依赖（原提交漏，--locked 构建会挂）"
+   },
+   {
+    "sha": "b42ce4a4d1",
+    "date": "2026-11-01 15:28",
+    "subject": "test(#145 任务2): 审查表矩阵验证骨架——fixture 20 行 + 验证器自检 + 合成件基线 + gated 验收"
+   },
+   {
+    "sha": "209c81c6c0",
+    "date": "2026-11-01 15:27",
+    "subject": "test(#145 任务1): evidence 再生——rebase 到 #150（康熙部首匹配瞬间化）后，抽取行为回归基线，REQ 清单如实更新"
+   },
+   {
+    "sha": "b6d182c0d5",
+    "date": "2026-11-01 15:26",
+    "subject": "test(#145 任务1): 同步 #137 SDK e2e 断言——search_evidence 已接线，描述诚实性检查随实装状态翻转"
+   },
+   {
+    "sha": "24410c2745",
+    "date": "2026-11-01 15:26",
+    "subject": "test(#145 任务1): e2e evidence 再生——rebase 到 #137 协议层后走真 MCP 握手（auto→bid-mcp-server），9/9 全绿"
+   },
+   {
+    "sha": "956a5b10d6",
+    "date": "2026-11-01 15:26",
+    "subject": "test(#145 任务1): e2e 用例 14——search_evidence 真客户端全链验收"
+   },
+   {
+    "sha": "309cf897ea",
+    "date": "2026-11-01 15:26",
+    "subject": "feat(#145 任务1): search_evidence 接线——双通道检索 + 过期降权 + 确定性排序"
+   }
+  ],
+  "147": [
+   {
+    "sha": "052af0bf3a",
+    "date": "2026-11-02 00:35",
+    "subject": "feat(evidence): #147 企业证据库结构化字段补全"
+   },
+   {
+    "sha": "88c06f58a1",
+    "date": "2026-11-02 00:02",
+    "subject": "test(#147): 结构化字段 serde/validate/登记/检索验收"
+   },
+   {
+    "sha": "5ea199124e",
+    "date": "2026-11-01 23:53",
+    "subject": "feat(mcp): #147 register_evidence 接受 fields；search_evidence exact 通道查结构化字段"
+   },
+   {
+    "sha": "86b82d5000",
+    "date": "2026-11-01 23:47",
+    "subject": "feat(evidence): #147 证据结构化字段 EvidenceFields + validate"
+   }
+  ],
+  "150": [
+   {
+    "sha": "209c81c6c0",
+    "date": "2026-11-01 15:27",
+    "subject": "test(#145 任务1): evidence 再生——rebase 到 #150（康熙部首匹配瞬间化）后，抽取行为回归基线，REQ 清单如实更新"
+   }
+  ],
+  "154": [
+   {
+    "sha": "c8d1dd47d0",
+    "date": "2026-11-02 00:06",
+    "subject": "merge: 解决 SKILL.md 冲突（#154 骨架链接 与 #155 查重章节 并存）"
+   }
+  ],
+  "155": [
+   {
+    "sha": "c8d1dd47d0",
+    "date": "2026-11-02 00:06",
+    "subject": "merge: 解决 SKILL.md 冲突（#154 骨架链接 与 #155 查重章节 并存）"
+   }
+  ],
+  "156": [
+   {
+    "sha": "16b8970ea8",
+    "date": "2026-11-02 01:33",
+    "subject": "fix(CI): 红线 SKIP 判据改为解析保真度——#156 判据证伪"
+   },
+   {
+    "sha": "55b952a7c9",
+    "date": "2026-11-02 01:09",
+    "subject": "fix(CI): 红线 SKIP 判据从「工具存在」改为「解析保真度」——#156 的判据是错的"
+   }
+  ],
+  "157": [
+   {
+    "sha": "e4ba2763c4",
+    "date": "2026-11-02 00:46",
+    "subject": "fix(#157 编译修复): 补全 EvidenceSpec.fields——11 处构造点漏默认值"
+   },
+   {
+    "sha": "99faa35c99",
+    "date": "2026-11-02 00:42",
+    "subject": "fix(#157 编译修复): 补全 EvidenceSpec.fields——11 个测试文件的构造点漏默认值"
+   }
+  ],
+  "158": [
+   {
+    "sha": "eb2c92d30c",
+    "date": "2026-11-02 08:35",
+    "subject": "Merge pull request #158 from mmqz/fix/review-table-clean"
+   }
+  ],
+  "161": [
+   {
+    "sha": "a07b5bec86",
+    "date": "2026-11-02 01:51",
+    "subject": "merge: 并入 #161——status_enum_matrix.rs 是新文件（main 无此路径，保留 HEAD 版）"
+   },
+   {
+    "sha": "b377226d22",
+    "date": "2026-11-02 01:50",
+    "subject": "merge: 并入 #161（score_tools #126 对齐）"
+   },
+   {
+    "sha": "50fb397245",
+    "date": "2026-11-02 01:50",
+    "subject": "merge: 并入 #161（score_tools #126 对齐）"
+   },
+   {
+    "sha": "7b506571f0",
+    "date": "2026-11-02 01:50",
+    "subject": "merge: 并入 #161（score_tools #126 对齐）"
+   },
+   {
+    "sha": "202d8f9680",
+    "date": "2026-11-02 01:50",
+    "subject": "merge: 并入 #161（score_tools #126 对齐）"
+   },
+   {
+    "sha": "05b94a6b57",
+    "date": "2026-11-02 01:45",
+    "subject": "fix(#161): 补回被误删的 #[test] 属性——测试此前根本没跑"
+   },
+   {
+    "sha": "eb6c6525d4",
+    "date": "2026-11-02 01:38",
+    "subject": "fix(#164): 移除误带的 score_tools.rs——它属于 #161"
+   },
+   {
+    "sha": "e048366427",
+    "date": "2026-11-02 01:37",
+    "subject": "fix(#161): 移除误带的 status_enum_matrix.rs——它属于 #164"
+   },
+   {
+    "sha": "45d650cc82",
+    "date": "2026-11-02 01:28",
+    "subject": "fix(#161): score_tools 2 例按 #126 语义更新——评分项不进正文"
+   }
+  ],
+  "162": [
+   {
+    "sha": "7883d1ddf6",
+    "date": "2026-11-02 08:35",
+    "subject": "Merge pull request #162 from mmqz/test/state-machine-matrix"
+   }
+  ],
+  "163": [
+   {
+    "sha": "db6344ba57",
+    "date": "2026-11-02 08:35",
+    "subject": "Merge pull request #163 from mmqz/test/input-format-matrix"
+   },
+   {
+    "sha": "5d2f9be062",
+    "date": "2026-11-02 01:40",
+    "subject": "fix(#163): u8 字面量越界——上次替换没生效，这次逐行确认"
+   }
+  ],
+  "164": [
+   {
+    "sha": "6f99c7a7fa",
+    "date": "2026-11-02 08:35",
+    "subject": "Merge pull request #164 from mmqz/test/status-enum-matrix"
+   },
+   {
+    "sha": "cc58c841f4",
+    "date": "2026-11-02 01:52",
+    "subject": "fix(#164): 恢复 score_tools.rs 到 main 版本——合并时被回退成旧版"
+   },
+   {
+    "sha": "eb6c6525d4",
+    "date": "2026-11-02 01:38",
+    "subject": "fix(#164): 移除误带的 score_tools.rs——它属于 #161"
+   },
+   {
+    "sha": "e048366427",
+    "date": "2026-11-02 01:37",
+    "subject": "fix(#161): 移除误带的 status_enum_matrix.rs——它属于 #164"
+   },
+   {
+    "sha": "54777dfbad",
+    "date": "2026-11-02 01:31",
+    "subject": "fix(#164): 删除我上一次改动残留的多余 `}`"
+   },
+   {
+    "sha": "1149a681dd",
+    "date": "2026-11-02 01:23",
+    "subject": "fix(#164): ParseStatus 没有 as_str——删除该断言"
+   }
+  ],
+  "165": [
+   {
+    "sha": "03d6303572",
+    "date": "2026-11-02 01:34",
+    "subject": "merge: 并入 #165（红线判据修正）"
+   },
+   {
+    "sha": "15f781d644",
+    "date": "2026-11-02 01:34",
+    "subject": "merge: 并入 #165（红线判据修正）"
+   },
+   {
+    "sha": "75d5a2ff85",
+    "date": "2026-11-02 01:34",
+    "subject": "merge: 并入 #165（红线判据修正）"
+   },
+   {
+    "sha": "d1a5336e0a",
+    "date": "2026-11-02 01:34",
+    "subject": "merge: 并入 #165（红线判据修正）"
+   },
+   {
+    "sha": "c345f10a84",
+    "date": "2026-11-02 01:34",
+    "subject": "merge: 并入 #165（红线判据修正）"
+   },
+   {
+    "sha": "083be06d02",
+    "date": "2026-11-02 01:34",
+    "subject": "merge: 并入 #165（红线判据修正）"
+   }
+  ],
+  "166": [
+   {
+    "sha": "85bb2ced2e",
+    "date": "2026-11-02 08:35",
+    "subject": "Merge pull request #166 from mmqz/test/outline-invariants"
+   }
+  ],
+  "167": [
+   {
+    "sha": "9c659ba024",
+    "date": "2026-11-02 08:35",
+    "subject": "Merge pull request #167 from mmqz/chore/syntax-check"
+   }
+  ],
+  "168": [
+   {
+    "sha": "93301089f1",
+    "date": "2026-11-02 08:33",
+    "subject": "Merge pull request #168 from mmqz/fix/score-section-mapping"
+   },
+   {
+    "sha": "59673968d0",
+    "date": "2026-11-02 08:26",
+    "subject": "fix(#168): 重建分支——上一轮 git checkout 把基座退回到旧提交，整组修复被覆盖"
+   },
+   {
+    "sha": "c63ad17c83",
+    "date": "2026-11-02 07:28",
+    "subject": "fix(#168): rationale 断言按两条合法文案放宽——无映射时文案不含「覆盖」"
+   },
+   {
+    "sha": "3421da0c36",
+    "date": "2026-11-02 07:27",
+    "subject": "fix(#168): 放弃硬编码 SEC id——#126 后「评分项→章节」映射对评分项已失效"
+   },
+   {
+    "sha": "9dac2748ce",
+    "date": "2026-11-02 02:35",
+    "subject": "fix(#168): section 指向 SEC-0002 而非 SEC-0001——第一个 id 是父节点不是叶"
+   },
+   {
+    "sha": "6099dfacf8",
+    "date": "2026-11-02 02:33",
+    "subject": "fix(#168): 评分项 section 必须在首次 set_requirements 时给——第三次修正"
+   },
+   {
+    "sha": "8ffea06a35",
+    "date": "2026-11-02 02:16",
+    "subject": "fix(#168): params.section 回填移到建纲后/建矩阵前——上一版位置错导致 4 例失败"
+   }
+  ],
+  "169": [
+   {
+    "sha": "63a957e3d3",
+    "date": "2026-11-02 02:49",
+    "subject": "test(#169): 真实语料测试的坏 poppler 环境守卫——#169 乱码 Err 分流 SKIP"
+   },
+   {
+    "sha": "63a957e3d3",
+    "date": "2026-11-02 02:49",
+    "subject": "test(#169): 真实语料测试的坏 poppler 环境守卫——#169 乱码 Err 分流 SKIP"
+   },
+   {
+    "sha": "58f7292218",
+    "date": "2026-11-02 02:28",
+    "subject": "chore(#169): .gitattributes 钉二进制件——*.pdf/*.docx/*.xlsx/*.png/*.zip binary"
+   },
+   {
+    "sha": "e7491f7188",
+    "date": "2026-11-02 02:28",
+    "subject": "fix(#169): CJK 乱码三防线——首选路乱码降级兜底 + 双路皆乱 fail-loud + 语义判据探测"
+   }
+  ],
+  "170": [
+   {
+    "sha": "b749c011ff",
+    "date": "2026-11-02 03:25",
+    "subject": "feat(#170 方案 A): 评分项→章节映射恢复——评审表章引用联结（翻案 C）"
+   },
+   {
+    "sha": "5c79fc6259",
+    "date": "2026-11-02 09:44",
+    "subject": "docs(#170): 写明 score_section 对评分项恒空——#126 语义的必然结果（方案 C）"
+   }
+  ],
+  "171": [
+   {
+    "sha": "91a6d357e2",
+    "date": "2026-11-02 09:47",
+    "subject": "fix(#171): 补 AddendumWaiver 门——漏记则起草被「未发现补遗/澄清文件」拒"
+   },
+   {
+    "sha": "7631d3ecf0",
+    "date": "2026-11-02 09:27",
+    "subject": "test(#171): 跨模块全局不变式——全链跑完后五面互证"
+   }
+  ],
+  "172": [
+   {
+    "sha": "61fb866d53",
+    "date": "2026-11-02 09:42",
+    "subject": "fix(#172): 修 3 处编译错——apos 转义 / PdfText::extract 换 parse_file / match arm 加括号"
+   },
+   {
+    "sha": "30c43cf6cf",
+    "date": "2026-11-02 09:27",
+    "subject": "test(#172): 导出物独立回读——不信任引擎自报"
+   }
+  ],
+  "173": [
+   {
+    "sha": "2af157fa2b",
+    "date": "2026-11-02 09:42",
+    "subject": "fix(#173): ok_result 改 ok——本文件只有 fn ok(svc, tool, args)，没有 ok_result"
+   },
+   {
+    "sha": "ffd6703e96",
+    "date": "2026-11-02 09:27",
+    "subject": "test(#173): 坏输入矩阵——坏件绝不静默产出空标书"
+   }
+  ],
+  "174": [
+   {
+    "sha": "23e7fd2a89",
+    "date": "2026-11-02 08:54",
+    "subject": "fix(#174): 解析失败的文件不再把状态推进到 FILES_IMPORTED"
+   }
+  ],
+  "175": [
+   {
+    "sha": "5e8e6d2cc8",
+    "date": "2026-11-02 09:11",
+    "subject": "Merge pull request #175 from mmqz/fix/failed-file-state-advance"
+   }
+  ],
+  "176": [
+   {
+    "sha": "a6eec0853c",
+    "date": "2026-11-02 10:02",
+    "subject": "Merge pull request #176 from mmqz/gt/global-invariants"
+   }
+  ],
+  "177": [
+   {
+    "sha": "55ae15cd7c",
+    "date": "2026-11-02 09:57",
+    "subject": "Merge pull request #177 from mmqz/gt/export-readback"
+   }
+  ],
+  "178": [
+   {
+    "sha": "084fa6c3e3",
+    "date": "2026-11-02 09:58",
+    "subject": "Merge pull request #178 from mmqz/gt/bad-input-matrix"
+   }
+  ],
+  "179": [
+   {
+    "sha": "4d33d40ac2",
+    "date": "2026-11-02 10:00",
+    "subject": "Merge pull request #179 from mmqz/docs/score-section-semantics"
+   }
+  ],
+  "180": [
+   {
+    "sha": "c4fbb65188",
+    "date": "2026-11-02 06:51",
+    "subject": "test(#180): python e2e 过门时序修正——pre_export_confirm 挪至起草后 P7.5 记审并断言 receipt 摘要面，evidence 双传"
+   },
+   {
+    "sha": "d65f154e74",
+    "date": "2026-11-02 06:49",
+    "subject": "test(#180): Wave2 夹具八件——PreExportConfirm 挪至全叶起草后记审（含暗标重过门与双 LLM 通路 MCP 面记审）"
+   },
+   {
+    "sha": "2a496793df",
+    "date": "2026-11-02 06:38",
+    "subject": "test(#180): Wave1 夹具四件——PreExportConfirm 挪至全叶起草后记审（e2e_pipeline/export_tool/global_invaria"
+   },
+   {
+    "sha": "01355a0f69",
+    "date": "2026-11-02 06:31",
+    "subject": "fix(#180): 审核记录绑定章节内容摘要——过门后改正文导出被拒，重过门重新绑定，无关变更与重复导出不误伤"
+   }
+  ],
+  "181": [
+   {
+    "sha": "6e9f1d2d99",
+    "date": "2026-11-02 11:31",
+    "subject": "Merge pull request #181 from mmqz/fix/cjk-garble-guard"
+   }
+  ],
+  "182": [
+   {
+    "sha": "eac447b516",
+    "date": "2026-11-04 02:43",
+    "subject": "feat(#226/#182): receipt 签域四重绑定 + 直起草路径测试——Lead 合并门收口"
+   },
+   {
+    "sha": "fa6b597357",
+    "date": "2026-11-04 02:04",
+    "subject": "feat(#226/#182): set_matrix_override 接入 receipt 人工身份验签——人工出口只认真人"
+   },
+   {
+    "sha": "fac5e291f1",
+    "date": "2026-11-02 22:22",
+    "subject": "merge: 合入 main（解决 #182 与 #183/#189 的冲突）"
+   },
+   {
+    "sha": "50dc2b03f3",
+    "date": "2026-11-02 14:01",
+    "subject": "test+docs(#182): receipt 面全量收尾——bid-mcp 16 测试件 + python e2e 双传输 + 三档文档"
+   },
+   {
+    "sha": "df2f73ed32",
+    "date": "2026-11-02 10:02",
+    "subject": "feat(tools+mcp): #182 服务层密钥管理 + receipt 验签单一入口 + MCP 面 reviewer/principal 参数废除"
+   },
+   {
+    "sha": "8c763ef94c",
+    "date": "2026-11-02 09:46",
+    "subject": "feat(domain): #182 TrustedPrincipal 可信身份——principal.rs 纯函数验签 + record_review/record_addend"
+   }
+  ],
+  "183": [
+   {
+    "sha": "fac5e291f1",
+    "date": "2026-11-02 22:22",
+    "subject": "merge: 合入 main（解决 #182 与 #183/#189 的冲突）"
+   },
+   {
+    "sha": "a9698d2fda",
+    "date": "2026-11-02 12:04",
+    "subject": "fix(#183): fs_fence 测试 exp() 的 display() 平台条件化——修 Unix 全灭"
+   },
+   {
+    "sha": "a8c5222e3f",
+    "date": "2026-11-02 20:01",
+    "subject": "fix(#183): exp() 改为「最深已存在祖先 canonicalize」——覆盖 8.3 短名 + \\\\?\\ 前缀 + 不存在尾段"
+   },
+   {
+    "sha": "deab179e5d",
+    "date": "2026-11-02 19:35",
+    "subject": "fix(#183): fs_fence 测试期望值剥 \\\\?\\ 扩展长度前缀——修 Windows CI 3 条假红"
+   },
+   {
+    "sha": "6b9ea16b1f",
+    "date": "2026-11-02 17:50",
+    "subject": "fix(#183): fs_fence 测试的 Windows 路径形态归一——修 3 条假红"
+   },
+   {
+    "sha": "efa9605ba1",
+    "date": "2026-11-02 09:30",
+    "subject": "test+docs(#183): python e2e 双传输围栏适配 + evidence 再生 + 契约/威胁模型/技能文档四件同步"
+   },
+   {
+    "sha": "11e1d8bbc8",
+    "date": "2026-11-02 09:25",
+    "subject": "test(#183): bid-mcp 夹具围栏接线 Wave3——14 文件 fixtures canonical + with_fs_root（词法 .. 预拒与坏件围栏外双语"
+   },
+   {
+    "sha": "4a94c22e91",
+    "date": "2026-11-02 07:44",
+    "subject": "test(#183): bid-tools 夹具围栏接线收尾——svc.import 三件声明 fs_root + 夹具根 canonical 化（词法 .. 触围栏预拒）"
+   },
+   {
+    "sha": "fd65bd4eea",
+    "date": "2026-11-02 07:23",
+    "subject": "fix(#183): 文件访问围栏 fs_fence 单一实现——组件级包含判定修前缀陷阱，逐段 symlink 检查，导入导出同源接线（BidService fs_root/BI"
+   }
+  ],
+  "184": [
+   {
+    "sha": "1fcf729377",
+    "date": "2026-11-02 06:09",
+    "subject": "test(#184): python e2e 双传输通过——evidence 再生（工具清单 21 + P1 补遗分级面）"
+   },
+   {
+    "sha": "dd48dc34fb",
+    "date": "2026-11-02 06:06",
+    "subject": "fix(#184): 契约与skill文档同步——record_addendum_waiver工具段、import响应addendum_readiness块、补遗分级阻塞语义（部分"
+   },
+   {
+    "sha": "604cdd4c6a",
+    "date": "2026-11-02 06:03",
+    "subject": "fix(#184): 补遗就绪分级阻塞——任一非READY件（解析失败/零文本扫描件）阻塞起草并逐件点名，新增record_addendum_waiver逐件人工确认放行留痕"
+   }
+  ],
+  "185": [
+   {
+    "sha": "81821c6628",
+    "date": "2026-11-03 02:09",
+    "subject": "feat(#217): 证据正文链路闭环——EvBrief 正文摘录 + 验证四态 + 正文检索（#185 缺口 2）"
+   },
+   {
+    "sha": "47cc66743a",
+    "date": "2026-11-02 23:58",
+    "subject": "fix(#185): pdf 页锚兼容双解析路——修「有 poppler 绿、无 poppler 全红」"
+   },
+   {
+    "sha": "156d0327da",
+    "date": "2026-11-02 15:13",
+    "subject": "fix(#185 缺口1): 证据来源验证——source_file_id 强校验已导入 TenderFile，sha256/指纹服务端生成"
+   }
+  ],
+  "186": [
+   {
+    "sha": "a73201d040",
+    "date": "2026-11-03 00:05",
+    "subject": "fix(#186): score_rules 接入数据面——树派生→by_item/item_scores 透传 + SCORE_RULES_RESERVED 预留面登记"
+   },
+   {
+    "sha": "8e72242994",
+    "date": "2026-11-03 00:05",
+    "subject": "fix(#186): score 语义降级标记——diagnostic_only/rule_heuristic + 契约文档与 SKILL 语义纪律"
+   },
+   {
+    "sha": "658b9664fb",
+    "date": "2026-11-03 00:05",
+    "subject": "chore(#186): PR 占位——score 语义降级标记 diagnostic_only/rule_heuristic（第一步）"
+   }
+  ],
+  "187": [
+   {
+    "sha": "e529ce8b36",
+    "date": "2026-11-02 04:40",
+    "subject": "fix(#187): validate 分类返回——四桶 CheckResult 各自独立状态，semantic 未配置模型时显式 NotPerformed 而非伪装 Passed"
+   }
+  ],
+  "188": [
+   {
+    "sha": "a9fa0f612c",
+    "date": "2026-11-03 00:05",
+    "subject": "fix(#188): 同 SHA 去重业务角色分离——FileRole 多角色共存 + METADATA_CONFLICT 显式报告"
+   },
+   {
+    "sha": "c3ac5951ab",
+    "date": "2026-11-03 00:05",
+    "subject": "chore(#188): PR 占位——同 SHA 去重业务角色分离 FileRole（计划见 PR 描述）"
+   }
+  ],
+  "189": [
+   {
+    "sha": "fac5e291f1",
+    "date": "2026-11-02 22:22",
+    "subject": "merge: 合入 main（解决 #182 与 #183/#189 的冲突）"
+   }
+  ],
+  "191": [
+   {
+    "sha": "3d76c7ee54",
+    "date": "2026-11-02 11:38",
+    "subject": "Merge pull request #191 from mmqz/fix/score-section-chapter-ref"
+   }
+  ],
+  "192": [
+   {
+    "sha": "88e0dbb49c",
+    "date": "2026-11-02 14:34",
+    "subject": "Merge pull request #192 from mmqz/fix/validate-not-performed"
+   }
+  ],
+  "193": [
+   {
+    "sha": "560b4b98e9",
+    "date": "2026-11-02 14:34",
+    "subject": "Merge pull request #193 from mmqz/fix/addendum-partial-blocking"
+   }
+  ],
+  "194": [
+   {
+    "sha": "f313eae6f1",
+    "date": "2026-11-02 07:12",
+    "subject": "feat(#194): 前端「打开工作区」——菜单/欢迎页/最近列表三入口 + 切换后全面板刷新"
+   },
+   {
+    "sha": "1ccd821ace",
+    "date": "2026-11-02 07:12",
+    "subject": "feat(#194): Ctx.workspace 改 RwLock + workspace.open/current IPC——运行期切换工作区（壳侧）"
+   }
+  ],
+  "195": [
+   {
+    "sha": "a78f972c35",
+    "date": "2026-11-02 07:10",
+    "subject": "chore(#195): 工作区卫生清理——audit/ 顶层 5240 散落文件安全清理脚本 + CLEANUP.md"
+   }
+  ],
+  "196": [
+   {
+    "sha": "574b0d9d28",
+    "date": "2026-11-04 09:32",
+    "subject": "fix(#196): 抽取按业务 kind 分发，不再依赖文件名前缀"
+   },
+   {
+    "sha": "41a01565e7",
+    "date": "2026-11-02 16:56",
+    "subject": "Merge pull request #196 from mmqz/fix/review-content-binding"
+   }
+  ],
+  "197": [
+   {
+    "sha": "9cf90c5253",
+    "date": "2026-11-02 15:36",
+    "subject": "Merge pull request #197 from mmqz/chore/workspace-cleanup"
+   }
+  ],
+  "198": [
+   {
+    "sha": "d590240906",
+    "date": "2026-11-02 16:56",
+    "subject": "Merge pull request #198 from mmqz/feat/workspace-switch"
+   }
+  ],
+  "199": [
+   {
+    "sha": "f9ef123594",
+    "date": "2026-11-04 12:40",
+    "subject": "Merge pull request #199 from mmqz/fix/extract-by-kind"
+   },
+   {
+    "sha": "bb78871a42",
+    "date": "2026-11-04 03:54",
+    "subject": "test(e2e): 产物更新——#199 kind 分发后 B-技术规范书.docx 入抽"
+   },
+   {
+    "sha": "2fcd488896",
+    "date": "2026-11-04 03:54",
+    "subject": "fix(#199 审查): 分发值域对齐 TENDER_FILE_KINDS + 建纲配额死循环修复"
+   }
+  ],
+  "200": [
+   {
+    "sha": "d900768adb",
+    "date": "2026-11-04 09:58",
+    "subject": "fix(#200): 乱码判据补零 CJK 漏判 + 语料 SKIP 守卫改错误码匹配"
+   },
+   {
+    "sha": "a1a8b208a4",
+    "date": "2026-11-04 09:57",
+    "subject": "fix(#200): 低 CJK 占比不等于乱码——追加文本可读性判据，修混排件误杀"
+   },
+   {
+    "sha": "d93937a9d7",
+    "date": "2026-11-04 09:50",
+    "subject": "feat(#200 R2): PDF 解析改可插拔多引擎——engine.rs trait + engines/ 三路迁入 + OCR 救援"
+   },
+   {
+    "sha": "9f834a8f49",
+    "date": "2026-11-04 09:46",
+    "subject": "fix(#200 R1): 乱码探测收窄 + 双路互证 + 判决枚举——「声明 CJK 但内容无 CJK」不再误杀"
+   },
+   {
+    "sha": "86816af4c8",
+    "date": "2026-11-02 15:24",
+    "subject": "docs+test(#200 剩余): PDF 兜底能力边界登记——GBK-EUC-H/B5pc/CID 序号/ObjStm 原因定位与绕过指引"
+   },
+   {
+    "sha": "1fbe974356",
+    "date": "2026-11-02 22:05",
+    "subject": "fix(#200): 文档注释代码块加 text 标记——修 doctest 误执行"
+   },
+   {
+    "sha": "5f1c751825",
+    "date": "2026-11-02 21:37",
+    "subject": "feat(#200): PDF 转换 Word COM 优先 + 补遗豁免门禁接线修复"
+   },
+   {
+    "sha": "b46c42f099",
+    "date": "2026-11-02 10:11",
+    "subject": "fix(#200): UniXX-UCS2 预定义 CMap 恒等解码——CID 字体逐字 Tj 单字串不再误判乱码"
+   }
+  ],
+  "201": [
+   {
+    "sha": "569f8fc451",
+    "date": "2026-11-02 21:52",
+    "subject": "Merge pull request #201 from mmqz/fix/workspace-file-ref"
+   }
+  ],
+  "202": [
+   {
+    "sha": "6ad7cc1ba9",
+    "date": "2026-11-02 18:40",
+    "subject": "Merge pull request #202 from mmqz/fix/pdf-cid-cmap"
+   }
+  ],
+  "203": [
+   {
+    "sha": "457a295ee9",
+    "date": "2026-11-03 03:59",
+    "subject": "docs(#203): 全仓审计计划全文入库"
+   }
+  ],
+  "204": [
+   {
+    "sha": "a13d7d6652",
+    "date": "2026-11-04 13:03",
+    "subject": "Merge pull request #204 from mmqz/feat/pdf-engine-abstraction"
+   }
+  ],
+  "205": [
+   {
+    "sha": "118f1e427d",
+    "date": "2026-11-02 22:23",
+    "subject": "Merge pull request #205 from mmqz/feat/pdf-word-com"
+   }
+  ],
+  "206": [
+   {
+    "sha": "919ea0c123",
+    "date": "2026-11-02 22:47",
+    "subject": "Merge pull request #206 from mmqz/fix/trusted-principal"
+   }
+  ],
+  "209": [
+   {
+    "sha": "e55eecc81c",
+    "date": "2026-11-03 07:42",
+    "subject": "Merge pull request #209 from mmqz/fix/186-score-diagnostic"
+   }
+  ],
+  "210": [
+   {
+    "sha": "60f30fcc03",
+    "date": "2026-11-03 07:42",
+    "subject": "Merge pull request #210 from mmqz/fix/188-dedup-file-roles"
+   }
+  ],
+  "212": [
+   {
+    "sha": "6b699ef953",
+    "date": "2026-11-03 07:42",
+    "subject": "Merge pull request #212 from mmqz/fix/185-evidence-source-v2"
+   }
+  ],
+  "213": [
+   {
+    "sha": "1aedc80374",
+    "date": "2026-11-02 23:40",
+    "subject": "Merge pull request #213 from mmqz/fix/main-build-919ea0c"
+   }
+  ],
+  "214": [
+   {
+    "sha": "20d1281b27",
+    "date": "2026-11-03 00:03",
+    "subject": "Merge pull request #214 from mmqz/fix/200-pdf-boundary-docs"
+   }
+  ],
+  "216": [
+   {
+    "sha": "97011b20d3",
+    "date": "2026-11-03 07:43",
+    "subject": "Merge pull request #216 from mmqz/fix/partial-failure-gate"
+   }
+  ],
+  "217": [
+   {
+    "sha": "81821c6628",
+    "date": "2026-11-03 02:09",
+    "subject": "feat(#217): 证据正文链路闭环——EvBrief 正文摘录 + 验证四态 + 正文检索（#185 缺口 2）"
+   }
+  ],
+  "218": [
+   {
+    "sha": "7cb1f45eba",
+    "date": "2026-11-03 06:52",
+    "subject": "test(#218 后续): synth_tender_eval 断言对齐 fail-loud——无 OCR 环境唯一允许失败件是 E-扫描件"
+   },
+   {
+    "sha": "029cf52f3d",
+    "date": "2026-11-03 06:31",
+    "subject": "fix(#218 后续): BT…ET 文本窗口——非内容流（CMap/字体/图像流）不再产出垃圾行"
+   },
+   {
+    "sha": "0c3b762a4b",
+    "date": "2026-11-03 03:12",
+    "subject": "feat(#218 任务3): 中文顿号编号条款识别——re_clause 双形态 + 传播语境/格式章双守卫"
+   },
+   {
+    "sha": "a302310b9b",
+    "date": "2026-11-03 02:05",
+    "subject": "fix(#218): 纯 Rust 兜底 ToUnicode 三重修复——对象头边界/按字体路由/Tm 缩放 + 乱码自报"
+   }
+  ],
+  "219": [
+   {
+    "sha": "2a53209d63",
+    "date": "2026-11-04 09:06",
+    "subject": "feat(#219 第二步): 抽取通路合并——Agent 标记优先 + 正则兜底 + submitted 持久化"
+   },
+   {
+    "sha": "1e4f0b0183",
+    "date": "2026-11-03 15:50",
+    "subject": "fix(#219): describe 补 get_coverage_report + 测试实装清单同步"
+   },
+   {
+    "sha": "bcc42acfc9",
+    "date": "2026-11-03 15:41",
+    "subject": "fix(#219): is_implemented 漏登三工具 + search_evidence_tool 断言同步"
+   },
+   {
+    "sha": "2f565d5da3",
+    "date": "2026-11-03 14:38",
+    "subject": "test(#219): 工具面 21→24 断言同步 + Validating 态放行覆盖报告"
+   },
+   {
+    "sha": "b5ec84d846",
+    "date": "2026-11-03 13:42",
+    "subject": "feat(#219): 全块覆盖架构——Agent 区间标记 + 引擎覆盖检查"
+   }
+  ],
+  "220": [
+   {
+    "sha": "d0e4a6e7d5",
+    "date": "2026-11-03 10:31",
+    "subject": "Merge pull request #220 from mmqz/fix/218-tounicode-cmap"
+   }
+  ],
+  "221": [
+   {
+    "sha": "882102b6e4",
+    "date": "2026-11-03 10:59",
+    "subject": "Merge pull request #221 from mmqz/feat/185-evidence-content"
+   }
+  ],
+  "222": [
+   {
+    "sha": "8237f5fbfb",
+    "date": "2026-11-03 11:34",
+    "subject": "Merge pull request #222 from mmqz/fix/dunhao-clause-numbering"
+   }
+  ],
+  "223": [
+   {
+    "sha": "4502806560",
+    "date": "2026-11-03 12:53",
+    "subject": "fix(#223): 局部垃圾拉垮全局判定——控制字符行级清洗 + CJK 乱码探测改分页多数决"
+   }
+  ],
+  "224": [
+   {
+    "sha": "5593ce2b9c",
+    "date": "2026-11-05 05:56",
+    "subject": "feat(#224 第3步): score_rules 消费——细则关键条件检查点（规则层可见性）"
+   },
+   {
+    "sha": "601abc050a",
+    "date": "2026-11-04 09:23",
+    "subject": "fix(#224 审查追修): 多映射结果正确性——by_item 逐章聚合 + 映射报告只认生效来源"
+   },
+   {
+    "sha": "0c407def78",
+    "date": "2026-11-04 15:22",
+    "subject": "fix(#224 二次阻塞审查): restore 聚合不变量——同一评分项联结面有效份额合计 ≤ 1.0"
+   },
+   {
+    "sha": "46ba2aa9c3",
+    "date": "2026-11-04 15:22",
+    "subject": "fix(#224 review blocker 3): 映射写面 content_version 语义——真变更 bump、真 no-op 不 bump"
+   },
+   {
+    "sha": "84db056bbe",
+    "date": "2026-11-04 15:22",
+    "subject": "fix(#224 review blocker 2): 映射引用完整性——重建三入口守卫 + restore 行约束"
+   },
+   {
+    "sha": "637cecb7fa",
+    "date": "2026-11-04 15:22",
+    "subject": "fix(#224 review blocker 1): upsert 聚合份额校验——联结面有效份额合计 ≤ 1.0"
+   },
+   {
+    "sha": "1a14a7eef2",
+    "date": "2026-11-04 15:22",
+    "subject": "feat(#224 第1步): ScoringMapping 多对多映射 + UNMAPPED 结构化——评分项↔章节映射的核心补课"
+   }
+  ],
+  "225": [
+   {
+    "sha": "ad6b8987a9",
+    "date": "2026-11-03 12:39",
+    "subject": "Merge pull request #225 from mmqz/docs/audit-plan"
+   }
+  ],
+  "226": [
+   {
+    "sha": "eac447b516",
+    "date": "2026-11-04 02:43",
+    "subject": "feat(#226/#182): receipt 签域四重绑定 + 直起草路径测试——Lead 合并门收口"
+   },
+   {
+    "sha": "255f3c78ab",
+    "date": "2026-11-04 02:04",
+    "subject": "fix(#226 rebase 追修): 无编号规则说明段不丢条款 + 工具面合流 25"
+   },
+   {
+    "sha": "fa6b597357",
+    "date": "2026-11-04 02:04",
+    "subject": "feat(#226/#182): set_matrix_override 接入 receipt 人工身份验签——人工出口只认真人"
+   },
+   {
+    "sha": "6310fd01b7",
+    "date": "2026-11-04 02:04",
+    "subject": "fix(#226 审核追修): 规则主语句首位置判定 + 投标人侧主语守卫——CI 4 红测试修复"
+   },
+   {
+    "sha": "b3d9c49892",
+    "date": "2026-11-04 02:03",
+    "subject": "test(#226): 同步工具面守卫（22 工具 / 状态机矩阵 / 快照）"
+   },
+   {
+    "sha": "d801093872",
+    "date": "2026-11-04 02:03",
+    "subject": "feat(#226 层2): 规则说明识别——否决项不再因「招标人规则陈述」永久阻塞"
+   },
+   {
+    "sha": "285b175ce0",
+    "date": "2026-11-04 02:03",
+    "subject": "feat(#226 层1): set_matrix_override MCP 工具——否决项死锁的人工出口"
+   }
+  ],
+  "227": [
+   {
+    "sha": "2d86f25386",
+    "date": "2026-11-04 08:55",
+    "subject": "Merge pull request #227 from mmqz/ai-bid-research/feat/219-block-coverage"
+   }
+  ],
+  "228": [
+   {
+    "sha": "6aaa955265",
+    "date": "2026-11-03 15:51",
+    "subject": "Merge pull request #228 from mmqz/fix/218-p2-bt-et-text-window"
+   }
+  ],
+  "229": [
+   {
+    "sha": "46b7c0e4c5",
+    "date": "2026-11-04 11:29",
+    "subject": "feat(#229): 起草门 UncoveredMandatoryItem + 门禁测试三面——Agent 必选未响应拦起草"
+   },
+   {
+    "sha": "34607c61d1",
+    "date": "2026-11-04 11:29",
+    "subject": "feat(#229): Agent 必选标记接线矩阵 blocking 面——AGENT_MANDATORY_NOT_BLOCKING 缺口收口"
+   }
+  ],
+  "230": [
+   {
+    "sha": "55d898656d",
+    "date": "2026-11-04 10:30",
+    "subject": "Merge pull request #230 from mmqz/feat/226-veto-unlock"
+   },
+   {
+    "sha": "47c8724b5f",
+    "date": "2026-11-04 02:04",
+    "subject": "test(#230 审核复核): 「拒收」边界登记——主语窗判定而非 PROCEDURE 词表"
+   }
+  ],
+  "232": [
+   {
+    "sha": "15c0cffd71",
+    "date": "2026-11-04 09:06",
+    "subject": "Merge pull request #232 from mmqz/fix/223-cjk-garble-per-page"
+   }
+  ],
+  "233": [
+   {
+    "sha": "0c260584b9",
+    "date": "2026-11-04 02:45",
+    "subject": "fix(#233): DOCX 路径接入层 2 判据——规则说明分类降级，跨格式对称"
+   }
+  ],
+  "234": [
+   {
+    "sha": "7433eb57dc",
+    "date": "2026-11-04 08:33",
+    "subject": "fix(#234): 格式章表格头/碎片抽取噪声清理——951→942、blocking 131→122"
+   }
+  ],
+  "235": [
+   {
+    "sha": "4e4ae4278a",
+    "date": "2026-11-04 09:06",
+    "subject": "Merge pull request #235 from mmqz/docs/skill-p3-p7-p8"
+   }
+  ],
+  "236": [
+   {
+    "sha": "315f1ded09",
+    "date": "2026-11-04 18:43",
+    "subject": "Merge pull request #236 from mmqz/feat/224-scoring-mapping-step1"
+   }
+  ],
+  "237": [
+   {
+    "sha": "705827ac29",
+    "date": "2026-11-04 09:21",
+    "subject": "Merge pull request #237 from mmqz/feat/219-extract-merge"
+   }
+  ],
+  "238": [
+   {
+    "sha": "8bcea39820",
+    "date": "2026-11-04 13:11",
+    "subject": "Merge pull request #238 from mmqz/fix/docx-rule-statement"
+   }
+  ],
+  "239": [
+   {
+    "sha": "e6f01928cf",
+    "date": "2026-11-04 13:56",
+    "subject": "Merge pull request #239 from mmqz/fix/226-receipt-scope-e2e"
+   },
+   {
+    "sha": "7a49db3cb2",
+    "date": "2026-11-04 05:10",
+    "subject": "test(#239 审核追修): wrong_status_receipt 单维隔离——RESPONDED 调用携带同 deviation"
+   }
+  ],
+  "240": [
+   {
+    "sha": "4a09940f0d",
+    "date": "2026-11-04 18:57",
+    "subject": "Merge pull request #240 from mmqz/fix/format-chapter-noise"
+   }
+  ],
+  "241": [
+   {
+    "sha": "38d4640457",
+    "date": "2026-11-05 20:05",
+    "subject": "merge(#241): 位串矩阵三方并集——#254 尾三 001/111 + #241 5/6 位翻 1"
+   },
+   {
+    "sha": "38d4640457",
+    "date": "2026-11-05 20:05",
+    "subject": "merge(#241): 位串矩阵三方并集——#254 尾三 001/111 + #241 5/6 位翻 1"
+   },
+   {
+    "sha": "07b8ce44ff",
+    "date": "2026-11-05 11:13",
+    "subject": "fix(#241): 不变式③按两分账改写——绑定⇒RESPONDED 单向对账（Windows CI 第二处修复）"
+   },
+   {
+    "sha": "d003374803",
+    "date": "2026-11-05 11:10",
+    "subject": "fix(#241): global_invariants 的 MatrixRow 反例构造补两正交标记字段（Windows CI E0063 修复）"
+   },
+   {
+    "sha": "fb61eee28a",
+    "date": "2026-11-05 10:45",
+    "subject": "docs(#241): 契约与 Skill 文档同步——两分账语义 + submission_readiness 面 + 补件窗口"
+   },
+   {
+    "sha": "34803f0720",
+    "date": "2026-11-05 10:41",
+    "subject": "test(#241): 导出门测试断言更新——正文实写的资格行不再拦导出（两分账）"
+   },
+   {
+    "sha": "6f05f1edfc",
+    "date": "2026-11-05 10:20",
+    "subject": "test(#241): 243 MCP 全序测试失败源同步改写（未映射资格条款）"
+   },
+   {
+    "sha": "44af3c19e3",
+    "date": "2026-11-05 10:17",
+    "subject": "feat(#241): MCP 三面接线 + 证据补件状态窗口（DRAFTING→READY_TO_EXPORT）"
+   },
+   {
+    "sha": "4f3ceca48d",
+    "date": "2026-11-05 10:08",
+    "subject": "feat(#241): 提交就绪面 submission_readiness——Export 与 Submission Readiness 分账"
+   },
+   {
+    "sha": "ca6b3067f4",
+    "date": "2026-11-05 10:01",
+    "subject": "test(#241): #243 重试测试的失败源改为未映射资格条款（覆盖缺口形态）"
+   },
+   {
+    "sha": "34d58955d3",
+    "date": "2026-11-05 09:57",
+    "subject": "test(#241): 旧口径测试按新裁定改写——正文实写即 RESPONDED（2026-11-04 决策点 2 由 11-05 裁定取代）"
+   },
+   {
+    "sha": "ba7083fe7c",
+    "date": "2026-11-05 09:54",
+    "subject": "feat(#241): draft 路径联建矩阵——正文实写成为状态派生输入后的时效性保证"
+   },
+   {
+    "sha": "642000faa1",
+    "date": "2026-11-05 09:53",
+    "subject": "fix(#241): 测试章节文档序撞号修正（order 全局唯一）"
+   },
+   {
+    "sha": "bbefb22e30",
+    "date": "2026-11-05 09:51",
+    "subject": "feat(#241): 域层两分账——正文实写派生 RESPONDED + evidence_required/evidence_missing 正交标记"
+   },
+   {
+    "sha": "fdb8db1d4a",
+    "date": "2026-11-04 20:55",
+    "subject": "Merge pull request #241 from mmqz/feat/agent-mandatory-blocking-gate"
+   },
+   {
+    "sha": "a35c0b1a31",
+    "date": "2026-11-04 11:58",
+    "subject": "test(#241 决策点2 落测): 商务必选「正文已响应、无外部证据」不算已响应——承诺型出口=人工覆写 RESPONDED+说明"
+   }
+  ],
+  "242": [
+   {
+    "sha": "6105beb652",
+    "date": "2026-11-04 21:25",
+    "subject": "Merge pull request #242 from mmqz/feat/1.0-writing-gate"
+   }
+  ],
+  "243": [
+   {
+    "sha": "b4336bedd0",
+    "date": "2026-11-06 07:07",
+    "subject": "audit(R8 复核): 独立交叉复核——#243/#245 修复变异级验证（M1'/M2' KILLED）+ 13 项未修复确认 + REV-01 main 真实红灯二分归因（"
+   },
+   {
+    "sha": "feca397f79",
+    "date": "2026-11-06 03:51",
+    "subject": "audit(final): R2 callgraph (4 BROKEN/2 DEGRADED) + R3 known-issue verification (#243/#244/"
+   },
+   {
+    "sha": "ca6b3067f4",
+    "date": "2026-11-05 10:01",
+    "subject": "test(#241): #243 重试测试的失败源改为未映射资格条款（覆盖缺口形态）"
+   },
+   {
+    "sha": "f06c81cb14",
+    "date": "2026-11-05 04:39",
+    "subject": "docs(#243): MCP 契约 §7/§20 + Skill 流程——校验调用时机与恢复路径"
+   },
+   {
+    "sha": "4d4d8e60f1",
+    "date": "2026-11-05 04:35",
+    "subject": "feat(#243): MCP 工具层——recover_validating_state 接线 + 验收面回归"
+   },
+   {
+    "sha": "2fa9564584",
+    "date": "2026-11-05 03:53",
+    "subject": "fix(#243): 服务层——校验前置闸（E_DRAFT_INCOMPLETE）+ 仅通过才推进 + 恢复转发"
+   },
+   {
+    "sha": "8b5f40b0fd",
+    "date": "2026-11-05 03:19",
+    "subject": "fix(#243): 域层——E_DRAFT_INCOMPLETE 错误码 + VALIDATING→DRAFTING 受支持恢复通道"
+   },
+   {
+    "sha": "a689701cc9",
+    "date": "2026-11-05 01:53",
+    "subject": "audit(试点): 历史资料消化 + bid-tools/bid-domain 试点审计（PA-001~013 / PB-001~012，#243/#244/#245 全部 CO"
+   }
+  ],
+  "244": [
+   {
+    "sha": "8f43469f91",
+    "date": "2026-11-06 06:00",
+    "subject": "test(#244): batch1+batch2 多平台语料标满建纲验收——11 份真件全过"
+   },
+   {
+    "sha": "f83f721dc6",
+    "date": "2026-11-06 06:00",
+    "subject": "docs(#244): 契约/Skill 同步建纲覆盖门——三态语义与 E_COVERAGE_INCOMPLETE"
+   },
+   {
+    "sha": "ce4ba27a26",
+    "date": "2026-11-06 06:00",
+    "subject": "test(#244): 建纲覆盖门六 case——拦/放行/摘要/幂等/重启持久化"
+   },
+   {
+    "sha": "41615969e1",
+    "date": "2026-11-06 06:00",
+    "subject": "feat(#244 门): build_outline 接入覆盖闭环门——半途而废阻断，零标记兜底放行"
+   },
+   {
+    "sha": "a1b35043b8",
+    "date": "2026-11-06 06:00",
+    "subject": "feat(#244 域层): CoverageReport 三态细分——excluded_blocks/unjudged_blocks/unjudged_ranges 分账"
+   },
+   {
+    "sha": "feca397f79",
+    "date": "2026-11-06 03:51",
+    "subject": "audit(final): R2 callgraph (4 BROKEN/2 DEGRADED) + R3 known-issue verification (#243/#244/"
+   },
+   {
+    "sha": "a689701cc9",
+    "date": "2026-11-05 01:53",
+    "subject": "audit(试点): 历史资料消化 + bid-tools/bid-domain 试点审计（PA-001~013 / PB-001~012，#243/#244/#245 全部 CO"
+   }
+  ],
+  "245": [
+   {
+    "sha": "b4336bedd0",
+    "date": "2026-11-06 07:07",
+    "subject": "audit(R8 复核): 独立交叉复核——#243/#245 修复变异级验证（M1'/M2' KILLED）+ 13 项未修复确认 + REV-01 main 真实红灯二分归因（"
+   },
+   {
+    "sha": "feca397f79",
+    "date": "2026-11-06 03:51",
+    "subject": "audit(final): R2 callgraph (4 BROKEN/2 DEGRADED) + R3 known-issue verification (#243/#244/"
+   },
+   {
+    "sha": "f4027d2982",
+    "date": "2026-11-05 02:09",
+    "subject": "docs(#245): MCP 契约 §11-A/§4/§7/§8 四门清单 + Skill P4 占位面 + 验收报告"
+   },
+   {
+    "sha": "bee8c50ead",
+    "date": "2026-11-05 02:05",
+    "subject": "test(#245 e2e): MCP 全链验收——占位事故 containment + 1d 门独立复算 + 修复闭环"
+   },
+   {
+    "sha": "a689701cc9",
+    "date": "2026-11-05 01:53",
+    "subject": "audit(试点): 历史资料消化 + bid-tools/bid-domain 试点审计（PA-001~013 / PB-001~012，#243/#244/#245 全部 CO"
+   },
+   {
+    "sha": "4fe23bb206",
+    "date": "2026-11-05 01:50",
+    "subject": "fix(#245): 清理误入库的 real-corpus-e2e 中间明细——恢复 main 产物状态"
+   },
+   {
+    "sha": "b84640a474",
+    "date": "2026-11-05 01:48",
+    "subject": "feat(#245 MCP): register placeholder 参数 + 自报 verification_tier 显式拒 + 矩阵/回执出参"
+   },
+   {
+    "sha": "43031130e5",
+    "date": "2026-11-05 01:38",
+    "subject": "feat(#245 验证/导出): E_EVIDENCE_PLACEHOLDER/E_CITATION_PLACEHOLDER BLOCKER + 导出门 1d 独立复算"
+   },
+   {
+    "sha": "3f4be4417a",
+    "date": "2026-11-05 01:33",
+    "subject": "feat(#245 服务层): 占位登记服务端裁决 + 起草/就绪面占位纪律"
+   },
+   {
+    "sha": "bd85821910",
+    "date": "2026-11-05 01:21",
+    "subject": "feat(#245 矩阵): PENDING_EVIDENCE 待补态——占位绑定不清合规阻塞"
+   },
+   {
+    "sha": "0349048591",
+    "date": "2026-11-05 01:18",
+    "subject": "feat(#245 域层): VerificationTier::Placeholder 占位/待核验态"
+   }
+  ],
+  "247": [
+   {
+    "sha": "c9750b48cb",
+    "date": "2026-11-05 16:40",
+    "subject": "Merge pull request #247 from mmqz/fix/245-placeholder-evidence"
+   },
+   {
+    "sha": "6f6f74cbb8",
+    "date": "2026-11-05 04:28",
+    "subject": "fix(#247 审核): 占位门豁免收紧——三要件裁决，普通状态覆写不豁免"
+   }
+  ],
+  "249": [
+   {
+    "sha": "601e1d1d3e",
+    "date": "2026-11-05 16:38",
+    "subject": "Merge pull request #249 from mmqz/fix/243-validate-state-safety"
+   }
+  ],
+  "250": [
+   {
+    "sha": "f7f7446e32",
+    "date": "2026-11-05 10:43",
+    "subject": "fix(extract): #250 来源字段完整化——正则产物补 marked_by"
+   },
+   {
+    "sha": "cd41c86ae2",
+    "date": "2026-11-05 10:43",
+    "subject": "feat(extract): #250 表格语义专路——参数表/商务表按行结构化装配"
+   },
+   {
+    "sha": "f9eb94f660",
+    "date": "2026-11-05 10:43",
+    "subject": "fix(merge): #250 P0 合并门禁按 kind 判定——前缀仅作夹具兜底"
+   }
+  ],
+  "251": [
+   {
+    "sha": "d25ba9dfe0",
+    "date": "2026-11-05 08:03",
+    "subject": "test(#251): songling_baseline 三层断言面——层0 静态 5 测 + 层1 PDF 引擎基线 4 测（实测固化）+ 层2 素材缺件 SKIP 门"
+   },
+   {
+    "sha": "38a1b9394b",
+    "date": "2026-11-05 07:21",
+    "subject": "feat(#251): 金标准 v1——评分表结构化 + 关键参数 16 条 PDF 逐条复核 + 预期大纲基线 + 复核记录"
+   },
+   {
+    "sha": "af586e6944",
+    "date": "2026-11-05 07:17",
+    "subject": "feat(#251): 真实语料 Fixture 落地——松岭 TF-0002 原件入库 + manifest 登记公开来源与 sha256"
+   }
+  ],
+  "252": [
+   {
+    "sha": "fb005030d5",
+    "date": "2026-11-06 09:03",
+    "subject": "merge(#266): PDF 语义表 REQ 化并入 #252 评分表专路"
+   },
+   {
+    "sha": "2849ec6ebe",
+    "date": "2026-11-06 08:50",
+    "subject": "feat(#252 第二步): 评分驱动大纲——6 章节 20 细则 + 独立响应位 + ScoringMapping 落账 + 分类配额"
+   },
+   {
+    "sha": "9e2ca2e101",
+    "date": "2026-11-05 18:21",
+    "subject": "fix(#252 CI): validate_tool 两测试适配语义分叶——只起草格式叶保住 E_QUAL_UNMET 未响应前提"
+   },
+   {
+    "sha": "9dfbb2a6a3",
+    "date": "2026-11-05 16:34",
+    "subject": "merge: main 并入——#253 三轨分层计价与 #252 评分驱动大纲的配额融合"
+   },
+   {
+    "sha": "401ed21b3a",
+    "date": "2026-11-05 15:02",
+    "subject": "feat(#252 域层): 评分驱动大纲——6 章节 20 细则 + 独立响应位 + 多对多映射落账 + 分类配额"
+   },
+   {
+    "sha": "c3d62f11b8",
+    "date": "2026-11-05 13:25",
+    "subject": "feat(#252 解析层): 综合评分表专路——评审项/分值/细则结构化装配"
+   },
+   {
+    "sha": "473ed8c702",
+    "date": "2026-11-05 11:10",
+    "subject": "test(#252 第一步): 评分驱动大纲验收基线——预期结构断言面固化"
+   }
+  ],
+  "253": [
+   {
+    "sha": "9dfbb2a6a3",
+    "date": "2026-11-05 16:34",
+    "subject": "merge: main 并入——#253 三轨分层计价与 #252 评分驱动大纲的配额融合"
+   },
+   {
+    "sha": "98e222eb91",
+    "date": "2026-11-05 22:54",
+    "subject": "feat(#253 第二段): 配额分配算法重构——分层计价 + 门禁分级"
+   },
+   {
+    "sha": "80a1260460",
+    "date": "2026-11-05 14:13",
+    "subject": "test(e2e): 产物定向刷新——#253 分层配额 + 门禁分级 + mock 面向目标量后的当前输出（基于 5f82b9c）"
+   },
+   {
+    "sha": "43451fdfff",
+    "date": "2026-11-05 14:13",
+    "subject": "test(#253): songling 基线接单一真源行政分类器 + manifest 行政占比基线刷新 0.875→0.091"
+   },
+   {
+    "sha": "b80cb10f7a",
+    "date": "2026-11-05 14:01",
+    "subject": "docs(#253 第二段): 契约与 Skill 同步——分层配额 + 门禁分级语义"
+   },
+   {
+    "sha": "f27951f890",
+    "date": "2026-11-05 14:01",
+    "subject": "feat(#253 第二段): 门禁分级——E_CHARS_BELOW_MIN 收窄评分章节 + 总篇幅硬门 E_TOTAL_CHARS_BELOW_MIN"
+   },
+   {
+    "sha": "0f2351a8b7",
+    "date": "2026-11-05 12:59",
+    "subject": "feat(#253 第二段): 配额分层计价——行政/实质按条计价 + 评分轨按分值吃余量"
+   },
+   {
+    "sha": "fec6ee6817",
+    "date": "2026-11-05 07:20",
+    "subject": "fix(#253 第一段): target_total_chars 默认值三层统一——单一真源 844,000"
+   }
+  ],
+  "254": [
+   {
+    "sha": "38d4640457",
+    "date": "2026-11-05 20:05",
+    "subject": "merge(#241): 位串矩阵三方并集——#254 尾三 001/111 + #241 5/6 位翻 1"
+   },
+   {
+    "sha": "197f0990da",
+    "date": "2026-11-05 10:54",
+    "subject": "fix(#254): 状态机护栏测试登记分段三工具——Windows CI 红灯修复"
+   },
+   {
+    "sha": "2a723a8d34",
+    "date": "2026-11-05 09:15",
+    "subject": "test(#254): 工具面契约断言全量对齐 29（search_evidence/mcp_sdk_e2e）"
+   },
+   {
+    "sha": "88549711aa",
+    "date": "2026-11-05 09:02",
+    "subject": "docs(#254): Skill 篇幅纪律改写 + p5b 分段工具细则 + MCP 契约 §21"
+   },
+   {
+    "sha": "7f3b53e3a3",
+    "date": "2026-11-05 08:59",
+    "subject": "test(#254): MCP 分段全链验收 + 服务层存在性序修正 + 契约断言 29"
+   },
+   {
+    "sha": "5fd8bd4e8a",
+    "date": "2026-11-05 08:54",
+    "subject": "feat(#254 MCP): 分段三工具接线——append/rewrite/list + schema + 状态机窗口"
+   },
+   {
+    "sha": "275a523b82",
+    "date": "2026-11-05 08:51",
+    "subject": "feat(#254 服务层): 分段写入编排——readiness 闸 + pre-flight 引用拒收 + 落盘同源"
+   },
+   {
+    "sha": "ae3e768608",
+    "date": "2026-11-05 08:48",
+    "subject": "feat(#254 域层补强): rewrite CAS + restore 幂等面/SEG 水位"
+   },
+   {
+    "sha": "4bfa4872a4",
+    "date": "2026-11-05 08:47",
+    "subject": "feat(#254 域层): SectionSegment 分段账本——append/rewrite/reset + 快照加性迁移"
+   }
+  ],
+  "255": [
+   {
+    "sha": "038e16e2d8",
+    "date": "2026-11-05 16:31",
+    "subject": "Merge pull request #255 from mmqz/feat/224-score-rules-consume"
+   }
+  ],
+  "256": [
+   {
+    "sha": "837d09ec5f",
+    "date": "2026-11-05 16:31",
+    "subject": "Merge pull request #256 from mmqz/fix/253-default-total-chars"
+   }
+  ],
+  "257": [
+   {
+    "sha": "5fc79d1c2a",
+    "date": "2026-11-05 16:45",
+    "subject": "Merge pull request #257 from mmqz/feat/251-songling-fixture"
+   }
+  ],
+  "260": [
+   {
+    "sha": "f39f7b775c",
+    "date": "2026-11-05 20:02",
+    "subject": "Merge pull request #260 from mmqz/feat/254-section-segments"
+   }
+  ],
+  "261": [
+   {
+    "sha": "5f82b9c129",
+    "date": "2026-11-05 20:43",
+    "subject": "Merge pull request #261 from mmqz/fix/241-evidence-missing-gate"
+   }
+  ],
+  "262": [
+   {
+    "sha": "0c4cd30bf6",
+    "date": "2026-11-05 20:02",
+    "subject": "Merge pull request #262 from mmqz/feat/250-merge-kind-gate-v2"
+   }
+  ],
+  "263": [
+   {
+    "sha": "fd68101adf",
+    "date": "2026-11-05 20:03",
+    "subject": "Merge pull request #263 from mmqz/feat/252-scoring-outline-baseline"
+   }
+  ],
+  "266": [
+   {
+    "sha": "59317101c8",
+    "date": "2026-11-06 06:00",
+    "subject": "fix(#292 复核): coverage_key_params 基线同步 1→2——#266 商务 REQ 把 95% 带入绑定面（同因追加）"
+   },
+   {
+    "sha": "db36a91b95",
+    "date": "2026-11-06 06:00",
+    "subject": "fix(#292 复核,Lead 授权): songling 配额基线同步 0.824→0.820/0.095→0.100——#266 商务 REQ 0→13 分母漂移"
+   },
+   {
+    "sha": "2e98319d3f",
+    "date": "2026-11-06 09:50",
+    "subject": "feat(#266): PDF 布局面语义表接管——商务要求 0→13 + 五题★结构化标记"
+   },
+   {
+    "sha": "fb005030d5",
+    "date": "2026-11-06 09:03",
+    "subject": "merge(#266): PDF 语义表 REQ 化并入 #252 评分表专路"
+   },
+   {
+    "sha": "af4279fa03",
+    "date": "2026-11-05 18:33",
+    "subject": "test(e2e): 产物定向刷新——#266 后 real-corpus 三题当前输出（基于 91c3756）"
+   },
+   {
+    "sha": "91c37567bb",
+    "date": "2026-11-05 17:26",
+    "subject": "fix(#266): 装配面三修——danqing 前导内容缓冲 + 碎片行守卫 + 前附表纪律；manifest 基线按 IMPROVED 协议更新"
+   },
+   {
+    "sha": "2b9cd784d1",
+    "date": "2026-11-05 16:48",
+    "subject": "feat(#266): PDF 布局面语义表接管——商务表/参数表行装配 + 值行参数化 + 小节级类别切换 + 技术章量化子项"
+   }
+  ],
+  "267": [
+   {
+    "sha": "42640c32d6",
+    "date": "2026-11-06 09:50",
+    "subject": "fix(#267): 检索判据形态归一——norm_n3 双侧归一，4/16→5/16"
+   },
+   {
+    "sha": "1f0ad46903",
+    "date": "2026-11-06 09:08",
+    "subject": "merge(#267): norm_n3 检索归一并入 main 基线——15日历天 4→5 转命中"
+   },
+   {
+    "sha": "f39ea39839",
+    "date": "2026-11-05 15:37",
+    "subject": "test(#267): 层0 金标准 needle 形态自洽断言——全量形态风险扫描固化"
+   },
+   {
+    "sha": "9005117623",
+    "date": "2026-11-05 15:36",
+    "subject": "feat(#267): 检索面接入 norm_n3——匹配瞬间双侧归一,4/16→5/16"
+   },
+   {
+    "sha": "7425d97cce",
+    "date": "2026-11-05 15:30",
+    "subject": "feat(#267): norm_n3 检索判据归一——NFKC 康熙部首 + 千分位剥离(匹配瞬间双侧)"
+   }
+  ],
+  "270": [
+   {
+    "sha": "f0cb5895ab",
+    "date": "2026-11-06 09:10",
+    "subject": "feat(#270): .doc 导入两层设计——环境自动转换 + 无转换器引导 + OLE 改名识别"
+   },
+   {
+    "sha": "5a8fe46214",
+    "date": "2026-11-05 18:55",
+    "subject": "feat(#270): .doc 导入两层设计——环境自动转换 + 无转换器引导 + OLE 改名识别"
+   }
+  ],
+  "271": [
+   {
+    "sha": "2791685429",
+    "date": "2026-11-06 09:10",
+    "subject": "feat(#271): 附件格式件识别——kind=格式模板 + forms_manifest + REQ 关联"
+   },
+   {
+    "sha": "a940e44cac",
+    "date": "2026-11-05 21:16",
+    "subject": "fix(#271 CI 二轮): 全链面环境门改为基于主件实际解析产物——CI 特定文件文本层不可用即 SKIP"
+   },
+   {
+    "sha": "050c8c5d9f",
+    "date": "2026-11-05 20:34",
+    "subject": "fix(#271 CI): 三处 Windows CI 失败修复——kind 枚举测试随语义更新 + 全链面 poppler 环境门"
+   },
+   {
+    "sha": "b9efc78c4a",
+    "date": "2026-11-05 19:53",
+    "subject": "feat(#271): 附件格式件识别——kind=格式模板登记 + forms_manifest 清单 + REQ 尽力关联 + 不产 REQ 不阻塞"
+   }
+  ],
+  "272": [
+   {
+    "sha": "4cb3613f46",
+    "date": "2026-11-06 17:54",
+    "subject": "merge(#272x#277x#285): star_scan + structure 双模块共存"
+   },
+   {
+    "sha": "a5d7ec9a38",
+    "date": "2026-11-06 17:46",
+    "subject": "feat(#272): 章节结构跨平台识别——形态驱动而非字面匹配"
+   },
+   {
+    "sha": "ac15139d1b",
+    "date": "2026-11-06 09:06",
+    "subject": "docs(#272): batch2 数据面实测修正——询价顶层是「第X部分」，数字编号是须知条款层"
+   },
+   {
+    "sha": "24537c5a92",
+    "date": "2026-11-06 09:05",
+    "subject": "test(#272): 跨平台结构验收——issue 五条验收的机证面（4 测全绿）"
+   },
+   {
+    "sha": "0551f30c93",
+    "date": "2026-11-06 09:04",
+    "subject": "feat(#272): 章节结构跨平台形态识别——方案仲裁 + 枚举簇抑制 + 内容证据兜底"
+   },
+   {
+    "sha": "6787e37cb3",
+    "date": "2026-11-06 06:55",
+    "subject": "test(#272): 跨平台结构探针——章识别面/数字顶层头/REQ 类别指纹三面采集"
+   }
+  ],
+  "276": [
+   {
+    "sha": "1959b869ab",
+    "date": "2026-11-06 08:50",
+    "subject": "feat(#276): ★实质性条款结构化标记——substantive + star_summary"
+   },
+   {
+    "sha": "b4aaaca281",
+    "date": "2026-11-05 18:17",
+    "subject": "feat(#276): 矩阵面 substantive 列 + star_summary 统计口——不废标校验可编程"
+   },
+   {
+    "sha": "cc6ca8eeb1",
+    "date": "2026-11-05 18:12",
+    "subject": "feat(#276): 标记面 substantive 字段——submit_block_marks 声明★实质性条款"
+   }
+  ],
+  "277": [
+   {
+    "sha": "4cb3613f46",
+    "date": "2026-11-06 17:54",
+    "subject": "merge(#272x#277x#285): star_scan + structure 双模块共存"
+   },
+   {
+    "sha": "79327e5f56",
+    "date": "2026-11-06 17:46",
+    "subject": "feat(#277): 无宿主形态门禁出口——方案 A agent 可过门但全程留痕"
+   },
+   {
+    "sha": "c2a21e71b5",
+    "date": "2026-11-06 08:47",
+    "subject": "merge: main 并入（#287 篇幅档位 31 工具 + songling 1.2M 基线 + AGENTS 纪律）——#277 agent 过门与档位系统共存验证"
+   },
+   {
+    "sha": "001b50c84e",
+    "date": "2026-11-06 13:46",
+    "subject": "docs(#278/#277): 降级协议增路径 A′ agent 声明过门——引擎出口的 Skill 教学面"
+   },
+   {
+    "sha": "e8a15c44cf",
+    "date": "2026-11-06 03:46",
+    "subject": "docs(#278/#277 配套): 降级协议增路径 A′ agent 声明过门——引擎出口的 Skill 教学面"
+   },
+   {
+    "sha": "8cd81983ed",
+    "date": "2026-11-06 03:39",
+    "subject": "feat(#277): 方案A agent可过门但全程留痕——agent签域/GatePassRecord审计账/导出警告/追认/严格模式"
+   }
+  ],
+  "278": [
+   {
+    "sha": "001b50c84e",
+    "date": "2026-11-06 13:46",
+    "subject": "docs(#278/#277): 降级协议增路径 A′ agent 声明过门——引擎出口的 Skill 教学面"
+   },
+   {
+    "sha": "e8a15c44cf",
+    "date": "2026-11-06 03:46",
+    "subject": "docs(#278/#277 配套): 降级协议增路径 A′ agent 声明过门——引擎出口的 Skill 教学面"
+   },
+   {
+    "sha": "beb3e343d0",
+    "date": "2026-11-06 10:32",
+    "subject": "docs(#278): Skill 五项缺陷修复——★商务表标记教学/门禁降级协议/路径约定/工具数真源化/配额定标"
+   },
+   {
+    "sha": "1cc50f6a87",
+    "date": "2026-11-06 01:37",
+    "subject": "docs(#278 缺陷5): 篇幅纪律补「配额定标」小节——target_total_chars 怎么定"
+   },
+   {
+    "sha": "738b249490",
+    "date": "2026-11-06 01:36",
+    "subject": "docs(#278 缺陷3): 工具数三处漂移清零——文档不再硬编码数量，指向 TOOL_NAMES 单一真源"
+   },
+   {
+    "sha": "1ef8597236",
+    "date": "2026-11-06 01:35",
+    "subject": "docs(#278 缺陷2): 文档路径约定——docs/ 一律指仓库根，修 Skill 分发场景断链"
+   },
+   {
+    "sha": "45c7d43a84",
+    "date": "2026-11-06 01:34",
+    "subject": "docs(#278 缺陷1): SKILL.md 增加「门禁阻塞降级协议」——用户不在场时三条路的正解定死"
+   },
+   {
+    "sha": "1bce4142f7",
+    "date": "2026-11-06 01:33",
+    "subject": "docs(#278 缺陷4): p2-extract 增加「表格行条款（★商务表）」专节——废标级标记面专项教学"
+   }
+  ],
+  "279": [
+   {
+    "sha": "6b6a4d43f3",
+    "date": "2026-11-06 13:46",
+    "subject": "feat(#279): MCP 行协议三处摩擦修复——信封结构错误 + list_tools 发现面 + CAS latest"
+   },
+   {
+    "sha": "22b0467a68",
+    "date": "2026-11-06 02:48",
+    "subject": "feat(#279): MCP 行协议三处摩擦修复——信封结构错误 + list_tools 发现面 + CAS latest"
+   }
+  ],
+  "285": [
+   {
+    "sha": "4cb3613f46",
+    "date": "2026-11-06 17:54",
+    "subject": "merge(#272x#277x#285): star_scan + structure 双模块共存"
+   },
+   {
+    "sha": "c26b014148",
+    "date": "2026-11-06 09:29",
+    "subject": "feat(#285): 块级双向索引数据面——Anchor 块级定位 + 抽取回填 + 反查索引构建"
+   },
+   {
+    "sha": "fee95c1b8e",
+    "date": "2026-11-06 04:42",
+    "subject": "fix(#285 CI): 验收测试加布局引擎预检门——无 poppler/pdfium 环境快速 SKIP"
+   },
+   {
+    "sha": "91fcbb27ba",
+    "date": "2026-11-06 03:54",
+    "subject": "test(#285): 两处工具面计数断言同步 30——search_evidence_tool/draft_tool"
+   },
+   {
+    "sha": "5fbb507ed0",
+    "date": "2026-11-06 03:19",
+    "subject": "test(#285): ★漏标检测真件验收——9 件 manifest 对账 diff=0 + danqing 双路径"
+   },
+   {
+    "sha": "418a8166dd",
+    "date": "2026-11-06 02:57",
+    "subject": "feat(#285): get_star_coverage 工具 + extract_requirements star_summary 集成"
+   },
+   {
+    "sha": "db4f2d39f3",
+    "date": "2026-11-06 02:46",
+    "subject": "feat(#285): ★漏标检测内核 star_scan——字面真值/样板句排除/REQ 双腿匹配"
+   }
+  ],
+  "287": [
+   {
+    "sha": "c2a21e71b5",
+    "date": "2026-11-06 08:47",
+    "subject": "merge: main 并入（#287 篇幅档位 31 工具 + songling 1.2M 基线 + AGENTS 纪律）——#277 agent 过门与档位系统共存验证"
+   },
+   {
+    "sha": "66465fb55b",
+    "date": "2026-11-06 16:22",
+    "subject": "merge(#287x285): 工具面 30->32 + 位串矩阵按 allowed_tools 实值重算"
+   },
+   {
+    "sha": "fa0344e839",
+    "date": "2026-11-06 16:07",
+    "subject": "feat(#287): 篇幅档位系统——四档 400k/800k/1.2M/2.5M + Agent 自动推荐"
+   },
+   {
+    "sha": "cf41d2ede8",
+    "date": "2026-11-06 07:13",
+    "subject": "test(#287): 真语料推荐合理性 + songling 基线 1.2M 刷新 + 类型推断收紧"
+   },
+   {
+    "sha": "23a2537f40",
+    "date": "2026-11-06 06:39",
+    "subject": "feat(#287): build_outline 档位参数 + recommend_length_profile 工具（第 31 个）"
+   },
+   {
+    "sha": "807e65b3da",
+    "date": "2026-11-06 06:21",
+    "subject": "feat(#287): 篇幅档位 LengthProfile 四档 + recommend_length 推荐内核"
+   }
+  ],
+  "292": [
+   {
+    "sha": "59317101c8",
+    "date": "2026-11-06 06:00",
+    "subject": "fix(#292 复核): coverage_key_params 基线同步 1→2——#266 商务 REQ 把 95% 带入绑定面（同因追加）"
+   },
+   {
+    "sha": "db36a91b95",
+    "date": "2026-11-06 06:00",
+    "subject": "fix(#292 复核,Lead 授权): songling 配额基线同步 0.824→0.820/0.095→0.100——#266 商务 REQ 0→13 分母漂移"
+   }
+  ],
+  "293": [
+   {
+    "sha": "ceae70ca92",
+    "date": "2026-11-06 13:46",
+    "subject": "fix(#293): 无细则评分章节双缺陷——配额错位越界 panic + 空章 L1 违反树不变量"
+   }
+  ],
+  "295": [
+   {
+    "sha": "099ed1606e",
+    "date": "2026-11-06 08:01",
+    "subject": "ci(#295): CI 装 poppler + SKIP 可见性——9 条 songling L1 验收门从零覆盖转真跑"
+   }
+  ]
+ },
+ "merge_prs": {
+  "82": {
+   "sha": "247ffe9cb5",
+   "date": "2026-10-31 00:21"
+  },
+  "88": {
+   "sha": "bb13eaec48",
+   "date": "2026-10-31 15:39"
+  },
+  "89": {
+   "sha": "c8676f03df",
+   "date": "2026-10-31 15:44"
+  },
+  "90": {
+   "sha": "88a2ecd0be",
+   "date": "2026-10-31 15:50"
+  },
+  "91": {
+   "sha": "ac13b02a48",
+   "date": "2026-10-31 16:03"
+  },
+  "92": {
+   "sha": "ca8f0bfdb3",
+   "date": "2026-10-31 16:09"
+  },
+  "124": {
+   "sha": "fdc72932f4",
+   "date": "2026-11-01 14:40"
+  },
+  "125": {
+   "sha": "3fc2339b06",
+   "date": "2026-11-01 14:44"
+  },
+  "158": {
+   "sha": "eb2c92d30c",
+   "date": "2026-11-02 08:35"
+  },
+  "162": {
+   "sha": "7883d1ddf6",
+   "date": "2026-11-02 08:35"
+  },
+  "163": {
+   "sha": "db6344ba57",
+   "date": "2026-11-02 08:35"
+  },
+  "164": {
+   "sha": "6f99c7a7fa",
+   "date": "2026-11-02 08:35"
+  },
+  "166": {
+   "sha": "85bb2ced2e",
+   "date": "2026-11-02 08:35"
+  },
+  "167": {
+   "sha": "9c659ba024",
+   "date": "2026-11-02 08:35"
+  },
+  "168": {
+   "sha": "93301089f1",
+   "date": "2026-11-02 08:33"
+  },
+  "175": {
+   "sha": "5e8e6d2cc8",
+   "date": "2026-11-02 09:11"
+  },
+  "176": {
+   "sha": "a6eec0853c",
+   "date": "2026-11-02 10:02"
+  },
+  "177": {
+   "sha": "55ae15cd7c",
+   "date": "2026-11-02 09:57"
+  },
+  "178": {
+   "sha": "084fa6c3e3",
+   "date": "2026-11-02 09:58"
+  },
+  "179": {
+   "sha": "4d33d40ac2",
+   "date": "2026-11-02 10:00"
+  },
+  "181": {
+   "sha": "6e9f1d2d99",
+   "date": "2026-11-02 11:31"
+  },
+  "191": {
+   "sha": "3d76c7ee54",
+   "date": "2026-11-02 11:38"
+  },
+  "192": {
+   "sha": "88e0dbb49c",
+   "date": "2026-11-02 14:34"
+  },
+  "193": {
+   "sha": "560b4b98e9",
+   "date": "2026-11-02 14:34"
+  },
+  "196": {
+   "sha": "41a01565e7",
+   "date": "2026-11-02 16:56"
+  },
+  "197": {
+   "sha": "9cf90c5253",
+   "date": "2026-11-02 15:36"
+  },
+  "198": {
+   "sha": "d590240906",
+   "date": "2026-11-02 16:56"
+  },
+  "199": {
+   "sha": "f9ef123594",
+   "date": "2026-11-04 12:40"
+  },
+  "201": {
+   "sha": "569f8fc451",
+   "date": "2026-11-02 21:52"
+  },
+  "202": {
+   "sha": "6ad7cc1ba9",
+   "date": "2026-11-02 18:40"
+  },
+  "204": {
+   "sha": "a13d7d6652",
+   "date": "2026-11-04 13:03"
+  },
+  "205": {
+   "sha": "118f1e427d",
+   "date": "2026-11-02 22:23"
+  },
+  "206": {
+   "sha": "919ea0c123",
+   "date": "2026-11-02 22:47"
+  },
+  "209": {
+   "sha": "e55eecc81c",
+   "date": "2026-11-03 07:42"
+  },
+  "210": {
+   "sha": "60f30fcc03",
+   "date": "2026-11-03 07:42"
+  },
+  "212": {
+   "sha": "6b699ef953",
+   "date": "2026-11-03 07:42"
+  },
+  "213": {
+   "sha": "1aedc80374",
+   "date": "2026-11-02 23:40"
+  },
+  "214": {
+   "sha": "20d1281b27",
+   "date": "2026-11-03 00:03"
+  },
+  "216": {
+   "sha": "97011b20d3",
+   "date": "2026-11-03 07:43"
+  },
+  "220": {
+   "sha": "d0e4a6e7d5",
+   "date": "2026-11-03 10:31"
+  },
+  "221": {
+   "sha": "882102b6e4",
+   "date": "2026-11-03 10:59"
+  },
+  "222": {
+   "sha": "8237f5fbfb",
+   "date": "2026-11-03 11:34"
+  },
+  "225": {
+   "sha": "ad6b8987a9",
+   "date": "2026-11-03 12:39"
+  },
+  "227": {
+   "sha": "2d86f25386",
+   "date": "2026-11-04 08:55"
+  },
+  "228": {
+   "sha": "6aaa955265",
+   "date": "2026-11-03 15:51"
+  },
+  "230": {
+   "sha": "55d898656d",
+   "date": "2026-11-04 10:30"
+  },
+  "232": {
+   "sha": "15c0cffd71",
+   "date": "2026-11-04 09:06"
+  },
+  "235": {
+   "sha": "4e4ae4278a",
+   "date": "2026-11-04 09:06"
+  },
+  "236": {
+   "sha": "315f1ded09",
+   "date": "2026-11-04 18:43"
+  },
+  "237": {
+   "sha": "705827ac29",
+   "date": "2026-11-04 09:21"
+  },
+  "238": {
+   "sha": "8bcea39820",
+   "date": "2026-11-04 13:11"
+  },
+  "239": {
+   "sha": "e6f01928cf",
+   "date": "2026-11-04 13:56"
+  },
+  "240": {
+   "sha": "4a09940f0d",
+   "date": "2026-11-04 18:57"
+  },
+  "241": {
+   "sha": "fdb8db1d4a",
+   "date": "2026-11-04 20:55"
+  },
+  "242": {
+   "sha": "6105beb652",
+   "date": "2026-11-04 21:25"
+  },
+  "247": {
+   "sha": "c9750b48cb",
+   "date": "2026-11-05 16:40"
+  },
+  "249": {
+   "sha": "601e1d1d3e",
+   "date": "2026-11-05 16:38"
+  },
+  "255": {
+   "sha": "038e16e2d8",
+   "date": "2026-11-05 16:31"
+  },
+  "256": {
+   "sha": "837d09ec5f",
+   "date": "2026-11-05 16:31"
+  },
+  "257": {
+   "sha": "5fc79d1c2a",
+   "date": "2026-11-05 16:45"
+  },
+  "260": {
+   "sha": "f39f7b775c",
+   "date": "2026-11-05 20:02"
+  },
+  "261": {
+   "sha": "5f82b9c129",
+   "date": "2026-11-05 20:43"
+  },
+  "262": {
+   "sha": "0c4cd30bf6",
+   "date": "2026-11-05 20:02"
+  },
+  "263": {
+   "sha": "fd68101adf",
+   "date": "2026-11-05 20:03"
+  }
+ },
+ "post_baseline_refs": {
+  "224": [
+   "5593ce2b:feat(#224 第3步): score_rules 消费——细则关键条件检查点（规则层可见性）"
+  ],
+  "241": [
+   "38d46404:merge(#241): 位串矩阵三方并集——#254 尾三 001/111 + #241 5/6 位翻 1",
+   "38d46404:merge(#241): 位串矩阵三方并集——#254 尾三 001/111 + #241 5/6 位翻 1",
+   "07b8ce44:fix(#241): 不变式③按两分账改写——绑定⇒RESPONDED 单向对账（Windows CI 第二处修复）",
+   "d0033748:fix(#241): global_invariants 的 MatrixRow 反例构造补两正交标记字段（Window",
+   "fb61eee2:docs(#241): 契约与 Skill 文档同步——两分账语义 + submission_readiness 面 +",
+   "34803f07:test(#241): 导出门测试断言更新——正文实写的资格行不再拦导出（两分账）",
+   "6f05f1ed:test(#241): 243 MCP 全序测试失败源同步改写（未映射资格条款）",
+   "44af3c19:feat(#241): MCP 三面接线 + 证据补件状态窗口（DRAFTING→READY_TO_EXPORT）",
+   "4f3ceca4:feat(#241): 提交就绪面 submission_readiness——Export 与 Submission ",
+   "ca6b3067:test(#241): #243 重试测试的失败源改为未映射资格条款（覆盖缺口形态）",
+   "34d58955:test(#241): 旧口径测试按新裁定改写——正文实写即 RESPONDED（2026-11-04 决策点 2 由 ",
+   "ba7083fe:feat(#241): draft 路径联建矩阵——正文实写成为状态派生输入后的时效性保证",
+   "642000fa:fix(#241): 测试章节文档序撞号修正（order 全局唯一）",
+   "bbefb22e:feat(#241): 域层两分账——正文实写派生 RESPONDED + evidence_required/evid"
+  ],
+  "243": [
+   "ca6b3067:test(#241): #243 重试测试的失败源改为未映射资格条款（覆盖缺口形态）",
+   "f06c81cb:docs(#243): MCP 契约 §7/§20 + Skill 流程——校验调用时机与恢复路径",
+   "4d4d8e60:feat(#243): MCP 工具层——recover_validating_state 接线 + 验收面回归",
+   "2fa95645:fix(#243): 服务层——校验前置闸（E_DRAFT_INCOMPLETE）+ 仅通过才推进 + 恢复转发",
+   "8b5f40b0:fix(#243): 域层——E_DRAFT_INCOMPLETE 错误码 + VALIDATING→DRAFTING "
+  ],
+  "245": [
+   "f4027d29:docs(#245): MCP 契约 §11-A/§4/§7/§8 四门清单 + Skill P4 占位面 + 验收报告",
+   "bee8c50e:test(#245 e2e): MCP 全链验收——占位事故 containment + 1d 门独立复算 + 修复闭环",
+   "4fe23bb2:fix(#245): 清理误入库的 real-corpus-e2e 中间明细——恢复 main 产物状态",
+   "b84640a4:feat(#245 MCP): register placeholder 参数 + 自报 verification_ti",
+   "43031130:feat(#245 验证/导出): E_EVIDENCE_PLACEHOLDER/E_CITATION_PLACEHOL",
+   "3f4be441:feat(#245 服务层): 占位登记服务端裁决 + 起草/就绪面占位纪律",
+   "bd858219:feat(#245 矩阵): PENDING_EVIDENCE 待补态——占位绑定不清合规阻塞",
+   "03490485:feat(#245 域层): VerificationTier::Placeholder 占位/待核验态"
+  ],
+  "247": [
+   "c9750b48:Merge pull request #247 from mmqz/fix/245-placeholder-eviden",
+   "6f6f74cb:fix(#247 审核): 占位门豁免收紧——三要件裁决，普通状态覆写不豁免"
+  ],
+  "249": [
+   "601e1d1d:Merge pull request #249 from mmqz/fix/243-validate-state-saf"
+  ],
+  "250": [
+   "f7f7446e:fix(extract): #250 来源字段完整化——正则产物补 marked_by",
+   "cd41c86a:feat(extract): #250 表格语义专路——参数表/商务表按行结构化装配",
+   "f9eb94f6:fix(merge): #250 P0 合并门禁按 kind 判定——前缀仅作夹具兜底"
+  ],
+  "251": [
+   "d25ba9df:test(#251): songling_baseline 三层断言面——层0 静态 5 测 + 层1 PDF 引擎基线",
+   "38a1b939:feat(#251): 金标准 v1——评分表结构化 + 关键参数 16 条 PDF 逐条复核 + 预期大纲基线 + 复",
+   "af586e69:feat(#251): 真实语料 Fixture 落地——松岭 TF-0002 原件入库 + manifest 登记公开"
+  ],
+  "252": [
+   "fb005030:merge(#266): PDF 语义表 REQ 化并入 #252 评分表专路",
+   "2849ec6e:feat(#252 第二步): 评分驱动大纲——6 章节 20 细则 + 独立响应位 + ScoringMapping ",
+   "9e2ca2e1:fix(#252 CI): validate_tool 两测试适配语义分叶——只起草格式叶保住 E_QUAL_UNMET",
+   "9dfbb2a6:merge: main 并入——#253 三轨分层计价与 #252 评分驱动大纲的配额融合",
+   "401ed21b:feat(#252 域层): 评分驱动大纲——6 章节 20 细则 + 独立响应位 + 多对多映射落账 + 分类配额",
+   "c3d62f11:feat(#252 解析层): 综合评分表专路——评审项/分值/细则结构化装配",
+   "473ed8c7:test(#252 第一步): 评分驱动大纲验收基线——预期结构断言面固化"
+  ],
+  "253": [
+   "9dfbb2a6:merge: main 并入——#253 三轨分层计价与 #252 评分驱动大纲的配额融合",
+   "98e222eb:feat(#253 第二段): 配额分配算法重构——分层计价 + 门禁分级",
+   "80a12604:test(e2e): 产物定向刷新——#253 分层配额 + 门禁分级 + mock 面向目标量后的当前输出（基于 5f",
+   "43451fdf:test(#253): songling 基线接单一真源行政分类器 + manifest 行政占比基线刷新 0.875→",
+   "b80cb10f:docs(#253 第二段): 契约与 Skill 同步——分层配额 + 门禁分级语义",
+   "f27951f8:feat(#253 第二段): 门禁分级——E_CHARS_BELOW_MIN 收窄评分章节 + 总篇幅硬门 E_TOT",
+   "0f2351a8:feat(#253 第二段): 配额分层计价——行政/实质按条计价 + 评分轨按分值吃余量",
+   "fec6ee68:fix(#253 第一段): target_total_chars 默认值三层统一——单一真源 844,000"
+  ],
+  "254": [
+   "38d46404:merge(#241): 位串矩阵三方并集——#254 尾三 001/111 + #241 5/6 位翻 1",
+   "197f0990:fix(#254): 状态机护栏测试登记分段三工具——Windows CI 红灯修复",
+   "2a723a8d:test(#254): 工具面契约断言全量对齐 29（search_evidence/mcp_sdk_e2e）",
+   "88549711:docs(#254): Skill 篇幅纪律改写 + p5b 分段工具细则 + MCP 契约 §21",
+   "7f3b53e3:test(#254): MCP 分段全链验收 + 服务层存在性序修正 + 契约断言 29",
+   "5fd8bd4e:feat(#254 MCP): 分段三工具接线——append/rewrite/list + schema + 状态机窗",
+   "275a523b:feat(#254 服务层): 分段写入编排——readiness 闸 + pre-flight 引用拒收 + 落盘同源",
+   "ae3e7686:feat(#254 域层补强): rewrite CAS + restore 幂等面/SEG 水位",
+   "4bfa4872:feat(#254 域层): SectionSegment 分段账本——append/rewrite/reset + 快"
+  ],
+  "255": [
+   "038e16e2:Merge pull request #255 from mmqz/feat/224-score-rules-consu"
+  ],
+  "256": [
+   "837d09ec:Merge pull request #256 from mmqz/fix/253-default-total-char"
+  ],
+  "257": [
+   "5fc79d1c:Merge pull request #257 from mmqz/feat/251-songling-fixture"
+  ],
+  "260": [
+   "f39f7b77:Merge pull request #260 from mmqz/feat/254-section-segments"
+  ],
+  "261": [
+   "5f82b9c1:Merge pull request #261 from mmqz/fix/241-evidence-missing-g"
+  ],
+  "262": [
+   "0c4cd30b:Merge pull request #262 from mmqz/feat/250-merge-kind-gate-v"
+  ],
+  "263": [
+   "fd68101a:Merge pull request #263 from mmqz/feat/252-scoring-outline-b"
+  ],
+  "266": [
+   "2e98319d:feat(#266): PDF 布局面语义表接管——商务要求 0→13 + 五题★结构化标记",
+   "fb005030:merge(#266): PDF 语义表 REQ 化并入 #252 评分表专路",
+   "af4279fa:test(e2e): 产物定向刷新——#266 后 real-corpus 三题当前输出（基于 91c3756）",
+   "91c37567:fix(#266): 装配面三修——danqing 前导内容缓冲 + 碎片行守卫 + 前附表纪律；manifest 基线",
+   "2b9cd784:feat(#266): PDF 布局面语义表接管——商务表/参数表行装配 + 值行参数化 + 小节级类别切换 + 技术章"
+  ],
+  "267": [
+   "42640c32:fix(#267): 检索判据形态归一——norm_n3 双侧归一，4/16→5/16",
+   "1f0ad469:merge(#267): norm_n3 检索归一并入 main 基线——15日历天 4→5 转命中",
+   "f39ea398:test(#267): 层0 金标准 needle 形态自洽断言——全量形态风险扫描固化",
+   "90051176:feat(#267): 检索面接入 norm_n3——匹配瞬间双侧归一,4/16→5/16",
+   "7425d97c:feat(#267): norm_n3 检索判据归一——NFKC 康熙部首 + 千分位剥离(匹配瞬间双侧)"
+  ],
+  "270": [
+   "f0cb5895:feat(#270): .doc 导入两层设计——环境自动转换 + 无转换器引导 + OLE 改名识别",
+   "5a8fe462:feat(#270): .doc 导入两层设计——环境自动转换 + 无转换器引导 + OLE 改名识别"
+  ],
+  "271": [
+   "27916854:feat(#271): 附件格式件识别——kind=格式模板 + forms_manifest + REQ 关联",
+   "a940e44c:fix(#271 CI 二轮): 全链面环境门改为基于主件实际解析产物——CI 特定文件文本层不可用即 SKIP",
+   "050c8c5d:fix(#271 CI): 三处 Windows CI 失败修复——kind 枚举测试随语义更新 + 全链面 poppl",
+   "b9efc78c:feat(#271): 附件格式件识别——kind=格式模板登记 + forms_manifest 清单 + REQ 尽"
+  ],
+  "272": [
+   "a5d7ec9a:feat(#272): 章节结构跨平台识别——形态驱动而非字面匹配",
+   "ac15139d:docs(#272): batch2 数据面实测修正——询价顶层是「第X部分」，数字编号是须知条款层",
+   "24537c5a:test(#272): 跨平台结构验收——issue 五条验收的机证面（4 测全绿）",
+   "0551f30c:feat(#272): 章节结构跨平台形态识别——方案仲裁 + 枚举簇抑制 + 内容证据兜底",
+   "6787e37c:test(#272): 跨平台结构探针——章识别面/数字顶层头/REQ 类别指纹三面采集"
+  ],
+  "276": [
+   "1959b869:feat(#276): ★实质性条款结构化标记——substantive + star_summary",
+   "b4aaaca2:feat(#276): 矩阵面 substantive 列 + star_summary 统计口——不废标校验可编程",
+   "cc6ca8ee:feat(#276): 标记面 substantive 字段——submit_block_marks 声明★实质性条款"
+  ],
+  "277": [
+   "79327e5f:feat(#277): 无宿主形态门禁出口——方案 A agent 可过门但全程留痕",
+   "c2a21e71:merge: main 并入（#287 篇幅档位 31 工具 + songling 1.2M 基线 + AGENTS 纪",
+   "001b50c8:docs(#278/#277): 降级协议增路径 A′ agent 声明过门——引擎出口的 Skill 教学面",
+   "e8a15c44:docs(#278/#277 配套): 降级协议增路径 A′ agent 声明过门——引擎出口的 Skill 教学面",
+   "8cd81983:feat(#277): 方案A agent可过门但全程留痕——agent签域/GatePassRecord审计账/导出警"
+  ],
+  "278": [
+   "001b50c8:docs(#278/#277): 降级协议增路径 A′ agent 声明过门——引擎出口的 Skill 教学面",
+   "e8a15c44:docs(#278/#277 配套): 降级协议增路径 A′ agent 声明过门——引擎出口的 Skill 教学面",
+   "beb3e343:docs(#278): Skill 五项缺陷修复——★商务表标记教学/门禁降级协议/路径约定/工具数真源化/配额定标",
+   "1cc50f6a:docs(#278 缺陷5): 篇幅纪律补「配额定标」小节——target_total_chars 怎么定",
+   "738b2494:docs(#278 缺陷3): 工具数三处漂移清零——文档不再硬编码数量，指向 TOOL_NAMES 单一真源",
+   "1ef85972:docs(#278 缺陷2): 文档路径约定——docs/ 一律指仓库根，修 Skill 分发场景断链",
+   "45c7d43a:docs(#278 缺陷1): SKILL.md 增加「门禁阻塞降级协议」——用户不在场时三条路的正解定死",
+   "1bce4142:docs(#278 缺陷4): p2-extract 增加「表格行条款（★商务表）」专节——废标级标记面专项教学"
+  ],
+  "279": [
+   "6b6a4d43:feat(#279): MCP 行协议三处摩擦修复——信封结构错误 + list_tools 发现面 + CAS lat",
+   "22b0467a:feat(#279): MCP 行协议三处摩擦修复——信封结构错误 + list_tools 发现面 + CAS lat"
+  ],
+  "287": [
+   "c2a21e71:merge: main 并入（#287 篇幅档位 31 工具 + songling 1.2M 基线 + AGENTS 纪",
+   "fa0344e8:feat(#287): 篇幅档位系统——四档 400k/800k/1.2M/2.5M + Agent 自动推荐",
+   "cf41d2ed:test(#287): 真语料推荐合理性 + songling 基线 1.2M 刷新 + 类型推断收紧",
+   "23a2537f:feat(#287): build_outline 档位参数 + recommend_length_profile 工具",
+   "807e65b3:feat(#287): 篇幅档位 LengthProfile 四档 + recommend_length 推荐内核"
+  ],
+  "293": [
+   "ceae70ca:fix(#293): 无细则评分章节双缺陷——配额错位越界 panic + 空章 L1 违反树不变量"
+  ]
+ }
+}

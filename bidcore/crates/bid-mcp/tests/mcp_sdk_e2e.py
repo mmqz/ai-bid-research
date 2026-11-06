@@ -91,6 +91,7 @@ async def main() -> None:
             tools = (await session.list_tools()).tools
             names = {t.name for t in tools}
             check(len(tools) == 37, f"list_tools: 工具数 = {len(tools)}（37）")
+
             check(names == EXPECTED_TOOLS, "list_tools: 与 TOOL_NAMES 单一真源一致")
             for t in tools:
                 check(isinstance(t.inputSchema, dict) and t.inputSchema.get("type") == "object",

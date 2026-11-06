@@ -23,7 +23,7 @@
    "第一章投标邀请",
    "第二章投标人须知"
   ],
-  "conclusion": "三套完全不同的模板骨架（黑龙江章-节 / 内蒙古章-节但章名全异 / 询价数字编号）"
+  "conclusion": "三套不同模板骨架：黑龙江/内蒙古均「第X章」（章名 Jaccard 0.028 全异，但形态同族）；询价顶层为「第X部分」（TOC 实证），其数字编号（1..25）是供应商须知条款层——#272 实测修正（原「询价数字编号」表述把条款层误记为顶层）"
  },
  "tenders": [
   {
@@ -108,7 +108,9 @@
    },
    "attachment_count": 0,
    "attachments_sample": [],
-   "known_gaps": []
+   "known_gaps": [],
+   "top_level_form": "第X部分（TOC 实证 7 部分：投标邀请/供应商须知/资格审查/采购需求/评标标准和评标方法/政府采购合同/响应文件格式）",
+   "probe_note": "README 表中的 1.适用范围..7.询价文件构成 是第二部分供应商须知内的条款层（1..25 数字编号），非顶层骨架——#272 实测修正"
   },
   {
    "id": "nm-health-terminal",
@@ -153,7 +155,9 @@
    ],
    "known_gaps": [
     "含 26 个附件格式件，引擎当前只处理主件（见 #271）"
-   ]
+   ],
+   "top_level_form": "第X章（同上，#272 实测）",
+   "probe_note": "同 nm-lib——原探针未做 NFKC"
   },
   {
    "id": "nm-lib-mongolian",
@@ -198,7 +202,9 @@
    ],
    "known_gaps": [
     "含 24 个附件格式件，引擎当前只处理主件（见 #271）"
-   ]
+   ],
+   "top_level_form": "第X章（NFKC 归一康熙部首后可认——#272 实测 14 章标记：目录区 7 + 正文 7）",
+   "probe_note": "原 has_zhang_structure=false 是原始文本口径（部首污染）——引擎识别面经 NFKC 兜住，#272 修正"
   },
   {
    "id": "nm-property-mgmt",
@@ -243,7 +249,9 @@
    ],
    "known_gaps": [
     "含 22 个附件格式件，引擎当前只处理主件（见 #271）"
-   ]
+   ],
+   "top_level_form": "第X章（同上，#272 实测）",
+   "probe_note": "同 nm-lib——原探针未做 NFKC"
   }
  ],
  "expected_baselines": {

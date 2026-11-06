@@ -3,7 +3,10 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' blob: data: mang:; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: mang:; font-src 'self' data: mang:; worker-src 'self' blob: mang:; connect-src 'self' blob: data: mang:" />
+<!-- #326（R-30/D-01）CSP 收紧：script-src 去掉 'unsafe-inline'——全页无内联脚本块/内联事件处理器，
+     唯一脚本入口是 <script type="module" src="app.js">（'self' 已覆盖）。
+     style-src 的 'unsafe-inline' 保留：app.js 有 16 处 innerHTML 内联 style="" 属性，收紧即碎。 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' blob: data: mang:; script-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: mang:; font-src 'self' data: mang:; worker-src 'self' blob: mang:; connect-src 'self' blob: data: mang:" />
 <title>mang — 标书工作台</title>
 <link rel="stylesheet" href="styles.css" />
 </head>

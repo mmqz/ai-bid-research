@@ -116,21 +116,27 @@ def die(msg: str) -> None:
     sys.exit(1)
 
 
-def mint_receipt(ws: Path, actor_id: str, scope: str) -> str:
-    """#182 宿主签发面：读工作区密钥，按域层线格式签审批 receipt。
+def mint_receipt(mcp: "McpStdio", ws: Path, actor_id: str, scope: str) -> str:
+    """#182 宿主签发面（#323 起 v2 七段——含内容绑定摘要）：读工作区密钥，
+    按域层线格式签审批 receipt。
 
     示例进程即宿主（spawn server 的同一进程树/同一文件系统权限）——
     持钥签发是宿主特权；MCP 工具面上不存在等价能力（这正是 #182 的
     信任根）。线格式与 bid-domain/src/principal.rs 一字不差（与
     sdk/tests/test_mcp_e2e.py 的 mint_receipt 同源）：
-      v1.<actor>.human.<scope>.<issued_at>.<hex_hmac_sha256>
-      HMAC 消息 v1|<actor>|human|<scope>|<issued_at>
+      v2.<actor>.human.<scope>.<issued_at>.<sections_digest>.<hex_hmac_sha256>
+      HMAC 消息 v2|<actor>|human|<scope>|<issued_at>|<sections_digest>
+    #323/R-06：第六段 = 当前章节树摘要（经 get_bid_project_state 的
+    content_binding.sections_digest 取——与服务器端验签同源）；签发后
+    内容变更 → 旧 receipt 被拒（CONTENT_DRIFTED_RECEIPT，重签即解）。
     """
+    state = mcp.call("get_bid_project_state", {})["data"]
+    digest = state["content_binding"]["sections_digest"]
     key = (ws / ".mang" / "approval.key").read_bytes()
     now = int(time.time())
-    msg = f"v1|{actor_id}|human|{scope}|{now}".encode()
+    msg = f"v2|{actor_id}|human|{scope}|{now}|{digest}".encode()
     mac = hmac.new(key, msg, hashlib.sha256).hexdigest()
-    return f"v1.{actor_id}.human.{scope}.{now}.{mac}"
+    return f"v2.{actor_id}.human.{scope}.{now}.{digest}.{mac}"
 
 
 def build_binary() -> Path:
@@ -145,10 +151,18 @@ def build_binary() -> Path:
     )
     if r.returncode != 0:
         die("cargo build 失败——见上方编译输出")
-    target_dir = REPO_ROOT / "bidcore" / "target" / "debug" / BIN_NAME
-    if not target_dir.exists():
-        die(f"构建成功但未找到二进制：{target_dir}")
-    return target_dir
+    # AGENTS.md §11 磁盘纪律：尊重 CARGO_TARGET_DIR（cargo 把产物写在它
+    # 指向的位置——沙箱/CI 常用它避免仓内 target 撑爆磁盘）；未设时是
+    # 仓内默认 bidcore/target。两处都找，先环境后默认。
+    env_target = os.environ.get("CARGO_TARGET_DIR")
+    candidates = [
+        *( [Path(env_target) / "debug" / BIN_NAME] if env_target else [] ),
+        REPO_ROOT / "bidcore" / "target" / "debug" / BIN_NAME,
+    ]
+    for target_dir in candidates:
+        if target_dir.exists():
+            return target_dir
+    die(f"构建成功但未找到二进制（找过 {[str(c) for c in candidates]}）")
 
 
 class McpStdio:
@@ -357,10 +371,11 @@ def main() -> None:
         #      P6 之后），先过门后起草会被导出前置裁决拒（摘要失配））
         for gate in ("matrix_approval", "outline_approval",
                      "addendum_waiver"):
+            receipt = mint_receipt(mcp, ws, "minimal-flow-操作者",
+                                   f"review_gate:{gate}")
             mcp.must("record_review_gate", {
                 "project_id": pid, "gate": gate, "decision": "APPROVED",
-                "receipt": mint_receipt(ws, "minimal-flow-操作者",
-                                        f"review_gate:{gate}"),
+                "receipt": receipt,
             })
         print("      三门已记（matrix/outline + addendum_waiver；receipt 验签）")
 
@@ -417,7 +432,7 @@ def main() -> None:
         mcp.must("record_review_gate", {
             "project_id": pid, "gate": "pre_export_confirm",
             "decision": "APPROVED",
-            "receipt": mint_receipt(ws, "minimal-flow-操作者",
+            "receipt": mint_receipt(mcp, ws, "minimal-flow-操作者",
                                     "review_gate:pre_export_confirm"),
         })
         print("      P6 校验 BLOCKER=0 ✓ → P7.5 pre_export_confirm 已记（receipt 验签）")

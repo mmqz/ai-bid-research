@@ -4046,16 +4046,20 @@ fn build_outline(svc: &mut BidService, args: Value) -> ToolResult {
 
 // ---------------------------------------------------------------- #287 篇幅档位推荐
 
-/// 采购类型推断（#287 修正项信号——关键词面，best-effort）。
+/// 采购类型推断（#287 修正项信号——best-effort，关键词面）。
 ///
-/// 依据：项目名 + REQ 锚文关键词（工程类天然厚重 → 上调一档）。Agent
-/// 可通过显式选档覆盖（决策权在用户——推断只是建议信号）。
-fn infer_tender_type(text: &str) -> bid_domain::outline::TenderType {
+/// **仅用项目名**：锚文关键词不可用——通用标书样板词（「同类工程业绩」
+/// 「安装调试」「工程量清单」）在任何采购类型都出现（真语料实测：询价
+/// 设备件/传媒服务件全被误判工程），项目名才是类型真源。关键词收紧为
+/// 明确工程形态；Agent 可通过显式选档覆盖（决策权在用户）。
+fn infer_tender_type(project_name: &str) -> bid_domain::outline::TenderType {
     use bid_domain::outline::TenderType;
-    let has = |kws: &[&str]| kws.iter().any(|k| text.contains(k));
-    if has(&["工程", "施工", "建筑", "装修", "监理", "安装", "市政", "水利", "公路", "EPC"]) {
+    let has = |kws: &[&str]| kws.iter().any(|k| project_name.contains(k));
+    if has(&["工程施工", "建筑工程", "市政工程", "水利工程", "公路工程",
+             "装修工程", "机电工程", "监理", "EPC", "总承包"]) {
         TenderType::Engineering
-    } else if has(&["服务", "运维", "运营", "维护", "咨询", "传媒", "传播", "租赁", "培训", "平台"]) {
+    } else if has(&["服务", "运维", "运营", "维护", "咨询", "传媒", "传播",
+                   "租赁", "培训", "广告", "宣传"]) {
         TenderType::Service
     } else {
         TenderType::Goods
@@ -4160,17 +4164,20 @@ fn recommend_length_profile(svc: &mut BidService, args: Value) -> ToolResult {
                 .map(|v| v as u64)
         })
         .fold(None::<u64>, |acc, v| Some(acc.map_or(v, |a| a.max(v))));
-    // 类型/明写篇幅的文本面：项目名 + 锚文（前 300 条 × 每锚前 120 字）
+    // 类型：项目名单一真源（锚文样板词污染实测见 infer_tender_type 文档）；
+    // 明写篇幅：锚文限值模式扫描（样本面可以更宽——限值表述本身就是稀缺信号）
     let mut text_face = String::new();
-    if let Ok(p) = svc.store().project() {
-        text_face.push_str(&p.name);
-    }
     for r in reqs.iter().take(300) {
         for a in r.anchors.iter().take(3) {
             text_face.push_str(&a.excerpt.chars().take(120).collect::<String>());
         }
     }
-    let tender_type = infer_tender_type(&text_face);
+    let project_name = svc
+        .store()
+        .project()
+        .map(|p| p.name.clone())
+        .unwrap_or_default();
+    let tender_type = infer_tender_type(&project_name);
     let explicit_limit = scan_explicit_length_limit(&text_face);
 
     let rec = bid_domain::outline::recommend_length(

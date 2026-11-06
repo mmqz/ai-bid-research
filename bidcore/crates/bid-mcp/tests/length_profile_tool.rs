@@ -276,3 +276,134 @@ fn gate_follows_selected_profile() {
     );
     let _ = std::fs::remove_dir_all(tmp_ws("gate"));
 }
+
+// ---------------------------------------------------------------- 验收 11：真语料推荐合理性
+
+/// 真语料推荐档位合理性（issue #287 验收 11）：
+/// - hq-dev-procure（69★ 设备采购）→ Conservative 或 Maximum
+/// - wenming（8★ 传媒服务）→ Standard 或 Conservative
+/// - nm-health-terminal（询价小项目）→ Practical
+///
+/// 环境门（AGENTS 测试纪律 + issue #9）：布局引擎（poppler 三件套或
+/// MDC_PDFIUM_LIB）不在位 → SKIP 横幅；导入失败（无引擎形态下兜底路
+/// fail-loud）→ SKIP 横幅。断言按档位**集合**断（信号面跨解析路有
+/// 细粒度差异，档位结论必须稳定）。
+#[test]
+fn real_corpus_recommendation_sanity() {
+    // 环境门：poppler 三件套 或 pdfium 显式库（#285 同款双臂）
+    let pdfium_ok = std::env::var("MDC_PDFIUM_LIB")
+        .map(|p| !p.is_empty() && std::path::Path::new(&p).exists())
+        .unwrap_or(false);
+    if !pdfium_ok
+        && bid_parse::env_preflight::skip_if_env_missing(
+            "star_287_real_corpus_recommendation",
+            bid_parse::env_preflight::POPPLER_TEXT_TOOLS,
+        )
+    {
+        return;
+    }
+    let root = fixtures_root();
+    // 真实招标标题（manifest.title）作项目名——类型推断吃项目名，测试名
+    // 会污染信号（保真：Agent 建项时用的就是招标标题）
+    let manifest_title = |batch: &str, id: &str| -> String {
+        let m = std::fs::read_to_string(root.join(batch).join("manifest.json"))
+            .unwrap_or_default();
+        let v: Value = serde_json::from_str(&m).unwrap_or(json!({}));
+        v["tenders"]
+            .as_array()
+            .and_then(|a| {
+                a.iter()
+                    .find(|t| t["id"] == json!(id))
+                    .and_then(|t| t["title"].as_str())
+                    .map(String::from)
+            })
+            .unwrap_or_else(|| id.to_string())
+    };
+    let cases: &[(&str, &str, PathBuf, &[&str])] = &[
+        (
+            "hq-dev-procure-230001",
+            "real-tender-batch1",
+            root.join("real-tender-batch1/hq-dev-procure-230001"),
+            &["conservative", "maximum"],
+        ),
+        (
+            "wenming-longjiang-230001",
+            "real-tender-batch1",
+            root.join("real-tender-batch1/wenming-longjiang-230001"),
+            &["standard", "conservative"],
+        ),
+        (
+            "nm-health-terminal",
+            "real-tender-batch2",
+            root.join("real-tender-batch2/nm-health-terminal"),
+            &["practical"],
+        ),
+    ];
+    for (id, batch, dir, allowed) in cases {
+        let title = manifest_title(batch, id);
+        let Some(pdf) = std::fs::read_dir(&dir)
+            .ok()
+            .and_then(|rd| {
+                rd.filter_map(|e| e.ok())
+                    .map(|e| e.path())
+                    .find(|p| p.extension().map(|e| e == "pdf").unwrap_or(false))
+            })
+        else {
+            eprintln!("【SKIP】{id} fixture 不在仓（{dir:?}）");
+            continue;
+        };
+        let ws = tmp_ws("corpus");
+        let mut svc = match BidService::open(&ws) {
+            Ok(s) => s.with_fs_root(&dir),
+            Err(e) => panic!("打开工作区: {e}"),
+        };
+        ok_result(call(
+            &mut svc,
+            "create_bid_project",
+            json!({ "name": &title, "bid_deadline": "2026-12-31",
+                    "mode": "明标", "external_key": format!("length-287-{id}") }),
+        ));
+        let import = match call(
+            &mut svc,
+            "import_tender_files",
+            json!({ "project_id": "PRJ-0001", "files": [{
+                "upload_ref": pdf.display().to_string(),
+                "filename": pdf.file_name().unwrap().to_string_lossy(), "kind": "招标文件" }]}),
+        ) {
+            ToolReply::Ok(out) => out.result,
+            ToolReply::Err { error, .. } => {
+                eprintln!("【SKIP】{id} 本环境导入失败（{error}）——无外部引擎形态，推荐信号不可信");
+                let _ = std::fs::remove_dir_all(&ws);
+                continue;
+            }
+        };
+        if import["per_file"][0]["parse_status"] != json!("ok") {
+            eprintln!("【SKIP】{id} 解析不开（{:?}）", import["per_file"][0]["parse_error"]);
+            let _ = std::fs::remove_dir_all(&ws);
+            continue;
+        }
+        ok_result(call(
+            &mut svc,
+            "extract_requirements",
+            json!({ "project_id": "PRJ-0001" }),
+        ));
+        let out = ok_result(call(
+            &mut svc,
+            "recommend_length_profile",
+            json!({ "project_id": "PRJ-0001" }),
+        ));
+        let rec = out["recommended_profile"].as_str().unwrap_or("");
+        let sig = &out["signals"];
+        println!(
+            "[{id}] → {rec}（细则 {} ★{} 预算 {:?} 类型 {} 明写 {:?}）\n  理由: {:?}",
+            sig["scoring_detail_count"], sig["star_count"], sig["budget_yuan"],
+            sig["tender_type"], sig["explicit_limit_chars"],
+            out["reasons"].as_array().map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>()).unwrap_or_default()
+        );
+        assert!(
+            allowed.contains(&rec),
+            "{id} 推荐档 {rec} 不在预期集 {allowed:?}（验收 11 档位合理性）\n{out}"
+        );
+        let _ = std::fs::remove_dir_all(&ws);
+    }
+}

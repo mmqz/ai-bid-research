@@ -487,6 +487,10 @@ fn assemble_linearized_rows(
             || t.starts_with("注：")
             || t.starts_with("注:")
             || linearized_table_title_kind(t).is_some()
+            // #252：综合评分表是独立表——上一张审查表在此收表（旧实现把
+            // 整张评分表吞进最后一行：#251 实测 REQ-0297 单锚 1933 字符）。
+            // 评分表本体由 scoring_table 专路装配。
+            || crate::scoring_table::is_scoring_table_title(t)
             || re_clause.is_match(t)
             || re_chapter.is_match(t)
         {

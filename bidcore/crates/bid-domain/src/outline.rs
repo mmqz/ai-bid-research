@@ -193,6 +193,97 @@ pub fn is_admin_group(title: &str) -> bool {
 /// 不再裸「（第N块）」）。
 const OTHER_FALLBACK_GROUP: &str = "其他条款";
 
+/// 「资格与响应」的语义子叶（#252 硬约束④：响应组不机械分块——资格证明
+/// 与否决情形是两类响应话术，分叶不分家（同一 L1「资格与响应」下））。
+const RESPONSE_LEAF_QUAL: &str = "资格证明材料响应";
+const RESPONSE_LEAF_VETO: &str = "否决情形响应";
+
+/// 块内条款号区间（全部 REQ 有条款号才可用——「1.1-1.7」；任一缺失 →
+/// `None`，调用方走页码区间兜底）。
+fn clause_range(chunk: &[&Requirement]) -> Option<(String, String)> {
+    let nos: Vec<&str> = chunk
+        .iter()
+        .map(|r| r.clause_no.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+        .collect::<Option<Vec<_>>>()?;
+    Some((nos.first()?.to_string(), nos.last()?.to_string()))
+}
+
+/// 锚 locator 的「第N页」页码提取。
+fn page_of(locator: &str) -> Option<u32> {
+    let cs: Vec<char> = locator.chars().collect();
+    let mut i = 0;
+    while i < cs.len() {
+        if cs[i] == '第' {
+            let mut j = i + 1;
+            let mut n = 0u32;
+            while j < cs.len() && cs[j].is_ascii_digit() {
+                n = n * 10 + cs[j].to_digit(10)?;
+                j += 1;
+            }
+            if j > i + 1 && j < cs.len() && cs[j] == '页' {
+                return Some(n);
+            }
+        }
+        i += 1;
+    }
+    None
+}
+
+/// 块内原文页码区间（「原文第2-24页」——条款号不齐时的块标题兜底：
+/// 位置区间可追溯，不是「（第N块）」无语义编号）。
+fn page_range(chunk: &[&Requirement]) -> Option<String> {
+    let mut min = u32::MAX;
+    let mut max = 0u32;
+    for r in chunk {
+        for a in &r.anchors {
+            if let Some(p) = page_of(&a.locator) {
+                min = min.min(p);
+                max = max.max(p);
+            }
+        }
+    }
+    (min != u32::MAX).then(|| {
+        if min == max {
+            format!("原文第{min}页")
+        } else {
+            format!("原文第{min}-{max}页")
+        }
+    })
+}
+
+/// 多块组的块标题（#252 硬约束④：禁止机械分块——「（第N块）」不再出现）：
+/// 条款号区间优先（「格式要求（条款 11.1-16.3）」/「其他条款 1-1.1.5」），
+/// 页码区间兜底（「否决情形响应（原文第2-24页）」），计数兜底殿后。
+fn chunk_title(group: &str, sub: &str, chunk: &[&Requirement], _ci: usize) -> String {
+    let base = if group == OTHER_FALLBACK_GROUP {
+        // 「其他」兜底组：既有 #100 命名约定（组名 空格 区间）
+        if let Some((f, l)) = clause_range(chunk) {
+            return if f == l {
+                format!("{group} {f}")
+            } else {
+                format!("{group} {f}-{l}")
+            };
+        }
+        OTHER_FALLBACK_GROUP.to_string()
+    } else {
+        sub.to_string()
+    };
+    if let Some((f, l)) = clause_range(chunk) {
+        if f == l {
+            format!("{base}（条款 {f}）")
+        } else {
+            format!("{base}（条款 {f}-{l}）")
+        }
+    } else if let Some(pr) = page_range(chunk) {
+        format!("{base}（{pr}）")
+    } else {
+        // 最后兜底：组序 + 计数（条款号/页码都缺失时——组序保证块间标题
+        // 唯一：docx 标题「恰一次」不变量（GI ①）要求各叶可区分）。
+        // 不用「块」字样——#252 硬约束④的机械分块禁令。
+        format!("{base}（第{}组 {n}条）", _ci + 1, n = chunk.len())
+    }
+}
+
 // ------------------------------------------------ 其他类语义分组（issue #100 任务 1）
 
 /// 「其他」类条款的主题规则表（关键词 → 主题；命中数最多者优先，并列取
@@ -316,22 +407,6 @@ fn chapter_heading(seg: &str) -> Option<String> {
         i += 1;
     }
     None
-}
-
-/// 兜底组叶标题的条款号区间（chunk 内全部 REQ 都有条款号才可用——
-/// 「其他条款 1.1-1.7」；单条 chunk →「其他条款 4.1」；任一条款号缺失
-/// → `None`（调用方退化到「（第N块）」）。
-fn clause_range_title(chunk: &[&Requirement]) -> Option<String> {
-    let nos: Vec<&str> = chunk
-        .iter()
-        .map(|r| r.clause_no.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-        .collect::<Option<Vec<_>>>()?;
-    let (first, last) = (nos.first()?, nos.last()?);
-    Some(if first == last {
-        format!("{OTHER_FALLBACK_GROUP} {first}")
-    } else {
-        format!("{OTHER_FALLBACK_GROUP} {first}-{last}")
-    })
 }
 
 /// 配额三轨（#253 第二段——分层计价的分类面）。
@@ -533,24 +608,42 @@ pub fn needs_response_section(category: &str) -> bool {
     matches!(category, "否决项" | "资格条件")
 }
 
-/// 结构：每个非空类目 → 1 个 level-1 节点；**「其他」类二次分组**（issue #100
-/// 任务 1：锚点章节 [`chapter_of`] → 关键词主题 [`infer_theme`] → 兜底
-/// 「其他条款」——catch-all 不再平铺成「其他（第N块）」×31）；组内 REQ 按
-/// id 序切块（每块 ≤ max_reqs_per_leaf）→ level-2 叶节点。父节点
-/// requirement_ids = 子并集、target_chars = 子和（聚合一致性由构造保证，
-/// set_outline 复核）。
+/// 结构（#252 评分驱动 + 既有类目分组的融合）：
 ///
-/// 配额（#253 第二段：分层计价——按「分值/内容」分配，取代按 REQ 数均摊）：
-/// - **评分轨**（叶绑定「评分项」REQ——#252 评分驱动大纲落地后出现）：
-///   底价 [`MIN_SCORING_LEAF_CHARS`]，剩余预算按分值权重（`params.score`）
-///   最大余数法分摊；
+/// **评分表在场**（解析层 scoring_table 专路产出评分表行 REQ）时：
+/// - 6 个技术评审项 → 评分章节 L1（标题=规范名+分值），细则 → L2
+///   （标题=规范短形，scoring_outline::scoring_l2_title）；
+/// - 业绩/价格 → 独立响应位 L1 叶（证明材料/报价文件——不混进技术正文）；
+/// - 技术参数等经 L2_ROUTES 多对多路由进评分章节（双轨：原组绑定保留）；
+/// - L1 文档序按第七章格式位次（硬约束②：资格→报价→行政→技术支撑→
+///   评分主体→业绩→残余）。
+///
+/// **评分表不在场**（corpus-A docx / synth 路径）：既有类目分组行为
+/// 逐位保留（「其他」二次分组 #100）——仅多块组标题从「（第N块）」改为
+/// 条款号/页码区间（硬约束④无条件）。
+///
+/// 叶块标题（多块组）：条款号区间优先（「格式要求（条款 11.1-16.3）」），
+/// 页码区间兜底（「否决情形响应（原文第2-24页）」），计数兜底殿后——
+/// 「（第N块）」无语义标题不再出现（issue #252 验收 5）。
+///
+/// 「资格与响应」组语义分叶（#121 P0-1 的响应提纲 + #252 硬约束④）：
+/// 资格证明材料响应（资格条件）/ 否决情形响应（否决项）——两类响应
+/// 话术分叶，同一 L1 下。
+///
+/// 配额（#253 第二段：分层计价——按「分值/内容」分配，取代按 REQ 数均摊；
+/// #252 评分驱动大纲落地后评分轨在本结构上**可达**——#253 在旧分组面上
+/// 的「评分轨不出现」注释由本 PR 兑现）：
+/// - **评分轨**（评分 L2 细则叶）：底价 [`MIN_SCORING_LEAF_CHARS`]，剩余
+///   预算按分值权重（章分值 ÷ 细则数 ×1000——章内均摊 + 章间按分值，
+///   与 `quota_253_scoring_weight_allocation` 单测口径一致）最大余数法分摊；
 /// - **行政轨**（[`is_admin_group`]）：[`ADMIN_CHARS_PER_REQ`] × 条数；
 /// - **实质轨**（其余）：[`BODY_CHARS_PER_REQ`] × 条数；
+/// - 槽位（业绩/价格表格位）固定配额先扣（表格位篇幅固定，不参与分值
+///   驱动让渡）；
 /// - 剩余预算自动让渡（#253 正文）：评分轨 → 实质轨 → 行政轨——1000 页
 ///   硬指标下，余量只有投到分值承载章节才有边际回报；
 /// - 底价和超过 target（小目标退化面）→ 整体回退「按 REQ 数最大余数法」
 ///   （历史行为——守恒与 [`MIN_LEAF_CHARS`] 下限语义不变，#199 回归锁有效）。
-/// 归组/切块面不动（issue #100 验收线——语义分组只改归组与标题）。
 ///
 /// `next_id` 签名器由调用方注入（store 传 `self.next_id`；测试传计数闭包）——
 /// 派生逻辑与 id 序列解耦。
@@ -559,24 +652,25 @@ pub fn derive_outline(
     spec: OutlineSpec,
     next_id: &mut dyn FnMut(&str) -> String,
 ) -> Vec<OutlineNode> {
-    // 【正文类目的两条边界】（#121 P0-1，实测 e2e 暴露的真问题）：
+    derive_outline_with_mappings(reqs, spec, next_id).0
+}
+
+/// derive_outline 的映射扩展面（#252 验收 4：评分表行 → 章节映射落账）。
+/// 返回 (章节树, 映射意图)——意图由 `derive_and_set_outline` 消费。
+pub fn derive_outline_with_mappings(
+    reqs: &[Requirement],
+    spec: OutlineSpec,
+    next_id: &mut dyn FnMut(&str) -> String,
+) -> (Vec<OutlineNode>, Vec<crate::scoring_outline::MappingIntent>) {
+    // 【正文类目的两条边界】（#121 P0-1）+【#252 评分表的第三条】：
     //
-    //   ① 评分项 —— 完全不进正文。评分方法是评标委员会的算分规则，
-    //      投标人只需要在「自评表」里逐项打分，正文里写「价格分 30 分」
-    //      是把自己的报价策略和评标办法混为一谈。
+    //   ① 评分项 —— 评标委员会的算分规则，不抄进正文；**但评分表行 REQ
+    //      是评分驱动大纲的结构源**（params.name/sub_items → 章节/细则），
+    //      它们不进类目分组，只做 L2 的锚绑定与映射落账面。
     //
-    //   ② 否决项 / 资格条件 —— 【不写规则原文，但必须有响应章节】。
-    //      这是最容易做错的一条（第一版按「规则类全过滤」做，result:
-    //      合规矩阵立刻报 30+ 条 BLOCKER「否决项未响应」——因为规则要求
-    //      每个否决项都得有响应章节）。
-    //
-    //      正确做法：合并成【一个】「资格与响应」章节组，叶标题用
-    //      「条款号 + 原文摘要」（让投标人知道要响应哪一条），正文由
-    //      draft 写【响应话术】（「我方满足 1.4.1 的要求，附件为营业执照
-    //      复印件」），而不是抄招标文件原文。
-    //
-    //      这样：矩阵有章节 → 不报 BLOCKER；正文是响应而非规则 → 不出现
-    //      「投标人不满足 XX 的予以否决」这种评标口径。
+    //   ② 否决项 / 资格条件 —— 【不写规则原文，但必须有响应章节】：
+    //      「资格与响应」组语义分叶（资格证明材料响应 / 否决情形响应），
+    //      正文由 draft 写响应话术，而不是抄招标文件原文。
     const RESPONSE_GROUP: &str = "资格与响应";
     let body_reqs: Vec<(&Requirement, String)> = reqs
         .iter()
@@ -584,21 +678,14 @@ pub fn derive_outline(
             if is_body_category(&r.category) {
                 Some((r, r.category.clone()))
             } else if needs_response_section(&r.category) {
-                // 否决项 + 资格条件 合并进同一个响应章节组
                 Some((r, RESPONSE_GROUP.to_string()))
             } else {
-                // 评分项：不进正文
                 None
             }
         })
         .collect();
-    let total_reqs: usize = reqs.len();
-    if total_reqs == 0 {
-        return vec![];
-    }
-    if body_reqs.is_empty() {
-        // 全是纯规则类目（只有评分项）：大纲为空（调用方据 store 空否提示）。
-        return vec![];
+    if reqs.is_empty() {
+        return (vec![], vec![]);
     }
     // 类目分桶（首现序——输入已按 id 序时全确定）
     let mut buckets: Vec<(String, Vec<&Requirement>)> = Vec::new();
@@ -608,12 +695,10 @@ pub fn derive_outline(
             None => buckets.push((group.clone(), vec![r])),
         }
     }
-    // 「其他」类二次分组（issue #100 任务 1）：catch-all 类平铺成
-    // 「其他（第N块）」×31 是目录不可读的根因（用户实测）。归组键优先级：
+    // 「其他」类二次分组（issue #100 任务 1）：归组键优先级
     //   ① 招标文件章节（锚点 locator 的「第X章」段——路线 B，最忠实）；
     //   ② 关键词主题（infer_theme——路线 A，补遗等无章节结构者）；
-    //   ③ 兜底「其他条款」（叶标题退化为条款号区间，不再裸「（第N块）」）。
-    // 非其他类目原样通过（本任务只治 catch-all，不动既有类目结构）。
+    //   ③ 兜底「其他条款」（叶标题退化为条款号区间）。
     let mut groups: Vec<(String, Vec<&Requirement>)> = Vec::new();
     for (cat, rs) in buckets {
         if cat != "其他" {
@@ -630,84 +715,165 @@ pub fn derive_outline(
             }
         }
     }
-    // 叶块清单（先收集再配额——需要全局余数视角；标题在此一并定型）
-    struct LeafDraft { group: String, title: String, req_ids: Vec<String> }
+    // ---------------------------------------------------------------- 叶块清单
+    struct LeafDraft {
+        group: String,
+        title: String,
+        req_ids: Vec<String>,
+    }
+    let chunk_size = spec.max_reqs_per_leaf.max(1);
     let mut leaves: Vec<LeafDraft> = Vec::new();
-    for (g, rs) in &groups {
-        let chunk_size = spec.max_reqs_per_leaf.max(1);
+    fn push_group_leaves(
+        leaves: &mut Vec<LeafDraft>,
+        group: &str,
+        sub: &str,
+        rs: &[&Requirement],
+        chunk_size: usize,
+    ) {
         let n_chunks = rs.chunks(chunk_size).count();
         for (ci, chunk) in rs.chunks(chunk_size).enumerate() {
             let req_ids: Vec<String> = chunk.iter().map(|r| r.id.clone()).collect();
-            let title = if g == OTHER_FALLBACK_GROUP {
-                // 兜底组：条款号区间（「其他条款 1.1-1.7」）；缺条款号 → （第N块）
-                clause_range_title(chunk)
-                    .unwrap_or_else(|| format!("{g}（第{}块）", ci + 1))
-            } else if n_chunks > 1 {
-                format!("{}（第{}块）", g, ci + 1)
+            // 「其他条款」兜底组：单块也带区间（#100 既有约定——「其他条款 9.0-9.2」）
+            let title = if n_chunks == 1 && group != OTHER_FALLBACK_GROUP {
+                sub.to_string()
             } else {
-                // 单叶组：组名即标题（「第一章 招标公告」——无块后缀）
-                g.clone()
+                chunk_title(group, sub, chunk, ci)
             };
-            leaves.push(LeafDraft { group: g.clone(), title, req_ids });
+            leaves.push(LeafDraft {
+                group: group.to_string(),
+                title,
+                req_ids,
+            });
         }
     }
-    // 【#253 第二段】分层配额——底价计价 + 剩余让渡（评分 → 实质 → 行政）。
-    let leaf_counts: Vec<u64> = leaves.iter().map(|l| l.req_ids.len() as u64).collect();
-    // 评分项索引：分类（叶绑定评分项 REQ 即评分轨）+ 分值权重（params.score）。
-    // 注：当前分组面评分项不进正文（#121 P0-1）——评分轨在 #252 评分驱动
-    // 大纲落地后才会出现；分层算法在此就位，其分值分配路径由
-    // [`allocate_quotas`] 的单测直接覆盖（评分轨结构是 #252 的交付面）。
-    let scoring_reqs: std::collections::HashSet<&str> = reqs
-        .iter()
-        .filter(|r| r.category == "评分项")
-        .map(|r| r.id.as_str())
-        .collect();
-    let score_of: std::collections::HashMap<&str, f64> = reqs
-        .iter()
-        .filter(|r| r.category == "评分项")
-        .filter_map(|r| {
-            r.params
-                .get("score")
-                .and_then(|v| v.as_f64())
-                .map(|s| (r.id.as_str(), s))
-        })
-        .collect();
-    let tracks: Vec<Track> = leaves
-        .iter()
-        .map(|l| {
-            if l.req_ids.iter().any(|rid| scoring_reqs.contains(&rid[..])) {
-                Track::Scoring
-            } else if is_admin_group(&l.group) {
-                Track::Admin
-            } else {
-                Track::Body
+    // ---------------------------------------------------------------- 评分面
+    // 叶块清单落盘（组 → 叶）：响应组语义分叶 + 常规组直落。
+    for (g, rs) in &groups {
+        if *g == RESPONSE_GROUP {
+            // 语义分叶：资格证明（资格条件）vs 否决情形（否决项）
+            let quals: Vec<&Requirement> =
+                rs.iter().copied().filter(|r| r.category == "资格条件").collect();
+            let vetoes: Vec<&Requirement> =
+                rs.iter().copied().filter(|r| r.category != "资格条件").collect();
+            if !quals.is_empty() {
+                push_group_leaves(&mut leaves, RESPONSE_GROUP, RESPONSE_LEAF_QUAL, &quals, chunk_size);
             }
-        })
-        .collect();
-    // 分值权重（×1000 取整——两位小数分值无损；全零 → 均摊）
-    let weights: Vec<u64> = leaves
+            if !vetoes.is_empty() {
+                push_group_leaves(&mut leaves, RESPONSE_GROUP, RESPONSE_LEAF_VETO, &vetoes, chunk_size);
+            }
+        } else {
+            push_group_leaves(&mut leaves, g, g, rs, chunk_size);
+        }
+    }
+    let scoring_build = crate::scoring_outline::build_scoring_sections(reqs);
+    let mut mappings: Vec<crate::scoring_outline::MappingIntent> = Vec::new();
+    let mut scoring_nodes: Vec<OutlineNode> = Vec::new();
+    if let Some(build) = &scoring_build {
+        let (l2_reqs, slot_reqs) = crate::scoring_outline::route_requirements(reqs, build);
+        let (mut snodes, mintents) =
+            crate::scoring_outline::scoring_nodes(build, &l2_reqs, &slot_reqs, next_id);
+        scoring_nodes.append(&mut snodes);
+        mappings.extend(mintents);
+    }
+    // ---------------------------------------------------------------- 配额
+    // 统一账：legacy 叶（0..n_leaf）+ 评分 L2/槽位配额位（n_leaf..）。
+    // 【#253 第二段 × #252 融合】分层计价扩展到统一账——评分驱动大纲
+    // 落地后评分轨在本结构上可达（#253 在旧分组面上「评分轨不出现」的
+    // 前置注释由 #252 兑现）：
+    //   - legacy 叶 → [`is_admin_group`] ? [`Track::Admin`] : [`Track::Body`]
+    //     （评分 REQ 不进类目分组——`is_body_category` 过滤面，legacy 恒无
+    //     Scoring 轨）；
+    //   - 评分 L2 → [`Track::Scoring`]，分值权重 = 章分值 ÷ 细则数 ×1000
+    //     （章内均摊 + 章间按分值——与 `quota_253_scoring_weight_allocation`
+    //     单测口径一致；不取「L2 绑定 REQ 的 score 之和」——每个 L2 都
+    //     绑定章行 REQ，直接求和会让权重 ∝ 章分值 × 细则数，跨章失真）；
+    //   - 槽位（业绩/价格表格位）→ 固定配额先扣（表格位篇幅固定，不参与
+    //     分值驱动的剩余让渡——#252 表格位语义保留）。
+    // 守恒：allocate_quotas(target − 槽位总额) 构造性恒等 + 槽位固定值
+    // → 统一账总和 == target（#199 回归锁继续有效）。
+    let n_leaf = leaves.len();
+    // 评分节点中「配额承载位」= L2 节点 + 槽位叶（L1 聚合位事后由子和重算）
+    let scoring_quota_slots: Vec<usize> = scoring_nodes
         .iter()
-        .map(|l| {
-            l.req_ids
-                .iter()
-                .map(|rid| {
-                    (score_of.get(&rid[..]).copied().unwrap_or(0.0) * 1000.0).round() as u64
-                })
-                .sum()
+        .enumerate()
+        .filter(|(_, n)| n.level == 2 || n.parent_id.is_none())
+        .filter(|(_, n)| {
+            // 槽位 L1 叶（无子）与 L2 都承载；评分章节 L1（有子）不承载
+            n.level == 2 || !scoring_nodes.iter().any(|m| m.parent_id.as_deref() == Some(&n.id[..]))
         })
+        .map(|(i, _)| i)
         .collect();
-    let quotas: Vec<u64> = allocate_quotas(&tracks, &weights, &leaf_counts, spec.target_total_chars);
-    // 组树：组（类目或语义子组）→ level-1，叶 → level-2
-    let mut nodes: Vec<OutlineNode> = Vec::new();
-    let mut order: u32 = 0;
+    let n_slots = scoring_build.as_ref().map(|b| b.slots.len()).unwrap_or(0) as u64;
+    let slot_total = n_slots * u64::from(crate::scoring_outline::SLOT_FIXED_CHARS);
+    let effective_target = u64::from(spec.target_total_chars).saturating_sub(slot_total);
+    // 三轨输入（统一账叶序：legacy 叶 → 评分 L2——scoring_nodes 构建序）
+    let n_scoring_l2 = scoring_quota_slots
+        .iter()
+        .filter(|&&i| scoring_nodes[i].level == 2)
+        .count();
+    let mut tracks: Vec<Track> = Vec::with_capacity(n_leaf + n_scoring_l2);
+    let mut weights: Vec<u64> = vec![0; n_leaf + n_scoring_l2];
+    let mut counts: Vec<u64> = Vec::with_capacity(n_leaf + n_scoring_l2);
+    for l in &leaves {
+        tracks.push(if is_admin_group(&l.group) {
+            Track::Admin
+        } else {
+            Track::Body
+        });
+        counts.push(l.req_ids.len() as u64);
+    }
+    if let Some(build) = &scoring_build {
+        for ch in &build.chapters {
+            let n_l2 = ch.l2_titles.len();
+            // 章分值均摊到细则（×1000 整数——两位小数分值无损；零细则跳过）
+            let w = if n_l2 == 0 {
+                0
+            } else {
+                (ch.score * 1000.0 / n_l2 as f64).round() as u64
+            };
+            for _ in 0..n_l2 {
+                tracks.push(Track::Scoring);
+                weights[tracks.len() - 1] = w;
+                counts.push(1);
+            }
+        }
+    }
+    let mut quotas: Vec<u64> =
+        allocate_quotas(&tracks, &weights, &counts, effective_target as u32);
+    // 槽位固定配额（统一账尾——守恒：slots + effective_target == target）
+    for _ in 0..n_slots {
+        quotas.push(u64::from(crate::scoring_outline::SLOT_FIXED_CHARS));
+    }
+    // 评分节点配额回写（L2/槽位）；L1 聚合位 = 子和
+    for (qi, node_i) in scoring_quota_slots.iter().enumerate() {
+        scoring_nodes[*node_i].target_chars = quotas[n_leaf + qi] as u32;
+    }
+    {
+        let mut i = 0usize;
+        while i < scoring_nodes.len() {
+            if scoring_nodes[i].level == 1 {
+                let sum: u32 = scoring_nodes
+                    .iter()
+                    .filter(|m| m.parent_id.as_deref() == Some(&scoring_nodes[i].id[..]))
+                    .map(|m| m.target_chars)
+                    .sum();
+                if sum > 0 {
+                    scoring_nodes[i].target_chars = sum;
+                }
+            }
+            i += 1;
+        }
+    }
+    // ---------------------------------------------------------------- 组树
+    let mut tree: Vec<OutlineNode> = Vec::new();
     for (g, _) in &groups {
-        let group_leaves: Vec<usize> = leaves.iter()
+        let group_leaves: Vec<usize> = leaves
+            .iter()
             .enumerate()
             .filter(|(_, l)| &l.group == g)
             .map(|(i, _)| i)
             .collect();
         let parent_id = next_id("SEC");
-        order += 1;
         // 聚合面（子并集 / 配额和）
         let mut agg_reqs: Vec<String> = Vec::new();
         let mut agg_chars: u64 = 0;
@@ -719,12 +885,12 @@ pub fn derive_outline(
             }
             agg_chars += quotas[li];
         }
-        nodes.push(OutlineNode {
+        tree.push(OutlineNode {
             id: parent_id.clone(),
             parent_id: None,
             title: g.clone(),
             level: 1,
-            order,
+            order: 0, // 排序后统一编序
             requirement_ids: agg_reqs,
             target_chars: agg_chars as u32,
             status: SectionStatus::Pending,
@@ -733,13 +899,12 @@ pub fn derive_outline(
             content_attempt: 0,
         });
         for &li in &group_leaves {
-            order += 1;
-            nodes.push(OutlineNode {
+            tree.push(OutlineNode {
                 id: next_id("SEC"),
                 parent_id: Some(parent_id.clone()),
                 title: leaves[li].title.clone(),
                 level: 2,
-                order,
+                order: 0,
                 requirement_ids: leaves[li].req_ids.clone(),
                 target_chars: quotas[li] as u32,
                 status: SectionStatus::Pending,
@@ -749,7 +914,49 @@ pub fn derive_outline(
             });
         }
     }
-    nodes
+    tree.extend(scoring_nodes);
+    // ---------------------------------------------------------------- L1 文档序
+    // 硬约束②（强制格式优先）：评分在场时按第七章格式位次重排 L1 块；
+    // 不在场保持构建序（既有行为）。稳定排序——类内序不动。
+    if scoring_build.is_some() {
+        let slot_titles: Vec<String> = scoring_build
+            .as_ref()
+            .map(|b| b.slots.iter().map(|s| s.title.clone()).collect())
+            .unwrap_or_default();
+        let chapter_titles: Vec<String> = scoring_build
+            .as_ref()
+            .map(|b| b.chapters.iter().map(|c| c.title.clone()).collect())
+            .unwrap_or_default();
+        let mut l1_blocks: Vec<(u8, usize)> = Vec::new(); // (order_key, 树内下标)
+        for (i, n) in tree.iter().enumerate() {
+            if n.level != 1 {
+                continue;
+            }
+            let class = if chapter_titles.contains(&n.title) {
+                crate::scoring_outline::GroupClass::Scoring
+            } else if slot_titles.contains(&n.title) {
+                crate::scoring_outline::GroupClass::Slot
+            } else {
+                crate::scoring_outline::classify_group(&n.title)
+            };
+            l1_blocks.push((crate::scoring_outline::group_order_key(class, &n.title), i));
+        }
+        l1_blocks.sort_by(|a, b| a.0.cmp(&b.0));
+        let mut ordered: Vec<OutlineNode> = Vec::with_capacity(tree.len());
+        for (_, i) in &l1_blocks {
+            let node = &tree[*i];
+            ordered.push(node.clone());
+            for n in tree.iter().filter(|n| n.parent_id.as_deref() == Some(&node.id[..])) {
+                ordered.push(n.clone());
+            }
+        }
+        tree = ordered;
+    }
+    // 统一编序（order 全局唯一，文档序）
+    for (i, n) in tree.iter_mut().enumerate() {
+        n.order = (i + 1) as u32;
+    }
+    (tree, mappings)
 }
 
 /// 树不变量校验（纯函数——set_outline 的裁决面，错误即 E_UNPROCESSABLE reason）。
@@ -966,10 +1173,41 @@ impl DomainStore {
     }
 
     /// 从已抽条款推导并落树（验收主入口——「从 REQ 清单推导章节树」）。
+    ///
+    /// #252 评分驱动面：评分表在场时同时落账映射（`OutlineDerived`——验收 4：
+    /// scoring_mappings 中评分项全部有 section_id）。重建语义：大纲重建时
+    /// SEC id 重签，旧 `OutlineDerived` 行先清除再重签（它们是建纲产物，
+    /// 随树刷新）；`AgentSubmitted`/`Manual` 行保留——若其引用的章节在
+    /// 新树中不存在，`set_outline` 按 #224 fail-loud 拒绝（外部映射是
+    /// 审计面，不得静默蒸发）。
     pub fn derive_and_set_outline(&mut self, spec: OutlineSpec) -> Result<(usize, u64), ToolError> {
         let reqs = self.requirements.clone();
-        let nodes = derive_outline(&reqs, spec, &mut |prefix| self.next_id(prefix));
-        self.set_outline(nodes)
+        let (nodes, intents) =
+            derive_outline_with_mappings(&reqs, spec, &mut |prefix| self.next_id(prefix));
+        self.scoring_mappings
+            .retain(|m| m.created_from != crate::scoring::MappingSource::OutlineDerived);
+        let result = self.set_outline(nodes)?;
+        for it in intents {
+            let anchor = it.anchor.clone().unwrap_or_else(|| reqs
+                .iter()
+                .find(|r| r.id == it.scoring_req_id)
+                .and_then(|r| r.anchors.first().cloned())
+                .unwrap_or(crate::Anchor {
+                    file: String::new(),
+                    kind: "table".into(),
+                    locator: String::new(),
+                    excerpt: String::new(),
+                }));
+            self.upsert_scoring_mapping(
+                it.scoring_req_id,
+                it.section_id,
+                1.0,
+                vec![],
+                anchor,
+                crate::scoring::MappingSource::OutlineDerived,
+            )?;
+        }
+        Ok(result)
     }
 
     /// 写入章正文（#59 阶段 1 / draft_response_section 的 CAS 面）。
@@ -1419,8 +1657,9 @@ mod tests {
         // 多叶组带块序，单叶组用组名（无块后缀）
         let ch1: Vec<&OutlineNode> = nodes.iter().filter(|n| n.title.starts_with("第一章")).collect();
         assert_eq!(ch1.len(), 3, "1 父 + 2 叶");
-        assert_eq!(ch1[1].title, "第一章 招标公告（第1块）");
-        assert_eq!(ch1[2].title, "第一章 招标公告（第2块）");
+        // #252 硬约束④：块标题用条款号区间，不用「（第N块）」
+        assert_eq!(ch1[1].title, "第一章 招标公告（条款 1.1）");
+        assert_eq!(ch1[2].title, "第一章 招标公告（条款 1.3）");
         let ch6_leaves: Vec<&OutlineNode> = nodes.iter()
             .filter(|n| n.parent_id.is_some() && n.title.starts_with("第六章"))
             .collect();
@@ -1477,11 +1716,12 @@ mod tests {
         assert_eq!(byd.len(), 1);
         assert_eq!(byd[0].title, "补遗与澄清响应");
         assert_eq!(byd[0].requirement_ids.len(), 2, "两条补遗条款归同一主题组");
-        // 兜底组单叶（3 条 ≤ 8/叶）：有条款号的区间形态失效（REQ-0006 缺号）→ （第1块）
+        // 兜底组单叶（3 条 ≤ 8/叶）：区间形态失效（REQ-0006 缺号，锚无页码）
+        // → 计数兜底（#252 硬约束④：「（第N块）」不再是合法退化形态）
         let fb: Vec<&OutlineNode> = nodes.iter()
             .filter(|n| n.parent_id.is_some() && n.title.starts_with("其他条款")).collect();
         assert_eq!(fb.len(), 1);
-        assert_eq!(fb[0].title, "其他条款（第1块）", "混合缺号 chunk 退化为（第N块）");
+        assert_eq!(fb[0].title, "其他条款（第1组 3条）", "混合缺号且无页码锚 → 组序+计数兜底（块间唯一）");
         assert_eq!(fb[0].requirement_ids.len(), 3);
         // 纯条款号 chunk 的区间标题（去掉无号条款再推导）
         let reqs2: Vec<Requirement> = reqs[..5].to_vec();

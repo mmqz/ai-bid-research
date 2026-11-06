@@ -1,5 +1,5 @@
 {
-  "leaves": 26,
+  "leaves": 27,
   "nodes": [
     {
       "id": "SEC-0009",
@@ -39,7 +39,7 @@
       "reqs": 6,
       "status": "PENDING",
       "target_chars": 500,
-      "title": "第三章 投标人须知（第1块）"
+      "title": "第三章 投标人须知（条款 3.1.1-3.6.2）"
     },
     {
       "id": "SEC-0013",
@@ -49,7 +49,7 @@
       "reqs": 3,
       "status": "PENDING",
       "target_chars": 500,
-      "title": "第三章 投标人须知（第2块）"
+      "title": "第三章 投标人须知（条款 3.8.1-3.9.2）"
     },
     {
       "id": "SEC-0014",
@@ -198,7 +198,7 @@
       "parent_id": null,
       "reqs": 59,
       "status": "PENDING",
-      "target_chars": 5000,
+      "target_chars": 5500,
       "title": "资格与响应"
     },
     {
@@ -209,17 +209,17 @@
       "reqs": 6,
       "status": "PENDING",
       "target_chars": 500,
-      "title": "资格与响应（第1块）"
+      "title": "资格证明材料响应（条款 1.4.1-1.4.7）"
     },
     {
       "id": "SEC-0030",
       "level": 2,
       "order": 22,
       "parent_id": "SEC-0028",
-      "reqs": 6,
+      "reqs": 3,
       "status": "PENDING",
       "target_chars": 500,
-      "title": "资格与响应（第2块）"
+      "title": "资格证明材料响应（条款 3.2.1-7.4）"
     },
     {
       "id": "SEC-0031",
@@ -229,7 +229,7 @@
       "reqs": 6,
       "status": "PENDING",
       "target_chars": 500,
-      "title": "资格与响应（第3块）"
+      "title": "否决情形响应（条款 1.2-3.3.5）"
     },
     {
       "id": "SEC-0032",
@@ -239,7 +239,7 @@
       "reqs": 6,
       "status": "PENDING",
       "target_chars": 500,
-      "title": "资格与响应（第4块）"
+      "title": "否决情形响应（条款 3.4.2-3.7.2）"
     },
     {
       "id": "SEC-0033",
@@ -249,7 +249,7 @@
       "reqs": 6,
       "status": "PENDING",
       "target_chars": 500,
-      "title": "资格与响应（第5块）"
+      "title": "否决情形响应（第3组 6条）"
     },
     {
       "id": "SEC-0034",
@@ -259,7 +259,7 @@
       "reqs": 6,
       "status": "PENDING",
       "target_chars": 500,
-      "title": "资格与响应（第6块）"
+      "title": "否决情形响应（第4组 6条）"
     },
     {
       "id": "SEC-0035",
@@ -269,7 +269,7 @@
       "reqs": 6,
       "status": "PENDING",
       "target_chars": 500,
-      "title": "资格与响应（第7块）"
+      "title": "否决情形响应（第5组 6条）"
     },
     {
       "id": "SEC-0036",
@@ -279,7 +279,7 @@
       "reqs": 6,
       "status": "PENDING",
       "target_chars": 500,
-      "title": "资格与响应（第8块）"
+      "title": "否决情形响应（条款 3.7.4-表-4）"
     },
     {
       "id": "SEC-0037",
@@ -289,22 +289,32 @@
       "reqs": 6,
       "status": "PENDING",
       "target_chars": 500,
-      "title": "资格与响应（第9块）"
+      "title": "否决情形响应（第7组 6条）"
     },
     {
       "id": "SEC-0038",
       "level": 2,
       "order": 30,
       "parent_id": "SEC-0028",
-      "reqs": 5,
+      "reqs": 6,
       "status": "PENDING",
       "target_chars": 500,
-      "title": "资格与响应（第10块）"
+      "title": "否决情形响应（原文第1页）"
     },
     {
       "id": "SEC-0039",
-      "level": 1,
+      "level": 2,
       "order": 31,
+      "parent_id": "SEC-0028",
+      "reqs": 2,
+      "status": "PENDING",
+      "target_chars": 500,
+      "title": "否决情形响应（条款 3.1-3.2）"
+    },
+    {
+      "id": "SEC-0040",
+      "level": 1,
+      "order": 32,
       "parent_id": null,
       "reqs": 9,
       "status": "PENDING",
@@ -312,29 +322,29 @@
       "title": "格式要求"
     },
     {
-      "id": "SEC-0040",
-      "level": 2,
-      "order": 32,
-      "parent_id": "SEC-0039",
-      "reqs": 6,
-      "status": "PENDING",
-      "target_chars": 500,
-      "title": "格式要求（第1块）"
-    },
-    {
       "id": "SEC-0041",
       "level": 2,
       "order": 33,
-      "parent_id": "SEC-0039",
-      "reqs": 3,
+      "parent_id": "SEC-0040",
+      "reqs": 6,
       "status": "PENDING",
       "target_chars": 500,
-      "title": "格式要求（第2块）"
+      "title": "格式要求（条款 3.3.1-7.2）"
     },
     {
       "id": "SEC-0042",
-      "level": 1,
+      "level": 2,
       "order": 34,
+      "parent_id": "SEC-0040",
+      "reqs": 3,
+      "status": "PENDING",
+      "target_chars": 500,
+      "title": "格式要求（条款 7.3-7.6）"
+    },
+    {
+      "id": "SEC-0043",
+      "level": 1,
+      "order": 35,
       "parent_id": null,
       "reqs": 15,
       "status": "PENDING",
@@ -342,39 +352,39 @@
       "title": "技术参数"
     },
     {
-      "id": "SEC-0043",
-      "level": 2,
-      "order": 35,
-      "parent_id": "SEC-0042",
-      "reqs": 6,
-      "status": "PENDING",
-      "target_chars": 500,
-      "title": "技术参数（第1块）"
-    },
-    {
       "id": "SEC-0044",
       "level": 2,
       "order": 36,
-      "parent_id": "SEC-0042",
+      "parent_id": "SEC-0043",
       "reqs": 6,
       "status": "PENDING",
       "target_chars": 500,
-      "title": "技术参数（第2块）"
+      "title": "技术参数（条款 5.0-5.2.1）"
     },
     {
       "id": "SEC-0045",
       "level": 2,
       "order": 37,
-      "parent_id": "SEC-0042",
-      "reqs": 3,
+      "parent_id": "SEC-0043",
+      "reqs": 6,
       "status": "PENDING",
       "target_chars": 500,
-      "title": "技术参数（第3块）"
+      "title": "技术参数（条款 5.3.1-5.4.1）"
     },
     {
       "id": "SEC-0046",
-      "level": 1,
+      "level": 2,
       "order": 38,
+      "parent_id": "SEC-0043",
+      "reqs": 3,
+      "status": "PENDING",
+      "target_chars": 500,
+      "title": "技术参数（条款 5.5.1-5.6.1）"
+    },
+    {
+      "id": "SEC-0047",
+      "level": 1,
+      "order": 39,
       "parent_id": null,
       "reqs": 4,
       "status": "PENDING",
@@ -382,10 +392,10 @@
       "title": "商务要求"
     },
     {
-      "id": "SEC-0047",
+      "id": "SEC-0048",
       "level": 2,
-      "order": 39,
-      "parent_id": "SEC-0046",
+      "order": 40,
+      "parent_id": "SEC-0047",
       "reqs": 4,
       "status": "PENDING",
       "target_chars": 500,

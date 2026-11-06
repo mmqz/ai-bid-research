@@ -170,23 +170,23 @@ fn register_qual_ledger_only(svc: &mut BidService) {
     }).unwrap();
 }
 
-/// 只起草就绪叶（缺失回报闸语义——#110 任务 1）：零绑定零覆写时，含未响应
-/// 否决项的叶拒生成（E_UNPROCESSABLE，闸特性不是回归），保持 Pending——
-/// 「已起草正文 + 否决项未响应」这个废标态从此不可达；未响应面由 validate
-/// 从矩阵报 BLOCKER（导出门把关）。返回就绪叶清单。
-fn draft_ready_leaves(svc: &mut BidService) -> Vec<String> {
-    let leaves = leaf_ids(svc);
-    let mut ready = Vec::new();
-    for sid in &leaves {
-        match svc.draft_section(sid, None, None, None, &mut bid_tools::draft::MockGenerator) {
-            Ok(_) => ready.push(sid.clone()),
-            Err(e) => assert_eq!(
-                e.code(), "E_UNPROCESSABLE",
-                "零绑定时只有含未响应否决项的叶会拒（闸语义）: {e:?}"
-            ),
-        }
-    }
-    ready
+/// 只起草格式叶（#252 适配）。
+///
+/// 资格/否决语义分叶后，资格叶不再被未响应否决项闸连坐、可独立起草——
+/// 但一旦起草，正文实写会把资格 REQ 翻 RESPONDED（#241 裁定：正文实质
+/// 响应是文本事实），抹掉 `E_QUAL_UNMET` 的未响应前提。本套件要验的是
+/// 「未响应的否决项/资格条件都报 BLOCKER」——只起草格式叶（进 DRAFTING
+/// 的最低面），资格/否决叶保持 Pending，未响应面留给 validate 规则 1/2
+/// 从矩阵报（否决项闸的拒生成语义由 draft_tool.rs 独立覆盖）。
+fn draft_format_leaf_only(svc: &mut BidService) -> Vec<String> {
+    let fmt = leaf_ids(svc).into_iter().find(|sid| {
+        svc.store().sections().iter().any(|n| {
+            n.id == *sid && n.requirement_ids.iter().any(|r| r == "REQ-0004")
+        })
+    }).expect("格式叶在位（REQ-0004 归属叶——svc_base_grouped 夹具）");
+    svc.draft_section(&fmt, None, None, None, &mut bid_tools::draft::MockGenerator)
+        .expect("格式叶零绑定可起草（台账资质清闸，进 DRAFTING）");
+    vec![fmt]
 }
 
 /// 校验面调用（scope 参数便捷面）。
@@ -198,15 +198,17 @@ fn validate(svc: &mut BidService, pid: &str) -> Value {
 
 #[test]
 fn validate_contract_shape_and_promotes_validating() {
-    // #126 适配：大纲分组把资格+否决合并进同一叶（否决项并入「资格与响应」
-    // 章节组）——svc_base 的 3 REQ 只出一个叶且被否决项闸拦死，进不了
-    // DRAFTING。改用 grouped 夹具（追加格式 REQ → 另出一个可零绑定起草的叶）。
+    // #126 适配：改用 grouped 夹具（追加格式 REQ → 零绑定可起草的格式叶）。
+    // #252 适配：资格/否决语义分叶——只起草格式叶，资格叶保持 Pending
+    // （起草即正文实写 → 资格 REQ 翻 RESPONDED，#241 裁定，会抹掉
+    // E_QUAL_UNMET 的未响应前提；见 draft_format_leaf_only 文档）。
     let (mut svc, pid) = svc_base_grouped("shape");
     // 缺失回报闸（#110 任务 1）：登记可用资质（不绑——未响应面留给校验面），
-    // 只起草就绪叶；含未响应否决项（REQ-0003）的叶拒生成、保持 Pending
+    // 只起草格式叶进 DRAFTING；资格叶（无正文）+ 否决叶（未响应拒生成）
+    // 保持 Pending。
     register_qual_ledger_only(&mut svc);
-    let ready = draft_ready_leaves(&mut svc);
-    assert!(!ready.is_empty(), "至少格式叶可起草（进 DRAFTING）");
+    let ready = draft_format_leaf_only(&mut svc);
+    assert_eq!(ready.len(), 1, "仅格式叶起草（DRAFTING 最低面）");
 
     // ---- #243 前置闸：缺章（否决叶 Pending）的全稿校验 → E_DRAFT_INCOMPLETE
     //      + missing 清单，零副作用（状态/版本不变，起草面继续可用）
@@ -236,7 +238,11 @@ fn validate_contract_shape_and_promotes_validating() {
     let r = ok_result(call(&mut svc, "validate_bid_document", json!({
         "project_id": pid, "scope": "sections", "section_ids": ready,
     })));
-    assert_eq!(r["ok"], json!(false), "有 BLOCKER 时 ok=false（未响应×3）");
+    // #252 适配：findings 构成 = 未响应×3（E_QUAL_UNMET×2 + E_VETO_UNRESPONDED
+    // ×1）+ 全局总量门 E_TOTAL_CHARS_BELOW_MIN（#253 验收 7：全局级恒全量，
+    // mock 正文 < target 2000 必报）；格式叶自身可能有 W_CHARS_BELOW_MIN
+    // （行政叶 MAJOR——#253 门禁分级），不进 blocker 账。
+    assert_eq!(r["ok"], json!(false), "有 BLOCKER 时 ok=false（未响应×3 + 总量门）");
     assert!(r["findings"].as_array().unwrap().len() >= 3, "未响应 3 条");
     assert!(r["counts"]["blocker"].as_u64().unwrap() >= 3);
     assert!(r["counts"]["deterministic"].as_u64().unwrap() >= 3);
@@ -287,16 +293,20 @@ fn validate_after_draft_runs_and_reports() {
 #[test]
 fn rule_veto_and_qual_unresponded_are_blockers() {
     // #126 适配：同 validate_contract_shape——grouped 夹具保证有可起草叶
-    // （格式叶零绑定可起草 → 进 DRAFTING），资格+否决合并叶保持 Pending。
+    // （格式叶零绑定可起草 → 进 DRAFTING），资格/否决叶保持 Pending。
     // #243 适配：缺章态的全稿校验被前置闸拒（E_DRAFT_INCOMPLETE）；未响应
     // 面由**章节级检查**（scope=sections）从矩阵报 BLOCKER（原测试意图不变
     // ——规则 1/2 是全局级，恒全量）。
+    // #252 适配：资格/否决语义分叶——只起草格式叶（资格叶起草会翻
+    // RESPONDED 抹掉 E_QUAL_UNMET 前提，见 draft_format_leaf_only 文档），
+    // 资格叶（无正文）与否决叶（未响应拒生成）都保持 Pending → 规则 1/2
+    // 的 BLOCKER 面从两个独立叶各自成立。
     let (mut svc, pid) = svc_base_grouped("veto-qual");
-    // 缺失回报闸（#110 任务 1）：否决叶（REQ-0003 未响应）拒生成保持 Pending；
-    // 资格叶登记台账资质后可起草。未响应面由章节级校验从矩阵报 BLOCKER
+    // 缺失回报闸（#110 任务 1）：登记台账资质清闸（不绑——资格 REQ 的
+    // 未响应面留给校验规则去报）；只起草格式叶进 DRAFTING。
     register_qual_ledger_only(&mut svc);
-    let ready = draft_ready_leaves(&mut svc);
-    assert!(!ready.is_empty());
+    let ready = draft_format_leaf_only(&mut svc);
+    assert_eq!(ready.len(), 1);
     let r = ok_result(call(&mut svc, "validate_bid_document", json!({
         "project_id": pid, "scope": "sections", "section_ids": ready,
     })));
@@ -382,11 +392,18 @@ fn rule_chars_below_min_admin_leaf_warns_total_gate_blocks() {
         !errors.iter().any(|e| e["rule_code"] == "E_CHARS_BELOW_MIN"),
         "E_CHARS_BELOW_MIN 收窄到评分章节（#253 门禁分级）: {errors:?}"
     );
-    // 定位面：MAJOR finding 带 section_id + 消息含目标（补写指引）
+    // 定位面：MAJOR finding 带 section_id + 消息含该叶自己的目标（补写指引）。
+    // #252 适配：资格与响应语义分叶（资格证明材料响应/否决情形响应）——
+    // svc_base 3 条 REQ 拆 2 叶，target 按权重分账，断言锚到「该叶自己的
+    // 目标值」而非全量 target（与 #253 门禁分级行政面叠加：叶是行政类 →
+    // W_CHARS_BELOW_MIN MAJOR）
     let f = errors.iter().find(|e| e["rule_code"] == "W_CHARS_BELOW_MIN").unwrap();
     assert!(f["section_id"].as_str().is_some_and(|s| !s.is_empty()), "锚到章节: {f:?}");
     let msg = f["message"].as_str().unwrap();
-    assert!(msg.contains("2000") && msg.contains("容差下限"), "消息含目标与下限: {msg}");
+    let sid = f["section_id"].as_str().unwrap();
+    let target = svc.store().sections().iter()
+        .find(|s| s.id == sid).map(|s| s.target_chars).unwrap();
+    assert!(msg.contains("容差下限") && msg.contains(&target.to_string()), "消息含目标与下限: {msg}");
 }
 
 /// 【#253 门禁分级】**评分章节**短稿 → `E_CHARS_BELOW_MIN` BLOCKER（评分
@@ -874,15 +891,18 @@ fn semantic_failed_with_stub_reviewer() {
     // semantic 已执行且有发现（Failed——不再是 not_performed）
     match &report.semantic {
         bid_tools::validate::CheckResult::Failed(fs) => {
-            assert_eq!(fs.len(), 1, "svc_base 单叶——stub 每章一条 M_ 发现");
-            assert_eq!(fs[0].rule_code, "M_QUALITY_VAGUE");
-            assert_eq!(fs[0].severity, "BLOCKER");
+            // #252 适配：资格与响应语义分叶——svc_base 3 条 REQ 拆 2 叶
+            //（资格证明材料响应 + 否决情形响应），stub 每叶一条 M_ 发现 → 2
+            assert_eq!(fs.len(), 2, "svc_base 2 叶（#252 语义分叶）——stub 每叶一条 M_ 发现");
+            assert!(fs.iter().all(|f| f.rule_code == "M_QUALITY_VAGUE"));
+            assert!(fs.iter().all(|f| f.severity == "BLOCKER"));
         }
         other => panic!("semantic 应为 Failed，实际 {other:?}"),
     }
     // 分账面：模型发现计入 counts.model（且 BLOCKER 计入 blocker → ok=false）
-    assert_eq!(report.counts.model, 1);
-    assert_eq!(report.counts.blocker, 1, "模型 BLOCKER 计入 blocker（已执行桶的 BLOCKER）");
+    // #252 适配：2 叶 → 2 条模型发现
+    assert_eq!(report.counts.model, 2);
+    assert_eq!(report.counts.blocker, 2, "模型 BLOCKER 计入 blocker（已执行桶的 BLOCKER）");
     assert!(!report.ok, "已执行语义面的 BLOCKER 必须翻 ok");
     // findings 承载模型发现（kind=MODEL 分账口径不变）
     assert!(report.findings.iter().any(|f| f.rule_code == "M_QUALITY_VAGUE"));

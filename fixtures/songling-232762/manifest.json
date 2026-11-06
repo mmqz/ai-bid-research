@@ -1,226 +1,226 @@
 {
-  "fixture": "songling-232762",
-  "spec_version": "v1",
-  "issue": 251,
-  "purpose": "真实语料回归 Fixture——TF-0002/TF-0003 基线（评分大纲 #252 的验收基线）",
-  "collected_at": "2026-11-05",
-  "project": {
-    "name": "光纤租赁费",
-    "project_no": "[232762]LJXM[GK]20260001",
-    "plan_no": "松政采计划[2026]00403",
-    "purchaser": "松岭区公安局",
-    "purchaser_addr": "黑龙江省大兴安岭地区松岭区小扬气镇松岭大街26号",
-    "agent_org": "黑龙江蓝江项目管理有限公司",
-    "procurement_method": "公开招标（综合评分法）",
-    "budget_cny": 1195800.0,
-    "bid_open_at": "2026-10-12 09:00:00",
-    "contract_period_days": 365,
-    "accept_consortium": false,
-    "tender_doc_pages": 65
-  },
-  "files": {
-    "tender_pdf": {
-      "path": "tender/光纤租赁费招标文件.pdf",
-      "sha256": "eb7e9a6425a490f2b4315b5283823e7b4caadc0d1e3261f61791c2f0ddfa0737",
-      "bytes": 631168,
-      "pages": 65,
-      "in_git": true,
-      "acquired": "用户工作机原件上传（2026-11-05，与 issue #250 登记哈希一致）",
-      "public_sources": [
-        {
-          "type": "招标公告（项目信息）",
-          "site": "中国政府采购网黑龙江分网",
-          "url": "https://www.ccgp.gov.cn/cggg/dfgg/gkzb/202609/t20260916_27337601.htm",
-          "date": "2026-09-16"
-        },
-        {
-          "type": "中标结果公告（相关附件含本招标文件集 zip）",
-          "site": "黑龙江政府采购网",
-          "url": "https://hljcg.hlj.gov.cn/maincms-web/noticeHlj?channel=c5bff13f-21ca-4dac-b158-cb40accd3035&id=ae31cf86-9363-44be-9e39-21872a9839db&planId=8a1d0b73a055355001a079d4fec32a77",
-          "date": "2026-10-12",
-          "attachment_uuid": "f6e80e42-640d-44a2-ab26-876ba0"
-        }
-      ],
-      "public_source_note": "ccgp.gov.cn 与 hljcg.hlj.gov.cn 对海外出口 IP 实施 WAF 阻断（本环境实测 403/超时，与 real-corpus/PROVENANCE.md §3 的四路阻断记录一致）；国内网络可访问。二进制以本仓入库副本 + sha256 锚定为准。"
+ "fixture": "songling-232762",
+ "spec_version": "v1",
+ "issue": 251,
+ "purpose": "真实语料回归 Fixture——TF-0002/TF-0003 基线（评分大纲 #252 的验收基线）",
+ "collected_at": "2026-11-05",
+ "project": {
+  "name": "光纤租赁费",
+  "project_no": "[232762]LJXM[GK]20260001",
+  "plan_no": "松政采计划[2026]00403",
+  "purchaser": "松岭区公安局",
+  "purchaser_addr": "黑龙江省大兴安岭地区松岭区小扬气镇松岭大街26号",
+  "agent_org": "黑龙江蓝江项目管理有限公司",
+  "procurement_method": "公开招标（综合评分法）",
+  "budget_cny": 1195800.0,
+  "bid_open_at": "2026-10-12 09:00:00",
+  "contract_period_days": 365,
+  "accept_consortium": false,
+  "tender_doc_pages": 65
+ },
+ "files": {
+  "tender_pdf": {
+   "path": "tender/光纤租赁费招标文件.pdf",
+   "sha256": "eb7e9a6425a490f2b4315b5283823e7b4caadc0d1e3261f61791c2f0ddfa0737",
+   "bytes": 631168,
+   "pages": 65,
+   "in_git": true,
+   "acquired": "用户工作机原件上传（2026-11-05，与 issue #250 登记哈希一致）",
+   "public_sources": [
+    {
+     "type": "招标公告（项目信息）",
+     "site": "中国政府采购网黑龙江分网",
+     "url": "https://www.ccgp.gov.cn/cggg/dfgg/gkzb/202609/t20260916_27337601.htm",
+     "date": "2026-09-16"
     },
-    "tender_docx_repaired": {
-      "path": "tender/光纤租赁费招标文件-文本修复版v5w.docx",
-      "status": "MISSING",
-      "expected": "1418 块 / 26 表（= TF-0003，真实运行导入件）",
-      "needed_by": "层2 全链路断言（lead 真实运行 db.json 的引擎输入）"
-    },
-    "agent_submitted": {
-      "path": "agent/submitted_requirements.json",
-      "status": "MISSING",
-      "expected": "67 条（资格9/否决13/评分9/技术11/商务13/格式9/其他3——issue #251 素材表）",
-      "needed_by": "召回/精度/分类断言（层2）"
-    },
-    "agent_block_marks": {
-      "path": "agent/block_marks.json",
-      "status": "MISSING",
-      "expected": "76 个区间（verdict：requirement 26 / rule 40 / noise 10）",
-      "needed_by": "覆盖统计断言（层2）"
-    },
-    "engine_requirements_snapshot": {
-      "status": "MISSING",
-      "expected": "295 条引擎抽取（db.json → domain.requirements；技术参数仅 1 条）",
-      "needed_by": "与 67 条 Agent 提交做召回/精度对照（层2）"
-    },
-    "baseline_output_pdf": {
-      "path": "artifacts/baseline-97p.pdf",
-      "status": "MISSING",
-      "expected": "97 页 / 81,850 字符（4.5 版产物——回归对比用，非金标准）",
-      "needed_by": "导出页数与篇幅占比断言（层2）"
+    {
+     "type": "中标结果公告（相关附件含本招标文件集 zip）",
+     "site": "黑龙江政府采购网",
+     "url": "https://hljcg.hlj.gov.cn/maincms-web/noticeHlj?channel=c5bff13f-21ca-4dac-b158-cb40accd3035&id=ae31cf86-9363-44be-9e39-21872a9839db&planId=8a1d0b73a055355001a079d4fec32a77",
+     "date": "2026-10-12",
+     "attachment_uuid": "f6e80e42-640d-44a2-ab26-876ba0"
     }
+   ],
+   "public_source_note": "ccgp.gov.cn 与 hljcg.hlj.gov.cn 对海外出口 IP 实施 WAF 阻断（本环境实测 403/超时，与 real-corpus/PROVENANCE.md §3 的四路阻断记录一致）；国内网络可访问。二进制以本仓入库副本 + sha256 锚定为准。"
   },
-  "page_baseline": {
-    "source": "issue #251 补充（2026-11-05 用户确认，97 页产物实测反推）",
-    "chars_per_page": 844,
-    "baseline_pages": 97,
-    "baseline_chars": 81850,
-    "target_total_chars": 640000,
-    "target_pages_by_current_density": 758,
-    "hard_target_pages": 1000,
-    "hard_target_chars": 844000,
-    "page_count_method": "fitz.open(path).page_count 实测，不依赖估算"
+  "tender_docx_repaired": {
+   "path": "tender/光纤租赁费招标文件-文本修复版v5w.docx",
+   "status": "MISSING",
+   "expected": "1418 块 / 26 表（= TF-0003，真实运行导入件）",
+   "needed_by": "层2 全链路断言（lead 真实运行 db.json 的引擎输入）"
   },
-  "known_failure_baseline": {
-    "note": "当前真实现状的固化（issue #251 §5）：不是待修复后删掉的断言。修复后主动更新为通过并在 PR 说明原因；本清单之外的失败=新缺陷，必须红灯。",
-    "scope": "issue 记载口径 = TF-0003 docx 全链路（lead 2026-11-05 真实运行，295 REQ / 97 页产物）。层1 PDF 单件路径（TF-0002）的实测基线见 layer1_pdf_baseline——两条路径口径不同，分别固化。",
-    "items": [
-      {
-        "id": "tech_req_count",
-        "expect": ">=11",
-        "actual": 1,
-        "detail": "技术参数类 REQ 仅 1 条（REQ-0164 表头行），11 条核心技术要求丢失"
-      },
-      {
-        "id": "biz_req_count",
-        "expect": ">=13",
-        "actual": 0,
-        "detail": "商务要求类 REQ 0 条（类别不存在）"
-      },
-      {
-        "id": "scoring_mapped",
-        "expect": "6/6",
-        "actual": "0/6",
-        "detail": "评分项无章节映射（全部悬空）"
-      },
-      {
-        "id": "param_integrity_wanhaolu",
-        "expect": "可检索",
-        "actual": "不可检索",
-        "detail": "「完好率≥95%」在抽取结果中不可检索"
-      },
-      {
-        "id": "param_integrity_360min",
-        "expect": "可检索",
-        "actual": "不可检索",
-        "detail": "「≤360分钟」不可检索"
-      },
-      {
-        "id": "param_integrity_295_30m",
-        "expect": "可检索",
-        "actual": "不可检索",
-        "detail": "「295条 30M/s」不可检索"
-      },
-      {
-        "id": "outline_block_titles",
-        "expect": "0 处",
-        "actual": 30,
-        "detail": "大纲含「（第N块）」无语义标题 30 处"
-      },
-      {
-        "id": "money_values_lost",
-        "expect": "数值完整",
-        "actual": "丢失",
-        "detail": "保证金 17,000 / 代理费 20,000 / 限价 1,195,800 数值丢失"
-      },
-      {
-        "id": "export_pages",
-        "expect": ">=1000",
-        "actual": 97,
-        "detail": "导出页数 97（应 ≥1000）"
-      },
-      {
-        "id": "scoring_pages_ratio",
-        "expect": ">=60%",
-        "actual": "0%",
-        "detail": "评分章节页数占比 0%（应 ≥60%）"
-      }
-    ]
+  "agent_submitted": {
+   "path": "agent/submitted_requirements.json",
+   "status": "MISSING",
+   "expected": "67 条（资格9/否决13/评分9/技术11/商务13/格式9/其他3——issue #251 素材表）",
+   "needed_by": "召回/精度/分类断言（层2）"
   },
-  "layer1_pdf_baseline": {
-    "note": "2026-11-05 本机实测（Linux，poppler 通道）：TF-0002 原件单件 PDF 路径。防回归门=实测值不得更差；数字变更时更新本表并在 PR 说明原因。",
-    "measured_at": "2026-11-05",
-    "req_total": 297,
-    "category_counts": {
-      "其他": 115,
-      "否决项": 45,
-      "技术参数": 11,
-      "格式要求": 96,
-      "评分项": 9,
-      "资格条件": 21,
-      "商务要求": 0
-    },
-    "retrievable_hits_of_16": 4,
-    "retrievable_miss_list": [
-      "50M/s",
-      "95%",
-      "360分钟",
-      "15日历天",
-      "0.2dB",
-      "松岭区",
-      "验收要求",
-      "17,000",
-      "20,000",
-      "1,195,800",
-      "不缴纳",
-      "90日"
-    ],
-    "retrievable_hit_list": [
-      "295条",
-      "30M/s",
-      "双电源",
-      "不接受"
-    ],
-    "outline_nodes": 40,
-    "outline_leaves": 23,
-    "outline_block_titles": 7,
-    "scoring_items_total": 54,
-    "scoring_hard_gate": 45,
-    "scoring_with_weight": 1,
-    "scoring_mappings": 0,
-    "findings": [
-      "PDF 路径技术参数已达 11 条（issue 目标值），但 docx 全链路仅 1——两条路径的表格抽取形态不同（TF-0003 修复版 docx 的表格结构劣于 PDF 原件），#250 修复时以此为对照",
-      "技术参数数量达标但参数值仍丢：16 锚点中 12 个 MISS（含完好率 95%、360分钟、15日历天、0.2dB、三个金额）——表格行碎片化，数量与数值完整性是两个缺陷面",
-      "商务要求类别 0 条在两条路径一致——商务要求表（第18页）整表未被识别为需求",
-      "大纲 40 节点含 7 处「（第N块）」；「服务方案/质量保证/应急方案」等评分章节零出现——85 分主体无对应位置在 PDF 路径同样成立",
-      "scoring_items 54 条 = 45 否决硬门 + 9 条评分项（对应评分表 6 技术项 + 业绩 + 价格 + 1 子项——细节待层2 对账）；但 9 条评分项仅 1 条带 weight——评分分值大量丢失是独立缺陷面（评分表真值 8 项带分）",
-      "纯 Rust 兜底通道（rust_fallback）对本件输出乱码（实测 63 页 3144 行 cjk=0——字体形态在兜底甜区外）——层1 引擎面在无 poppler 环境（Windows CI）按 issue #9 纪律 SKIP，层0 静态面永远跑"
-    ],
-    "scoring_non_hard": 9
+  "agent_block_marks": {
+   "path": "agent/block_marks.json",
+   "status": "MISSING",
+   "expected": "76 个区间（verdict：requirement 26 / rule 40 / noise 10）",
+   "needed_by": "覆盖统计断言（层2）"
   },
-  "scoring_outline_baseline": {
-    "note": "#252 评分驱动大纲断言面的固化基线（三态门：实测==基线 → FAIL 横幅锁定现状；更差 → 红灯；达成 → IMPROVED 要求更新+PR 说明）。预期形态锚 = expected/outline.expected.json（6 L1 + 20 L2 + 业绩/价格位）。实测环境：Linux poppler 通道，derive_and_set_outline 默认 spec（target 844,000）。",
-    "measured_at": "2026-11-05（#253 第二段分层配额后复测）",
-    "scoring_l1_chapters": 0,
-    "scoring_l2_details": 0,
-    "independent_slots": 1,
-    "scoring_mapped_6": 0,
-    "quota_scoring_share": 0.0,
-    "quota_admin_share": 0.091,
-    "quota_scoring_l2_floor": 0,
-    "coverage_key_params_in_sections": 1,
-    "findings": [
-      "L1 全集 17 组全部是类目/主题机械分组：资格与响应、其他条款（二次分组后）、技术参数等——6 个评分章节（服务方案/重点难点/保密工作/服务承诺/质量保证/应急方案）零出现，85 分技术标主体在大纲零对应位置（issue #252 核心矛盾在 PDF 单件路径复现）",
-      "independent_slots=1 是巧合命中：「报价要求」主题组（「其他」类 THEME_RULES 二次分组产物）含「报价」关键词，不是真正的价格评审响应位（报价文件/开标一览表）；业绩位 0——独立响应位实际未建立",
-      "quota_admin_share=0.091（76,400/844,000）：#253 第二段分层计价后行政轨按 300 字/条定价（254 条行政条款 + 叶下限保护），从旧均摊口径的 0.875 降至 9.1%——满足 issue #253 验收 3（行政 ≤25%）。剩余预算在评分轨缺席（#252 未落地）时让渡给实质轨（技术参数/服务/质量组），评分主体仍 0%",
-      "coverage_key_params=1/3：「295」在章节绑定集可检索（REQ 面命中的技术参数 REQ 被绑定进「技术参数」组）；「95%」「360分钟」MISS——REQ 抽取面 12/16 MISS（#250 表格碎片化）传导到绑定面，绑定覆盖依赖 #250 修复",
-      "否决/资格响应位 66/66 全部被章节绑定（防回归门，当前绿）——#121 P0-1「资格与响应」组的既有成果，#252 重构不得丢失",
-      "outline_total_chars=844,000 恒等达成（derive 配额总和=target）；总量门当前绿，#253 分配重构时防回归",
-      "#253 第二段（PR feat/253-quota-allocation）：配额算法从按 REQ 数均摊改为三轨分层计价（评分轨按分值权重 / 行政轨 300 字/条 / 实质轨 2000 字/条，剩余让渡序 评分→实质→行政）。本基线刷新 quota_admin_share 0.875→0.091；quota_scoring_share/quota_scoring_l2_floor 维持 0（评分章节结构是 #252 的交付面——三轨算法就位后由 #252 落地转绿）"
-    ]
+  "engine_requirements_snapshot": {
+   "status": "MISSING",
+   "expected": "295 条引擎抽取（db.json → domain.requirements；技术参数仅 1 条）",
+   "needed_by": "与 67 条 Agent 提交做召回/精度对照（层2）"
   },
-  "license_note": "招标文件为依法必须公开的政府采购文件（法定公开媒介发布），评测用途引用——与 real-corpus/PROVENANCE.md 口径一致。"
+  "baseline_output_pdf": {
+   "path": "artifacts/baseline-97p.pdf",
+   "status": "MISSING",
+   "expected": "97 页 / 81,850 字符（4.5 版产物——回归对比用，非金标准）",
+   "needed_by": "导出页数与篇幅占比断言（层2）"
+  }
+ },
+ "page_baseline": {
+  "source": "issue #251 补充（2026-11-05 用户确认，97 页产物实测反推）",
+  "chars_per_page": 844,
+  "baseline_pages": 97,
+  "baseline_chars": 81850,
+  "target_total_chars": 640000,
+  "target_pages_by_current_density": 758,
+  "hard_target_pages": 1000,
+  "hard_target_chars": 844000,
+  "page_count_method": "fitz.open(path).page_count 实测，不依赖估算"
+ },
+ "known_failure_baseline": {
+  "note": "当前真实现状的固化（issue #251 §5）：不是待修复后删掉的断言。修复后主动更新为通过并在 PR 说明原因；本清单之外的失败=新缺陷，必须红灯。",
+  "scope": "issue 记载口径 = TF-0003 docx 全链路（lead 2026-11-05 真实运行，295 REQ / 97 页产物）。层1 PDF 单件路径（TF-0002）的实测基线见 layer1_pdf_baseline——两条路径口径不同，分别固化。",
+  "items": [
+   {
+    "id": "tech_req_count",
+    "expect": ">=11",
+    "actual": 1,
+    "detail": "技术参数类 REQ 仅 1 条（REQ-0164 表头行），11 条核心技术要求丢失"
+   },
+   {
+    "id": "biz_req_count",
+    "expect": ">=13",
+    "actual": 0,
+    "detail": "商务要求类 REQ 0 条（类别不存在）"
+   },
+   {
+    "id": "scoring_mapped",
+    "expect": "6/6",
+    "actual": "0/6",
+    "detail": "评分项无章节映射（全部悬空）"
+   },
+   {
+    "id": "param_integrity_wanhaolu",
+    "expect": "可检索",
+    "actual": "不可检索",
+    "detail": "「完好率≥95%」在抽取结果中不可检索"
+   },
+   {
+    "id": "param_integrity_360min",
+    "expect": "可检索",
+    "actual": "不可检索",
+    "detail": "「≤360分钟」不可检索"
+   },
+   {
+    "id": "param_integrity_295_30m",
+    "expect": "可检索",
+    "actual": "不可检索",
+    "detail": "「295条 30M/s」不可检索"
+   },
+   {
+    "id": "outline_block_titles",
+    "expect": "0 处",
+    "actual": 30,
+    "detail": "大纲含「（第N块）」无语义标题 30 处"
+   },
+   {
+    "id": "money_values_lost",
+    "expect": "数值完整",
+    "actual": "丢失",
+    "detail": "保证金 17,000 / 代理费 20,000 / 限价 1,195,800 数值丢失"
+   },
+   {
+    "id": "export_pages",
+    "expect": ">=1000",
+    "actual": 97,
+    "detail": "导出页数 97（应 ≥1000）"
+   },
+   {
+    "id": "scoring_pages_ratio",
+    "expect": ">=60%",
+    "actual": "0%",
+    "detail": "评分章节页数占比 0%（应 ≥60%）"
+   }
+  ]
+ },
+ "layer1_pdf_baseline": {
+  "note": "2026-11-05 本机实测（Linux，poppler 通道）：TF-0002 原件单件 PDF 路径。防回归门=实测值不得更差；数字变更时更新本表并在 PR 说明原因。",
+  "measured_at": "2026-11-05",
+  "req_total": 304,
+  "category_counts": {
+   "其他": 115,
+   "否决项": 45,
+   "技术参数": 11,
+   "格式要求": 96,
+   "评分项": 16,
+   "资格条件": 21,
+   "商务要求": 0
+  },
+  "retrievable_hits_of_16": 4,
+  "retrievable_miss_list": [
+   "50M/s",
+   "95%",
+   "360分钟",
+   "15日历天",
+   "0.2dB",
+   "松岭区",
+   "验收要求",
+   "17,000",
+   "20,000",
+   "1,195,800",
+   "不缴纳",
+   "90日"
+  ],
+  "retrievable_hit_list": [
+   "295条",
+   "30M/s",
+   "双电源",
+   "不接受"
+  ],
+  "outline_nodes": 68,
+  "outline_leaves": 43,
+  "outline_block_titles": 0,
+  "scoring_items_total": 61,
+  "scoring_hard_gate": 45,
+  "scoring_with_weight": 9,
+  "scoring_mappings": 8,
+  "findings": [
+   "2026-11-05 #252 第二步刷新：综合评分表专路（bid-parse scoring_table）把评分表 8 行结构化为评分项 REQ——REQ 297→304（-1 符合性审查表吞表行 +8 评分表行），评分项 9→16（原 9 条报价修正规则 + 8 条评分表行），带分值 1→9",
+   "评分表行 REQ：clause_no 综合评分表-N，params 携带 name/score/track/objective/sub_items（20 细则），锚前缀=规范名（检索面自描述）",
+   "大纲 40→68 节点：「（第N块）」标题 7→0（硬约束④：条款区间/页码区间/语义分叶——资格与响应拆资格证明材料响应+否决情形响应）；6 评分章节 + 20 L2 + 业绩/价格独立响应位入纲",
+   "技术参数 11 条不变（防回归门绿）；商务要求 0 不变（#250 遗留面）；retrievable 4/16 不变（95%/360分钟 等数值缺失是抽取面缺陷，传导到 #252 coverage 门——预期红）",
+   "纯 Rust 兜底通道（rust_fallback）对本件输出乱码（实测 63 页 3144 行 cjk=0）——层1 引擎面在无 poppler 环境（Windows CI）按 issue #9 纪律 SKIP，层0 静态面永远跑"
+  ],
+  "scoring_non_hard": 16
+ },
+ "scoring_outline_baseline": {
+  "note": "#252 评分驱动大纲断言面的固化基线（三态门：实测==基线 → FAIL 横幅锁定现状；更差 → 红灯；达成 → IMPROVED 要求更新+PR 说明）。预期形态锚 = expected/outline.expected.json（6 L1 + 20 L2 + 业绩/价格位）。实测环境：Linux poppler 通道，derive_and_set_outline 默认 spec（target 844,000）。2026-11-05 #252 第二步落地 + main 并入（#253 三轨分层计价与 #252 结构融合——统一账：legacy 叶 Admin/Body + 评分 L2 Scoring + 槽位固定）后全门刷新——唯一预期红 = coverage_key_params（抽取面 95%/360分钟 数值缺失传导，见 findings）。",
+  "measured_at": "2026-11-05（#253 三轨融合后复测）",
+  "scoring_l1_chapters": 6,
+  "scoring_l2_details": 20,
+  "independent_slots": 2,
+  "scoring_mapped_6": 6,
+  "quota_scoring_share": 0.824,
+  "quota_admin_share": 0.095,
+  "quota_scoring_l2_floor": 20,
+  "coverage_key_params_in_sections": 1,
+  "findings": [
+   "scoring_l1_chapters=6/6：服务方案/重点难点/保密工作/服务承诺/质量保证/应急方案全部以 L1 入纲（标题=规范名+分值），85 分技术标主体在大纲有对应位置（#252 核心矛盾解决）",
+   "scoring_l2_details=20/20：每个 L2 标题含 #251 复核短形（NR1-NR6 标题规范化：承诺倒装/冒号截断/所在地→本地/故障补救/量化前缀剥离/共享语素并列），细则可追溯到评分表原文",
+   "independent_slots=2/2：业绩证明材料（5分）与报价文件（价格评审 10分）独立响应位建立，不混进 85 分技术正文",
+   "scoring_mapped_6=6/6 + mappings 总数 8：ScoringMapping 账本落账（MappingSource::OutlineDerived——建纲派生，大纲重建时先清除再重签），复用 #236 多对多账本不另起炉灶",
+   "quota_scoring_share=0.824 / quota_admin_share=0.095 / quota_scoring_l2_floor=20：#253 三轨分层计价（原 #252 QuotaPolicy 分类预算 65/10/20/5 在 main 并入时被取代——融合论证见 PR #274）：评分 20 细则底价 10,000/叶 + 剩余让渡按分值权重（权重和 85,000 = 85 分×1000，服务方案细则 39,153 / 应急细则 33,323 / 服务承诺细则 21,661——严格分值比例）；行政轨 300 字/条计价实测合计 80,400（#253 验收 3 行政≤25% 且单条≤500 天然满足）；槽位（业绩/价格表格位）2,000×2 固定先扣不参与让渡。总量恒等 844,000，最小细则 21,661 ≥ 10,000",
+   "coverage_key_params=1/3【预期红，如实报告】：「295条」在绑定集可检索；「95%」「360分钟」在任何 REQ 锚面都不存在（#251 实测 retrievable_miss 传导——抽取面表格行碎片化未把完好率/故障历时数值带入锚文本）。绑定面无缺陷可修——需抽取面（#250 后续）先产出含数值的 REQ，本门才会转绿。不放宽断言迁就",
+   "双轨路由生效：上行带宽/30M/s/平滑升级→整体服务方案（3 条技术参数 REQ 多对多绑定）；15日历天→服务进度保障方案（2 条）；故障抢修→应急处理预案（1 条）；技术参数原组绑定保留（技术参数组 11 条不变）",
+   "L1 文档序按第七章格式位次：资格与响应→报价文件（格式四）→行政组（五~十四面）→技术支撑→评分主体（十五）→业绩证明材料（十六）"
+  ]
+ },
+ "license_note": "招标文件为依法必须公开的政府采购文件（法定公开媒介发布），评测用途引用——与 real-corpus/PROVENANCE.md 口径一致。"
 }

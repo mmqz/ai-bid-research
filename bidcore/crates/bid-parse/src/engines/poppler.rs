@@ -78,6 +78,10 @@ fn map_run_err(detail: String) -> EngineError {
 /// 文本层行块装配（自旧 pdf::parse 文本层分支逐字段迁入——零回归）。
 pub(super) fn text_layer_parsed(pages: &[PageText]) -> ParsedFile {
     let mut blocks: Vec<Block> = Vec::new();
+    // #324（R-12/B-04）：表格行计数在折叠前判定——原实现先 collapse_spaces
+    // 再 filter(text.contains("  "))，折叠后双空格恒假 → tables 恒 0（死指标）。
+    // 判定移入行循环、折叠前（cleaned 保留了 -layout 列对齐多空格）。
+    let mut tables = 0usize;
     // 页数口径：非空分段数（pdftotext 末页后常带尾随 \f）
     let page_count = pages
         .iter()
@@ -93,6 +97,10 @@ pub(super) fn text_layer_parsed(pages: &[PageText]) -> ParsedFile {
                 continue;
             }
             line_no += 1;
+            // 折叠前判定（本函数内块全为 PdfLine，kind 过滤等价省略）
+            if cleaned.contains("  ") {
+                tables += 1;
+            }
             blocks.push(Block {
                 idx: blocks.len(),
                 kind: BlockKind::PdfLine,
@@ -102,10 +110,6 @@ pub(super) fn text_layer_parsed(pages: &[PageText]) -> ParsedFile {
             });
         }
     }
-    let tables = blocks
-        .iter()
-        .filter(|b| b.kind == BlockKind::PdfLine && b.text.contains("  "))
-        .count();
     let n_blocks = blocks.len();
     ParsedFile {
         name: String::new(),

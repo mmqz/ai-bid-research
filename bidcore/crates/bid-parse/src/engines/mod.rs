@@ -383,4 +383,38 @@ c.save()";
         );
         let _ = std::fs::remove_dir_all(&tmp);
     }
+    /// #324（R-12/B-04）：tables 死指标修复——双空格判定必须在折叠前。
+    ///
+    /// 原实现先 `collapse_spaces` 再 `filter(text.contains("  "))`——折叠后
+    /// 双空格恒假，tables 恒 0（审计死指标）。本测试直接构造 PageText 钉
+    /// 「折叠前判定」契约：列对齐行计入 tables，且块文本仍折叠（口径不变）。
+    #[test]
+    fn text_layer_tables_metric_counts_pre_collapse_double_spaces() {
+        let pages = vec![crate::engine::PageText {
+            page: 1,
+            text: "序号  设备名称  数量\n1  心电监护仪  3\n正常段落单空格 文本一行".to_string(),
+            confidence: 1.0,
+            diagnostics: String::new(),
+        }];
+        let pf = poppler::text_layer_parsed(&pages);
+        assert_eq!(pf.blocks.len(), 3, "三行块");
+        assert_eq!(pf.tables, 2, "两行列对齐双空格（折叠前判定）——恒 0 即死指标回归");
+        assert!(
+            pf.blocks.iter().all(|b| !b.text.contains("  ")),
+            "块文本仍折叠为单空格（输出口径不变——tables 是指标修复非文本改动）"
+        );
+    }
+
+    /// #324 负例：无列对齐双空格的纯段落 → tables == 0（不虚报）。
+    #[test]
+    fn text_layer_tables_metric_zero_on_plain_paragraphs() {
+        let pages = vec![crate::engine::PageText {
+            page: 1,
+            text: "第一章 采购需求\n本项目为医疗设备采购。\n交货期：合同签订后 30 日内。".to_string(),
+            confidence: 1.0,
+            diagnostics: String::new(),
+        }];
+        let pf = poppler::text_layer_parsed(&pages);
+        assert_eq!(pf.tables, 0, "纯段落（无连续双空格）不虚报表格行");
+    }
 }

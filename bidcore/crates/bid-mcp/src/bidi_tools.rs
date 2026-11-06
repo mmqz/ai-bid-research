@@ -7,8 +7,8 @@
 //! | `get_annotation_overlay` | 文件 → 视图层 | 全块 overlay 数据面：req_ids/semantic/status/suspected_miss（渲染上色由视图层决定——本工具只给数据，不做 UI） |
 //!
 //! **数据纪律**：反查索引是派生态（`bid_parse::bidi::block_requirement_index`
-//! 每次现算，不持久化）；suspected_miss 复用 #285 ① 的 star_scan（PR #291
-//! 落地后接线——见 `star_truth_blocks` 注释）。
+//! 每次现算，不持久化）；suspected_miss/emphasis 复用 #285 ① 的
+//! `star_coverage`（同源双腿匹配——两工具口径恒一致）。
 
 use std::collections::BTreeMap;
 
@@ -186,9 +186,8 @@ pub fn get_block_requirements(svc: &mut BidService, args: Value) -> ToolResult {
 ///   其余 = null（无信号——视图层不上色）。
 /// - `status`：`"valid"`（当前抽取快照内——锚失效检测等文档重导面，
 ///   先恒 valid，诚实注明）。
-/// - `suspected_miss`：★真值块但无 REQ → true（复用 #285 ① star_scan；
-///   **PR #291 合并前暂不产出**——本函数当前按 `star_truth_blocks`
-///   空集处理，接线后为真值）。
+/// - `suspected_miss`：#285 ① `star_coverage` 的 missing 块位（同源直接
+///   复用——双腿匹配口径，非块位恒等；字符计数面见 `get_star_coverage`）。
 pub fn get_annotation_overlay(svc: &mut BidService, args: Value) -> ToolResult {
     const TOOL: &str = "get_annotation_overlay";
     let project_id = req_str(&args, "project_id", TOOL)?;
@@ -203,11 +202,27 @@ pub fn get_annotation_overlay(svc: &mut BidService, args: Value) -> ToolResult {
     let idx_by_block: BTreeMap<usize, &bid_domain::coverage::BlockRequirementIndex> =
         idx.iter().map(|r| (r.block_idx, r)).collect();
 
-    // ★真值块位（#285 ① star_scan 的真值面——PR #291 合并后接线：
-    // bid_parse::star_scan::scan_stars(pf) 过滤 declaration 后的块位集。
-    // 在此之前恒空集 = emphasis/suspected_miss 不产出（诚实：无数据源
-    // 不虚构），warnings 显式提示接线状态。）
-    let star_truth: std::collections::BTreeSet<usize> = star_truth_blocks(pf, &reqs);
+    // ★面（#285 ① star_scan 同源——**直接复用 `star_coverage` 的双腿匹配**
+    // （locator 腿 + ★内容前缀腿带页守卫），不得另起块位恒等判定：续行吸收
+    // 形态（docx 多块合并锚）前缀腿命中而块位不在锚集——两口径必须一致）。
+    // emphasis = 真值块（captured ∪ missing）；suspected_miss = missing 块。
+    let file_name = pf.name.clone();
+    let reqs_of_file: Vec<bid_domain::Requirement> = reqs
+        .iter()
+        .filter(|r| {
+            r.source_file == file_name || r.anchors.iter().any(|a| a.file == file_name)
+        })
+        .cloned()
+        .collect();
+    let cov = bid_parse::star_scan::star_coverage(pf, &reqs_of_file);
+    let star_truth: std::collections::BTreeSet<usize> = cov
+        .captured
+        .iter()
+        .map(|c| c.block_idx)
+        .chain(cov.missing.iter().map(|m| m.block_idx))
+        .collect();
+    let star_missing_blocks: std::collections::BTreeSet<usize> =
+        cov.missing.iter().map(|m| m.block_idx).collect();
 
     let mut overlay: Vec<Value> = Vec::new();
     let mut truncated = false;
@@ -229,7 +244,7 @@ pub fn get_annotation_overlay(svc: &mut BidService, args: Value) -> ToolResult {
             req_block_count += 1;
         }
         let is_star_truth = star_truth.contains(&b.idx);
-        let suspected_miss = is_star_truth && !has_req;
+        let suspected_miss = star_missing_blocks.contains(&b.idx);
         if suspected_miss {
             suspected_miss_count += 1;
         }
@@ -267,13 +282,8 @@ pub fn get_annotation_overlay(svc: &mut BidService, args: Value) -> ToolResult {
     }
     if suspected_miss_count > 0 {
         warnings.push(format!(
-            "{suspected_miss_count} 处★真值块无对应 REQ（suspected_miss）——get_star_coverage 查漏标明细后补标"
+            "{suspected_miss_count} 块★真值无对应 REQ（suspected_miss）——get_star_coverage 查漏标明细后补标（#285 ① 同源数据）"
         ));
-    }
-    if star_scan_pending() {
-        warnings.push(
-            "★信号面（emphasis / suspected_miss）待 PR #291（#285 ① star_scan）合并后接线——当前不产出".into(),
-        );
     }
 
     Ok(json!({
@@ -294,19 +304,3 @@ pub fn get_annotation_overlay(svc: &mut BidService, args: Value) -> ToolResult {
     }))
 }
 
-/// ★真值块位集（#285 ① star_scan 真值面——PR #291 合并前恒空集）。
-///
-/// 接线点（#291 落地后替换实现，形状不变）：
-/// `bid_parse::star_scan::scan_stars(pf)` → 过滤 `declaration` →
-/// `(block_idx, stars)` 聚合的块位集。
-fn star_truth_blocks(
-    _pf: &bid_parse::ParsedFile,
-    _reqs: &[bid_domain::Requirement],
-) -> std::collections::BTreeSet<usize> {
-    std::collections::BTreeSet::new()
-}
-
-/// star_scan 接线状态（#291 合并后翻 false）。
-fn star_scan_pending() -> bool {
-    true
-}

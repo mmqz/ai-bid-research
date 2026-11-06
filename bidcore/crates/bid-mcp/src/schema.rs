@@ -279,6 +279,9 @@ fn input_schema(name: &str) -> Value {
             "properties": {
                 "project_id": pid,
                 "file_id": {"type": "string", "description": "文件 ID（import_tender_files 回执 per_file[].file_id）"}
+            },
+            "required": ["project_id", "file_id"]
+        }),
         // ---- #285 ② 块级双向索引三工具 ----
         "get_requirement_provenance" => json!({
             "type": "object",

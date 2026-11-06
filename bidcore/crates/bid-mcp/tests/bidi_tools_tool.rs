@@ -305,25 +305,28 @@ fn block_reverse_query_consistent_with_overlay() {
             break; // 明细抽样 20 块（全量对账见真件验收）
         }
     }
-    // overlay 口径：semantic（requirement/null——★面待 #291 接线）+ status
+    // overlay 口径：semantic 三值（emphasis=★真值 > requirement > null）+ status；
+    // corpus-A 无★字面 → emphasis/suspected_miss 恒零（① 的 corpus-A 口径）
     for e in entries.iter().take(20) {
         let sem = &e["semantic"];
         assert!(
             sem.is_null() || *sem == json!("requirement"),
-            "★接线前 semantic 两值: {e}"
+            "corpus-A 无★——semantic 不得出 emphasis: {e}"
         );
         assert_eq!(e["status"], json!("valid"));
-        assert_eq!(e["suspected_miss"], json!(false), "接线前恒 false");
+        assert_eq!(e["suspected_miss"], json!(false), "无★件恒 false");
     }
-    assert!(
-        overlay["warnings"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|w| w.as_str().unwrap().contains("PR #291")),
-        "接线状态显式可见（不静默）: {}",
-        overlay["warnings"]
+    // 与 #285① 工具同源对账：star_missing == suspected_miss_blocks（块位粒度）
+    let star = ok_result(call(
+        &mut svc,
+        "get_star_coverage",
+        json!({ "project_id": &pid, "file_id": &fid }),
+    ));
+    assert_eq!(
+        star["star_truth"], json!(0),
+        "corpus-A 主文件无★真值（① 验收口径）: {star}"
     );
+    assert_eq!(overlay["suspected_miss_blocks"], json!(0));
 }
 
 /// 只读零副作用：三工具查前后 project_version 不动。

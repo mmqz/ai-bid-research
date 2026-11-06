@@ -8,9 +8,9 @@
 //! 2. **每个块（含无 REQ 的）都能反向查到 req_ids**——`get_block_requirements`
 //!    逐块调用（小件全量、大件全量——工具面在内存态，微秒级）；无 REQ 块
 //!    req_ids=[] + verdict 诚实口径（无标记=null）
-//! 3. suspected_miss（复用 #285① star_scan）——**PR #291 合并前接线**：
-//!    本文件断言接线状态显式可见（warnings 提示 + 恒 false），接线后升级为
-//!    danqing 黑盒 missing=4 断言（与 ① 验收同口径）
+//! 3. suspected_miss（复用 #285① star_scan 真值面——同源数据）：逐件与
+//!    `get_star_coverage` 的 missing 对账（块位粒度一致性），danqing 引擎
+//!    路专项断言 missing=6（p18 参数性质列×4 + p48 模板×2——① 验收口径）
 //! 4. 旧快照反序列化——单测面（bid-domain lib + bidi_tools_tool legacy 腿）
 //! 5. 不改现有抽取结果——real_corpus_e2e GT 红线在同套件守门（本测试只读
 //!    零副作用，不触碰抽取）
@@ -258,16 +258,37 @@ fn block_bidi_acceptance_all_tenders() {
             t.id
         );
 
-        // ---- ③ overlay 口径：suspected_miss 接线状态显式可见（#291 落地后
-        //      升级为 danqing missing=4 断言）----
-        assert_eq!(overlay["suspected_miss_blocks"], json!(0), "{}：接线前恒 0", t.id);
+        // ---- ③ suspected_miss 真值面：与 #285① star_coverage 同源对账 ----
+        // ★真值块（块位粒度）无 REQ → suspected_miss；① 的 star_missing 按
+        // ★字符计数——单★块两口径相等，多★块（hq-dev 形态）块位 ≤ 字符数。
+        let star = ok_result(call(
+            &mut svc,
+            "get_star_coverage",
+            json!({ "project_id": &pid, "file_id": &fid }),
+        ));
+        let star_missing = star["star_missing"].as_u64().unwrap_or(0);
+        let overlay_missing = overlay["suspected_miss_blocks"].as_u64().unwrap_or(0);
         assert!(
-            overlay["warnings"].as_array().unwrap().iter().any(|w| {
-                w.as_str().map(|s| s.contains("PR #291")).unwrap_or(false)
-            }),
-            "{}：接线状态 warnings 显式提示（不静默）",
+            overlay_missing <= star_missing,
+            "{}：suspected_miss_blocks({overlay_missing}) 不得超过 ① star_missing({star_missing})——块位粒度 ≤ 字符粒度",
             t.id
         );
+        if star_missing == 0 {
+            assert_eq!(overlay_missing, 0, "{}：① 无漏标 → overlay 无疑似", t.id);
+        } else {
+            assert!(
+                overlay_missing > 0,
+                "{}：① 报漏标 {star_missing} → overlay 必有疑似（不静默）",
+                t.id
+            );
+            assert!(
+                overlay["warnings"].as_array().unwrap().iter().any(|w| {
+                    w.as_str().map(|s| s.contains("suspected_miss")).unwrap_or(false)
+                }),
+                "{}：漏标 warnings 显式提示",
+                t.id
+            );
+        }
         eprintln!(
             "【验收】{} 通过：REQ {} 条全带块位、块 {}（REQ 块 {}）全量反查",
             t.id,
@@ -293,7 +314,7 @@ fn danqing_star_reqs_land_on_declared_pages() {
         eprintln!("【SKIP】danqing 真件不在位");
         return;
     };
-    let Some((mut svc, pid, _fid)) = setup_extracted(&t) else {
+    let Some((mut svc, pid, fid)) = setup_extracted(&t) else {
         return; // SKIP 横幅已打
     };
     let star_reqs: Vec<String> = svc
@@ -326,6 +347,70 @@ fn danqing_star_reqs_land_on_declared_pages() {
     assert!(
         pages.iter().all(|p| *p == 18 || *p == 19),
         "五题★锚页号必在 p18/p19（实测 {pages:?}）——块级定位与①侦察口径对齐"
+    );
+
+    // ---- suspected_miss 真值（① 引擎路口径）：真值 12 / 已捕获 6 / 漏 6
+    //      （p18 参数性质列「2★..5★」×4 + p48 偏离表模板×2）----
+    let overlay = ok_result(call(
+        &mut svc,
+        "get_annotation_overlay",
+        json!({ "project_id": &pid, "file_id": &fid }),
+    ));
+    assert_eq!(
+        overlay["suspected_miss_blocks"], json!(6),
+        "danqing 引擎路 suspected_miss=6（p18×4 + p48×2——① star_coverage 同源）: {}",
+        overlay["suspected_miss_blocks"]
+    );
+    // emphasis / suspected_miss 明细（1688 块全量回显会截断——按页取：
+    // p18 参数性质列 / p48 偏离表模板两页即漏标块全集）
+    let nfkc = |s: &str| -> String {
+        use unicode_normalization::UnicodeNormalization;
+        s.nfkc().collect()
+    };
+    let overlay_page = |svc: &mut BidService, page: u64| -> Value {
+        ok_result(call(
+            svc,
+            "get_annotation_overlay",
+            json!({ "project_id": &pid, "file_id": &fid, "page": page }),
+        ))
+    };
+    let p18 = overlay_page(&mut svc, 18);
+    let miss18: Vec<String> = p18["overlay"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["suspected_miss"] == json!(true))
+        .map(|e| nfkc(e["text"].as_str().unwrap_or("").trim()))
+        .collect();
+    assert_eq!(
+        miss18, vec!["2 ★", "3 ★", "4 ★", "5 ★"],
+        "p18 参数性质列漏标块（① 引擎路清单同源）"
+    );
+    // p18 的「1 ★」经 REQ 锚捕获——emphasis 但非 suspected_miss
+    assert!(
+        p18["overlay"].as_array().unwrap().iter().any(|e| {
+            e["semantic"] == json!("emphasis") && e["suspected_miss"] == json!(false)
+        }),
+        "p18「1 ★」捕获块：emphasis 语义在座且非疑似漏标"
+    );
+    let p48 = overlay_page(&mut svc, 48);
+    let miss48: Vec<String> = p48["overlay"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["suspected_miss"] == json!(true))
+        .map(|e| nfkc(e["text"].as_str().unwrap_or("").trim()))
+        .collect();
+    assert_eq!(
+        miss48, vec!["★ 1.1", "★ 2.1"],
+        "p48 偏离表模板漏标块（① 引擎路清单同源）"
+    );
+    // p19 商务表五题：captured——emphasis 在座且零疑似
+    let p19 = overlay_page(&mut svc, 19);
+    assert_eq!(p19["suspected_miss_blocks"], json!(0), "五题全捕获（① 口径）");
+    assert!(
+        p19["overlay"].as_array().unwrap().iter().any(|e| e["semantic"] == json!("emphasis")),
+        "p19 商务表★块 emphasis 语义在座"
     );
     let _ = std::fs::remove_dir_all(tmp_ws(&t.id));
 }

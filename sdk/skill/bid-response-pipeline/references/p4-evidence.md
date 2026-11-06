@@ -1,6 +1,6 @@
 # P4 证据细则（register_evidence / bind_evidence / list_evidence）
 
-> 契约依据：`docs/bid-mcp-contract.md` §11-A / §11-B / §4-A。外部 Agent 纯
+> 契约依据：仓库根 `docs/bid-mcp-contract.md`（路径约定见 SKILL.md 头部——`docs/` 指仓库根，非本目录相对） §11-A / §11-B / §4-A。外部 Agent 纯
 > MCP 驱动的证据三板斧：**登记（register）→ 绑定（bind）→ 盘点（list）**。
 > `search_evidence`（知识库双通道检索，契约 §5）已接线（#145 朴素实现 +
 > #217 正文摘录面）——选证/续绑前可用它查找；真向量库与游标信封属

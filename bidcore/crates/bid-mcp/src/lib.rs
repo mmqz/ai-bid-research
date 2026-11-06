@@ -55,8 +55,10 @@ use serde_json::Value;
 /// 死锁的人工出口）；#243 增 1 个：`recover_validating_state`（历史
 /// 异常态 VALIDATING+缺章的受支持恢复出口）= 26；#254 增 3 个：分段三工具
 /// = 29；#279 增 1 个：`list_tools`（行协议发现面——无上下文代理的握手入口）
-/// = 30。
-pub const TOOL_NAMES: [&str; 30] = [
+/// = 30；#287 增 1 个：`recommend_length_profile`（篇幅档位推荐——P3 建纲
+/// 前只读：信号面细则数/★条款数/预算/采购类型/明写篇幅 → 推荐档+理由+
+/// alternatives，决策权在用户）= 31。
+pub const TOOL_NAMES: [&str; 31] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -91,6 +93,8 @@ pub const TOOL_NAMES: [&str; 30] = [
     "append_section_segment",
     "rewrite_section_segment",
     "list_section_segments",
+    // #287 篇幅档位推荐（只读——P3 建纲前调，建议+理由+alternatives 交用户确认）
+    "recommend_length_profile",
     // #279 行协议发现面：无上下文代理合理预期先握手（六场实测两个独立代理
     // 都试探了 list_tools）——返回工具清单 + 行协议契约摘要；JSON-RPC 客户端
     // 用 tools/list 等价获取，本工具是行协议（stdio 裸 JSON）的握手入口

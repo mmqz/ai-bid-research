@@ -17,7 +17,7 @@
   `in : { project_id, filters:{...}, cursor?, limit?, page?(仅矩阵兼容) }`；
   `out: { rows|items, total(过滤后总数), limit(生效页宽), cursor(本次生效游标), next_cursor: string|null }`，`next_cursor=null` 即取完，原样回传取下一页。
   游标规则（fail-closed）：opaque base64（内嵌版本字节/偏移/过滤器指纹）；跨过滤器或跨工具复用游标 → `E_UNPROCESSABLE`；limit 合法域 1..=1000、缺省 100，越界/非整数**显式拒**（不静默 clamp）；游标损坏/版本不认识/偏移越界（底层列表已变化）→ `E_UNPROCESSABLE`。行序确定性（矩阵=条款位置序 CMP-0001..N；证据=id 字典序；任务=target_id 字典序）是分页安全前提，不得破坏。
-- **补充建议（第 9 个只读工具）**：`get_bid_project_state`——断点恢复的入口（读项目状态、各阶段完成度、DIRTY 章节、BLOCKER 计数），仿 LingYan `check_pipeline_state`。原 8 工具契约不受影响。V3-5（S-4）另增两个只读列表工具 `list_evidence` / `list_tasks`（§4-A/§4-B，工具面共 11）。issue #42 阶段 10 增第 12 个工具 `save_version`（AI 主动存版本快照，见文末 §SV）。#80 第三批（G1-G3）后工具面 21；#219 全块覆盖三工具（§17/§18/§19）后工具面 24（§3 同步抽取通路合并语义）；#226 增 `set_matrix_override` → 25；#243 增 `recover_validating_state`（§20，校验状态安全与恢复）后工具面 26；#254 增分段三工具 `append_section_segment` / `rewrite_section_segment` / `list_section_segments`（§21，章节级增量写入）后工具面 29；#279 增 `list_tools`（§LT，行协议发现面）后工具面 **30**。
+- **补充建议（第 9 个只读工具）**：`get_bid_project_state`——断点恢复的入口（读项目状态、各阶段完成度、DIRTY 章节、BLOCKER 计数），仿 LingYan `check_pipeline_state`。原 8 工具契约不受影响。V3-5（S-4）另增两个只读列表工具 `list_evidence` / `list_tasks`（§4-A/§4-B，工具面共 11）。issue #42 阶段 10 增第 12 个工具 `save_version`（AI 主动存版本快照，见文末 §SV）。#80 第三批（G1-G3）后工具面 21；#219 全块覆盖三工具（§17/§18/§19）后工具面 24（§3 同步抽取通路合并语义）；#226 增 `set_matrix_override` → 25；#243 增 `recover_validating_state`（§20，校验状态安全与恢复）后工具面 26；#254 增分段三工具 `append_section_segment` / `rewrite_section_segment` / `list_section_segments`（§21，章节级增量写入）后工具面 29；#279 增 `list_tools`（§LT，行协议发现面）后工具面 30；#287 增 `recommend_length_profile`（§22，篇幅档位推荐）后工具面 **31**。
 
 ## 1. create_bid_project
 ```
@@ -499,11 +499,18 @@ CherryHQ/cherry-studio（AGPL-3.0，52.9k★）为 Electron **桌面客户端**�
 > docs/subagent-llm-assessment.md §四缺口 G1。
 
 ```
-in : { project_id, target_total_chars?(1000..=5000000, 缺省 844000——单一真源
-       bid_domain::outline::DEFAULT_TARGET_TOTAL_CHARS，推导：1000 页 ×
-       实测密度 844 字符/页；#253 第一段),
+in : { project_id, length_profile?("practical"|"standard"|"conservative"|"maximum",
+       #287 篇幅档位四选一),
+       target_total_chars?(1000..=5000000, 直接给字数覆盖档位),
        max_reqs_per_leaf?(1..=50, 缺省 8), project_version }
+       三者优先（#287）：target_total_chars 显式给 → 用它；length_profile
+       显式给 → 档位字数；都不给 → 默认档 Conservative 1,200,000
+       （单一真源 bid_domain::outline::DEFAULT_TARGET_TOTAL_CHARS；用户裁定
+       2026-11-06：120 万字 ≈ 1422 页，四档 400k/800k/1.2M/2.5M；拼错档位键
+       E_UNPROCESSABLE 显式拒）
 out: { counts:{ sections, leaves, requirements, total_target_chars, matrix_rows, matrix_blocking },
+       length:{ profile("practical"…|"custom"), target_total_chars, approx_pages }
+       （#287 生效档回显——审计面可核对），
        status: "MATRIX_READY", project_version }
 语义: 推导大纲树（确定性——REQ 类目分组 + 每叶上限）+ 矩阵首建（推进
       MATRIX_READY——draft 的硬前置）。写后自动落盘（服务层 auto_checkpoint）。
@@ -1037,4 +1044,38 @@ out: { count, tools: [{ name, summary }...],
       CAS 纪律/断点恢复入口）。
 备注: 标准 MCP JSON-RPC 客户端用 tools/list 方法等价获取（含 inputSchema
       全量）；本工具是 stdio 裸 JSON 行协议的发现面补口。
+```
+
+## 22. recommend_length_profile（#287 篇幅档位推荐 · 只读）
+```
+in : { project_id }
+out: { recommended_profile("practical"|"standard"|"conservative"|"maximum"),
+       profile_label, target_chars, approx_pages, confidence(high|medium|low),
+       reasons:[…逐信号一行——命中与未命中都写，用户可核对],
+       from_tender_spec: u32|null（招标文件明写篇幅——最高优先级信号）,
+       alternatives:[{profile,label,chars,pages,when}×4 全档位],
+       signals:{ scoring_detail_count, star_count, budget_yuan, tender_type,
+                 explicit_limit_chars },
+       next }
+窗口: REQUIREMENTS_EXTRACTED+ 含 Exported（只读——信号来自 REQ 面，建纲
+      前后均可查；条款集空 → E_STATE 先 extract）。
+语义: P3 建纲**前**调——把建议 + 理由 + alternatives 呈现给用户确认后
+      build_outline(length_profile=…)。**决策权在用户，Agent 只推荐**
+      （推荐可被覆盖——length_profile 四档任选或 target_total_chars 直给）。
+信号: ① 明写篇幅（锚文限值模式扫描——「不超过/最多/限制在…N 页/字」、
+      「N 页/字 以内」；页 × 844 换算）→ 覆盖一切推断；
+      ② 评分细则数（collect_scoring_rows 的 sub_items 总和——#252 预派生，
+      无需先建纲）：< 10 实用型 / 10-19 标准型 / 20-39 保险型 / ≥ 40 极限型；
+      ③ 修正项任一命中上调一档（饱和极限型）：★条款 > 30（params.star
+      标记面——#285 star_scan 字面真值口径在其 PR 合并后接入，两口径
+      档位结论等价）/ 预算 > 1000 万（amount_wan 最大值）/ 工程类
+      （项目名 + 锚文关键词推断）；多标段无引擎面信号——Agent 显式选档。
+置信度: 明写 → high；细则 ≥ 10 → high；1-9 → medium；0 → low
+      （未识别评分表——按实用型兜底，用户务必确认）。
+四档: Practical 400,000≈474页 / Standard 800,000≈948页 /
+      Conservative 1,200,000≈1422页（默认——用户裁定 2026-11-06）/
+      Maximum 2,500,000≈2963页（接近装订上限：一本胶装 ≈ 500 页，
+      2000 页 4 册；3-7 天评 20-50 家——起草成本极高，是用户显式选择）。
+门禁联动: E_TOTAL_CHARS_BELOW_MIN 按 outline_total_chars()（配额总和
+      = 选中档位目标）动态判——档位化后自动按选中档生效（非固定 844,000）。
 ```

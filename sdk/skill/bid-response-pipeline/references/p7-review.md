@@ -1,6 +1,6 @@
 # P7 审校细则（record_review_gate + check_bid_quality 复核面）
 
-> 契约依据：`docs/bid-mcp-contract.md` §12（人工门）/ §9（质量诊断）。
+> 契约依据：仓库根 `docs/bid-mcp-contract.md`（路径约定见 SKILL.md 头部——`docs/` 指仓库根，非本目录相对） §12（人工门）/ §9（质量诊断）。
 > 本阶段与 P6 互补：P6 是**引擎对文档**的确定性校验（规则表见
 > `p6-validation.md`）；P7 是**人对全链**的复审门 + 你按发现面逐章收口。
 > 人工门的核心纪律：**AI 操作者不得自审自过**——过门身份由宿主签发的
@@ -62,19 +62,88 @@ v1.<actor_id>.<actor_type>.<scope>.<issued_at_unix_secs>.<hex_hmac_sha256>
   `FUTURE_DATED_RECEIPT`（超 60s 容差的未来签发）/ `BAD_SIGNATURE`
   （HMAC 不符**或签域 scope 不匹配**——他域 receipt 与伪造同归）。
 
-域层另有纵深：即使壳层漏验，`record_review` 也拦 `actor_type != Human`。
+域层另有纵深：即使壳层漏验，`record_review` 也拦 `(actor_type, scope_is_agent)` 不匹配的二元组（#277）。
+
+## #277 agent 声明过门（方案 A——自动化形态）
+
+> 背景：#269 六场黑盒考验全部停在 MATRIX_READY——用户不在场时你拿不到
+> 人类 receipt，三门 + 补遗门构成设计内死锁。用户裁定（原文）：
+> **「我同意A，ai可以操控这个过去但是留痕」**——agent 可以过门，但每一处
+> 都留痕、导出带警告、可追认。
+
+**通道条件（先判工作区形态）**：`<工作区>/.mang/config.json` 的
+`require_human_receipt`——`false` = agent 声明面开放（自动化跑批形态）；
+缺省/`true` = 严格模式（人工确认优先，agent 声明被拒且报错指路
+`config.json`——此时回 SKILL.md 门禁阻塞降级协议的路径 A/B）。
+
+**agent 签域**：与人类签域同构但两处不同——scope 带 `:agent` 后缀 +
+actor_type 是 `agent`：
+
+```
+v1.<你的actor_id>.agent.review_gate:{gate}:agent.<now>.<hex_hmac>
+v1.<你的actor_id>.agent.addendum_waiver:{file_id}:agent.<now>.<hex_hmac>
+```
+
+**自签配方**（密钥是工作区文件——能读就能签，这是方案 A 承认的现实；
+诚实通道的意义是**留痕可见**而非阻挡）：
+
+```bash
+python3 -c '
+import hmac, hashlib, time, sys
+key = open("<工作区>/.mang/approval.key", "rb").read()  # 恰 32 字节
+actor, scope = sys.argv[1], sys.argv[2]                   # 如 agent-01, review_gate:matrix_approval:agent
+now = int(time.time())
+msg = f"v1|{actor}|agent|{scope}|{now}"
+mac = hmac.new(key, msg.encode(), hashlib.sha256).hexdigest()
+print(f"v1.{actor}.agent.{scope}.{now}.{mac}")' agent-01 "review_gate:matrix_approval:agent"
+```
+
+**过门调用**（与人类路径同一工具——receipt 签域决定身份路径；`reason`
+**必填非空**：为什么可以过这个门，审计四要素之一）：
+
+```json
+{ "project_id": "…", "gate": "matrix_approval", "decision": "APPROVED",
+  "receipt": "v1.agent-01.agent.review_gate:matrix_approval:agent.1790000000.6a3f…",
+  "reason": "矩阵已全量核对（agent 声明——待人工追认）" }
+```
+
+四门顺序：`addendum_waiver`（逐件）→ `matrix_approval` →
+`outline_approval` → `pre_export_confirm`（全部叶起草完成后——#180 内容
+绑定口径同人类流程）。
+
+**纪律（不可省）**：
+
+- **留痕即代价**：每次 agent 过门落 GatePassRecord（GP-xxxx，append-only
+  审计账）；导出产物首页带红色警告横幅「本标书的部分审核门由 AI 声明
+  通过，未经人工复核」+ 响应面 `agent_waivers[]`——**这是预期行为，不是
+  bug**。交付时必须向用户复述 agent_waivers 清单（哪些门、什么理由、
+  何时）；
+- **追认语义**：用户回来后以本人 human receipt 重过同名门 → 警告消失
+  （审计账两账并存可追溯）。追认必须在导出**前**完成（EXPORTED 是
+  审核门终态——带横幅的稿导出后无法再补门重导；要干净正式稿就先
+  追认再导出）；
+- **混用即拒**：人类签域的 receipt 不会变 agent 身份（反之亦然）——scope
+  进 MAC，交叉必 `BAD_SIGNATURE`/`NOT_AGENT_ACTOR`；
+- `human_review_complete: false` 时**不要**尝试抹掉警告——唯一正解是
+  人工追认。
 
 ## 返回核对
 
 ```
 receipt: { review_id: "REV-…", gate, decision,
-           reviewer: "human:<actor_id>"（legacy 回显——派生值，非身份判据）,
-           actor: { actor_id, actor_type: "human",
+           reviewer: "human:<actor_id>"（legacy 回显——agent 声明面为 agent:<actor_id>，
+                    派生值非身份判据）,
+           actor: { actor_id, actor_type（"human" | "agent"）,
                     authentication_method: "hmac_receipt_v1" },
+           method: "human_receipt" | "agent_declared"（#277），
+           human_confirmed: bool（agent 声明面 false——导出警告判据）,
            finding_ids: ["FND-…"], spawned_rt_ids: ["RT-…"],
            reviewed_content_digest: "<sha256-hex>"（#180 内容绑定摘要） }
 gates_approved: ["matrix_approval", …]（域层 gate_approved 同一真源——
                  含 addendum_waiver 门）
+agent_waivers: [{ gate, actor, method, human_confirmed, at, reason }]（#277
+               ——agent 声明过的门清单，交付时必须向用户复述）
+human_review_complete: bool（#277——false 时导出带警告横幅）
 status / project_version
 ```
 

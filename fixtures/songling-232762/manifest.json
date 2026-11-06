@@ -154,7 +154,6 @@
   "note": "2026-11-05 本机实测（Linux，poppler 通道）：TF-0002 原件单件 PDF 路径。防回归门=实测值不得更差；数字变更时更新本表并在 PR 说明原因。合并说明：#252（评分表专路，req 304/评分项 16）与 #266（PDF 语义表，商务 13/锚点 12）先后合并，本表数值待合并后实跑复核。",
   "measured_at": "2026-11-05",
   "req_total": 304,
-
   "category_counts": {
    "其他": 115,
    "否决项": 45,
@@ -177,7 +176,6 @@
    "20,000",
    "1,195,800",
    "不缴纳",
-
    "90日"
   ],
   "retrievable_hit_list": [
@@ -204,14 +202,14 @@
   "scoring_non_hard": 16
  },
  "scoring_outline_baseline": {
-  "note": "#252 评分驱动大纲断言面的固化基线（三态门：实测==基线 → FAIL 横幅锁定现状；更差 → 红灯；达成 → IMPROVED 要求更新+PR 说明）。预期形态锚 = expected/outline.expected.json（6 L1 + 20 L2 + 业绩/价格位）。实测环境：Linux poppler 通道，derive_and_set_outline 默认 spec（target 844,000）。2026-11-05 #252 第二步落地 + main 并入（#253 三轨分层计价与 #252 结构融合——统一账：legacy 叶 Admin/Body + 评分 L2 Scoring + 槽位固定）后全门刷新——唯一预期红 = coverage_key_params（抽取面 95%/360分钟 数值缺失传导，见 findings）。",
-  "measured_at": "2026-11-05（#253 三轨融合后复测）",
+  "note": "#252 评分驱动大纲断言面的固化基线（三态门：实测==基线 → FAIL 横幅锁定现状；更差 → 红灯；达成 → IMPROVED 要求更新+PR 说明）。预期形态锚 = expected/outline.expected.json（6 L1 + 20 L2 + 业绩/价格位）。实测环境：Linux poppler 通道，derive_and_set_outline 默认 spec（target 844,000）。2026-11-05 #252 第二步落地 + main 并入（#253 三轨分层计价与 #252 结构融合——统一账：legacy 叶 Admin/Body + 评分 L2 Scoring + 槽位固定）后全门刷新——唯一预期红 = coverage_key_params（抽取面 95%/360分钟 数值缺失传导，见 findings）。｜#287 刷新（2026-11-06）：默认目标 844,000 → 1,200,000（用户裁定：120 万字 ≈ 1422 页，四档 400k/800k/1.2M/2.5M，档位详见 outline.rs LengthProfile）——行政轨 300 字/条计价不变、绝对值不变（84,300），分母增大 → admin_share 0.095→0.070；评分轨底价 10,000/细则 + 剩余让渡随分值权重 → scoring_share 0.824→0.873（实测 1,047,700/1,200,000）。Linux poppler 通道实测。",
+  "measured_at": "2026-11-06（#287 篇幅档位化后复测：默认档 Conservative 1,200,000——原 2026-11-05 #253 三轨融合复测 844,000 口径作废）",
   "scoring_l1_chapters": 6,
   "scoring_l2_details": 20,
   "independent_slots": 2,
   "scoring_mapped_6": 6,
-  "quota_scoring_share": 0.824,
-  "quota_admin_share": 0.095,
+  "quota_scoring_share": 0.873,
+  "quota_admin_share": 0.07,
   "quota_scoring_l2_floor": 20,
   "coverage_key_params_in_sections": 1,
   "findings": [
@@ -219,11 +217,10 @@
    "scoring_l2_details=20/20：每个 L2 标题含 #251 复核短形（NR1-NR6 标题规范化：承诺倒装/冒号截断/所在地→本地/故障补救/量化前缀剥离/共享语素并列），细则可追溯到评分表原文",
    "independent_slots=2/2：业绩证明材料（5分）与报价文件（价格评审 10分）独立响应位建立，不混进 85 分技术正文",
    "scoring_mapped_6=6/6 + mappings 总数 8：ScoringMapping 账本落账（MappingSource::OutlineDerived——建纲派生，大纲重建时先清除再重签），复用 #236 多对多账本不另起炉灶",
-   "quota_scoring_share=0.824 / quota_admin_share=0.095 / quota_scoring_l2_floor=20：#253 三轨分层计价（原 #252 QuotaPolicy 分类预算 65/10/20/5 在 main 并入时被取代——融合论证见 PR #274）：评分 20 细则底价 10,000/叶 + 剩余让渡按分值权重（权重和 85,000 = 85 分×1000，服务方案细则 39,153 / 应急细则 33,323 / 服务承诺细则 21,661——严格分值比例）；行政轨 300 字/条计价实测合计 80,400（#253 验收 3 行政≤25% 且单条≤500 天然满足）；槽位（业绩/价格表格位）2,000×2 固定先扣不参与让渡。总量恒等 844,000，最小细则 21,661 ≥ 10,000",
    "coverage_key_params=1/3【预期红，如实报告】：「295条」在绑定集可检索；「95%」「360分钟」在任何 REQ 锚面都不存在（#251 实测 retrievable_miss 传导——抽取面表格行碎片化未把完好率/故障历时数值带入锚文本）。绑定面无缺陷可修——需抽取面（#250 后续）先产出含数值的 REQ，本门才会转绿。不放宽断言迁就",
    "双轨路由生效：上行带宽/30M/s/平滑升级→整体服务方案（3 条技术参数 REQ 多对多绑定）；15日历天→服务进度保障方案（2 条）；故障抢修→应急处理预案（1 条）；技术参数原组绑定保留（技术参数组 11 条不变）",
-   "L1 文档序按第七章格式位次：资格与响应→报价文件（格式四）→行政组（五~十四面）→技术支撑→评分主体（十五）→业绩证明材料（十六）"
-
+   "L1 文档序按第七章格式位次：资格与响应→报价文件（格式四）→行政组（五~十四面）→技术支撑→评分主体（十五）→业绩证明材料（十六）",
+   "quota_scoring_share=0.873 / quota_admin_share=0.070 / quota_scoring_l2_floor=20（#287 刷新：默认档 1,200,000 下实测——评分细则 20 叶底价 200,000 + 分值权重让渡合计 1,047,700（0.873）；行政轨 300 字/条 × 281 条 = 84,300（0.070，绝对值与 844k 时代相同——按条计价天然封顶）；总量恒等 1,200,000 = Conservative 档目标，最小细则配额 ≥ 10,000 不变）"
   ]
  },
  "license_note": "招标文件为依法必须公开的政府采购文件（法定公开媒介发布），评测用途引用——与 real-corpus/PROVENANCE.md 口径一致。"

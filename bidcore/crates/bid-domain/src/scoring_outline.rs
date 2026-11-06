@@ -492,6 +492,15 @@ pub fn scoring_nodes(
                 }
                 acc
             });
+        // #269 预验证修复（wenming 真题：六章含三空章）：**无细则评分章节**
+        // 的 L1 此前 requirement_ids 为空（agg 折叠零 L2）→ 违反树不变量
+        // 「每节点 ≥1 REQ」且章 REQ 无处落绑。空章的 L1 即内容承载叶
+        // （该评分项的响应正文直住）——直接绑定章 REQ。
+        let agg_reqs = if agg_reqs.is_empty() {
+            vec![ch.req_id.clone()]
+        } else {
+            agg_reqs
+        };
         nodes.push(OutlineNode {
             id: parent_id.clone(),
             parent_id: None,

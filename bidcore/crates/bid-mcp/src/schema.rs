@@ -460,9 +460,18 @@ fn input_schema(name: &str) -> Value {
             "type": "object",
             "properties": {
                 "project_id": pid,
-                "target_total_chars": {"type": "integer", "minimum": 1000, "maximum": 5000000, "description": format!("缺省 {}（≈1000 页 × 844 字符/页）", bid_domain::outline::DEFAULT_TARGET_TOTAL_CHARS)},
+                "length_profile": {"type": "string", "enum": ["practical", "standard", "conservative", "maximum"], "description": format!("#287 篇幅档位：实用型 400,000≈4百4页 / 标准型 800,000≈9百4页 / 保险型 1,200,000≈1千4百22页（默认）/ 极限型 2,500,000≈2千9百63页（接近装订上限）。与 target_total_chars 三者优先：显式字数 > 档位 > 默认档 {}；拼错档位键直接拒", bid_domain::outline::DEFAULT_TARGET_TOTAL_CHARS)},
+                "target_total_chars": {"type": "integer", "minimum": 1000, "maximum": 5000000, "description": format!("直接给字数（覆盖 length_profile 档位）；缺省走档位→默认档 {}（≈1422 页）", bid_domain::outline::DEFAULT_TARGET_TOTAL_CHARS)},
                 "max_reqs_per_leaf": {"type": "integer", "minimum": 1, "maximum": 50, "description": "缺省 8"},
                 "project_version": pv
+            },
+            "required": ["project_id"]
+        }),
+        // ---- #287 篇幅档位推荐（只读——P3 建纲前调，建议+理由+alternatives 交用户确认） ----
+        "recommend_length_profile" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid
             },
             "required": ["project_id"]
         }),
@@ -665,7 +674,8 @@ pub(crate) fn describe(name: &str) -> &'static str {
         "get_bid_project_state" => "只读：项目状态与 allowed_next_tools",
         "save_version" => "AI 主动存版本快照（mang-snap 同源）",
         "check_bid_quality" => "只读：生成质量覆盖度检查 + 报告落盘（#68 阶段 2）",
-        "build_outline" => "建纲 + 矩阵首建（G1——#80 第三批补齐；REQUIREMENTS_EXTRACTED 态）",
+        "build_outline" => "建纲 + 矩阵首建（G1——#80 第三批补齐；REQUIREMENTS_EXTRACTED 态；#287 篇幅档位：length_profile 四档 practical|standard|conservative|maximum 与 target_total_chars 三者优先，默认档 Conservative 1,200,000≈1422 页；响应 length 回显生效档）",
+        "recommend_length_profile" => "只读：篇幅档位推荐（#287——P3 建纲前先调：信号面细则数/★条款数/预算/采购类型/明写篇幅→推荐档+理由+alternatives；决策权在用户，Agent 只推荐；明写篇幅覆盖一切推断）",
         "register_evidence" => "证据登记（G2——语义位查重/换版；MATRIX_READY+；#185 来源验证：source_file_id 须指向已导入文件，sha256/指纹由服务端生成；带 locator 且对账通过 → CONTENT_MATCHES + 正文摘录入账，缺省文件级锚 → FILE_EXISTS（#217 四态）；#245 占位：placeholder=true → PLACEHOLDER 占位/待核验——可绑定但不清合规阻塞（矩阵 PENDING_EVIDENCE 待补）、不得声称资质已具备，升级 = 换版重登；verification_tier 不可自报；业绩类可带 client/amount_wan/completed_on 业务面；结构化字段走可选 fields 对象）",
         "bind_evidence" => "证据批量绑定 + 矩阵重算（G2——EXPIRED 禁绑；MATRIX_READY+）",
         "record_review_gate" => "三门记审（G3——matrix/outline/pre_export；#182 receipt 验签——人工确认由宿主签发 receipt 提供；#277 agent 声明过门走 :agent 签域 + reason 必填，留痕 + 导出警告 + 可追认）",
@@ -701,6 +711,7 @@ fn is_implemented(name: &str) -> bool {
             | "validate_bid_document"
             | "check_bid_quality"
             | "build_outline"
+            | "recommend_length_profile"
             | "register_evidence"
             | "bind_evidence"
             | "record_review_gate"

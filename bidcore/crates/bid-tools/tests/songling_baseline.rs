@@ -166,7 +166,7 @@ fn layer0_outline_expected_structure() {
 
     // 页数配额目标锚（#252/#253 的验收口径）
     let q = &oe["page_quota_targets"];
-    assert_eq!(q["outline_total_chars_min"].as_u64().unwrap(), 844_000, "1000 页硬指标 = 844,000 字");
+    assert_eq!(q["outline_total_chars_min"].as_u64().unwrap(), 1_200_000, "#287 默认档硬指标 = 1,200,000 字（Conservative ≈ 1422 页，取代 844,000/1000 页）");
     assert_eq!(q["scoring_sections_char_share_min"].as_f64().unwrap(), 0.60);
     assert_eq!(q["admin_sections_char_share_max"].as_f64().unwrap(), 0.25);
 }

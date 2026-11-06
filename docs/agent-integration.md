@@ -13,13 +13,13 @@
 ┌─────────────────────────┐        ┌──────────────────────────────┐
 │  你的 Agent 框架         │        │  ai-bid-research（本系统）    │
 │                         │        │                              │
-│  · 加载 SKILL.md        │  MCP   │  bid-mcp（21 个工具的薄壳）   │
-│    （阶段表+纪律+反模式） ├───────►│    ├ 参数校验/状态机裁决      │
-│  · 按阶段表编排          │ stdio  │    ├ 引用回查（幻觉拦截）     │
-│  · 写各章正文            │ JSON   │    ├ CAS 落盘（乐观并发）     │
-│    draft_response_      │        │    ├ 确定性校验（BLOCKER 门） │
-│    section(             │        │    └ 导出（docx/pdf + sha256）│
-│      generator=external,│        │                              │
+│  · 加载 SKILL.md        │  MCP   │  bid-mcp（工具薄壳，清单以     │
+│    （阶段表+纪律+反模式） ├───────►│    TOOL_NAMES 为单一真源）    │
+│  · 按阶段表编排          │ stdio  │    ├ 参数校验/状态机裁决      │
+│  · 写各章正文            │ JSON   │    ├ 引用回查（幻觉拦截）     │
+│    draft_response_      │        │    ├ CAS 落盘（乐观并发）     │
+│    section(             │        │    ├ 确定性校验（BLOCKER 门） │
+│      generator=external,│        │    └ 导出（docx/pdf + sha256）│
 │      content=正文)      │        │  状态机/证据台账/矩阵/版本快照  │
 └─────────────────────────┘        └──────────────────────────────┘
 ```
@@ -57,8 +57,10 @@ BID_WS=/path/to/workspace cargo run -p bid-mcp --bin bid-mcp-stdio
   夹具/素材在 workspace 外时（如 e2e、共享资料目录）显式声明此变量；
   未设且未设 `BID_WS` → 导入响亮拒（指路 `BID_WS`）。导出侧同款纵深
   （resolve_write——工具层「工作区相对路径」形状校验之外的第二层）。
-- 工具名单一真源 `TOOL_NAMES`（21 个——#184 起 record_addendum_waiver 入面）
-  与契约：`docs/bid-mcp-contract.md`；全部 21 个工具已接线（含 #145 起
+- 工具名单一真源 `TOOL_NAMES`（`bidcore/crates/bid-mcp/src/lib.rs`）与契约：
+  `docs/bid-mcp-contract.md` §1——**文档不硬编码工具数**（历史病灶：本文曾写
+  21 / SKILL.md 曾写 24 / 实际 29，各自滞后于不同时期的接线进度，#278）；
+  数量与名单以 `TOOL_NAMES` 为准，当前全部已接线（含 #145 起
   `search_evidence`）——未接线工具返回 typed `UNIMPLEMENTED_INTERNAL`、
   **绝不静默成功**的骨架纪律为未来新增工具保留。
 
@@ -359,7 +361,7 @@ sha256 与六表/七件对账数字给用户。）
 | `E_UNPROCESSABLE`（receipt 验签失败） | 审批回执非法——`what` 前缀分类码：`MALFORMED_RECEIPT` / `NOT_HUMAN_ACTOR` / `EXPIRED_RECEIPT` / `FUTURE_DATED_RECEIPT` / `BAD_SIGNATURE`（签名或签域不符，#182） | receipt 由宿主为真人签发（Agent 拿不到密钥）——请真人在宿主界面确认后重签；勿自行构造 |
 | `E_AUTH` / `E_RATE` | 鉴权/限流 | 退避重试 |
 | `E_INTERNAL` | 引擎内部错 | 带 request_id 报告维护方 |
-| `UNIMPLEMENTED_INTERNAL` | 工具未接线（骨架纪律保留面——当前 21 个工具均已接线） | 勿重试；按报文指路走替代路径，报告维护方 |
+| `UNIMPLEMENTED_INTERNAL` | 工具未接线（骨架纪律保留面——当前 `TOOL_NAMES` 全部工具已接线） | 勿重试；按报文指路走替代路径，报告维护方 |
 
 错误应答形：`{ok: false, tool, error: {code, what, hint?, item_errors?}}`——
 `what` 是人读正文（**不要对 what 做字符串匹配分支**，用 code）。

@@ -1,6 +1,6 @@
 # P3 矩阵细则（build_outline → get_compliance_matrix）
 
-> 契约依据：`docs/bid-mcp-contract.md` §10（建纲）/ §4（矩阵只读）。本阶段
+> 契约依据：仓库根 `docs/bid-mcp-contract.md`（路径约定见 SKILL.md 头部——`docs/` 指仓库根，非本目录相对） §10（建纲）/ §4（矩阵只读）。本阶段
 > 两个动作：`build_outline` 一次性完成「大纲树推导 + 矩阵首建」（推进
 > MATRIX_READY——draft 的硬前置）；之后 `get_compliance_matrix` 只读查询、
 > 随时重查。Agent 不算矩阵——矩阵行是引擎从（条款 × 绑定 × 章节 × 覆写）
@@ -164,8 +164,8 @@ policy/资格三态字段——`get_compliance_matrix` 行内 `response_policy` 
 
 - `docs/bid-mcp-contract.md` §10（build_outline 入出参/状态窗，L375-393）、
   §4（get_compliance_matrix 行结构/游标，L74-88）、§0（大结果分页约定，L13-16）
-- `bidcore/crates/bid-mcp/src/lib.rs` L50-72（TOOL_NAMES 21 个——无矩阵
-  覆写工具）
+- `bidcore/crates/bid-mcp/src/lib.rs`（TOOL_NAMES 单一真源——含矩阵人工
+  覆写工具 `set_matrix_override`，#226 起入面）
 - `bidcore/crates/bid-mcp/src/tools.rs` L3323-3393（build_outline 壳层）、
   L816-931（get_compliance_matrix：双形态过滤/游标/行组装，
   `response_policy: "default"` 在 L901）、L590-600（category_key 七类）

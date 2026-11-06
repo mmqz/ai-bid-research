@@ -1,6 +1,6 @@
 # P8 导出细则（export_bid_document）
 
-> 契约依据：`docs/bid-mcp-contract.md` §8。导出是全链的收口闸——引擎在
+> 契约依据：仓库根 `docs/bid-mcp-contract.md`（路径约定见 SKILL.md 头部——`docs/` 指仓库根，非本目录相对） §8。导出是全链的收口闸——引擎在
 > 此做**双前置门**裁决（矩阵 blocking 清零 + 审核门全过），任一不过
 > `E_UNPROCESSABLE` 响亮拒（人话理由）。你的职责：把报价决策/主体信息
 > 给足、路径给对、产物 sha256 与对账数字向用户复述。
@@ -74,6 +74,13 @@ forms_written:  7   form_titles: ["附件一、投标函", "附件二、法定�
 【待填】——主体信息建档是投标方输入面，不编造）。
 
 **必复述**：`产物 sha256 / 尺寸 / 六表 N 张 / 七件 M 件`，与预期比对。
+
+**#277 agent 过门警告面**：`agent_waivers[]` 非空且 `human_review_complete:
+false` → 产物首页带红色警告横幅（「本标书的部分审核门由 AI 声明通过，
+未经人工复核」+ 门清单）——这是 agent 声明过门（见 p7-review.md）的预期
+代价，不是导出错误。交付时把 agent_waivers 清单（哪些门/理由/何时）与
+「待人工追认」一并复述；要无横幅的正式稿 = 先请用户以本人 receipt 追认
+再导出（追认必须在导出前——EXPORTED 是审核门终态）。
 
 ## 幂等与缓存
 

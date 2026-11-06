@@ -11,6 +11,8 @@
 //!
 //! 用法：环境变量 `PROBE_272_OUT=<dir>` 时 dump（无环境变量则只跑 smoke
 //! 断言——CI 不落盘）。基线采集跑在 main，改动后重跑 diff。
+//! 逐份语料在位断言与正式验收在 `cross_platform_structure.rs`（本文件是
+//! 采集/诊断工具，验收不依赖本文件的全量跑——9 份 PDF 约 11 分钟）。
 //!
 //! 防过拟合标注：本探针覆盖 3 个平台来源（黑龙江政采 5 / 内蒙古政采 3 /
 //! 询价 1 + 吉林 docx 1——doc 面引擎不支持），未验证其它省份。
@@ -198,10 +200,11 @@ fn probe_structure_baseline() {
             }
         }
     }
-    // 语料在位性：全量模式（无过滤）时本仓克隆必须探到 ≥9 份主件 PDF
-    //（batch1×5 + batch2×4；docx/doc 面不走本探针）
+    // 语料在位性：全量模式（无过滤）下必须探到至少 1 份主件（全部缺件
+    // = 环境异常，不静默）；逐份在位断言由 cross_platform_structure.rs
+    // 精确承载（缺件逐个 panic）。probe 本职是基线采集，不重复重断言。
     if std::env::var("PROBE_272_ONLY").is_err() {
-        assert!(probed >= 9, "语料缺件：只探到 {probed} 份主件（期望 ≥9）");
+        assert!(probed >= 1, "语料全缺：一份主件都没探到（fixtures 不在仓？）");
         assert_eq!(parsed_err, 0, "有主件解析失败——先看 parse_error 字段");
     }
 }

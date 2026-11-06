@@ -215,6 +215,10 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
     // 须知"）——与合成夹具/政采范本的中文数字（"第三章"）并存，双通道容忍空格
     let re_chapter = Regex::new(r"^第\s*([0-9一二三四五六七八九十百]+)\s*章").unwrap();
     let re_subsection = Regex::new(r"^[一二三四五六七八九十]+、").unwrap();
+    // #272 跨平台形态：「第X部分/篇」顶层（询价/谈判类）——只在全文
+    // 无「第X章」标记的文档激活（文档级方案仲裁，见 structure.rs）。
+    // 黑龙江第六章合同内的「第三部分 合同专用条款」分部行不会冲掉章上下文
+    let re_part_head = Regex::new(r"^第\s*([0-9一二三四五六七八九十百]+)\s*(部分|篇)").unwrap();
     let re_model = model_regex();
     let re_amount = Regex::new(r"(\d+(?:\.\d+)?)\s*万\s*元").unwrap();
     let re_date = Regex::new(r"\d{4}-\d{2}-\d{2}").unwrap();
@@ -395,6 +399,8 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
     )
     .unwrap();
     let mut chapter = String::new();
+    // #272：当前章起点块号（内容证据的查询键——章分支重置）
+    let mut chapter_start: usize = 0;
     let mut subsection = String::new();
     // 否决语境（总括句开启；新编号条款/非列举普通行终止）
     let mut veto_ctx = false;
@@ -454,6 +460,28 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
     };
 
     let blocks = &f.blocks;
+    // #272 跨平台结构形态：文档级方案仲裁（章 > 部分/篇 > 数字头 > 告警）。
+    // 仲裁保证：有「章」骨架的文档（batch1×5 + NM×3）新增面完全不激活——
+    // 既有行为逐字节不变；「部分/数字」方案只在今天章上下文恒空的文档生效。
+    // part_starts 已过枚举簇抑制（「询价文件构成」节里逐行列举的七部分不是边界）。
+    let structure = crate::structure::detect_structure(blocks);
+    let part_starts: std::collections::HashSet<usize> =
+        if structure.scheme == crate::structure::TopScheme::Part {
+            structure.chapters.iter().map(|c| c.idx).collect()
+        } else {
+            Default::default()
+        };
+    let numbered_starts: std::collections::HashSet<usize> =
+        if structure.scheme == crate::structure::TopScheme::Numbered {
+            structure.chapters.iter().map(|c| c.idx).collect()
+        } else {
+            Default::default()
+        };
+    // 识别不确定性响亮告警（不静默失败）——测试面 eprintln 横幅 +
+    // parse_file 侧追加 parse_summary（import 回执透出）
+    for w in &structure.warnings {
+        eprintln!("\n====================================================================\n【结构告警 #272】{w}\n====================================================================\n");
+    }
     // ---- 段落重组（P0-A 核心）：行尾无终结标点 → 与下一行同段
     // 预计算每行的「段落文本」（本行 + 后续续行拼接）与「段落块范围」。
     // 断段条件（优先级从上到下）：
@@ -464,8 +492,13 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
     let ends_sentence = |s: &str| -> bool {
         s.chars().last().map(|c| "。；！？：；".contains(c)).unwrap_or(false)
     };
-    let is_clause_start = |s: &str| -> bool {
+    let is_clause_start = |idx: usize, s: &str| -> bool {
         re_clause.is_match(s) || re_chapter.is_match(&nfkc(s)) || re_subsection.is_match(s)
+            // #272：部分/数字顶层头是章同构的段边界——只在对应方案激活
+            //（章骨架文档里它们是普通正文行，语义不变）。
+            // 按块号判（非正则）——枚举簇成员已剔除，正则形态不可区分
+            || part_starts.contains(&idx)
+            || numbered_starts.contains(&idx)
     };
     let is_skip_line = |s: &str| -> bool {
         s.is_empty() || s.matches('.').count() >= 6 || s.contains("……")
@@ -494,7 +527,7 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
             let Some(next) = blocks.get(j + 1) else { break };
             if !matches!(next.kind, BlockKind::PdfLine | BlockKind::OcrLine)
                 || is_skip_line(next.text.trim())
-                || is_clause_start(next.text.trim())
+                || is_clause_start(j + 1, next.text.trim())
                 // #68 阶段 4（G——根因修复）：列举条目行强制断段。missed 样例：
                 // 「5.1.1 形式评审标准：（见附表三：评标表-4）」尾缀 ）非终结
                 // 标点 → ⑴⑵⑶ 审查条目被拼进编号段 → 段落去重吞掉条目、
@@ -568,6 +601,80 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
         sem_consumed.insert(vi.block_idx);
     }
 
+    // ---- #272 验收 4：章区间内容特征证据（表格锚定——分类与章名解耦）----
+    // 三源（全部复用既有专路的识别产物，零新字面）：
+    //   参数语义表（section 非商务）→ 技术参数
+    //   综合评分表 + 详细评审表 → 评分项
+    //   资格性审查表 → 资格条件
+    // 唯一强信号才判（多信号冲突/无证据 → 不判）——证据是「其他」的
+    // 兜底而非主判：字面命中照旧优先（既有行为不变），章名改形后字面
+    // 失配时内容特征接管（验收 4：改章名不影响分类结果）。
+    let chapter_bounds: Vec<usize> = {
+        let mut v: Vec<usize> = if structure.scheme == crate::structure::TopScheme::Zhang {
+            structure.chapters.iter().map(|c| c.idx).collect()
+        } else {
+            part_starts
+                .iter()
+                .chain(numbered_starts.iter())
+                .copied()
+                .collect()
+        };
+        v.sort_unstable();
+        v.dedup();
+        v
+    };
+    let param_blocks: std::collections::HashSet<usize> = pdf_sem_items
+        .iter()
+        .filter(|it| !it.section.contains("商务"))
+        .flat_map(|it| it.block_idxs.iter().copied())
+        .collect();
+    let qual_blocks: std::collections::HashSet<usize> = review_items
+        .iter()
+        .filter(|it| matches!(it.kind, crate::review_table::ReviewTableKind::Qualification))
+        .flat_map(|it| it.block_idxs.iter().copied())
+        .collect();
+    let evidence: std::collections::HashMap<usize, &'static str> = chapter_bounds
+        .iter()
+        .enumerate()
+        .map(|(i, &s)| {
+            let e = chapter_bounds.get(i + 1).copied().unwrap_or(usize::MAX);
+            let (mut p, mut sc, mut q) = (0usize, 0usize, 0usize);
+            for b in blocks.iter().skip(s).take_while(|b| b.idx < e) {
+                if param_blocks.contains(&b.idx) {
+                    p += 1;
+                } else if scoring_used.contains(&b.idx) {
+                    sc += 1;
+                } else if qual_blocks.contains(&b.idx) {
+                    q += 1;
+                }
+            }
+            let cat = if p > 0 && sc == 0 && q == 0 {
+                "技术参数"
+            } else if sc > 0 && p == 0 && q == 0 {
+                "评分项"
+            } else if q > 0 && p == 0 && sc == 0 {
+                "资格条件"
+            } else {
+                "其他"
+            };
+            (s, cat)
+        })
+        .collect();
+    // 解析后的分类（字面优先 → 内容证据兜底）——主循环各 category_for
+    // 调用点统一改走此面（chapter_start 是当前章的起点块号）。
+    // #272：字面判定前剥掉章名括号内的补充说明——「第六部分 政府采购
+    // 合同（参考格式）」的「（参考格式）」不是格式章语义（实测 62 条
+    // 合同条款误落格式要求）。括号外才是章的本题。
+    let category_resolved =
+        |chapter: &str, subsection: &str, chapter_start: usize| -> &'static str {
+            let core = strip_paren_notes(chapter);
+            let lit = category_for(&core, subsection);
+            if lit != "其他" {
+                return lit;
+            }
+            evidence.get(&chapter_start).copied().unwrap_or("其他")
+        };
+
     let mut seen_para = std::collections::HashSet::new();
     for (i, b) in blocks.iter().enumerate() {
         if !matches!(b.kind, BlockKind::PdfLine | BlockKind::OcrLine) {
@@ -602,6 +709,7 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
         }
         if re_chapter.is_match(&nfkc(t)) {
             chapter = t.to_string();
+            chapter_start = b.idx;
             subsection.clear();
             veto_ctx = false;
             review_ctx = false;
@@ -621,6 +729,47 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
                 || chapter_title
                     .as_deref()
                     .map_or(false, |title| title.contains("格式"));
+            continue;
+        }
+        // #272：「第X部分/篇」顶层骨架——仅当全文无「第X章」（文档级
+        // 方案仲裁）。语义镜像章分支：重置语境、两行形态前瞻、格式章
+        // 判定同款。询价类文件（第一部分 投标邀请 … 第七部分 响应文件
+        // 格式）由此获得章上下文（此前恒空 → 全落「其他」）。
+        // 按块号判（part_starts 已过枚举簇抑制）。
+        if part_starts.contains(&b.idx) {
+            chapter = t.to_string();
+            chapter_start = b.idx;
+            subsection.clear();
+            veto_ctx = false;
+            review_ctx = false;
+            review_strong = false;
+            let inline_title = re_part_head.replace(&nfkc(t), "").trim().to_string();
+            chapter_title = if inline_title.is_empty() {
+                chapter_title_ahead(blocks, i)
+            } else {
+                None
+            };
+            // #272：格式章判定用「括号外含格式」——括号内补充说明不算。
+            // 实测：询价「第六部分 政府采购合同（参考格式）」被裸 contains
+            // 误判格式章 → 62 条合同条款误落格式要求。括号内容剥离后再判
+            //（Zhang 分支保持原 contains 语义——既有行为红线不动）。
+            format_chapter = fmt_chapter_of(&chapter)
+                || chapter_title
+                    .as_deref()
+                    .map_or(false, |title| fmt_chapter_of(title));
+            continue;
+        }
+        // #272：「N.标题」数字顶层骨架——仅获胜游程成员（同上仲裁）。
+        // 行本身就是标题（数字+题名同段），无两行形态。
+        if numbered_starts.contains(&b.idx) {
+            chapter = t.to_string();
+            chapter_start = b.idx;
+            subsection.clear();
+            veto_ctx = false;
+            review_ctx = false;
+            review_strong = false;
+            chapter_title = None;
+            format_chapter = fmt_chapter_of(&chapter);
             continue;
         }
         if re_subsection.is_match(t) && t.chars().count() <= 40 {
@@ -696,7 +845,7 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
             } else if re_qual.is_match(&para) {
                 "资格条件"
             } else {
-                category_for(&chapter, &subsection)
+                category_resolved(&chapter, &subsection, chapter_start)
             };
             // 顿号形态的条款号取纯数字（「1、」→「1」——顿号是分隔符，
             // 与点分形态「4.2」同语义：编号本体入 clause_no）
@@ -731,7 +880,7 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
                 if re_qual.is_match(&para) && !para.starts_with("见") {
                     "资格条件"
                 } else {
-                    category_for(&chapter, &subsection)
+                    category_resolved(&chapter, &subsection, chapter_start)
                 }
             } else {
                 "否决项"
@@ -812,7 +961,7 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
             && !is_checklist_doc(&para)
             && !procedure_hit(&para)
             && !is_template_shape(&para)
-            && category_for(&chapter, &subsection) == "技术参数"
+            && category_resolved(&chapter, &subsection, chapter_start) == "技术参数"
             && re_quantified.is_match(&para)
         {
             // #266-C：技术章子项内容行——（N）/N、 列举里的量化参数形态
@@ -977,6 +1126,46 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
 ///
 /// `crate::norm_n1` 是「NFKC + 去全部空白」，用于对齐/检索面；
 /// 这里要保留原文空白（locator 的「第N 页 > 第M 行」形态、excerpt 的原样）。
+
+/// #272：剥掉章名括号内的补充说明（（参考格式）（二次）类）——括号外
+/// 才是章的本题。深度剥离圆/方/书名括号；括号外为空时回退原文。
+fn strip_paren_notes(s: &str) -> String {
+    let mut core = String::with_capacity(s.len());
+    let mut depth = 0i32;
+    for c in s.chars() {
+        match c {
+            '（' | '《' | '[' | '【' | '(' => depth += 1,
+            '）' | '》' | ']' | '】' | ')' => depth -= 1,
+            _ if depth <= 0 => core.push(c),
+            _ => {}
+        }
+    }
+    if core.trim().is_empty() {
+        s.to_string()
+    } else {
+        core
+    }
+}
+
+/// #272：格式章判定（部分/数字方案面专用）——括号外含「格式」才算。
+///
+/// 括号内的补充说明（实测：询价「第六部分 政府采购合同（参考格式）」）
+/// 不是章的格式语义——裸 `contains("格式")` 会把整章合同条款误落格式
+/// 要求（45-51 页 62 条实测误伤）。圆/方/书名括号内容逐字符深度剥离后
+/// 再判。Zhang 分支不使用本函数（既有 contains 语义——行为红线）。
+fn fmt_chapter_of(s: &str) -> bool {
+    let mut core = String::with_capacity(s.len());
+    let mut depth = 0i32;
+    for c in s.chars() {
+        match c {
+            '（' | '《' | '[' | '【' | '(' => depth += 1,
+            '）' | '》' | ']' | '】' | ')' => depth -= 1,
+            _ if depth <= 0 => core.push(c),
+            _ => {}
+        }
+    }
+    core.contains("格式")
+}
 
 /// 用子串猜（「评审」不会误配「评审结果公告」因为那是段落不是章名）。
 fn category_for(chapter: &str, subsection: &str) -> &'static str {

@@ -44,6 +44,7 @@ pub mod numbering;
 pub mod pdf_text;
 pub mod review_table;
 pub mod scoring_table;
+pub mod structure;
 pub mod table_semantics;
 pub mod veto_lexicon;
 // #226 层 2：规则说明识别（区分「招标人规则陈述」与「投标人响应要求」）。
@@ -134,6 +135,25 @@ pub fn parse_file(path: &Path, name: &str) -> Result<ParsedFile, String> {
             let mut pf = engines::parse_pdf(path, name)?;
             pf.name = name.to_string();
             pf.sha256 = sha256;
+            // #272 跨平台结构形态自报（追加在尾部——[pdf-*] 前缀断言不受
+            // 影响）：方案 + 章数 + 告警，import 回执透出（识别不确定
+            // 响亮可见，不静默失败）。
+            let st = structure::detect_structure(&pf.blocks);
+            let scheme_label = match st.scheme {
+                structure::TopScheme::Zhang => "第X章",
+                structure::TopScheme::Part => "第X部分/篇",
+                structure::TopScheme::Numbered => "数字顶层头",
+                structure::TopScheme::Uncertain => "未识别",
+            };
+            pf.parse_summary = format!(
+                "{}；结构形态[{}]: {} 章标记",
+                pf.parse_summary,
+                scheme_label,
+                st.chapters.len()
+            );
+            for w in &st.warnings {
+                pf.parse_summary = format!("{}；【结构告警】{}", pf.parse_summary, w);
+            }
             Ok(pf)
         }
         other => Err(format!("不支持的文件类型 .{other}（{name}）")),

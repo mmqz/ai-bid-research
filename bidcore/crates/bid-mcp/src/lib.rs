@@ -23,6 +23,8 @@
 pub mod coverage_tools;
 pub mod cursor;
 pub mod error;
+// #314：启动器 CLI 面（--init / --doctor——六场黑盒后用户接线自助）
+pub mod launcher;
 pub mod protocol;
 pub mod schema;
 pub mod tools;

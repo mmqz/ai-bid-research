@@ -20,6 +20,11 @@ use std::io::{self, BufRead, Write};
 use bid_mcp::protocol::McpSession;
 
 fn main() {
+    // #314：启动器 CLI 面（--init / --doctor / --help）——先于传输面消费
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if !args.is_empty() && args[0].starts_with("--") {
+        std::process::exit(bid_mcp::launcher::handle_cli(&args).unwrap_or(0));
+    }
     let stdin = io::stdin();
     let mut stdout = io::stdout();
     let mut session = McpSession::new();

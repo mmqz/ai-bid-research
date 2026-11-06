@@ -22,6 +22,62 @@ description: >
 > （docs/ 与 skill/ 平级）。找不到时向上层目录搜索最近的
 > `bid-mcp-contract.md`，不要在 Skill 目录下新建同名文件。
 
+## 快速开始（#314——先把 MCP 接上再谈流程）
+
+### 1. 安装
+
+```bash
+# 源码构建（需 Rust 1.75+）
+cargo install --path bidcore/crates/bid-mcp
+# 装好后 PATH 上有：bid-mcp-server（标准 MCP，客户端接这个）
+#                 bid-mcp-stdio（旧逐行裸 JSON 面，脚本/桌面壳用）
+```
+
+### 2. 配置 MCP（三客户端任选——`bid-mcp-server --init` 可打印全套模板）
+
+**Claude Desktop**（`~/Library/Application Support/Claude/claude_desktop_config.json`
+或 `%APPDATA%\Claude\claude_desktop_config.json`）：
+
+```json
+{ "mcpServers": { "bid": {
+    "command": "/absolute/path/to/bid-mcp-server",
+    "env": { "BID_WS": "/absolute/path/to/bid-workspace" } } } }
+```
+
+**Cursor**（项目根 `.cursor/mcp.json` 或全局 `~/.cursor/mcp.json`）：同上形状。
+
+**Continue**（`~/.continue/config.json`）：放 `experimental.modelContextProtocolServers`
+数组，元素 `{ "name": "bid", "command": …, "env": { "BID_WS": … } }`。
+
+`BID_WS` = 标书数据工作区（db.json 落盘处）。不设 = 纯内存态，重启数据即失。
+
+### 3. 验证连接
+
+```bash
+bid-mcp-server --doctor    # 自检：工具面/工作区/LLM/外部工具链 + 修复建议
+echo '{"tool":"list_tools","args":{}}' | bid-mcp-stdio   # 手动握手：count=39
+```
+
+配置生效后（Claude Desktop 需重启）让 Agent 调 `list_tools`——应看到
+39 个工具。
+
+### 4. 开始使用
+
+把本 SKILL.md 交给 Agent，说：「用 bid 这个 MCP 帮我编制投标文件」，
+然后按下方阶段表走。
+
+### 常见问题（故障排查）
+
+| 症状 | 原因与修复 |
+|---|---|
+| Agent 说「找不到工具」 | MCP 配置未生效：检查 command 路径是否可执行、客户端是否重启；手动跑 `bid-mcp-server --doctor` |
+| `E_NOTFOUND: project 不存在` | project_id 传错，或服务进程换了工作区（BID_WS 不一致）——用 `get_bid_project_state` 查当前态 |
+| 中文乱码 | Windows 终端执行 `chcp 65001`；MCP 客户端场景由客户端处理 UTF-8 |
+| 重启后数据全丢 | BID_WS 未设置（纯内存态）——客户端配置加 `env.BID_WS` |
+| 起草正文极短/模板化 | 工作区缺 `.mang/llm.json`（走 Mock 生成器）——`--doctor` 会 warn，按指引配置 |
+| export pdf 被拒 | 无 Word/LibreOffice——`--doctor` 的「PDF 转换器」项会告知；装其一或用 docx |
+| 状态机报 `E_STATE` | 工具不在当前状态窗（阶段表「允许工具」列）——看 `get_bid_project_state` 的 allowed_next_tools |
+
 ## 阶段表（顺序锁死，禁止跨步——防低能力模型跑偏）
 
 | 阶段 | 动作 | 允许工具 | 完成判据（停止条件） | 恢复点 |

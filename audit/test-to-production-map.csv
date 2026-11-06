@@ -1,0 +1,150 @@
+test_file,test_name(前缀),类型,targets_production_unit,guards_what,credibility
+bidcore/crates/bid-mcp/tests/import_tender_files_tool.rs#create_bid_project 子面,create_*(约6例),CONTRACT,bid-mcp tools.rs#create_bid_project,幂等重放(external_key)/deadline 警告/参数校验/deduplicated:true,高
+bidcore/crates/bid-mcp/tests/import_tender_files_tool.rs,import_*,CONTRACT,bid-mcp tools.rs#import + bid-tools service.rs#import,21 例：E_PARTIAL/脏追加/围栏/幂等/版本冲突/坏件重传（25 工具最强面）,高
+bidcore/crates/bid-mcp/tests/partial_failure_gate.rs,partial_*,INTEGRATION,bid-tools service.rs#import 聚合,单件失败显式登记+继续（R-01 缓解面）+失败件禁引,高
+bidcore/crates/bid-mcp/tests/input_format_matrix.rs,input_*,CONTRACT,bid-mcp tools.rs#import 参数面,kind 七枚举/格式矩阵/坏输入拒,高
+bidcore/crates/bid-mcp/tests/bad_input_matrix.rs,bad_*,NEGATIVE,bid-mcp tools.rs+schema.rs 全工具参数面,非法参数 fail-closed 矩阵,高
+bidcore/crates/bid-mcp/tests/extract_matrix_tools.rs,extract_*|matrix_*,CONTRACT,bid-mcp tools.rs#extract_requirements + bid-domain matrix.rs,合并守恒/无标记 no-op/REQ-A/零条警告/建纲窗口,高
+bidcore/crates/bid-mcp/tests/coverage_tools.rs,coverage_*|chunks_*|marks_*,CONTRACT,bid-mcp coverage_tools.rs 三工具,窗口分页/区间校验/合并/重启持久化（get_document_chunks+submit_block_marks+get_coverage_report）,高
+bidcore/crates/bid-mcp/tests/cursor_pagination.rs,cursor_*,CONTRACT,bid-mcp cursor.rs+list_evidence/list_tasks/get_compliance_matrix,12k 分页/跨过滤游标拒/坏游标 fail-closed（不防增长位移 C-14）,高(局部)
+bidcore/crates/bid-mcp/tests/search_evidence_tool.rs,search_*,CONTRACT,bid-mcp tools.rs#search_evidence + bid-kb,exact 五字段/semantic 分词/hybrid 去重/降权/排序/错误面 8 例,高
+bidcore/crates/bid-mcp/tests/draft_tool.rs,draft_*,CONTRACT,bid-mcp tools.rs#draft_response_section + bid-tools draft.rs,CAS/幂等/引用回查/配额/参数互斥,高
+bidcore/crates/bid-mcp/tests/draft_generator_switch.rs,generator_*,CONTRACT,bid-tools draft.rs 四态生成器,external/mock/llm/subagent 切换,高
+bidcore/crates/bid-mcp/tests/writing_acceptance_e2e.rs,writing_*,E2E,bid-tools service.rs#export 门 1c（#242）,导出门独立复算——篇幅不足即使审核批准也拒（mutation M4 击杀）,高
+bidcore/crates/bid-mcp/tests/validate_tool.rs,validate_*,CONTRACT,bid-mcp tools.rs#validate_bid_document + service.rs 推进,四桶/BLOCKER/规则族/推进断言（M1 击杀——但无「失败不得推进」反向）,高(单向)
+bidcore/crates/bid-mcp/tests/quality_summary.rs,quality_*,CONTRACT,bid-tools quality.rs 汇总面,check_bid_quality 输出契约,高
+bidcore/crates/bid-mcp/tests/check_quality_tool.rs,check_quality_*,CONTRACT,bid-mcp tools.rs#check_bid_quality,诊断面/落盘 artifacts,高
+bidcore/crates/bid-mcp/tests/export_tool.rs,export_*,CONTRACT,bid-mcp tools.rs#export_bid_document,双前置门/六表七件/幂等（缺 bidder_name 维度 C-07）,高(局部)
+bidcore/crates/bid-mcp/tests/export_readback.rs,readback_*,E2E,bid-tools export.rs 产物质量,解 zip 深检——docx 正文/xlsx sharedStrings/暗标公司名零残留（只查 document.xml）,高(局部)
+bidcore/crates/bid-mcp/tests/pdf_export.rs,pdf_*,E2E,bid-tools export.rs PDF 通道,PDF 导出链（soffice 软门环境 SKIP）,中(环境依赖)
+bidcore/crates/bid-mcp/tests/e2e_artifacts.rs,e2e_*,E2E,bid-tools service.rs 全链 + score_* 三工具,导出产物 11 件套断言,高
+bidcore/crates/bid-mcp/tests/e2e_pipeline.rs,pipeline_*,E2E,bid-mcp 25 工具全链,create→import→…→export 主链贯通,高(环境依赖)
+bidcore/crates/bid-mcp/tests/save_version_tool.rs,save_version_*,CONTRACT,bid-mcp tools.rs#save_version,基本三例——无围栏负例（C-06 无守卫）,低(缺口)
+bidcore/crates/bid-mcp/tests/evidence_source_tool.rs,evidence_source_*,CONTRACT,bid-mcp tools.rs#register_evidence+bind_evidence + service.rs#register_evidence_verified,#185 来源验证（source_file_id/sha 服务端）+禁绑/重算,高
+bidcore/crates/bid-mcp/tests/evidence_content_tool.rs,evidence_content_*,CONTRACT,service.rs#register_evidence_verified,#217 四态（locator 对账→CONTENT_MATCHES）,高
+bidcore/crates/bid-mcp/tests/agent_mandatory_gate.rs,agent_mandatory_*,CONTRACT,bid-domain matrix.rs#agent mandatory 接线,Agent 必选未响应阻断（#229/#241）,高
+bidcore/crates/bid-mcp/tests/mcp_scaffold_tools.rs,scaffold_*,CONTRACT,bid-mcp tools.rs#record_review_gate/build_outline/get_bid_project_state,门序/receipt 正反例/建纲窗口/状态回显,高
+bidcore/crates/bid-mcp/tests/set_matrix_override_tool.rs,override_*,CONTRACT,bid-mcp tools.rs#set_matrix_override,#226 死锁出口：四重绑定 receipt 正反 9 例/幂等/状态门（mutation M5 击杀点）,高
+bidcore/crates/bid-mcp/tests/addendum_waiver_tool.rs,waiver_*,CONTRACT,bid-mcp tools.rs#record_addendum_waiver,件级确认/审计（无「非补遗件→门被隐式开」反例 A-04）,高(局部)
+bidcore/crates/bid-mcp/tests/score_tools.rs,score_*,CONTRACT,bid-mcp tools.rs#score_price+score_section+score_document,三评分工具/多映射摊分,高
+bidcore/crates/bid-mcp/tests/review_table_matrix.rs,review_table_*,CONTRACT,bid-domain review_table 消费链,审查表→矩阵行,高
+bidcore/crates/bid-mcp/tests/dispatch_contract.rs,dispatch_*,CONTRACT,bid-mcp lib.rs#dispatch + 全 25 工具路由,工具名/信封形状/unknown 工具/状态回显,高
+bidcore/crates/bid-mcp/tests/global_invariants.rs,global_*,CONTRACT,bid-mcp 全工具横向,幂等/版本回带/错误码全集（E_NOT_FOUND 漂移在场 C-01）,高
+bidcore/crates/bid-mcp/src/protocol.rs(内嵌),protocol_*,UNIT,bid-mcp protocol.rs JSON-RPC 框架,initialize/ping/tools/list/tools/call+错误信封 12 单测,高
+bidcore/crates/bid-mcp/tests/mcp_sdk_e2e.rs,mcp_sdk_*,E2E,bid-mcp-server bin + protocol.rs,MCP 官方 SDK 握手真进程,高
+bidcore/crates/bid-mcp/tests/mcp_sdk_e2e.py,test_*（pytest）,E2E,bid-mcp-server bin,initialize 协商+25 工具在座+三面 call,高
+bidcore/crates/bid-mcp/tests/real_corpus_e2e.rs,real_corpus_*,REAL_CORPUS,bid-parse 全链+service.rs#import,16 件真实语料全链（232s；chi_sim 缺时 OCR 覆盖存疑 FG-11）,高(环境依赖)
+bidcore/crates/bid-mcp/tests/scale_1330.rs,scale_*,INTEGRATION,bid-parse+service,1330 页规模链,高
+bidcore/crates/bid-mcp/tests/synth_tender_eval.rs,synth_*,INTEGRATION,bid-parse+extract.rs,合成标书抽取质量,高
+bidcore/crates/bid-mcp/tests/subagent_llm_path.rs,subagent_*,INTEGRATION,bid-tools draft.rs subagent 生成器,子代理路径,中(环境依赖)
+bidcore/crates/bid-mcp/tests/real_llm_path.rs,real_llm_*,INTEGRATION,bid-tools llm.rs+draft.rs,真实 LLM 路径,中(环境依赖)
+bidcore/crates/bid-tools/tests/service_import.rs,import_*,INTEGRATION,bid-tools service.rs#import 路由,docx/xlsx→引擎、pdf→引擎回退、xls/ods 拒,高
+bidcore/crates/bid-tools/tests/store_roundtrip.rs,roundtrip_*,INTEGRATION,bid-tools store_io.rs,快照往返/损坏拒载/版本门（apply_validity 仅测试调用 A-02）,高
+bidcore/crates/bid-tools/tests/assembly_checkpoint.rs,assembly_*,INTEGRATION,bid-tools assembly.rs+store_io.rs,tmp/rename 原子性/幂等 checkpoint,高
+bidcore/crates/bid-tools/tests/fs_fence.rs,fence_*,NEGATIVE,bid-tools fs_fence.rs,#183/#189 围栏：逃逸三态/前缀陷阱/多根/限额 10 项,高
+bidcore/crates/bid-tools/tests/input_integrity_gate.rs,input_integrity_*,INTEGRATION,bid-tools readiness.rs 主件就绪门,主件零文本=不就绪（B-13 缓解面）,高
+bidcore/crates/bid-tools/tests/readiness_check.rs,readiness_*,INTEGRATION,bid-tools readiness.rs,六阻塞源全量,高
+bidcore/crates/bid-tools/tests/readiness_l3_addendum.rs,l3_*,INTEGRATION,bid-tools readiness.rs,补遗缺失/NotProvided 门（A-04 反例缺失）,高(局部)
+bidcore/crates/bid-tools/tests/readiness_wire.rs,wire_*,INTEGRATION,readiness.rs 接线,MCP 面出参,高
+bidcore/crates/bid-tools/tests/draft_section.rs,draft_*,INTEGRATION,bid-tools service.rs#draft+advance_project_status,起草门/推进链（mutation M6 杀伤点 :513/:518）,高
+bidcore/crates/bid-tools/tests/draft_iterative.rs,iterative_*,INTEGRATION,bid-tools draft.rs,迭代改稿/CAS,高
+bidcore/crates/bid-tools/tests/evidence_content.rs,ev_content_*,INTEGRATION,service.rs#register_evidence_verified,内容核验裁决,高
+bidcore/crates/bid-tools/tests/evidence_source.rs,ev_source_*,INTEGRATION,service.rs#register_evidence_verified,来源身份裁决,高
+bidcore/crates/bid-tools/tests/export_embed.rs,embed_*,INTEGRATION,bid-tools export.rs,嵌入图/表,高
+bidcore/crates/bid-tools/tests/export_stream.rs,stream_*,INTEGRATION,bid-tools export.rs,流式导出+zip 良构（dev-dep zip/quick-xml 校验件）,高
+bidcore/crates/bid-tools/tests/format_spec_apply.rs,fspec_*,INTEGRATION,bid-tools format_spec.rs,格式规格应用,高
+bidcore/crates/bid-tools/tests/forms_wire.rs,forms_*,INTEGRATION,bid-domain forms.rs+party.rs,表格/投标函 profile 读写,高
+bidcore/crates/bid-tools/tests/context_budget.rs,context_*,UNIT,bid-tools context.rs,prompt 预算装配,高
+bidcore/crates/bid-tools/tests/llm_generator.rs,llm_*,INTEGRATION,bid-tools llm.rs+draft.rs,LLM 生成器降级/mock,高
+bidcore/crates/bid-tools/tests/quality_check.rs,qc_*,INTEGRATION,bid-tools quality.rs,质量四面主判,高
+bidcore/crates/bid-tools/tests/quality_duplication.rs,dup_*,UNIT,bid-tools quality.rs#查重,重复率,高
+bidcore/crates/bid-tools/tests/quality_integrate.rs,integ_*,UNIT,bid-tools quality.rs,整合度,高
+bidcore/crates/bid-tools/tests/quality_specificity.rs,spec_*,UNIT,bid-tools quality.rs,具体性,高
+bidcore/crates/bid-tools/tests/quality_substance.rs,subst_*,UNIT,bid-tools quality.rs,实质内容,高
+bidcore/crates/bid-tools/tests/review_sharding.rs,shard_*,UNIT,bid-tools check.rs#run_review/check_global,S-5 全局一致性算法（孤岛——生产零消费 A-06）,高(孤岛)
+bidcore/crates/bid-tools/tests/scoring_real_corpus.rs,scoring_real_*,REAL_CORPUS,bid-domain scoring.rs,真实语料自评,高
+bidcore/crates/bid-tools/tests/tables_export.rs,texp_*,INTEGRATION,bid-tools tables.rs,表格导出,高
+bidcore/crates/bid-tools/tests/tables_sample.rs,tsample_*,INTEGRATION,bid-tools tables.rs,样例表,高
+bidcore/crates/bid-tools/tests/tables_wire.rs,twire_*,INTEGRATION,bid-tools tables.rs,MCP 接线,高
+bidcore/crates/bid-tools/tests/dedup_file_roles.rs,roles_*,INTEGRATION,bid-domain lib.rs#file roles,角色去重,高
+bidcore/crates/bid-domain/tests/state_machine_matrix.rs,state_*,CONTRACT,bid-domain lib.rs#guard/advance,状态机矩阵（M6 变异下 domain 层全绿——守卫在 tools 层）,高(分层脆弱)
+bidcore/crates/bid-domain/tests/status_enum_matrix.rs,enum_*,CONTRACT,bid-domain lib.rs#ProjectStatus,枚举完备性,高
+bidcore/crates/bid-domain/tests/outline_invariants.rs,outline_*,CONTRACT,bid-domain outline.rs,九不变量,高
+bidcore/crates/bid-domain/tests/scoring_mapping.rs,mapping_*,CONTRACT,bid-domain scoring.rs#ScoringMapping,#224 修复完整面（聚合/restore/content_version 891 行）,高
+bidcore/crates/bid-domain/tests/scoring_b2_self_eval.rs,self_eval_*,UNIT,bid-domain scoring.rs,自评口径（is_price_item 误伤 A-18 在场）,高(局部)
+bidcore/crates/bid-domain/tests/budget.rs,budget_*,UNIT,bid-domain budget.rs,四阶梯,高
+bidcore/crates/bid-domain/tests/four_contracts.rs,four_*,INTEGRATION,bid-domain export_gate.rs/linkage.rs/impact.rs,三门序/digest/影响面——产品无消费（A-08/A-09 孤岛）,高(孤岛)
+bidcore/crates/bid-domain/src(内嵌 lib.rs),watermark_*,UNIT,bid-domain lib.rs restore/advance,快照校验/水位（孤儿绑定缺失 A-05）,高(局部)
+bidcore/crates/bid-domain/src(内嵌 matrix.rs),derive_*|build_*,UNIT,bid-domain matrix.rs,blocking 派生/双口径（mutation M3 击杀）,高
+bidcore/crates/bid-domain/src(内嵌 evidence.rs),gt13_*|register_*,UNIT,bid-domain evidence.rs,can_bind/换版/幂等（mutation M2 击杀；P0-2 派生无反向）,高(单向)
+bidcore/crates/bid-domain/src(内嵌 review.rs),review_*|rt_*,UNIT,bid-domain review.rs,三门序/RT 生命周期域方法（MCP 无工具 A-23）,高(孤岛)
+bidcore/crates/bid-domain/src(内嵌 principal.rs),receipt_*|scope_*,UNIT,bid-domain principal.rs,HMAC/scope/时效/伪造拒（M5 击杀；内容不绑定 A-03）,高(局部)
+bidcore/crates/bid-domain/src(内嵌 param.rs/dates.rs/party.rs),param_*|ymd_*|party_*,UNIT,bid-domain param.rs/dates.rs/party.rs,偏离派生/日期域/外部 profile IO,高
+bidcore/crates/bid-parse/tests/addendum_recovery.rs,recovery_*,NEGATIVE,bid-parse engines/mod.rs,兜底链/乱码 fail-loud/Type1 英文模板件,高
+bidcore/crates/bid-parse/tests/corpus_probe.rs,probe_*,REAL_CORPUS,bid-parse 全链,corpus-A 全链探针（CI SKIP 面）,高(环境依赖)
+bidcore/crates/bid-parse/tests/env_preflight_pdfium.rs,preflight_*,UNIT,bid-parse env_preflight.rs,三态探测/消息面/env 字面量锚定,高
+bidcore/crates/bid-parse/tests/env_preflight_sim.rs,sim_*,UNIT,bid-parse env_preflight.rs,SKIP 横幅语义,高
+bidcore/crates/bid-parse/tests/extract_docx_veto.rs,veto_*,CONTRACT,bid-parse extract.rs+veto_lexicon.rs,DOCX 否决优先级链/#226/#233 对称/幂等（对称测试未钉否决信号 B-06）,高(局部)
+bidcore/crates/bid-parse/tests/extract_dunhao.rs,dunhao_*,UNIT,bid-parse extract.rs,顿号条款双格式,高
+bidcore/crates/bid-parse/tests/extract_format_chapter.rs,fmt_chapter_*,UNIT,bid-parse extract.rs,#234 格式章守卫,高
+bidcore/crates/bid-parse/tests/extract_kind_dispatch.rs,dispatch_*,CONTRACT,bid-parse extract.rs,#196/#199 kind 分发矩阵（B1 只验不 panic）,高(局部)
+bidcore/crates/bid-parse/tests/extract_pdf_l2gap.rs,l2_*,UNIT,bid-parse extract.rs,PDF L2 残差族（语境传播/程序排除）,高
+bidcore/crates/bid-parse/tests/extract_pdf_para.rs,para_*,UNIT,bid-parse extract.rs,段落重组/词表/目录防御/幂等（无跨页噪声样本 B-18）,高(局部)
+bidcore/crates/bid-parse/tests/nesting_corpus.rs,nesting_*,REAL_CORPUS,bid-parse nesting.rs,真实语料嵌套配对,高
+bidcore/crates/bid-parse/tests/numbering_corpus.rs,numbering_*,REAL_CORPUS,bid-parse numbering.rs,真实语料编号分布,高
+bidcore/crates/bid-parse/tests/pdf_cid_identity.rs,cid_*,UNIT,bid-parse pdf_text.rs,CID/GBK-EUC/未用字体/混排页,高
+bidcore/crates/bid-parse/tests/real_corpus_223.rs,b_cqyd_*,REAL_CORPUS,bid-parse pdf_text.rs,#223 局部乱码页/基线条数红线,高
+bidcore/crates/bid-parse/src(内嵌 pdf_text.rs),pdf_text_*(38),UNIT,bid-parse pdf_text.rs,Tm 合成行/WPS 缩放/CMap 路由——中文断字强项,高
+bidcore/crates/bid-parse/src(内嵌 guard.rs),input_size_*|subprocess_*|tmpguard_*(11),NEGATIVE,bid-parse guard.rs,输入字节门/sha256 流式/T-04 治理全套（#[cfg(unix)] CI 不执行 FG-14）,高(平台限定)
+bidcore/crates/bid-parse/src(内嵌 tesseract.rs),ocr_*(2),NEGATIVE,bid-parse engines/tesseract.rs,OCR 页数门 200 负向+chi_sim 探测（环境 SKIP）,中(环境依赖)
+bidcore/crates/bid-parse/src(内嵌 engines/mod.rs),engine_*(2),UNIT,bid-parse engines/mod.rs,通道选择,高
+bidcore/crates/bid-parse/src(内嵌 merge.rs),covered_*(6),UNIT,bid-parse merge.rs,合并语义（B-01 端态被钉为预期——单向校验盲区）,高(语义钉偏)
+bidcore/crates/bid-parse/src(内嵌 clause.rs),clause_*(9),UNIT,bid-parse clause.rs,边界判定,高
+bidcore/crates/bid-parse/src(内嵌 numbering.rs),num_*(13),UNIT,bid-parse numbering.rs,编号解析,高
+bidcore/crates/bid-parse/src(内嵌 nesting.rs),nest_*(6),UNIT,bid-parse nesting.rs,括号嵌套,高
+bidcore/crates/bid-parse/src(内嵌 review_table.rs),table_*(16),UNIT,bid-parse review_table.rs,审查表抽取,高
+bidcore/crates/bid-parse/src(内嵌 veto_lexicon.rs),lex_*(13),UNIT,bid-parse veto_lexicon.rs,DOCX 否决词表（与 PDF 侧不同源 B-06）,高(局部)
+bidcore/crates/bid-parse/src(内嵌 veto_rule.rs),rule_*(28),UNIT,bid-parse veto_rule.rs,三轮收紧判据逐条断言,高
+bidcore/crates/bid-parse/src(内嵌 env_preflight.rs),env_*(6),UNIT,bid-parse env_preflight.rs,SKIP 判定/消息,高
+bidcore/crates/bid-engine/tests/smoke_engine.rs,smoke_*,INTEGRATION,bid-engine lib.rs 三门面,parse_docx/xlsx/pdf_via_engine 冒烟,高
+bidcore/crates/bid-engine/tests/mapping_docx.rs,docx_*,CONTRACT,bid-engine mapping.rs,docx 映射黄金锚（MDCORE_REV 自引用断言 FG-12）,高(自引用盲区)
+bidcore/crates/bid-engine/tests/mapping_xlsx.rs,xlsx_*,CONTRACT,bid-engine mapping.rs,xlsx 映射锚（rev 自引用同上）,高(自引用盲区)
+bidcore/crates/bid-engine/tests/mapping_pdf.rs,pdf_*,CONTRACT,bid-engine mapping.rs,pdfium 映射 4 测试（SKIP 门——无 pdfium 环境零覆盖）,低(环境依赖)
+bidcore/crates/bid-engine/tests/reader_docx.rs,reader_*,CONTRACT,bid-engine reader.rs+mdc-office-io,部件账本/镜像纯度 10 项,高
+bidcore/crates/bid-engine/tests/pages_estimate.rs,pages_*,UNIT,bid-engine pages.rs,分页预估手算锚,高
+bidcore/crates/bid-engine/tests/styles_template.rs,styles_*,UNIT,bid-engine styles.rs,样式模板,高
+bidcore/crates/bid-kb/tests/kb_probe.rs,kb_*,REAL_CORPUS,bid-kb lib.rs,25 真实查询,高
+bidcore/crates/bid-kb/tests/shard_index.rs,shard_*,UNIT,bid-kb shard.rs,等价性/增量性/确定性,高
+bidcore/crates/bid-grade/tests/selftest_gate.rs,selftest_*,INTEGRATION,bid-grade grade.rs,完美库+破坏注入,高(恒真项 A-20)
+bidcore/crates/bid-grade/tests/e2e_m1.rs,e2e_*,E2E,bid-tools runner.rs+m1 判分链,M1 评测链,高
+bidcore/crates/mang-snap/src(内嵌),snap_*(4),UNIT,mang-snap,快照/find_root,高
+bidcore/crates/mang-app/src(内嵌 39 测试),mcp_status/tools 断言等,UNIT,mang-app diag/paths/fsapi/ipc,fs 围栏/穿越/llm 掩码/IPC 全命令——CI 只 check 零执行且 tools==13 必红,低(NOT_EXECUTED+确定性红 FG-01)
+scripts/run_tests.py#t_env_preflight,T0(a/b/c),ENV_GATE,scripts 环境面,Python 钉版六包/bins/chi_sim 预检+ENV_BLOCKED 账本,高
+scripts/run_tests.py#t_xref,T1/T2,NEGATIVE,scripts/xref_check.py+docs/,跨文档一致性+历史错误注入捕获,高
+scripts/run_tests.py#t_fixture_integrity,T3(a..),INTEGRATION,scripts/fixture_gen.py+fixtures/,manifest 双向校验（游离文件检出——本轮真红 P3）,高
+scripts/run_tests.py#t_readback,T4(a..g),INTEGRATION,fixture 语料↔GT,读回/缺陷草稿 8 类逐字在位,高
+scripts/run_tests.py#t_grade,T5,NEGATIVE,scripts/grade.py,判分器场景全绿+13 类破坏全捕获（含 R2 攻击样本）,高
+scripts/run_tests.py#t_determinism,T6,INTEGRATION,m1/bidcore 合成线,双跑字节一致（fixture 钉版）,高
+scripts/run_tests.py#t_v1#T7a,T7a,SEMUL,scripts/v1_pipeline.py(ooxml_util),V1-a 解析面基座锚点,中(SEMUL)
+scripts/run_tests.py#t_v1#T7b,T7b,SEMUL,scripts/v1_citation.py,V1-b 定位器两级失效语义,中(SEMUL)
+scripts/run_tests.py#t_v1#T7c,T7c,SEMUL,scripts/v1_export.py+LO headless,V1-c 渲染级 8 页硬断言（LO 在位时）,中(SEMUL+环境)
+scripts/run_tests.py#t_v1#T7d,T7d,SEMUL,scripts/v1_darkbid.py,V1-d 暗标 docProps/禁字/金丝雀——只护仿真件（FG-13 产品面无守卫）,低(仿真绿)
+scripts/run_tests.py#t_v2,T8,SEMUL,scripts/v2_impact.py,V2 影响面/DIRTY/级联（与 Rust 无交叉验证 FG-06）,低(仿真绿)
+scripts/run_tests.py#t_v3,T9,SEMUL,scripts/v3_integration.py,V3 集成/两阶段导出一致性,低(仿真绿)
+scripts/run_tests.py#t_m1,T10~T13,INTEGRATION,m1/ 全链,构建/单测/四场景/覆盖/双跑确定性（被测=m1 非 bidcore）,中(被测偏移)
+scripts/run_tests.py#t_m17,T14,REAL_CORPUS,scripts/m17_*.py+real-corpus/gov,公告级真实链 34 断言,高
+scripts/run_tests.py#t_gt_enrich,T15(a),INTEGRATION,scripts/real_eval_gt_enrich.py,GT 锚定（半自证 FG-18）,中(半自证)
+scripts/run_tests.py#t_telecom,T16(a/b),REAL_CORPUS,scripts/telecom_*.py,电信四节点 46 断言+文件级 17/17,高
+scripts/run_tests.py#t_engine_diff,T17(b/c/d),INTEGRATION,scripts/engine_diff.py+engine_probe,双跑差分——断言入库历史产物非当前行为（FG-07）,低(历史产物断言)
+scripts/run_tests.py#t_b5_gt_eval,T18a,INTEGRATION,scripts/b5_engine_gt_eval.py,引擎路径召回≥旧路径——自 B4 起红（FG-04）,低(评测断裂·红)
+scripts/run_tests.py#t_bidcore_cargo,T19,INTEGRATION,bidcore cargo test,产品仓全绿门禁（本沙箱环境红 FG-15；§1.1 复跑全绿）,高(环境敏感)
+sdk/tests/test_mcp_e2e.py#test_00_environment,00-*,E2E,sdk 环境,传输/二进制定位,高
+sdk/tests/test_mcp_e2e.py#test_01_initialize_and_tools,01-*,E2E,bid-mcp-server protocol.rs,握手+25 工具,高
+sdk/tests/test_mcp_e2e.py#test_02_full_pipeline,02-*,E2E,bid-tools service.rs 全链,旗舰全链验收——基线红（FG-05：#242 门生效 vs 夹具过期）,低(红·失守)
+sdk/tests/test_mcp_e2e.py#test_03_error_envelope,03-*,E2E,bid-mcp error.rs/protocol.rs,错误信封（E_NOT_FOUND 漂移被固化 FG-09）,低(固化漂移)
+sdk/tests/test_mcp_e2e.py#test_10_external_ghost_ev,10-*,E2E,bid-domain evidence.rs,幽灵证据拒,高
+sdk/tests/test_mcp_e2e.py#test_11_external_uncovered,11-*,E2E,bid-domain readiness.rs,未覆盖必选项,高
+sdk/tests/test_mcp_e2e.py#test_12_external_unanchored,12-*,E2E,bid-domain evidence.rs,无锚证据,高
+sdk/tests/test_mcp_e2e.py#test_13_external_cas_version,13-*,E2E,bid-domain lib.rs#content_version,CAS 版本冲突,高
+sdk/tests/test_mcp_e2e.py#test_14_search_evidence,14-*,E2E,bid-kb+search_evidence,检索 6 子组,高
+sdk/examples/minimal_flow.py,(无测试),EXAMPLE,bid-mcp-stdio 行协议,官方示例——参数已废除链路必死（C-02）且零自动化,无(不可信示例)

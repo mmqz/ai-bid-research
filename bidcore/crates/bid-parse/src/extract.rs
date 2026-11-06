@@ -251,6 +251,13 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
         "级资质|资格条件|注册建造师|注册造价工程师",
     ))
     .unwrap();
+    // #266-C 量化参数形态（数值 + 单位/%）——技术章子项内容行的判据
+    // （「完好率≥95%」「平均接头损耗应不大于0.2dB/个」类——单位集保守：
+    // 条/个/人/年等泛用量词不进面，防止技术章整段泛化）
+    let re_quantified = Regex::new(
+        r"\d+(?:\.\d+)?\s*(?:%|％|分钟|⼩时|小时|日历天|工作日|dB|dBm|M/s|Mbps|Gbps|万元|元|℃|km|GB|TB|MB|⽶|米)",
+    )
+    .unwrap();
     // 评分细则行：数字开头 + 短语 + "N 分"（评分办法章内）
     let re_score_line = Regex::new(r"^\d+[、.．]\s*\S{2,30}[：:，,]?\s*\S{0,16}\d+(?:\.\d+)?\s*分").unwrap();
     // 评分算法行：评标基准价/下浮率（强算法词免章门——基准价算法常在须知章）
@@ -542,6 +549,25 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
         .flat_map(|&rb| para_start[rb]..=para_end[rb])
         .collect();
 
+    // #266 语义表接管（PDF 布局面）：优先级 审查表 > 语义表 > 值行 > 旧链
+    // （区域接管防双抽——「1、期次1…」编号单元格旧路由装配行整体取代）。
+    let (pdf_sem_items, pdf_sem_used) =
+        crate::table_semantics::extract_pdf_semantic_tables(f, &review_consumed);
+    let sem_consumed: std::collections::HashSet<usize> = pdf_sem_used
+        .iter()
+        .filter(|&&rb| rb < blocks.len())
+        .flat_map(|&rb| para_start[rb]..=para_end[rb])
+        .collect();
+    let pdf_value_items = {
+        let mut skip = review_consumed.clone();
+        skip.extend(sem_consumed.iter().copied());
+        crate::table_semantics::extract_pdf_value_rows(f, &skip)
+    };
+    let mut sem_consumed = sem_consumed;
+    for vi in &pdf_value_items {
+        sem_consumed.insert(vi.block_idx);
+    }
+
     let mut seen_para = std::collections::HashSet::new();
     for (i, b) in blocks.iter().enumerate() {
         if !matches!(b.kind, BlockKind::PdfLine | BlockKind::OcrLine) {
@@ -549,6 +575,10 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
         }
         // #144 审查表接管：被装配行（含其段落成员）跳过既有逐行分支
         if review_consumed.contains(&i) {
+            continue;
+        }
+        // #266 语义表/值行接管：同款区域跳过
+        if sem_consumed.contains(&i) {
             continue;
         }
         let t = b.text.trim();
@@ -777,6 +807,22 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
             // P2：基准价算法与下浮率 K 常在须知章 10.x 而非评标办法章，强算法词免章门）
             push_req(reqs, seq, "评分项", None, para_anchors(i, pend), HashMap::new(), &f.name);
             veto_ctx = false;
+        } else if re_list_cn.is_match(t)
+            && !format_chapter
+            && !is_checklist_doc(&para)
+            && !procedure_hit(&para)
+            && !is_template_shape(&para)
+            && category_for(&chapter, &subsection) == "技术参数"
+            && re_quantified.is_match(&para)
+        {
+            // #266-C：技术章子项内容行——（N）/N、 列举里的量化参数形态
+            // 单独成 REQ（songling 层1 实测：技术章「（1）完好率≥95%」「（5）
+            // 接头损耗不大于0.2dB」类子项碎行是 12/16 锚点 MISS 的主体面——
+            // 标题行 REQ「1、接入速率」不含内容值）。上下文窄守卫：仅
+            // 技术面章节（category_for 裁决）+ 量化形态——防泛化噪声。
+            let mut params = HashMap::new();
+            params.insert("statement".to_string(), serde_json::json!(para));
+            push_req(reqs, seq, "技术参数", None, para_anchors(i, pend), params, &f.name);
         } else {
             // 非列举普通行终止否决语境（防语境流污染）——**长散文才杀**。
             // #68 阶段 4（F4）：原无条件终止在两种真实形态上误杀语境
@@ -836,6 +882,8 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
             params, &f.name,
         );
     }
+    // ---- #252 综合评分表行 REQ 化（评分驱动大纲输入面）
+
 
     // #252 综合评分表行 REQ 化：每行 → 评分项（评分驱动大纲的输入面）。
     // params 携带 name/score/track/objective/sub_items——域层（scoring_outline）
@@ -863,6 +911,65 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
             params, &f.name,
         );
     }
+
+    // ---- #266 PDF 语义表条目 REQ 化（布局面，商务/技术参数）
+
+    // #266 语义表条目 REQ 化（PDF 布局面）：类别=小节上下文优先（含「商务」
+    // →商务要求——小节级显式命名优先于章级推断），否则技术参数；★入
+    // params.star（#276 对齐面）；锚=行+续行块原文（数值与单位可检索——
+    // #250 验收口径的 PDF 面）。
+    for it in &pdf_sem_items {
+        let sec = crate::norm_n1(&it.section);
+        let cat = if sec.contains("商务") {
+            "商务要求"
+        } else {
+            "技术参数"
+        };
+        let mut params = HashMap::new();
+        params.insert("statement".to_string(), serde_json::json!(it.statement));
+        if it.star {
+            params.insert("star".to_string(), serde_json::json!(true));
+        }
+        let anchors: Vec<Anchor> = it
+            .block_idxs
+            .iter()
+            .filter_map(|&bi| f.blocks.get(bi).map(|b| Anchor {
+                file: f.name.clone(),
+                kind: "table".into(),
+                locator: b.locator.clone(),
+                excerpt: b.text.clone(),
+            }))
+            .collect();
+        push_req(
+            reqs,
+            seq,
+            cat,
+            Some(format!("表{}-行{}", it.table_no, it.row)),
+            anchors,
+            params,
+            &f.name,
+        );
+    }
+    // #266 值行 REQ 化（前附表/公告区关键值——商务要求值面，废标关键值
+    // GR-010~014 的锚面）。
+    for vi in &pdf_value_items {
+        let mut params = HashMap::new();
+        params.insert("statement".to_string(), serde_json::json!(vi.statement));
+        push_req(
+            reqs,
+            seq,
+            "商务要求",
+            Some(format!("值-{}", vi.label)),
+            vec![Anchor {
+                file: f.name.clone(),
+                kind: "table".into(),
+                locator: vi.locator.clone(),
+                excerpt: vi.statement.clone(),
+            }],
+            params,
+            &f.name,
+        );
+    }
 }
 
 
@@ -879,6 +986,12 @@ fn category_for(chapter: &str, subsection: &str) -> &'static str {
         || chapter.contains("评标")
     {
         return "评分项";
+    }
+    // ── #266 小节级商务命名优先于章级推断：「三、商务要求」住在采购需求/
+    //    技术要求章内，章级映射会把商务条款行误归技术参数（songling
+    //    REQ-0159/0160 实测——语义表接管后本修法兜住残留编号行）──
+    if subsection.contains("商务要求") || subsection.contains("商务条款") {
+        return "商务要求";
     }
     // ── 技术面（技术需求/技术规范/采购内容/采购需求/技术要求/服务要求）──
     if chapter.contains("技术需求")

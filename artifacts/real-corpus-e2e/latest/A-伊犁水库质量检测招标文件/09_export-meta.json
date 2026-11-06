@@ -9,7 +9,7 @@
     "附件七、廉洁承诺书"
   ],
   "forms_written": 7,
-  "size": 271826,
+  "size": 329552,
   "table_kinds": [
     "报价明细表",
     "项目概况表",
@@ -18,7 +18,7 @@
     "设备清单表"
   ],
   "tables_written": 5,
-  "url": "/tmp/real-corpus-e2e-A-伊犁水库质量-17842/out/real-corpus-A-伊犁水库质量检测招标文件-投标文件-技术标.docx",
+  "url": "/tmp/real-corpus-e2e-A-伊犁水库质量-30570/out/real-corpus-A-伊犁水库质量检测招标文件-投标文件-技术标.docx",
   "warnings": [
     "招标文件中未发现格式条款（格式要求类 0 条、格式字眼兜底 0 条）——按工程惯例基线导出（A4/仿宋_GB2312 小四/1.5 倍行距）",
     "无技术参数类 REQ——技术参数偏离表未生成",

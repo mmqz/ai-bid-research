@@ -50,6 +50,36 @@ addendum_readiness: { total, ready, not_ready:[{file_id, name, readiness, waived
 `parse_failed > 0` → 返回 `E_PARTIAL`（**错误码不吞成功面**——data 里成功件
 仍然有效）；失败件重试或经用户确认后放弃，放弃件内容全程禁引。
 
+`.doc` 件（Word 97-2003 旧格式）的返回面（#270）：本机有转换器（Word COM /
+LibreOffice 任一）时引擎**自动转 .docx 解析**——`per_file[].warnings` 会带
+`CONVERTED_FROM_DOC` 标注（sha256 记原件，用户无感）；`.doc` 改名 `.docx`
+的撒谎件报「OLE2 容器/旧格式」引导（不是「容器损坏」）。见下节处理指引。
+
+## 遇到「不支持 .doc 且无转换器」时（#270）
+
+导入 `.doc` 报错含「不支持直接解析 .doc（Word 97-2003 旧格式），且本机
+未检测到可用的转换器」+ 两项检测结果（Word COM / LibreOffice）时：
+
+1. **先确认自己的环境**——检查本机是否有 Word 或 LibreOffice；
+   有 → 自己执行转换命令，然后导入转换后的 .docx（新 sha256 即新档）。
+2. **自行转换**（任选其一）：
+   ```powershell
+   # Windows + Office（PowerShell 调 Word COM）
+   $w = New-Object -ComObject Word.Application
+   $d = $w.Documents.Open("C:\path\file.doc")
+   $d.SaveAs2("C:\path\file.docx", 16)
+   $w.Quit()
+   ```
+   ```bash
+   # LibreOffice（Windows/macOS/Linux 通用）
+   soffice --headless --convert-to docx --outdir /tmp "file.doc"
+   ```
+3. **无法转换时，如实告知用户**：
+   - 明确说「这个文件是 .doc 旧格式，当前环境无法转换」；
+   - 给出用户自己转换的方法（Word 打开 → 另存为 → .docx，或安装
+     LibreOffice 后重新导入——引擎将自动转换）；
+   - **不要**：跳过该文件继续做标、编造该件内容、假装已处理。
+
 ## OCR 档位含义（ocr_tier，确定性推导）
 
 | 档位 | 含义 | Agent 动作 |

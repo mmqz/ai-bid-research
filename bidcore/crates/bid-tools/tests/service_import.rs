@@ -37,7 +37,7 @@ fn service_imports_corpus_a_main_file_into_store() {
         return;
     }
 
-    let report = import_files(&mut store, &mut parsed, &[spec(a.clone(), "A-招标文件.docx", "招标文件")]);
+    let report = import_files(&mut store, &mut parsed, &[spec(a.clone(), "A-招标文件.docx", "招标文件")], None);
 
     assert_eq!(report.item_failures, 0);
     assert_eq!(report.new_records, 1);
@@ -69,6 +69,7 @@ fn unreadable_upload_is_item_failure_and_not_recorded() {
         &mut store,
         &mut parsed,
         &[spec(good, "R6b-纯删除澄清.docx", "补遗"), spec(ghost, "ghost.docx", "附件")],
+        None,
     );
 
     assert_eq!(report.item_failures, 1);
@@ -96,7 +97,7 @@ fn service_passes_kind_through_without_contract_enum() {
         return;
     }
 
-    let report = import_files(&mut store, &mut parsed, &[spec(ev, "evidence/EV-01-营业执照.pdf", "证据")]);
+    let report = import_files(&mut store, &mut parsed, &[spec(ev, "evidence/EV-01-营业执照.pdf", "证据")], None);
 
     assert_eq!(report.item_failures, 0);
     assert_eq!(store.files()[0].kind, "证据", "服务层不重复契约枚举（分层：壳校验、层透传）");

@@ -348,6 +348,82 @@ songling 的 9 条验收门依赖 poppler，Windows CI 走 SKIP
 
 ---
 
+
+---
+
+# 二之二、push 前必读 Review
+
+## 14.1 每次 push 前必须看 PR 评论
+
+**这条是 2026-11-06 PR #292 的教训。**
+
+### 事故
+
+```
+06:16  Lead 在 PR #292 发了「必须加环境门」的精确修法
+06:24  代理推了新 commit（只差 8 分钟）
+       但没改测试文件——因为没看到评论
+06:25  CI 第二次红，同一个原因
+```
+
+### 铁律
+
+```
+每次 push 之前：
+  [ ] 打开 PR 页面，看最新评论
+  [ ] 如果有「必须修 X」「这个要改」的 Review，确认已修再 push
+  [ ] 不要带着未处理的 Review 推新 commit
+```
+
+### 为什么
+
+```
+代理写代码时会专注手头的任务，不会主动回头看 PR 评论；
+但 Lead 的 Review 往往指出的是「你没想到的环境/边界问题」；
+忽略 Review 直接推 → CI 红第二次 → 浪费一整轮 CI 时间（10+ 分钟）。
+```
+
+## 14.2 如何高效检查
+
+```bash
+# 看 PR 上的评论
+gh pr view <n> --repo mmqz/<repo> --comments
+
+# 只看最近 5 条
+gh pr view <n> --repo mmqz/<repo> --comments | tail -50
+
+# 或者直接看 PR 页面
+```
+
+## 14.3 CI 红了的正确处理顺序
+
+```
+❌ 错误顺序：
+  CI 红 → 猜原因 → 改代码 → push → 又红 → 再猜
+
+✅ 正确顺序：
+  CI 红 → 看 CI 日志（找到具体失败的测试/行号）
+         → 看 PR 评论（Lead 可能已经给了修法）
+         → 本地复现（如果可能）
+         → 改 → 本地验证 → push
+```
+
+**关键：先看日志和评论，不要猜。**
+
+### 怎么读 CI 日志
+
+```bash
+# 只看失败的 job 日志
+gh run view <run_id> --repo mmqz/<repo> --log-failed
+
+# 找关键行
+gh run view <run_id> --repo mmqz/<repo> --log-failed | grep -E "FAILED|panicked|target failed"
+```
+
+**日志里一定写着：哪个测试、哪一行、什么断言失败。** 找不到就往下翻。
+
+---
+
 # 三、环境与资源
 
 ## 11. 硬盘管理
@@ -673,6 +749,13 @@ ai-bid 依赖 mdcore（通过 crates.io 或 git rev）
 [ ] PR 描述开头有「**提交者**：<身份>」
 [ ] 立即开下一项，不等 CI
 [ ] PR 描述含：验收对照 + 实测证据 + 未做的
+```
+
+**每次 push 前**：
+```
+[ ] 看 PR 最新评论，有没有「必须修 X」的 Review
+[ ] CI 红过的话，看日志找到具体失败的测试，不要猜
+[ ] 修完本地验证再 push
 ```
 
 **PR 合并后**：

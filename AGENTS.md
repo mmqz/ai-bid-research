@@ -390,6 +390,134 @@ songling 的 9 条验收门依赖 poppler，Windows CI 走 SKIP
 
 ---
 
+
+---
+
+# 三之二、测试环境门（新增测试必读）
+
+## 13.1 涉及真实语料 / 外部工具的测试，必须加环境门
+
+**这条是 2026-11-06 PR #292 CI 红的教训。**
+
+### 事故
+
+```
+新增测试 coverage_gate_corpus.rs 要求「11 份真件全部导入成功」；
+但 CI（Windows runner）没有 poppler、没有 Word COM；
+→ .pdf 件抽取链降级、.doc 件无法转换；
+→ 两个测试 E_PARTIAL: 1 件导入失败；
+→ CI 红。
+```
+
+**根因：新测试没走环境门机制。**
+
+### 铁律
+
+```
+任何依赖以下资源的测试，必须加环境门：
+  · poppler（pdftotext / pdftoppm / pdfinfo）  → POPPLER_TEXT_TOOLS
+  · tesseract（OCR）                          → PDF_CHAIN_TOOLS
+  · Word COM / LibreOffice（格式转换）        → 转换器可用性探测
+  · 真实语料文件                               → skip_if_fixture_missing
+  · 平台特定能力（Windows 打印 / macOS 构建）  → cfg 或运行时探测
+```
+
+### 正确写法
+
+```rust
+use bid_parse::env_preflight::{
+    skip_if_env_missing, skip_if_fixture_missing, POPPLER_TEXT_TOOLS,
+};
+
+#[test]
+fn my_real_corpus_test() {
+    // ① 先查环境（会打印 SKIP 横幅 + 原因）
+    if skip_if_env_missing("my_real_corpus_test", POPPLER_TEXT_TOOLS) {
+        return;
+    }
+
+    // ② 再查语料是否在库
+    if skip_if_fixture_missing("my_real_corpus_test", &[&fixture_path]) {
+        return;
+    }
+
+    // ③ 真正跑
+    ...
+}
+```
+
+### 错误写法（会红 CI）
+
+```rust
+// ❌ 直接跑，不查环境
+#[test]
+fn my_test() {
+    let svc = service();
+    svc.import(&pdf).expect("预期成功");   // CI 无 poppler → 必红
+}
+
+// ❌ 静默 return，不打印原因
+#[test]
+fn my_test() {
+    if !poppler_available() { return; }   // 看不出为什么跳过
+    ...
+}
+```
+
+## 13.2 SKIP 必须显式可见
+
+```
+SKIP 不是失败，但也不是成功——它是「本环境无法验证」。
+
+必须做到：
+  ① 打印横幅：SKIP: <test_id>
+  ② 打印原因：reason: ENV_MISSING: <缺什么>
+  ③ 打印补救指引：<怎么装>
+
+仓里已有工具函数 skip_if_env_missing() 做了这三件事，直接用。
+```
+
+**为什么重要**：
+
+```
+2026-11-06 发现：songling 的 9 条核心验收门因为 poppler 缺失全部 SKIP，
+这些门在 CI 里从未运行过；
+#266 造成的配额回归（0.824→0.820）在 main 上静默存在了几天，
+直到某代理在本机 Linux 跑才暴露。
+
+如果 SKIP 当时是「可见的」，这个问题早就被发现了。
+```
+
+## 13.3 本地跑不了的，如实报告
+
+```
+✅ 「本机 Linux 实测：cargo test -p xxx 全绿」
+✅ 「本机无 poppler，以下 9 条 SKIP，未验证」
+✅ 「Windows 面未验证，CI 只做编译检查」
+
+❌ 「测试应该没问题」（没跑）
+❌ 把 SKIP 当成 PASS 报告
+❌ 「CI 全绿」当作「全部验证过」
+```
+
+## 13.4 CI 全绿 ≠ 稳定
+
+**这是本项目最需要警惕的错觉。**
+
+```
+CI 全绿可能意味着：
+  · 测试真的都过了 ✅
+  · 或者：关键测试被 SKIP 了，什么都没测 ❌
+
+判断方法：
+  看 CI 日志里的 SKIP 数量
+  如果关键验收门在 SKIP 列表里 → CI 绿是假的
+```
+
+**相关 issue：#295（让 CI 装上 poppler，让 9 条门真跑）**
+
+---
+
 # 四、任务执行
 
 ## 14. 先读 issue 全文，不要只看标题
@@ -531,6 +659,13 @@ ai-bid 依赖 mdcore（通过 crates.io 或 git rev）
 ```
 [ ] git push 成功（看到 xxxx..yyyy）
 [ ] git log origin/<branch> 确认云端有
+```
+
+**写测试时**：
+```
+[ ] 涉及真实语料/外部工具 → 加了 skip_if_env_missing / skip_if_fixture_missing
+[ ] SKIP 有横幅和原因（用仓里的工具函数，不手写 return）
+[ ] 本地能跑的必须真跑，跑不了的如实报告
 ```
 
 **开 PR 后**：

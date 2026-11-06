@@ -480,6 +480,13 @@ pub fn file_meta(p: &Path) -> Option<std::fs::Metadata> {
 mod tests {
     use super::*;
 
+    /// #303/FG-01 修复：last-workspace.json 是进程级单文件；
+    /// 多个测试并行读写会互踩（串行 39/39 绿，并行 38/39——
+    /// workspace_open_rejects_bad_paths_without_switching 先写了别的路径，
+    /// workspace_open_persists_last_workspace 读到时已被覆盖）。
+    /// 用测试级互斥锁串行化「会碰 last-workspace 的测试」，不是放宽断言。
+    static LAST_WS_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn parses_and_errors() {
         let r = parse(r#"{"id":"a1","cmd":"ping"}"#).unwrap();
@@ -569,6 +576,8 @@ mod tests {
 
     #[test]
     fn workspace_open_rejects_bad_paths_without_switching() {
+        // #303/FG-01：last-workspace 是全局单文件，并行测试互踩——测试级串行化。
+        let _guard = LAST_WS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let a = std::fs::canonicalize(tmp_dir("keep")).unwrap();
         let b = tmp_dir("gone");
         std::fs::remove_dir_all(&b).unwrap(); // B 不存在
@@ -592,6 +601,8 @@ mod tests {
 
     #[test]
     fn workspace_open_persists_last_workspace() {
+        // #303/FG-01：last-workspace 是全局单文件，并行测试互踩——测试级串行化。
+        let _guard = LAST_WS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let a = tmp_dir("la");
         let b = std::fs::canonicalize(tmp_dir("lb")).unwrap();
         let ctx = Ctx::new(Workspace::new(&a).unwrap(), PathBuf::new());

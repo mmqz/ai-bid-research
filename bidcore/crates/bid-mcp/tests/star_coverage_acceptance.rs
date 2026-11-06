@@ -113,7 +113,7 @@ fn setup_one(tag: &str, tender: &Tender) -> Option<(BidService, String, String, 
     .as_str()
     .unwrap()
     .to_string();
-    let import = ok_result(call(
+    let import = match call(
         &mut svc,
         "import_tender_files",
         json!({ "project_id": &pid, "files": [{
@@ -121,7 +121,19 @@ fn setup_one(tag: &str, tender: &Tender) -> Option<(BidService, String, String, 
             "filename": tender.pdf.file_name().unwrap().to_string_lossy(),
             "kind": "招标文件"
         }]}),
-    ));
+    ) {
+        ToolReply::Ok(out) => out.result,
+        // CI Windows 形态（无 poppler/pdfium）：纯 Rust 兜底路对 CID-CJK 件
+        // fail-loud（#169/#200）→ 导入 E_PARTIAL——解析器不可用的环境差异，
+        // 不是业务失败（issue #9 SKIP 纪律；对照 real_corpus_e2e 同款处理）
+        ToolReply::Err { error, .. } => {
+            eprintln!(
+                "【SKIP】{} 本环境导入失败（{error}）——无外部引擎形态，star 对账不可信，不伪装通过",
+                tender.id
+            );
+            return None;
+        }
+    };
     let f0 = &import["per_file"][0];
     if f0["parse_status"] != json!("ok") {
         eprintln!(
@@ -146,6 +158,24 @@ fn setup_one(tag: &str, tender: &Tender) -> Option<(BidService, String, String, 
     }
     let fid = f0["file_id"].as_str().unwrap().to_string();
     Some((svc, pid, fid, ws))
+}
+
+/// 布局引擎预检（house 模式——songling 同款）：poppler 文本三件套不在位
+/// 且无 pdfium 显式库（MDC_PDFIUM_LIB）时 SKIP 横幅提前返回——CI Windows
+/// 无外部引擎形态下逐件导入既慢（兜底路逐件 fail-loud）又无对账意义
+/// （issue #9 口径：环境缺件不伪装业务失败，也不浪费 runner 时间）。
+fn skip_if_no_layout_engine(test_id: &str) -> bool {
+    // pdfium 显式库在位（引擎路可用）——先查，避免「poppler 缺件但引擎路
+    // 可用」的环境误打 SKIP 横幅
+    if let Ok(p) = std::env::var("MDC_PDFIUM_LIB") {
+        if !p.is_empty() && std::path::Path::new(&p).exists() {
+            return false;
+        }
+    }
+    bid_parse::env_preflight::skip_if_env_missing(
+        test_id,
+        bid_parse::env_preflight::POPPLER_TEXT_TOOLS,
+    )
 }
 
 fn star_coverage_of(svc: &mut BidService, pid: &str, fid: &str) -> Value {
@@ -175,6 +205,9 @@ fn danqing() -> Option<Tender> {
 /// 每份文件的 star_total 与 manifest star_count 一致（±2）；分区不漏不重。
 #[test]
 fn manifest_star_count_reconciliation() {
+    if skip_if_no_layout_engine("star_285_manifest_reconciliation") {
+        return;
+    }
     let tenders = load_tenders();
     assert!(
         tenders.len() >= 9,
@@ -242,6 +275,9 @@ const BUSINESS_LABELS: [&str; 5] = ["服务期限", "服务地点", "验收要�
 /// 漏标 6 = p18 参数性质列×4 + p48 偏离表模板×2（诚实报告——检测面不修饰）。
 #[test]
 fn danqing_engine_path_five_business_captured() {
+    if skip_if_no_layout_engine("star_285_danqing_engine_path") {
+        return;
+    }
     let Some(t) = danqing() else {
         eprintln!("【SKIP】danqing fixture 不在仓");
         return;
@@ -333,6 +369,9 @@ fn danqing_engine_path_five_business_captured() {
 /// REQ 让位），仅提交 1 条 substantive（服务期限）；四题必须全部报出。
 #[test]
 fn danqing_blackbox_one_of_five_reports_missing_four() {
+    if skip_if_no_layout_engine("star_285_danqing_blackbox") {
+        return;
+    }
     let Some(t) = danqing() else {
         eprintln!("【SKIP】danqing fixture 不在仓");
         return;

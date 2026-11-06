@@ -9,16 +9,22 @@ edition = "2021"
 # PR #15：本地路径依赖改为 git 固定 rev（与 bid-engine 同 rev——双跑差分两侧
 # 必须同引擎版本；path 依赖绑死原审计机路径，换环境即断）。
 # mdcore 私仓凭据走本机 ~/.gitconfig insteadOf（PAT 不入仓）。
+#
+# FG-08（#304，2026-11-06）：rev 曾漂移到 3204342d（旧审计基线）而生产已
+# 在 f4328ebf——「与 bid-engine 同 rev」的自称失效，双跑差分结论只对旧 rev
+# 负责。现同步到当前生产 rev；漂移检测已进 CI：
+#   scripts/check_mdcore_rev_sync.py（比对 engine_probe 与 bidcore 两侧
+#   Cargo.lock/Cargo.toml 的 mdcore rev，不一致即红）——不再靠人记得。
 
 [dependencies.mdc-office-io]
 package = "mdc-office-io"
 git = "https://github.com/mmqz/mdcore"
-rev = "3204342d9a5ee33400aba2b17dad29696e2f0bb8"
+rev = "f4328ebf4f936e1321a2254382d59f9ab9f94b7b"
 
 [dependencies.mdc-pdf]
 package = "mdc-pdf"
 git = "https://github.com/mmqz/mdcore"
-rev = "3204342d9a5ee33400aba2b17dad29696e2f0bb8"
+rev = "f4328ebf4f936e1321a2254382d59f9ab9f94b7b"
 features = ["engine-pdfium"]
 
 [dependencies.zip]

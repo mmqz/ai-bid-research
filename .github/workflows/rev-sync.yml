@@ -1,0 +1,33 @@
+name: mdcore-rev-sync
+
+# FG-08（#304）：engine_probe 与 bid-engine 的 mdcore rev 一致性门禁。
+# 由来（audit/false-green-register.md FG-08）：
+#   engine_probe 自称「与 bid-engine 同 rev——双跑差分两侧必须同引擎版本」，
+#   但其 rev 曾钉在旧审计基线（3204342d）而生产在 f4328ebf——对账失效
+#   且仓库内无红信号，引擎三门/S7/S8/D4-D6/X3 结论只对旧 rev 负责。
+#
+# 本工作流把「两侧同 rev」从口头承诺变成 CI 硬门禁：
+#   生产侧 = bidcore/Cargo.lock（实际构建解析）+ bid-engine/Cargo.toml（manifest 钉）
+#   探针侧 = scripts/engine_probe/{Cargo.toml, Cargo.lock}
+# 纯文本比对、零构建依赖（ubuntu + python3，~30s）——不占 windows-check 的
+# 工具链面。不一致 → 红，修复指引在脚本输出里。
+#
+# 纪律：改生产 rev（bid-engine/Cargo.toml）时，同步改
+# scripts/engine_probe/Cargo.toml 并在两侧各自 `cargo update -p <mdcore 包>`，
+# 否则本门禁会拦下 PR——漂移自动暴露，不靠人记得（FG-08 修复的关键条）。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  rev-sync:
+    name: mdcore rev sync (engine_probe == production)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check mdcore rev consistency (FG-08 / #304)
+        run: python3 scripts/check_mdcore_rev_sync.py

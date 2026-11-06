@@ -1,0 +1,63 @@
+path,audit_status,public_symbols,callers,dependencies,test_files,test_type,oracle_source,risk_level,findings,notes
+scripts/e2e_bid/human_llm_relay.py,READ_FULL,make_handler/section_title_of/main,run_real_llm_path.sh;run_subagent_path.sh,stdlib(http.server/argparse),manual-only,none,human-authored-manuscript-declared,MEDIUM,SCR-211,OpenAI兼容本地中继 capture/serve(--content/--content-map) 人工边界声明三处
+scripts/e2e_bid/run_e2e.sh,READ_FULL,-,manual/CI-docs,cargo/pytest-via-cargo,bidcore e2e_pipeline.rs,rust-e2e-driver,fixtures/corpus-A-presence-gate,LOW,,构建当前HEAD cargo test;缺件响亮SKIP exit0
+scripts/e2e_bid/run_e2e_artifacts.sh,READ_FULL,-,manual/CI-docs,cargo,bidcore e2e_artifacts.rs,rust-e2e-driver,synth-tender-fixtures,LOW,,产物artifacts/e2e/<run-id> 11件套+latest;追加式无回滚
+scripts/e2e_bid/run_real_llm_path.sh,READ_FULL,build_stdio/write_llm_json/start_relay/stop_relay/render_prompt,manual(开发者两相位),cargo+python3,bidcore real_llm_path.rs(SKIP默认),rust-e2e-driver,human-chapter.md(人工撰写),LOW,SCR-210,产物artifacts/e2e-real-path/<run-id>+latest;trap杀中继;prompt全量落盘可审计
+scripts/e2e_bid/run_subagent_path.sh,READ_FULL,build_stdio/write_llm_json/start_relay/run_test_phase/render_prompts/verify_manuscripts,manual(主代理派子代理),cargo+python3,bidcore subagent_llm_path.rs(SKIP默认),rust-e2e-driver,manuscripts/<SEC>.md(子代理撰写),LOW,SCR-210,规模旋钮BID_SUBAGENT_*;手稿缺失FATAL;顺序对账错位FATAL
+scripts/mang-dev/mang_dev.ps1,READ_FULL,Stop-MangApp,manual(windows-dev),cargo/release-exe,mang-app --selftest,manual-smoke,mang-app.exe,LOW,,build/selftest/ui/run/smoke快捷面
+scripts/mang-dev/mang_ipc_probe.js,READ_FULL,call/check/(async iife),mang_ipc_smoke.mjs(注入探针页),window.ipc(WebView2壳),none,dom-probe,mang-app ipc.rs消息集,LOW,,消息名全部与ipc.rs:351-447分派表对齐;未覆盖mcp.status/llm.*新面
+scripts/mang-dev/mang_ipc_smoke.mjs,READ_FULL,main-flow(spawn/CDP/evaluate),manual(node),mang-app.exe+WebView2 CDP,none,cdp-smoke,探针页DOM PASS/FAIL,LOW,,真实窗口非http版UI;退出码0/1/2
+scripts/mang-dev/settings_layout_probe.py,READ_FULL,check/main,manual(playwright),web-ui/dist+playwright,none,ui-probe,STUB(桥接桩),LOW,SCR-209(间接),复用settings_ui_probe.STUB;7分组/溢出/越界断言
+scripts/mang-dev/settings_ui_probe.py,READ_FULL,serve/STUB/check/main,manual(playwright)+settings_layout_probe(import STUB),web-ui/dist+playwright,none,ui-probe,STUB(桥接桩),LOW,SCR-209,桩mcp.status tools=13/implemented=11过期(真实25);断言仅验UI渲染桩值
+scripts/fp_attribution/fp_attribution.py,READ_FULL,bucket/hit/main,manual(issue#52流程),fp_diag.json(仓外已失),none,one-off-analysis,veto-measure FP输出,LOW,SCR-202,20桶归因;输出亦写仓外路径;GT侧/引擎侧分类诚实
+scripts/fp_attribution/tp_collateral_scan.py,READ_FULL,main,manual(issue#52流程),wt-fp工作树GT(已失),none,one-off-analysis,GT true 1752(旧口径),LOW,SCR-202;SCR-201(口径),排除规则候选对GT true零命中红线扫描——SCR-200反馈环证据之一
+scripts/fp_attribution/fp-diag-baseline.json,READ_SPOT(结构+样本),493条FP数组(clause_no/diag/joined/loc),fp_attribution.py(历史;现脚本不读它),veto-measure历史输出,none,archived-snapshot,引擎FP+判定面回放,LOW,,入库快照179KB;diag字段形状与measure.rs:270-283一致
+scripts/workspace-cleanup/cleanup-audit.ps1,READ_FULL(806行),Write-Log/Test-DebugName/Test-EvidenceGuard/Get-*-Verdict/Invoke-Preflight/Test-Integrity/New-WorkBaseline/New-CleanupMd/Move-ItemSafe,manual(windows运维),git/pwsh,test-cleanup-195.sh,mock-workspace-test,自身四层防护模型,LOW,,危险面=audit根顶层散件→trash(7天缓冲)/archive;保护名单+每批git基线护栏;PurgeTrash需-Yes
+scripts/workspace-cleanup/test-cleanup-195.sh,READ_FULL,setup_mock/run_ps/ok/bad/check/section,manual(pwsh),cleanup-audit.ps1+git,自体,T1-T8模拟工作区68断言,_,LOW,,Linux pwsh7.4.6实测68/68(CLEANUP.md诚实记录;Windows原生未实测)
+scripts/workspace-cleanup/CLEANUP.md,READ_FULL,-,人读政策文档,cleanup-audit.ps1,_,policy-doc,_,LOW,,政策+验收对照+已知边界(诚实口径)
+scripts/package-mang-app.ps1,READ_FULL,main-flow(param校验门/组装zip),manual(windows打包),cargo+npm(mang-build.mjs),mang-app --ls-ui/--selftest(指引),presence-gate,存在性校验门12项,LOW,SCR-208,zip无SHA256/签名清单;缺件即失败不产半包
+scripts/veto_gt/src/bin/dump.rs,READ_FULL,main/list_files/parse_page,标注流程(veto-gt-dump),bid-parse+bid-engine(path当前HEAD),none,annotation-workbench,LingYan20词+37句式候选池,LOW,SCR-206,生产路径解析镜像service.rs路由;宽模式宁滥勿缺
+scripts/veto_gt/src/bin/baseline.rs,READ_FULL,main/list_files,标注流程(veto-gt-baseline),bid-parse+bid-engine,none,annotation-workbench,生产extract_requirements全量REQ,LOW,,调当前生产实现非复制;输出<file>.reqs.json
+scripts/veto_gt/supplement_scan.py,READ_FULL,norm/is_enum_item/is_group_head/load_dump/context/add_item/main,标注流程#48(人工编排;下游supplement_merge.py),blocks.json+GT+measure输出(/tmp/main-verify.json),none,one-off-analysis,引擎FP清单(S3家族),MEDIUM,SCR-200,四家族worklist;S4随机抽样种子20261029
+scripts/veto_gt/supplement_merge.py,READ_FULL,fkey/norm/main,增补轮#48并入GT,verdicts-merged.jsonl+batch-*.json,none,one-off-merge,GT本体写入(幂等剔-S1-),MEDIUM,SCR-200;SCR-207,assert1624/1212硬编码;写supplement元数据method/discipline
+scripts/veto_gt/s5_residual.py,READ_FULL,norm/main,增补轮1第二遍,after-gt-supplement.json(fp),none,one-off-analysis,veto-measure引擎FP输出,MEDIUM,SCR-200;SCR-207,双生补锚+11条误标改判正则;输出s5-verdicts(人工复核后并入)
+scripts/veto_gt/s5_final.py,READ_FULL,norm/main,增补轮终裁,s5-open-items.json,none,one-off-adjudication,TRUE10+FALSE28规则机+5组SPECIAL_TRUES,MEDIUM,SCR-200;SCR-207,未命中规则报人工;SKIP硬编码特例(A-18#276)
+scripts/veto_gt/s5_merge.py,READ_FULL,fkey/norm/main,S5并入GT,s5-final.jsonl+blocks.json,none,one-off-merge,GT本体写入(幂等剔-S5-),MEDIUM,SCR-200;SCR-207,更新stats/supplement.s5_residual
+scripts/veto_gt/s6_micro.py,READ_FULL,fkey/norm/main,S6微清扫并入GT,after-gt-supplement.json(fp),none,one-off-merge,GT本体写入(幂等剔-S6-;exec截取s5源码复用规则),MEDIUM,SCR-200;SCR-207,直接写GT;51条
+scripts/veto_gt/Cargo.toml,READ_FULL,veto-gt-dump/veto-gt-baseline bins,Cargo,_,none,build-manifest,_,LOW,,path依赖当前HEAD bid-parse/bid-engine
+scripts/veto_measure/src/bin/measure.rs,READ_FULL(363行),main/norm/char_len/idx_of,红线测量(veto-measure),bid-parse+bid-engine(path当前HEAD),real_corpus_e2e.rs(同口径注释),measurement-harness,artifacts/veto-gt/ground-truth.json,LOW,SCR-212,L1三通道/L2/精确率+FP归因回放;测量器只读可重放
+scripts/veto_measure/Cargo.toml,READ_FULL,veto-measure bin,Cargo,_,none,build-manifest,_,LOW,,
+scripts/baseline_harness/src/main.rs,READ_FULL,main,scripts/baseline_run.py(编排),bid-parse(path当前HEAD),none,per-file-harness,baseline/parse JSON产物,LOW,,无内置解析逻辑;退出码0/3/101约定
+scripts/baseline_harness/Cargo.toml,READ_FULL,baseline-harness bin,Cargo,_,none,build-manifest,_,LOW,,
+scripts/bid_health_check/src/main.rs,READ_FULL(937行),main/list_files/load_lexicon/sha256_or_none/tool_version/tessdata_chi_sim_status/pdfium_status/env_preflight/process_file/veto_metrics/category_hit_metrics/aggregate,manual(E-RUN体检),bid-parse+bid-engine+bid-domain,none,measurement-harness,LingYan20词表近似真值面,LOW,SCR-213,REPORT.md=人写报告层;BASELINE/results=本harness生成;STRONG_VETO_PHRASES镜像extract.rs
+scripts/bid_health_check/src/bin/probe_a02.rs,READ_FULL,main,manual(历史诊断),bid-parse,none,one-off-diagnostic,OCR对账(逐字节一致结论),LOW,SCR-205,硬编码旧仓路径bid-research(必失效)
+scripts/bid_health_check/Cargo.toml,READ_FULL,bid-health-check bin+probe_a02 bin,Cargo,_,none,build-manifest,_,LOW,,
+scripts/engine_probe/src/main.rs,READ_FULL(340行),read_file/obj/fmt_docx_result/fmt_book_result/rebuild_with_body/build_legit_high_ratio/build_nested_entry_docx/build_nested_declared_docx/build_masqueraded_docx/main,manual(探针复现),mdc-office-io/mdc-pdf@git-rev3204342d,none,read-only-probe,mdcore固定rev,LOW,SCR-203;SCR-204,S7/S8/D456/X3/d6rev15探针;FILE_MISSING诚实降级
+scripts/engine_probe/src/bin/dump.rs,READ_FULL(285行),dump_docx/main,scripts/engine_diff.py(差分),mdc-office-io@git-rev,none,dump-harness,引擎原生块JSON,LOW,SCR-203,最小机械映射;source=body/header/footer标注
+scripts/engine_probe/src/bin/p1.rs,READ_FULL(68行),main,manual,mdc-pdf@git-rev+pdftotext,none,parity-probe,pdfium vs pdftotext双侧,LOW,SCR-203;SCR-204,real-corpus本地目录依赖
+scripts/engine_probe/README.md,READ_FULL,-,人读(复现指引),worktree约定,_,doc,_,LOW,SCR-203(叙述停留f8c860a/f7ddd39时代),10+5探针清单与结论表
+scripts/engine_probe/Cargo.toml,READ_FULL,engine-probe-p1/dump bins,Cargo,_,none,build-manifest,_,MEDIUM,SCR-203,rev钉3204342d;生产bid-engine已f4328ebf(87提交差)
+scripts/title_impact/src/main.rs,READ_FULL(324行),kind_of/load_parsed/is_heading_line/corrupt_a2/group_of/by_category/pair/main,scripts/title_impact_score.py(下游),bid-parse+bid-domain,none,experiment-harness,baseline/parse JSON+真实extract_requirements真跑,LOW,,V0/V1/V2三变体;数据准备层镜像章节正则(声明)
+scripts/title_impact/Cargo.toml,READ_FULL,title-impact bin,Cargo,_,none,build-manifest,_,LOW,,
+sdk/examples/minimal_flow.py,READ_FULL,build_binary/McpStdio(call/must/close)/main,manual(外部Agent接入示例),cargo+bid-mcp-stdio,none(无测试覆盖——见缺失),runnable-example,synth-tender+corpus-A夹具,HIGH,SDK-001,record_review_gate用已废除reviewer参数无receipt→示例必然失败;其余步骤与实现参数兼容
+sdk/skill/bid-response-pipeline/SKILL.md,READ_FULL,-,Agent(渐进披露主入口),docs/bid-mcp-contract.md,checklist.py(机器版),skill-doc,_,MEDIUM,SDK-002,阶段表22工具全存在;计数24过期(实25);3工具零指引;篇幅/external/receipt纪律与实现一致
+sdk/skill/bid-response-pipeline/references/p1-import.md,READ_FULL,-,Agent(P1细节),SKILL.md,_,reference-doc,_,LOW,,导入分类/OCR档位/失败降级;addendum_waiver receipt叙述与实现一致
+sdk/skill/bid-response-pipeline/references/p2-extract.md,READ_FULL,-,Agent(P2细节),SKILL.md,_,reference-doc,_,MEDIUM,SDK-004,scope file_ids[]未实现(实仅all);七类产物/submit_block_marks叙述一致
+sdk/skill/bid-response-pipeline/references/p3-matrix.md,READ_FULL,-,Agent(P3细节),SKILL.md,_,reference-doc,_,MEDIUM,SDK-003,set_matrix_override称MCP未接线——与#226实现及p2矛盾;四态/blocking判定叙述一致
+sdk/skill/bid-response-pipeline/references/p4-evidence.md,READ_FULL,-,Agent(P4细节),SKILL.md,_,reference-doc,_,LOW,,三板斧/有效期/补料清单;#185 source_file_id锚一致
+sdk/skill/bid-response-pipeline/references/p5-skeleton.md,READ_FULL,-,Agent(篇幅参考),SKILL.md,_,reference-doc,_,LOW,,内容面(真实标书骨架/字数);无工具参数无漂移
+sdk/skill/bid-response-pipeline/references/p6-validation.md,READ_FULL,-,Agent(P6细节),SKILL.md,_,reference-doc,_,LOW,,确定性规则清单/WAIVED;external重提content一致
+sdk/skill/bid-response-pipeline/references/p7-review.md,READ_FULL,-,Agent(P7细节),SKILL.md,_,reference-doc,_,LOW,,四门receipt验签五类失败码/reviewer显式拒排障表——与实现一致
+sdk/skill/bid-response-pipeline/references/p8-export.md,READ_FULL,-,Agent(P8细节),SKILL.md,_,reference-doc,_,LOW,,output_path围栏/幂等键/暗标/precheck叙述与实现一致
+sdk/skill/bid-response-pipeline/scripts/checklist.py,READ_FULL,_dig/check/_is_ok/STAGES/load_doc/run_stage/main,Agent(阶段质检)+SKILL.md引用,纯stdlib,none(自体--list),passive-json-checker,工具应答JSON形状判据,LOW,SDK-006,纯被动核对不调用工具;缺P7判据;fail-closed断链即FAIL
+sdk/tests/test_mcp_e2e.py,READ_FULL(1663行;关键段+定向grep),resolve_server/mint_receipt/expect_reject/sha256_file/compact/ToolFailure/7个test_*,manual(pytest)或独立运行,mcp SDK+pytest+cargo+bid-mcp-server/stdio,evidence/*.json(产物),sdk-e2e(双传输mcp/linejson),fixtures/corpus-A真件+approval.key,LOW,SDK-007,189/189checks;mint_receipt正确复刻#182宿主签发;reviewer负例+伪造receipt拒
+sdk/tests/evidence/00-environment.json,READ_DEEP(全结构),-,test_mcp_e2e.py case00,pytest运行,_,archived-evidence,环境留档(OS/py/SDK/bin sha256),LOW,SDK-005,server_bin指向bid-research-rw他树;rustc不在PATH自认
+sdk/tests/evidence/01-initialize-and-tools.json,READ_DEEP(全结构),-,case01,_,_,archived-evidence,握手+工具清单,LOW,SDK-005,n_tools=24(当前25);tool_names快照
+sdk/tests/evidence/02-full-pipeline.json,READ_DEEP(结构+统计),-,case02,_,_,archived-evidence,P0-P8全链38阶段,LOW,SDK-005,189checks全pass;含重启续跑
+sdk/tests/evidence/03-error-envelope.json,READ_DEEP(全结构),-,case03,_,_,archived-evidence,E_*错误信封归类,LOW,SDK-005,1阶段
+sdk/tests/evidence/10-external-ghost-ev.json,READ_DEEP(结构+统计),-,case10,_,_,archived-evidence,幽灵EV剔除+warning,LOW,SDK-005,10阶段38checks全pass
+sdk/tests/evidence/11-external-uncovered.json,READ_DEEP(结构+统计),-,case11,_,_,archived-evidence,覆盖不全→uncovered_requirements,LOW,SDK-005,9阶段35checks
+sdk/tests/evidence/12-external-unanchored.json,READ_DEEP(结构+统计),-,case12,_,_,archived-evidence,无锚承诺句计数=2,LOW,SDK-005,9阶段34checks
+sdk/tests/evidence/13-external-cas-version.json,READ_DEEP(结构+统计),-,case13,_,_,archived-evidence,CAS写入+版本递增+同稿幂等,LOW,SDK-005,12阶段;ws=/tmp已失效
+sdk/tests/evidence/14-search-evidence.json,READ_DEEP(结构+统计),-,case14,_,_,archived-evidence,#145双通道检索全链,LOW,SDK-005,16阶段
+artifacts/veto-gt/ground-truth.json,READ_DEEP(method/stats/supplement/全量统计+id前缀分布),annotations 5138(true 1802),real_corpus_e2e.rs:42;veto_measure;s5_*;supplement_*,标注流程(AI标注员GLM+引擎FP反馈),real_corpus_e2e.rs,gt-oracle,自身method块(含known_limits诚实声明),HIGH,SCR-200;SCR-201,stats.veto_true=1752过期(实1802;945e0b8直改50条无脚本)

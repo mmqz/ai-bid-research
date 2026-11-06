@@ -1,0 +1,78 @@
+{
+  "url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/224",
+  "repository_url": "https://api.github.com/repos/mmqz/ai-bid-research",
+  "labels_url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/224/labels{/name}",
+  "comments_url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/224/comments",
+  "events_url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/224/events",
+  "html_url": "https://github.com/mmqz/ai-bid-research/issues/224",
+  "id": 6175596710,
+  "node_id": "I_kwDOVUcs988AAAABcBggpg",
+  "number": 224,
+  "title": "P0 ScoringMapping 业务对象与多对多映射——#186 未完成的核心（#170 的根因）",
+  "user": {
+    "login": "mmqz",
+    "id": 260861911,
+    "node_id": "U_kgDOD4xv1w",
+    "avatar_url": "https://avatars.githubusercontent.com/u/260861911?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/mmqz",
+    "html_url": "https://github.com/mmqz",
+    "followers_url": "https://api.github.com/users/mmqz/followers",
+    "following_url": "https://api.github.com/users/mmqz/following{/other_user}",
+    "gists_url": "https://api.github.com/users/mmqz/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/mmqz/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/mmqz/subscriptions",
+    "organizations_url": "https://api.github.com/users/mmqz/orgs",
+    "repos_url": "https://api.github.com/users/mmqz/repos",
+    "events_url": "https://api.github.com/users/mmqz/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/mmqz/received_events",
+    "type": "User",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "labels": [
+
+  ],
+  "state": "open",
+  "locked": false,
+  "assignees": [
+
+  ],
+  "milestone": null,
+  "comments": 4,
+  "created_at": "2026-11-03T03:17:21Z",
+  "updated_at": "2026-11-05T00:58:17Z",
+  "closed_at": null,
+  "assignee": null,
+  "author_association": "OWNER",
+  "active_lock_reason": null,
+  "sub_issues_summary": {
+    "total": 0,
+    "completed": 0,
+    "percent_completed": 0
+  },
+  "issue_dependencies_summary": {
+    "blocked_by": 0,
+    "total_blocked_by": 0,
+    "blocking": 0,
+    "total_blocking": 0
+  },
+  "body": "## 背景：#186 被过早关闭\n\n`#186` 已 CLOSED（COMPLETED），PR #209 已合并 +160/-5。\n但核实代码后发现：**#209 只做了「语义降级标记 + 数据面透传」，核心的映射机制没做。**\n\n```\ngrep ScoringMapping → 0 处\n```\n\n### #186 原始需求的 7 项 vs #209 实际交付\n\n| # | 需求 | #209 状态 |\n|---|---|---|\n| 1 | 独立 ScoringMapping 业务对象 | ❌ **没做** |\n| 2 | 真正消费 score_rules | ⚠️ **只透传，不消费** |\n| 3 | 评分项 ↔ 章节多对多 | ❌ **没做（仍单映射）** |\n| 4 | 跨章节重复计分检测 | ❌ 没做 |\n| 5 | 未映射评分项进 UNMAPPED | ❌ 没做 |\n| 6 | 映射证据 + 原始规则双向追溯 | ❌ 没做 |\n| 7 | 评分项变更 → 审核失效 | ❌ 没做 |\n\n**#209 做的是「诚实标记」——告诉用户「这是规则诊断不是评标模拟」，有价值但不是核心。**\n\n---\n\n## 当前代码现状（核实）\n\n`bid-domain/src/scoring.rs`（2100 行）：\n\n```rust\npub struct ScoringItem {\n    pub requirement_id: String,\n    pub weight: Option<f64>,\n    pub max_score: Option<f64>,\n    pub criteria: String,\n    /// #186 预留面——判档不消费，透出供诊断/起草对照\n    pub score_rules: Option<String>,   // ← 只透传，不参与计算\n    pub is_hard_gate: bool,\n    pub parent_id: Option<String>,\n    pub tiers: Vec<ScoreTier>,\n    pub is_objective: bool,\n    /// 映射章节；未映射 → None\n    pub section_id: Option<String>,    // ← 单映射，不是多对多\n    pub our_estimate: Option<f64>,\n}\n```\n\n`derive_scoring_items` 的映射来源：\n```rust\nsection_id: r.params.get(\"section\").and_then(|v| v.as_str()).map(String::from),\n// ↑ 从 requirement.params 里读，是抽取阶段硬塞的单值\n```\n\n**问题**：\n```\n· score_rules 注释自己写着「判档不消费」\n· section_id 是单个 Option<String>，一个评分项只能挂一个章节\n· 未映射的（section_id = None）没有任何统计或告警\n```\n\n---\n\n## 要做（7 项，逐条对）\n\n### 1. 独立 ScoringMapping 业务对象\n\n```rust\npub struct ScoringMapping {\n    pub id: String,              // SM-xxxx\n    pub scoring_req_id: String,  // 评分项 REQ id\n    pub section_id: String,      // 被评章节 SEC-xxx\n    pub weight_share: f64,       // 该章节承载的权重占比（多对多时>1 个章节分摊）\n    pub evidence_refs: Vec<String>,  // 支撑该映射的证据 EV-id\n    pub source_anchor: Anchor,   // 原始评分规则原文锚\n    pub created_from: MappingSource, // RuleParsed | AgentSubmitted | Manual\n}\n```\n\n**理由**：映射本身是业务事实，需要独立身份、可追溯、可审计。\n塞在 `params` 里的单值无法表达多对多，也无法追溯依据。\n\n### 2. 真正消费 score_rules\n\n```\n现状：score_rules 透传到 item_scores，但不参与任何计算\n要做：判档时读取 score_rules 里的档位描述，与章节正文比对\n\n至少做到：\n  · 细则里列出的关键条件（如「提供 3 个以上案例」）能被提取成检查点\n  · 章节正文若明显没提这些条件 → 该评分项标记「可能失分」\n\n注：完整语义判档依赖模型，本 issue 只要求「规则层面的可见性」，\n模型判档另开 issue。\n```\n\n### 3. 评分项 ↔ 章节多对多\n\n```rust\n// 现在：ScoringItem.section_id: Option<String>  ← 单值\n// 改为：ScoringItem.mapping_ids: Vec<String>    ← 指向 ScoringMapping\n\n// 支持：\n//   · 一个评分项跨多章节（如「技术方案 20 分」分散在 3 个章节）\n//   · 一个章节承载多个评分项（如「服务方案」章同时响应响应性 10 分 + 完整性 5 分）\n```\n\n**这是 #170「评分项→章节映射失效」的根因**——单映射表达不了实际业务。\n\n### 4. 跨章节重复计分检测\n\n```\n场景：同一评分项被映射到 2 个章节，各自算了一次分 → 总分虚高\n要做：\n  · validate_sums() 扩展：检查同一 scoring_req_id 的 weight_share 之和\n  · 总和 > 1.0 → 告警「权重重复计入」\n```\n\n### 5. 未映射评分项进 UNMAPPED\n\n```\n现状：section_id = None 的评分项静默存在，没人知道\n要做：\n  · score_document / score_section 出参带 unmapped_scoring_items[]\n  · 含 req_id + criteria 摘要 + weight\n  · 非空时响亮告警（「有 N 个评分项未映射到章节，总分可能偏低」）\n```\n\n### 6. 映射证据 + 原始规则双向追溯\n\n```\n正向：分数 → 哪个评分项 → 哪条规则原文（页/行）→ 哪个章节\n反向：章节 → 承载哪些评分项 → 各多少分\n\n实现：\n  · ScoringMapping.source_anchor 保存规则原文锚\n  · 出参带 trace 字段\n```\n\n### 7. 评分项变更 → 相关章节审核失效\n\n```\n联动 #180（审核绑定内容摘要）：\n  · 评分项集合变化（新增/删除/权重改）→ 记录的 digest 变化\n  · 相关章节的审核记录失效（E_UNPROCESSABLE 请重新审核）\n```\n\n---\n\n## 验收\n\n```\n1. 用真实评分表（≥20 个评分项）跑完整映射，产出映射报告：\n   · 每个评分项 → 哪些章节 → 权重多少 → 依据原文哪一页\n   · UNMAPPED 列表（非空时显式告警）\n\n2. 多对多验证：\n   · 构造一个评分项跨 2 章节 → 两章节都能查到它\n   · 构造一个章节承载 2 评分项 → 该节返回 2 个 item_scores\n\n3. 重复计分检测：\n   · 构造 weight_share 之和 > 1.0 → 被检出\n\n4. 追溯：\n   · 从 score_section 的结果能反查到规则原文锚\n\n5. 回归：\n   · 现有 scoring 测试全绿（scoring_b2_self_eval / score_tools / scoring_real_corpus）\n   · score_* 的 diagnostic_only 标记保留（#209 的成果不能丢）\n```\n\n---\n\n## 分步实施\n\n```\n第 1 步（核心）：ScoringMapping 实体 + 多对多 + UNMAPPED\n  → 解决「映射关系表达不了实际业务」\n\n第 2 步：重复计分检测 + 双向追溯\n  → 保证分数算对\n\n第 3 步：score_rules 消费（规则层可见性）\n  → 真正的判档前进一步\n\n第 4 步：评分项变更 → 审核失效（联动 #180）\n```\n\n**先做第 1 步，做完汇报再继续。**\n\n---\n\n## 边界\n\n```\n本 issue 只动 bid-domain/scoring.rs + bid-tools + bid-mcp 的评分面\n不碰 bid-parse（解析层）\n不碰 mdcore\n```\n\n## 相关\n\n- #186（原始 issue，被过早关闭——本 issue 接续其未完成部分）\n- #170（评分项→章节映射失效，本 issue 的 3 直接解决它）\n- #180（审核绑定内容摘要，本 issue 的 7 联动它）\n- #209（PR，语义降级标记——保留，不推翻）",
+  "closed_by": null,
+  "reactions": {
+    "url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/224/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "timeline_url": "https://api.github.com/repos/mmqz/ai-bid-research/issues/224/timeline",
+  "performed_via_github_app": null,
+  "state_reason": null,
+  "pinned_comment": null
+}

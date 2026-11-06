@@ -47,7 +47,7 @@ B3 验收口径（issue #2 §B3）：≥90% 文件 blocks EQUIVALENT；其余每
 | （历史行合并说明：批注/脚注尾注/文本框/delText 四面在 f7ddd39 已全部修复——见上方 #17/#18/#19 三行；修复前的「双侧零提取=行为对齐」「旧实现条件性泄漏/双重提取」差分证据保留于 `artifacts/engine-diff/`（f8c860a 基线），修复后总账见 `artifacts/engine-diff-after/`） | | | |
 | `ParsedFile.name/sha256/bytes` | 同名 | `FileMeta` 由门面供给（sha256 标书侧算——引擎不做文件级指纹） | — |
 | `ParsedFile.pages/tables/has_text_layer/ocr_blocks` | 同名 | docx 面：pages=0 / has_text_layer=true / ocr_blocks=0 / tables=引擎表格数（旧实现 `w:tbl` 计数对齐） | — |
-| `ParsedFile.parse_summary` | 状态行 | "engine-docx @ <rev>｜警告 N 条｜部件账本 M 面"（rev 从 `baseline/MANIFEST.json` 的 `BASELINE_MDCORE_REV` 口径取） | — |
+| `ParsedFile.parse_summary` | 状态行 | "engine-docx @ <rev>｜警告 N 条｜部件账本 M 面"（rev = `bid_engine::MDCORE_REV` 常量；#327 起该常量由 build.rs 从 `bid-engine/Cargo.toml` 实钉 rev 注入——单一真源，非 baseline/MANIFEST 口径） | — |
 
 ## 2. xlsx：`EngineBook` → `ParsedFile`
 

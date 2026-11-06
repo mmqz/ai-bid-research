@@ -3,7 +3,7 @@ name = "bid-engine"
 version = "0.1.0"
 edition = "2021"
 license = "Proprietary"
-description = "issue #2 · B3：引擎适配层唯一接触面——mdc-office-io 固定 rev 接入 + EngineReader 实装 + 字段级映射；#110 任务 2：rev 提级 aa0c859d + pagination/style 能力接线"
+description = "issue #2 · B3：引擎适配层唯一接触面——mdc-office-io 固定 rev 接入 + EngineReader 实装 + 字段级映射；rev 现钉 f4328ebf（MDCORE_REV 常量经 build.rs 从本文件注入，#327）"
 
 # B3 边界（issue #2 §B3 + issue #11 主线）：
 # - 本 crate 是标书仓**唯一**引擎接触面（issue #2 §1 约束 1）；
@@ -16,8 +16,9 @@ description = "issue #2 · B3：引擎适配层唯一接触面——mdc-office-i
 bid-parse = { path = "../bid-parse" }
 
 # ── mdcore 引擎接入（B3 主线 · issue #11 验收：cargo tree -p bid-engine 必须见 mdc-office-io）──
-# rev = mdcore main @ f4328ebf4f936e1321a2254382d59f9ab9f94b7b（#110 任务 2 指令 bump，
-#   旧 rev 3204342d → 本 rev 共 87 提交）。bid-engine 消费面（docx.rs / io.rs / pdf
+# rev = mdcore main @ f4328ebf4f936e1321a2254382d59f9ab9f94b7b（bump 链：
+#   3204342d →（#110 任务 2，87 提交）→ aa0c859d →（后续 bump，93 提交）→ 本 rev
+#   ——3204342d..f4328ebf 共 180 提交，审计实测口径，旧注释「87 提交」仅覆盖首段）。bid-engine 消费面（docx.rs / io.rs / pdf
 #   protocol+worker）**公开 API 零破坏**（签名逐一 diff 验证：docx 读写函数族、io 读门、
 #   Command::ExtractText 面全部不变）；新增能力面（本 PR 接线消费）：
 #   · office-io style.rs（#103 S1-t1：StyleTree + basedOn 链 + 主题色——样式模板读取）

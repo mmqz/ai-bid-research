@@ -290,21 +290,28 @@ fn fail_closed_bad_section_and_corrupt_snapshot() {
     assert_eq!(assemble_section_input(&s, "SEC-9999", &budget),
                Err(ContextAssembleError::SectionNotFound { section_id: "SEC-9999".into() }));
 
-    // 快照损坏：注入孤儿绑定（restore 的引用完整性校验未覆盖绑定面——
-    // 语法合法但语义残缺，消费侧把关：半个证据链不猜测，响亮拒绝组装）
+    // 快照损坏：注入孤儿绑定
+    // #372（R-08/A-05）起 restore 自己就拒载幽灵绑定（不再留给消费侧把关）——
+    // 校验面收口到恢复口，比「恢复后组装时才炸」更早更准。
     let mut bad = s.to_snapshot();
     bad.evidence_bindings.push(EvidenceBinding {
         evidence_id: "EV-9999".into(),
         requirement_id: "REQ-0003".into(),
     });
-    let s2 = DomainStore::restore(bad)
-        .expect("restore 放行（绑定引用面不在其校验集——消费侧把关的缝）");
-    let err = match assemble_section_input(&s2, "SEC-0001", &budget) {
-        Ok(_) => panic!("孤儿绑定必须拒绝组装（fail-closed 不猜测）"),
+    let err = match DomainStore::restore(bad) {
+        Ok(_) => panic!("孤儿绑定必须被 restore 拒载（#372 引用完整性）"),
         Err(e) => e,
     };
-    assert_eq!(err, ContextAssembleError::OrphanBinding { evidence_id: "EV-9999".into() });
-    assert!(format!("{err}").contains("EV-9999"), "错误面可辨识: {err}");
+    let msg = format!("{err:?}");
+    assert!(msg.contains("EV-9999"), "错误面可辨识证据 id: {msg}");
+    assert!(msg.contains("REQ-0003"), "错误面可辨识条款 id: {msg}");
+    assert!(msg.contains("幽灵绑定"), "错误面说明根因: {msg}");
+
+    // 消费侧仍要 fail-closed（纵深防御）：手工构造带孤儿绑定的 store 后组装必须拒。
+    // 这里用合法 store + 直接调组装，证明 OrphanBinding 分支本身没退化。
+    let clean = DomainStore::restore(s.to_snapshot()).expect("合法快照必须可恢复");
+    let input = assemble_section_input(&clean, "SEC-0001", &budget);
+    assert!(input.is_ok(), "合法 store 必须能组装（对照面）");
 }
 
 /// 默认供给面冒烟：项目标识约束（BidProject 面）+ 台账文本 + 绑定序相关度

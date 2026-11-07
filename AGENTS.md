@@ -527,6 +527,25 @@ git diff --stat origin/main | tail -3
 # 如果 diff 里出现你没改过的文件 → 分支基于旧 main，重新来
 ```
 
+## 1.5 PR 等审期基线漂移——绿过时不算绿（#365）
+
+```
+PR CI 绿 = 「push 那一刻的合并结果」绿 ≠ 「真正合并那一刻」绿。
+等审期间 main 前进 → 语义冲突（非 git 冲突）在 PR CI 视野外。
+
+2026-11-07 实例：#337 CI 绿于 22:02 基线（不含 #285②），
+#285② 22:47 进 main，11 小时后合并 → Anchor 字面量编译红。
+```
+
+**规则**：
+
+```
+· push 前看 stale-base 门（windows-check 的新 job）：
+  PR head 落后 main ≥ 3 个提交 → CI 红 → 先 rebase 再 push
+· 请审/合并前（Lead 侧同理）：PR 落后 main ≥ 3 个提交 → 要求 rebase 重验
+· rebase 后 CI 重绿，绿才算数——旧绿不作数
+```
+
 ## 2. 每个 commit 立即推送并**确认成功**
 
 ```bash

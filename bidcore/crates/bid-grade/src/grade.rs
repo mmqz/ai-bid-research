@@ -70,9 +70,20 @@ pub fn grade_recall(db: &RunDb, fx: &Fixtures) -> DimOutcome {
     }
     let missing: Vec<String> = fx.gts.iter().map(|g| g.gt_id.clone())
         .filter(|g| !aligned_have.contains(g)).collect();
-    let dedupe_ok = ["GT-03", "GT-14"].iter().all(|g| {
-        db.requirements.iter().any(|r| aligned_gt_ids(r, &fx.gts, &amb).contains(*g))
-    });
+    // #490（A-20②）：dedupe 探针改消费夹具的 dedupe_group 标记——
+    // 带组的 GT 全部须被对齐（合并或交叉登记后各 gt_id 仍可对齐）。
+    // 对当前夹具（GT-03/GT-14 唯二带 "D-业绩要求" 组）与旧硬编码
+    // ["GT-03", "GT-14"] 逐位等价；换语料时自动跟随新组标记，
+    // 判分口径不再钉死 GT 字面量。
+    let dedupe_ok = fx
+        .gts
+        .iter()
+        .filter(|g| g.dedupe_group.is_some())
+        .all(|g| {
+            db.requirements
+                .iter()
+                .any(|r| aligned_gt_ids(r, &fx.gts, &amb).contains(&g.gt_id))
+        });
     let recall = 1.0 - missing.len() as f64 / fx.gts.len() as f64;
     let unverified: Vec<String> = self_claimed.difference(&aligned_have).cloned().collect();
     let precision_ok = category_mismatch.is_empty() && density_violations.is_empty();
@@ -328,8 +339,17 @@ pub fn resolve_path(path: &str, db: &RunDb, fx: &Fixtures) -> Result<Value, Stri
 }
 
 fn fixture_open_bid_after(fx: &Fixtures) -> String {
-    // 开标日（补遗后）——从冲突登记数据读取口径；M2 前以已知口径为准
-    let _ = fx;
+    // #490（A-20③）：开标日真源下沉夹具 meta.json
+    // （open_bid_after_addendum——补遗 C 推迟后的开标日，GT-02 语义翻转
+    // 的裁决时刻）。旧部署缺失时回退已知硬编码并提示（不炸——判分器
+    // 对旧夹具目录的向后兼容面）。
+    if let Some(d) = &fx.open_bid_after_addendum {
+        return d.clone();
+    }
+    eprintln!(
+        "[grade] meta.json 缺 open_bid_after_addendum（{}）——回退硬编码 2026-11-27",
+        fx.root.display()
+    );
     "2026-11-27".to_string()
 }
 

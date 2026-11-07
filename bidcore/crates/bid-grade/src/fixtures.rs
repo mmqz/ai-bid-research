@@ -12,6 +12,11 @@ pub struct GtRequirement {
     pub anchors: Vec<GtAnchor>,
     pub params: Value,
     pub expected_policy: Option<String>,
+    /// #490（A-20②）：重复条款去重探针组（夹具的 dedupe_group 标记——
+    /// 如 GT-03/GT-14 同属 "D-业绩要求"）。判分面改消费本标记：带组
+    /// 的 GT 全部须被对齐（合并或交叉登记）——换语料自动跟随，
+    /// 不再钉死 GT 字面量。
+    pub dedupe_group: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +47,11 @@ pub struct Fixtures {
     pub gts: Vec<GtRequirement>,
     pub queries: Vec<Value>,
     pub scenarios: Vec<EtScenario>,
+    /// #490（A-20③）：补遗后开标日（GT-02 语义翻转的裁决时刻）——
+    /// 真源 `corpus-A/ground-truth/meta.json` 的 `open_bid_after_addendum`
+    /// （fixture_spec.py 生成）。缺失时 None（消费方回退旧硬编码并提示
+    /// ——向后兼容，不炸旧部署）。
+    pub open_bid_after_addendum: Option<String>,
 }
 
 impl Fixtures {
@@ -72,6 +82,7 @@ impl Fixtures {
                     .unwrap_or_default(),
                 params: v.get("params").cloned().unwrap_or(Value::Null),
                 expected_policy: v.get("expected_policy").and_then(|x| x.as_str()).map(String::from),
+                dedupe_group: v.get("dedupe_group").and_then(|x| x.as_str()).map(String::from),
             });
         }
         let q_path = root.join("queries/exact-25.jsonl");
@@ -109,7 +120,19 @@ impl Fixtures {
             });
         }
         scenarios.sort_by(|a, b| a.tc_id.cmp(&b.tc_id));
-        Ok(Fixtures { root: root.to_path_buf(), gts, queries, scenarios })
+        // #490（A-20③）：开标日真源（meta.json 可选——旧部署缺失时 None，
+        // 消费方 fixture_open_bid_after 回退旧硬编码并提示）
+        let open_bid_after_addendum = std::fs::read_to_string(
+            root.join("corpus-A/ground-truth/meta.json"),
+        )
+        .ok()
+        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+        .and_then(|m| {
+            m["open_bid_after_addendum"]
+                .as_str()
+                .map(String::from)
+        });
+        Ok(Fixtures { root: root.to_path_buf(), gts, queries, scenarios, open_bid_after_addendum })
     }
 
     pub fn scenario(&self, tc_id: &str) -> Option<&EtScenario> {

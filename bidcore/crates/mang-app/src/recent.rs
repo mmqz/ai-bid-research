@@ -290,6 +290,20 @@ pub fn history_list(ws: &Workspace, args: Args<'_>) -> Result<Value, IpcError> {
     }))
 }
 
+// ── 测试级互斥（cfg(test)——不进产物） ────────────────────────
+
+/// last-workspace.json 测试序列锁（#303/FG-01 + 2026-11-07 CI 实证）。
+///
+/// 全局单文件 + cargo test 默认并行 = 多步断言序列会互踩：
+/// 运行时 RECENT_LOCK 只保单次读写原子，不保「写→断言读回」序列。
+/// 凡写这个文件的测试（本文件 roundtrip 测试、ipc::tests 的
+/// workspace.open 三件套）必须持本锁整段串行。
+/// 2026-11-07 windows CI：switches_root 未持锁，把 persistence 测试
+/// 刚落的 lb 路径覆盖成自己的 b 路径（38/39）——锁从 ipc.rs 局部
+/// 上提到资源属主模块，就是为堵这类「漏网写入方」。
+#[cfg(test)]
+pub(crate) static LAST_WS_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -366,6 +380,7 @@ mod tests {
         // last-workspace.json——#303 修 ipc 时漏掉的那个触碰者，正是
         // CI 并行红的插队者；现在与 ipc::tests 持同一把锁。
         let _guard = workspace_files_guard();
+
         let dir = std::env::temp_dir().join(format!(
             "mang-lastws-{}-{}",
             std::process::id(),

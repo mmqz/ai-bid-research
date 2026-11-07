@@ -162,6 +162,22 @@ jobs:
       # check 步骤但**零测试执行**（独立 target 目录还不进缓存，每轮重编 tao/wry）。
       # 旧的「cargo check (mang-app 独立 workspace)」步骤随之删除。
 
+      # #358：工具面派生面校验——加工具后必须跑 tool-surface --write，
+      # 派生面（位串矩阵/断言数字）与 TOOL_NAMES + allowed_tools() 不同步即红。
+      # 由来：2026-11-07 单日 6 个 PR CI 红，其中 4 个是「加工具只改了一部分面」；
+      # 10 状态 × N 工具的位串矩阵手算必错，各 PR 各自改数字合并时互相冲突。
+      # 放在 cargo check 之后：编译都不过就不用算位串（先给最直接的错误）。
+      - name: tool-surface --check (工具面派生面同步)
+        working-directory: bidcore
+        shell: pwsh
+        run: |
+          cargo run -q -p bid-mcp --bin tool-surface -- --check
+          $code = $LASTEXITCODE
+          Write-Host "tool-surface exit code: $code"
+          if ($code -ne 0) {
+            Write-Host "::error::工具面派生面不同步——本地跑 cargo run -p bid-mcp --bin tool-surface -- --write 后提交"
+          }
+          exit $code
       - name: cargo test (SKIP 机制护航，全量 workspace 含 mang-app)
         working-directory: bidcore
         # issue #9 SKIP 机制已落地：外部工具缺件时，PDF 全链测试

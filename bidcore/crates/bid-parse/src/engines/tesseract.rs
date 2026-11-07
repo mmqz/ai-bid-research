@@ -19,6 +19,8 @@ use crate::pdf_text::sanitize_line;
 use crate::{Block, BlockKind, ParsedFile};
 use std::path::Path;
 
+use super::tool_abs_path;
+
 /// 扫描层 OCR 引擎。
 pub struct TesseractOcr;
 
@@ -99,10 +101,11 @@ impl TesseractOcr {
         let tmp = TmpGuard::new("ocr").map_err(|e| format!("临时目录创建失败: {e}"))?;
         let prefix = tmp.0.join("page");
         let mut render_cmd = std::process::Command::new("pdftoppm");
+        // B-25：路径经 tool_abs_path 绝对化（纵深防御——见 engines/mod.rs）
         render_cmd
             .args(["-r", "200", "-gray", "-png"])
             .args(["-l", &real_pages.to_string()]) // 渲染上限双保险（R3-S1-1）
-            .arg(path.as_os_str())
+            .arg(tool_abs_path(path))
             .arg(&prefix);
         let render = guard::run_limited(render_cmd, TIMEOUT_PDFTOPPM, 4096);
         if !render.is_success() {
@@ -135,8 +138,10 @@ impl TesseractOcr {
                     format!("{}/.tessdata", std::env::var("HOME").unwrap_or_default())
                 }));
             let mut t_cmd = std::process::Command::new("tesseract");
+            // B-25：png 虽由 TmpGuard 绝对生成，仍统一走 tool_abs_path
+            // （统一关闭注入面——防未来重构换相对路径时复活）。
             t_cmd
-                .arg(png.as_os_str())
+                .arg(tool_abs_path(png))
                 .arg("stdout")
                 .args(["-l", "chi_sim", "--psm", "6"])
                 .env("TESSDATA_PREFIX", &tessdata);
@@ -296,7 +301,8 @@ fn ocr_partial_failure_summary(failed: &[usize], total_pages: usize) -> String {
 
 fn probe_pdf_pages(path: &Path) -> Option<usize> {
     let mut c = std::process::Command::new("pdfinfo");
-    c.arg(path.as_os_str());
+    // B-25：路径经 tool_abs_path 绝对化（纵深防御——见 engines/mod.rs）
+    c.arg(tool_abs_path(path));
     let out = guard::run_limited(c, TIMEOUT_PDFTOTEXT, 64 * 1024);
     if !out.is_success() {
         return None;

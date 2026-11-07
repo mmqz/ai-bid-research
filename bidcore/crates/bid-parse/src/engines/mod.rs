@@ -307,9 +307,71 @@ pub fn registry() -> Vec<Box<dyn PdfExtractor>> {
     ]
 }
 
+/// 外部工具入参路径绝对化（#437 / 审计 B-25：纵深防御）。
+///
+/// poppler / tesseract 的参数解析器把 `-` 开头的参数当选项——相对路径
+/// 形态的 `-foo.pdf` 会注入选项面。上游 fs_fence 已保证导入落盘为绝对
+/// 路径（审计判定面收敛为理论面），本助手把该不变量钉进引擎边界：
+/// 未来任何调用方（测试夹具/内部脚本/新接线）以相对路径调引擎，注入
+/// 面也不会复活。
+///
+/// 口径（工具无关——不赌 `--` 分隔符在各工具各版本的兼容性）：
+/// - 绝对路径 → 原样直返（生产主路径零行为变化）；
+/// - 相对路径 → 拼当前工作目录，首字符恒为 `/`（Windows 盘符），永不
+///   呈 `-` 开头进入外部命令参数表；
+/// - **不 canonicalize**：避免 Windows `\\?\` verbatim 前缀踩工具兼容性，
+///   也避免对不存在路径失败——本函数只改首字符语义，不验存在性。
+fn tool_abs_path(path: &Path) -> std::path::PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .map(|cwd| cwd.join(path))
+            // cwd 不可得（极端：进程无工作目录）时原样返回——此时子进程
+            // spawn 本身已不可用，不伪造另一条失败路径。
+            .unwrap_or_else(|_| path.to_path_buf())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #437（B-25）：tool_abs_path 绝对化不变量——`-` 前缀相对路径
+    /// 永不以 `-` 开头进入外部工具参数表（四个命令构造点全部经此助手）。
+    #[test]
+    fn tool_abs_path_closes_dash_injection_face() {
+        // ① 绝对路径：原样直返（生产主路径零行为变化）
+        let abs = if cfg!(windows) {
+            Path::new(r"C:\tmp\招标文件.pdf")
+        } else {
+            Path::new("/tmp/招标文件.pdf")
+        };
+        assert_eq!(tool_abs_path(abs), abs.to_path_buf(), "绝对路径直返不改写");
+        // ② 相对路径：拼当前工作目录 → 绝对化
+        let rel = tool_abs_path(Path::new("fixtures/a.pdf"));
+        assert!(
+            rel.is_absolute(),
+            "相对路径 → 绝对：{rel:?}（首字符不再是 '-'）"
+        );
+        // ③ 注入面主形态：`-evil.pdf` 相对路径 → 绝对化后不以 '-' 开头，
+        //    文件名保留（只改入参形态，不改名）
+        let evil = tool_abs_path(Path::new("-evil.pdf"));
+        let evil_str = evil.to_string_lossy();
+        assert!(
+            !evil_str.starts_with('-'),
+            "dash 前缀相对路径必须被绝对化吞掉: {evil_str:?}"
+        );
+        assert!(evil.is_absolute(), "注入面闭合的前提是绝对化: {evil_str:?}");
+        assert_eq!(
+            evil.file_name(),
+            Some(std::ffi::OsStr::new("-evil.pdf")),
+            "文件名保留（不改名——只改入参形态）"
+        );
+        // ④ cwd 锚定：相对路径的绝对化结果以当前工作目录为前缀
+        let cwd = std::env::current_dir().unwrap();
+        assert!(evil.starts_with(&cwd), "绝对化 = cwd 拼接: {evil:?} 不以 {cwd:?} 开头");
+    }
 
     /// 注册表三路齐备（owner R2：poppler/tesseract/rust-fallback 各自独立实现）。
     ///

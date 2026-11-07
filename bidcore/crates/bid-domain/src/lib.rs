@@ -474,6 +474,29 @@ pub struct Anchor {
     pub line: Option<u32>,
 }
 
+/// `Anchor` 的 `Default`（#285② 加字段后的兼容面）。
+///
+/// **为什么需要**：`#[serde(default)]` 只让反序列化兼容——Rust 结构体
+/// 字面量初始化仍是全字段必需。给 `Anchor` 加 block_idx/page/line 后，
+/// 所有旧字面量（`Anchor { file, kind, locator, excerpt }`）编译失败；
+/// 2026-11-07 一天内因此在 #343/#347/#354 三个分支上重复修了 6 处。
+///
+/// 有了 `Default` 后，新增字段只改这一处，调用方写
+/// `Anchor { file, ..Default::default() }` 或 `..Anchor::default()` 即可。
+impl Default for Anchor {
+    fn default() -> Self {
+        Self {
+            file: String::new(),
+            kind: String::new(),
+            locator: String::new(),
+            excerpt: String::new(),
+            block_idx: None,
+            page: None,
+            line: None,
+        }
+    }
+}
+
 // ---------------------------------------------------------------- 权威状态机存储
 /// 领域库（内存态）：项目/文件/条款 + 幂等键存储 + content_version。
 /// 所有写入经 `apply` 走状态机裁决——直接改字段绕过状态机是不可能的（字段私有 + 仅经受审方法）。

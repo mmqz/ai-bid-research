@@ -137,7 +137,7 @@ impl TechDeviationRow {
             seq,
             format!("{param_name}：{required}"),
             response,
-            bid_domain::param::derive_deviation(required, response),
+            bid_domain::param::derive_deviation(param_name, required, response),
         )
     }
 

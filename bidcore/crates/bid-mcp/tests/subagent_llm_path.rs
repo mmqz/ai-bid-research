@@ -828,10 +828,17 @@ fn subagent_llm_multi_chapter_path() {
     //      真实正文 + mock 补齐）完成后、导出前，绑定的才是将进产物的摘要）
     // #182：宿主签发面——serve 相位 in-proc svc 已让渡，直读工作区密钥签发
     //（stdio 子进程 open 同一工作区 → 同一 approval.key，测试进程即宿主）
+    // #323：v2 receipt 绑内容摘要——宿主签发前经 MCP 只读面取当前
+    //      content_binding.sections_digest（与服务器端验签同源）。
     let key: [u8; 32] = std::fs::read(ws.join(".mang").join("approval.key"))
         .expect("读 approval.key")
         .try_into()
         .expect("approval.key 须恰 32 字节");
+    let st = proc.call("get_bid_project_state", json!({}));
+    let digest = reply_data(&st)["content_binding"]["sections_digest"]
+        .as_str()
+        .expect("get_bid_project_state 回 content_binding.sections_digest（#323）")
+        .to_string();
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -841,6 +848,7 @@ fn subagent_llm_multi_chapter_path() {
         "subagent-path-lead",
         "review_gate:pre_export_confirm",
         now,
+        &digest,
     );
     let g = proc.call(
         "record_review_gate",

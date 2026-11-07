@@ -626,7 +626,7 @@ fn input_schema(name: &str) -> Value {
                 "project_id": pid,
                 "gate": {"type": "string", "enum": ["matrix_approval", "outline_approval", "pre_export_confirm", "addendum_waiver"]},
                 "decision": {"type": "string", "enum": ["APPROVED", "REJECTED"]},
-                "receipt": {"type": "string", "description": "#182 宿主签发的审批回执（人类签域 v1.<actor_id>.human.<scope>.<issued_at>.<hmac>）——人工确认由宿主签发 receipt 提供，Agent 不得伪造；#277 agent 声明过门走 agent 签域（scope 带 :agent 后缀 + actor_type=agent），须工作区 require_human_receipt=false；reviewer 参数已废除"},
+                "receipt": {"type": "string", "description": "#182 宿主签发的审批回执（人类签域 v2 七段（#323 含内容绑定摘要）: v2.<actor_id>.human.<scope>.<issued_at>.<sections_digest>.<hmac>——digest 取 get_bid_project_state 的 content_binding.sections_digest）——人工确认由宿主签发 receipt 提供，Agent 不得伪造；签发后内容变更旧 receipt 拒（CONTENT_DRIFTED_RECEIPT）；#277 agent 声明过门走 agent 签域（scope 带 :agent 后缀 + actor_type=agent），须工作区 require_human_receipt=false；reviewer 参数已废除"},
                 "reason": {"type": "string", "description": "#277 agent 声明过门的理由（agent receipt 路径必填非空——「为什么可以过这个门」；human 路径可空）"},
                 "findings": {
                     "type": "array",

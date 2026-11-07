@@ -93,11 +93,14 @@ fn check(matrix: &Path, dispatch: &Path, e2e: &Path, draft: &Path) -> Result<(),
         ));
     }
 
-    // ---- 2. dispatch_contract 的数字
+    // ---- 2. dispatch_contract 的数字（两处：TOOL_NAMES.len + tools_schema 的 arr.len）
     let dispatch_src = read(dispatch)?;
     let dispatch_expected = render_dispatch(&dispatch_src, n)?;
     if dispatch_expected != dispatch_src {
-        details.push(format!("{}: TOOL_NAMES.len() 断言数字不同步", display(dispatch)));
+        details.push(format!(
+            "{}: 工具数断言不同步（TOOL_NAMES.len / tools_schema 的 arr.len 两处）",
+            display(dispatch)
+        ));
     }
 
     // ---- 3. python e2e 的数字
@@ -155,6 +158,17 @@ fn write(matrix: &Path, dispatch: &Path, e2e: &Path, draft: &Path) -> Result<(),
             details: vec![],
         })?;
         println!("[tool-surface] 重写 {}", display(e2e));
+    }
+
+    // #467：check 校验 draft_tool.rs 但 write 从不重写它（不对称盲区）——补齐
+    let draft_src = read(draft)?;
+    let draft_new = render_draft(&draft_src, n)?;
+    if draft_new != draft_src {
+        fs::write(draft, &draft_new).map_err(|e| Diagnostic {
+            message: format!("写 {} 失败: {e}", display(draft)),
+            details: vec![],
+        })?;
+        println!("[tool-surface] 重写 {}", display(draft));
     }
 
     Ok(())
@@ -251,13 +265,39 @@ fn render_matrix(src: &str, n: usize) -> Result<String, Diagnostic> {
     Ok(out)
 }
 
-/// 重写 dispatch_contract.rs 里 TOOL_NAMES.len() 的断言数字。
+/// 重写 dispatch_contract.rs 里两处工具数断言的数字：
+/// ① `assert_eq!(TOOL_NAMES.len(), N, ...)`（既有面）；
+/// ② `assert_eq!(arr.len(), N, ...)`（tools_schema 列表面——#467 补的盲区：
+///    2026-11-07 PR #368 曾漏改此处致 tools_schema_lists_all_twenty 必红，
+///    而 --check 因不管此断言仍报 OK）。
 fn render_dispatch(src: &str, n: usize) -> Result<String, Diagnostic> {
-    let needle = "assert_eq!(TOOL_NAMES.len(),";
-    let pos = src.find(needle).ok_or_else(|| Diagnostic {
-        message: "找不到 TOOL_NAMES.len() 断言".into(),
-        details: vec![],
-    })?;
+    let out = replace_assert_count(
+        src,
+        "assert_eq!(TOOL_NAMES.len(),",
+        n,
+        "找不到 TOOL_NAMES.len() 断言",
+    )?;
+    replace_assert_count(
+        &out,
+        "assert_eq!(arr.len(),",
+        n,
+        "找不到 tools_schema 的 arr.len() 断言（tools_schema_lists_all_twenty）",
+    )
+}
+
+/// 把 `needle` 后第一个逗号前的计数替换为 `n`（幂等：已一致则原样返回）。
+fn replace_assert_count(
+    src: &str,
+    needle: &str,
+    n: usize,
+    missing_msg: &str,
+) -> Result<String, Diagnostic> {
+    let pos = src
+        .find(needle)
+        .ok_or_else(|| Diagnostic {
+            message: missing_msg.into(),
+            details: vec![],
+        })?;
     let after = &src[pos + needle.len()..];
     let comma = after.find(',').ok_or_else(|| Diagnostic {
         message: "断言格式异常".into(),

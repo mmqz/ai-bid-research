@@ -103,7 +103,9 @@ out: { counts:{total, added(可为负——整集替换语义下的诚实增量)
       逐文件核实面在 get_star_coverage）；MARKED_REQUIREMENT_WITHOUT_SUBMITTED
       （#422：N 条正则条款因「requirement 标记无关键点承接」被保留——补
       submit_block_marks 的 requirements 或显式改标 noise/rule 后重跑消除）。
-硬规则: 条款编号缺号 → missing_sequence 必须报告（完整性校验）；补遗与正文冲突 → 双向登记 conflicts；
+硬规则: 条款编号缺号 → missing_sequence 必须报告（完整性校验）；补遗与正文冲突 → 双向登记 conflicts
+      （#425：补遗识别按业务 kind（files[].kind="补遗"）——真实命名的补遗
+      （「澄清修改文件.docx」）同前缀夹具进冲突面；kind=答疑 不误入）；
       合并守恒：counts.total = regex_total - regex_dropped_covered + agent_requirements
 错误: E_PARTIAL（某文件抽取失败，其余成功）；E_STATE（未导入文件）
 状态: FILES_IMPORTED → REQUIREMENTS_EXTRACTED

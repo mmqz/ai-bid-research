@@ -482,7 +482,7 @@ fn cn_num_ok(s: &str) -> bool {
     !s.is_empty() && s.chars().all(|c| "一二三四五六七八九十百".contains(c))
 }
 
-/// 章号字符集（#385/B-11）：中文数字 ∪ 阿拉伯数字——与 PDF 侧
+/// 章号字符集（#376/B-11）：中文数字 ∪ 阿拉伯数字——与 PDF 侧
 /// extract.rs `re_chapter` 的 `[0-9一二三四五六七八九十百]` 对称
 /// （单一「第X章」语义、两种数字呈现形态；真实水利招标文件用
 /// 「第2章 投标人须知」——PDF 侧注释原话）。此前 docx 侧只认中文
@@ -497,12 +497,13 @@ fn chapter_num_ok(s: &str) -> bool {
     !s.is_empty() && s.chars().all(|c| "0123456789一二三四五六七八九十百".contains(c))
 }
 
-/// 「第X章 标题」——章号中文或阿拉伯数字（#385/B-11 与 PDF 侧对称）；
+/// 「第X章 标题」——章号中文或阿拉伯数字（#376/B-11 与 PDF 侧对称）；
 /// 携带完整标题（类别映射与 GT locator 口径需要全文）。
 pub fn as_chapter(t: &str) -> Option<String> {
     if t.len() >= 4 && t.starts_with("第") {
         if let Some(pos) = t.find("章") {
-            let num = &t[3..pos]; // "第" 占 3 字节
+            // "第"占 3 字节；章号区 trim 后校字符集（"第 2 章"与"第2章"同过）
+            let num = t[3..pos].trim();
             if !num.is_empty() && chapter_num_ok(num) && pos + 3 <= t.len() {
                 return Some(t.trim().to_string());
             }
@@ -556,5 +557,25 @@ mod tests {
         assert!(is_numbered_clause("3.2.1 投标人须具有独立承担民事责任能力的法人营业执照"));
         assert!(is_numbered_clause("4.1 价格分（30 分）"));
         assert!(!is_numbered_clause("投标文件格式"));
+    }
+
+    /// #376（B-11）：章号阿拉伯数字双形态——与 PDF 侧 re_chapter
+    /// `[0-9一二三四五六七八九十百]+\s*章` 同口径（跨格式对称）。
+    /// 破坏推演：误收非章行 → locator 上下文污染 → 下游类别映射错位 → 红；
+    /// 漏收「第2章」→ 章上下文不更新 → 同件跨格式分类漂移（本单对象）。
+    #[test]
+    fn chapter_arabic_numeral_dual_form() {
+        // 阿拉伯数字章头：真实水利招标件形态（extract.rs:214 实证）
+        assert!(as_chapter("第2章 投标人须知").is_some(), "阿拉伯单数字");
+        assert!(as_chapter("第12章 合同").is_some(), "阿拉伯两位数");
+        assert!(as_chapter("第 2 章 投标人须知").is_some(), "双侧空格容忍（PDF 侧 \\s* 同款）");
+        // 中文数字零回归（既有锚）
+        assert!(as_chapter("第十章 技术参数").is_some());
+        assert!(as_chapter("第一百章").is_some());
+        // 非章形态零误判
+        assert!(as_chapter("第A章 手册").is_none(), "字母章号拒");
+        assert!(as_chapter("第X章").is_none(), "占位字母拒");
+        assert!(as_chapter("第（一）章 正文").is_none(), "章号区带括号拒（num=「（一）」非纯数字）");
+        assert!(as_chapter("第二部分 响应文件格式").is_none(), "「第X部分」非章（询价类顶层，structure.rs 另收）");
     }
 }

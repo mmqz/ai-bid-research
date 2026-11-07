@@ -1037,6 +1037,9 @@ impl DomainStore {
             at,
             reviewed_content_version,
             reviewed_content_digest,
+            // A-10/#474：计分面摘要（全部门记录统一携带；判定面只消费
+            // PreExportConfirm——与 reviewed_content_digest 同纪律）。
+            reviewed_scoring_digest: self.scoring_surface_digest(),
         });
         // #277 方案 A：补遗门过门同步落审计账（与 record_review 的
         // GatePassRecord 同构——导出警告判据 = 本门最新一条 human_confirmed）

@@ -510,9 +510,11 @@ impl DomainStore {
 
     /// 登记证据（幂等 + 换版）。
     ///
-    /// - 语义四元组 (kind, title, subject, scope) 相同且指纹+双日期+验证态全同
-    ///   → 重放 no-op（deduplicated: true，content_version 不动）；
-    /// - 语义位已占用但指纹/日期/验证态有变 → **换版**：旧记录 Superseded（经
+    /// - 语义四元组 (kind, title, subject, scope) 相同且**全负载**全同
+    ///   （指纹+双日期+验证态+来源+定位+摘录+业绩元数据——EvidenceSpec 除
+    ///   语义四元组外的全部字段）→ 重放 no-op（deduplicated: true，
+    ///   content_version 不动）；
+    /// - 语义位已占用但任一负载字段有变 → **换版**：旧记录 Superseded（经
     ///   单向降级迁移——Expired→Superseded 亦合法），新记录 version = 旧+1，
     ///   且**旧记录的既有绑定迁移到新记录**（语义位不变 → 响应面跟随当前版，
     ///   #245：占位→真实的升级路径由此承载，旧绑定不残留）；
@@ -522,6 +524,13 @@ impl DomainStore {
     /// CONTENT_MATCHES）语义不同——若按重放 no-op 返回旧记录 id，调用方
     /// 会拿到「以为转正了」的假成功（实际还是占位）；按换版处理则
     /// 留审计痕（旧记录 Superseded 可查）且绑定迁移到新记录。
+    ///
+    /// #429 全负载入键的理由（A-12 后半面）：定位纠错（同文本两处出现——
+    /// 指纹是文本派生、位置无关，`linkage::text_fingerprint`）与业绩元数据
+    /// 修正（client/amount_wan/completed_on/fields 调用方自报）若被重放
+    /// no-op 吞掉，调用方拿到「以为改了」的假成功，台账与回查锚
+    /// （excerpt_locator）停留在旧值——任一负载变化按换版处理（留审计痕 +
+    /// 绑定迁移，机制同 #245）。
     ///
     /// 出生态一律 Active——时间面翻转（Expired/Expiring）由 [`Self::apply_validity`]
     /// 与 [`Self::bind_evidence`] 携带的开标日裁决（登记时不知道评标基准日）。
@@ -540,10 +549,24 @@ impl DomainStore {
             .iter()
             .rfind(|e| semantic_key(e) == key && e.status != EvidenceStatus::Superseded)
         {
+            // #429（A-12 后半面）全负载入键：语义四元组之外的全部字段
+            // 都进重放比较面——指纹/日期/验证态（#245）之外的定位纠错、
+            // 摘录更新、来源改指、业绩元数据（client/amount_wan/
+            // completed_on/fields）修正任一发生即构成「新版本」，不再被
+            // no-op 静默吞掉。
             let same_payload = existing.fingerprint == spec.fingerprint
                 && existing.valid_from == spec.valid_from
                 && existing.valid_until == spec.valid_until
-                && existing.verification_tier == spec.verification_tier;
+                && existing.verification_tier == spec.verification_tier
+                && existing.source_file == spec.source_file
+                && existing.source_sha256 == spec.source_sha256
+                && existing.locator == spec.locator
+                && existing.excerpt == spec.excerpt
+                && existing.excerpt_locator == spec.excerpt_locator
+                && existing.client == spec.client
+                && existing.amount_wan == spec.amount_wan
+                && existing.completed_on == spec.completed_on
+                && existing.fields == spec.fields;
             if same_payload {
                 return Ok((existing.id.clone(), true)); // 重放 no-op
             }
@@ -1500,5 +1523,168 @@ mod tests {
         let (id2, dedup) = s.register_evidence(ph).unwrap();
         assert!(dedup, "同态同指纹 → 幂等重放");
         assert_eq!(id1, id2, "原 id 直返");
+    }
+
+    // ============================ #429：全负载入键（A-12 后半面） ============================
+
+    /// #429：定位纠错换版——同文本两处出现（指纹是文本派生、位置无关），
+    /// 按错误位置登记后纠错重登，不得被重放 no-op 吞掉（回查锚停留旧页
+    /// = 人审按锚找不到证据）。
+    #[test]
+    fn locator_correction_same_text_bumps_version_not_replay() {
+        let mut s = store_with_reqs();
+        // 首登：CONTENT_MATCHES，定位第 2 页（错误位置）
+        let mut a = gt02_spec();
+        a.verification_tier = Some(VerificationTier::ContentMatches);
+        a.excerpt = Some("资质等级：二级；承包范围：电子与智能化工程".into());
+        a.excerpt_locator = Some("《EV-02》第 2 页 段3".into());
+        let (id_a, dedup) = s.register_evidence(a).unwrap();
+        assert!(!dedup, "新语义位首登");
+        s.bind_evidence(&id_a, "REQ-0002", "2026-11-15").unwrap();
+        // 纠错重登：同文本（指纹不变 fnv64:02）、同 tier，定位改第 50 页
+        let mut b = gt02_spec();
+        b.verification_tier = Some(VerificationTier::ContentMatches);
+        b.excerpt = Some("资质等级：二级；承包范围：电子与智能化工程".into());
+        b.excerpt_locator = Some("《EV-02》第 50 页 段1".into());
+        b.locator = EngineLocator::PdfPageText {
+            page: 50,
+            text_fingerprint: "fnv64:02".into(),
+        };
+        let (id_b, dedup) = s.register_evidence(b).unwrap();
+        assert!(!dedup, "定位纠错 = 负载变化 → 换版（非重放）");
+        assert_ne!(id_a, id_b, "签发新 EV");
+        assert_eq!(
+            s.evidence(&id_a).unwrap().status,
+            EvidenceStatus::Superseded,
+            "旧记录留审计痕"
+        );
+        let new = s.evidence(&id_b).unwrap();
+        assert_eq!(new.version, 2, "版本递增");
+        assert_eq!(
+            new.excerpt_locator.as_deref(),
+            Some("《EV-02》第 50 页 段1"),
+            "回查锚更新为新位置"
+        );
+        assert!(
+            matches!(new.locator, EngineLocator::PdfPageText { page: 50, .. }),
+            "定位器更新"
+        );
+        // 绑定迁移（#245 机制复用）
+        assert!(
+            s.evidence_bindings()
+                .iter()
+                .any(|x| x.evidence_id == id_b && x.requirement_id == "REQ-0002"),
+            "既有绑定迁移到新记录"
+        );
+        assert!(
+            !s.evidence_bindings().iter().any(|x| x.evidence_id == id_a),
+            "旧记录绑定不残留（Superseded 仍绑定会卡规则 8）"
+        );
+    }
+
+    /// #429：业绩元数据纠错换版——client/amount_wan 录错后重登修正，
+    /// 不得被重放 no-op 吞掉（#315 匹配推荐按金额/客户因子消费这些字段）。
+    #[test]
+    fn business_metadata_correction_bumps_version() {
+        let mut s = store_with_reqs();
+        let mut a = gt02_spec();
+        a.client = Some("业主单位甲（录错）".into());
+        a.amount_wan = Some(120.0);
+        let (id_a, _) = s.register_evidence(a).unwrap();
+        // 修正重登：指纹/日期/tier/定位/摘录全同，仅业绩元数据不同
+        let mut b = gt02_spec();
+        b.client = Some("业主单位乙（修正）".into());
+        b.amount_wan = Some(210.0);
+        let (id_b, dedup) = s.register_evidence(b).unwrap();
+        assert!(!dedup, "业绩元数据修正 = 负载变化 → 换版（非重放）");
+        let new = s.evidence(&id_b).unwrap();
+        assert_eq!(new.amount_wan, Some(210.0), "修正金额入账");
+        assert_eq!(new.client.as_deref(), Some("业主单位乙（修正）"), "修正客户入账");
+        assert_eq!(new.version, 2, "版本递增");
+        assert_eq!(
+            s.evidence(&id_a).unwrap().status,
+            EvidenceStatus::Superseded,
+            "旧值记录留痕（审计可查录错历史）"
+        );
+    }
+
+    /// #429：结构化字段纠错换版——fields（#147 exact 查询面）修正不得被
+    /// 重放 no-op 吞掉。
+    #[test]
+    fn fields_correction_bumps_version() {
+        let mut s = store_with_reqs();
+        let mut a = gt02_spec();
+        a.fields = EvidenceFields {
+            cert_name: Some("电子与智能化工程专业承包二级（错录）".into()),
+            ..Default::default()
+        };
+        let (id_a, _) = s.register_evidence(a).unwrap();
+        let mut b = gt02_spec();
+        b.fields = EvidenceFields {
+            cert_name: Some("电子与智能化工程专业承包一级（修正）".into()),
+            ..Default::default()
+        };
+        let (id_b, dedup) = s.register_evidence(b).unwrap();
+        assert!(!dedup, "fields 修正 = 负载变化 → 换版（非重放）");
+        let new = s.evidence(&id_b).unwrap();
+        assert_eq!(
+            new.fields.cert_name.as_deref(),
+            Some("电子与智能化工程专业承包一级（修正）"),
+            "修正字段入账"
+        );
+        assert_eq!(new.version, 2, "版本递增");
+        assert_eq!(
+            s.evidence(&id_a).unwrap().status,
+            EvidenceStatus::Superseded,
+            "旧字段留痕"
+        );
+    }
+
+    /// #429：来源改指换版——同文本在两份文件出现（指纹位置无关），证据
+    /// 从错误文件改指正确文件不得被重放 no-op 吞掉。
+    #[test]
+    fn source_repoint_same_text_bumps_version() {
+        let mut s = store_with_reqs();
+        let (id_a, _) = s.register_evidence(gt02_spec()).unwrap();
+        // 改指重登：同文本 → 指纹同 fnv64:02、tier 同（均缺省），仅来源不同
+        let mut b = gt02_spec();
+        b.source_file = "EV-02b-新版资质证书.pdf".into();
+        b.source_sha256 = "cafebabe02b".into();
+        let (id_b, dedup) = s.register_evidence(b).unwrap();
+        assert!(!dedup, "来源改指 = 负载变化 → 换版（非重放）");
+        let new = s.evidence(&id_b).unwrap();
+        assert_eq!(new.source_file, "EV-02b-新版资质证书.pdf", "来源文件更新");
+        assert_eq!(new.source_sha256, "cafebabe02b", "来源 sha 更新");
+        assert_eq!(new.version, 2, "版本递增");
+        assert_eq!(
+            s.evidence(&id_a).unwrap().status,
+            EvidenceStatus::Superseded,
+            "旧来源留痕"
+        );
+    }
+
+    /// #429：全同负载重放仍 no-op——same_payload 扩面后真重放路径零回归
+    /// （含业绩元数据/fields/摘录全字段）。
+    #[test]
+    fn full_payload_replay_still_noop() {
+        let mut s = store_with_reqs();
+        let mut spec = gt02_spec();
+        spec.verification_tier = Some(VerificationTier::ContentMatches);
+        spec.excerpt = Some("资质等级：二级".into());
+        spec.excerpt_locator = Some("《EV-02》第 2 页 段3".into());
+        spec.client = Some("业主单位甲".into());
+        spec.amount_wan = Some(120.0);
+        spec.fields = EvidenceFields {
+            cert_name: Some("电子与智能化工程专业承包二级".into()),
+            ..Default::default()
+        };
+        let (id1, dedup1) = s.register_evidence(spec.clone()).unwrap();
+        assert!(!dedup1, "首登");
+        let v = s.content_version();
+        let (id2, dedup2) = s.register_evidence(spec).unwrap();
+        assert!(dedup2, "全字段全同 → 幂等重放 no-op");
+        assert_eq!(id1, id2, "原 id 直返");
+        assert_eq!(s.content_version(), v, "重放不 bump content_version");
+        assert_eq!(s.evidences().len(), 1, "无重复记录");
     }
 }

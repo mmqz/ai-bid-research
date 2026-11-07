@@ -12,20 +12,27 @@
 //!   ②条款抽取面（条数/千字 + 类别分布）③类别命中（否决词命中条款的归类合理性）
 //!   ④引用支持（locator 回查抽检 20 条/文件）⑤崩溃率（catch_unwind + Err 统计）
 //!   ⑥吞吐（逐文件墙钟 → 100 页口径外推）；
-//! - 输出：`results/<file>.json`（逐文件）+ `BASELINE.json`（汇总，schema 稳定
-//!   `bid-health-check/1`——serde_json 默认 BTreeMap 键序，重跑可 diff 对比）；
+//! - 输出：`results/<file>.json`（逐文件）+ `BASELINE.json`（汇总，serde_json
+//!   默认 BTreeMap 键序，重跑可 diff 对比；schema 现为 `bid-health-check/2`——
+//!   #462 强短语面从 8 词子串镜像升级为生产单一真源 46 词形正则，v1 基线
+//!   与 v2 报告不可比）；
 //! - 缺件按 issue #9 如实登记（ENV_MISSING / SKIP 语义，不伪装失败）。
 
 use bid_domain::Requirement;
 use bid_parse::extract::extract_requirements;
+use bid_parse::veto_lexicon;
 use bid_parse::{norm_n1, Block, ParsedFile};
 use serde_json::{json, Value};
 use bid_engine::EngineReader;
+use regex::Regex;
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::time::Instant;
 
-const SCHEMA: &str = "bid-health-check/1";
+/// #462（B-16 残留面）：检测语义升级（8 子串镜像 → 生产 46 词形正则），
+/// 旧 v1 基线与本版报告不可比——分记不折抵。
+const SCHEMA: &str = "bid-health-check/2";
 /// 抽检上限（引用支持维度：每文件确定性等距抽 20 条）
 const LOCATOR_SAMPLE_N: usize = 20;
 /// 漏召样本/嫌疑样本落盘上限（防 JSON 膨胀）
@@ -33,18 +40,19 @@ const SAMPLE_CAP: usize = 15;
 /// 摘录截断长度（字符）
 const EXCERPT_CAP: usize = 120;
 
-/// 强否决短语（**镜像** extract.rs 私有 re_veto 的判定动词面——harness 侧审计
-/// 对照用，不改 crates 源码故在此复制；两处若漂移以 extract.rs 为准）。
-const STRONG_VETO_PHRASES: &[&str] = &[
-    "将被否决",
-    "否决投标处理",
-    "否决所有投标",
-    "视为无效",
-    "无效投标",
-    "取消其中标",
-    "没收其投标保证金",
-    "废标",
-];
+/// 强否决短语面（#462/B-16 残留面：单一真源派生，非镜像）。
+///
+/// 旧实现自带 8 词子串镜像（「两处若漂移以 extract.rs 为准」），#440 后生产
+/// 词面已达 46 词形（含 6 个正则形态），子串镜像无法表达且已漏 38 词族。
+/// 现由 [`veto_lexicon::strong_patterns`] 同一 pattern 字符串编译——path
+/// 依赖使漂移在构建期即不可能：改 bid-parse 词表，本 harness 重编译自动跟进。
+fn re_strong_veto() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(veto_lexicon::strong_patterns())
+            .expect("strong_patterns 为 veto_lexicon 单元测试锁定的合法正则")
+    })
+}
 
 /// pdfium 在位性探测用最小 PDF（pdfium 对残缺 xref 有修复能力；探测口径 =
 /// reader.rs 同款 MdcoreReader::extract_pdf_text，Err 含「打开失败」= 库缺件）。
@@ -548,7 +556,7 @@ fn category_hit_metrics(reqs: &[Requirement], lexicon: &[String]) -> Value {
                 }));
             }
         }
-        if STRONG_VETO_PHRASES.iter().any(|p| joined.contains(p)) {
+        if re_strong_veto().is_match(&joined) {
             strong_total += 1;
             if r.category != "否决项" {
                 strong_not_veto += 1;
@@ -932,5 +940,104 @@ fn stem_of(name: &str) -> String {
     match name.rfind('.') {
         Some(i) => name[..i].to_string(),
         None => name.to_string(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// #462（B-16 残留面）测试：强短语面与生产单一真源同源
+// ---------------------------------------------------------------------------
+#[cfg(test)]
+mod strong_veto_tests {
+    use super::re_strong_veto;
+
+    /// 旧 8 词镜像漏报族抽样——v1 镜像下这些全部不命中（contains 不含），
+    /// 现必须命中（46 词形真源）。
+    #[test]
+    fn b16_missed_word_families_now_hit() {
+        let missed_by_old_mirror = [
+            // （条款示例文本, 旧镜像漏掉的词族）
+            ("未按规定格式编制的，其投标无效。", "投标无效"),
+            ("逾期送达的投标文件，招标人不予受理。", "不予受理"),
+            ("技术参数不允许偏离，偏离的作废标处理。", "不允许偏离"),
+            ("投标人以他人名义投标的，取消中标资格。", "以他人名义投标"),
+            ("串通投标的，其投标保证金将被没收，投标被拒绝。", "投标被拒绝"),
+            ("未按要求盖章的文件，招标人有权拒收。", "有权拒收"),
+        ];
+        for (text, why) in missed_by_old_mirror {
+            assert!(
+                re_strong_veto().is_match(text),
+                "旧镜像漏报族应命中（词族：{why}）：{text}"
+            );
+        }
+    }
+
+    /// 6 个正则形态词中抽样——子串 contains 结构上无法表达，升级为正则
+    /// 匹配后首次真正生效。
+    #[test]
+    fn b16_regex_forms_take_effect() {
+        // 「不接受[^，。；]{0,12}(投标|报价|备选|联合体)」形
+        assert!(re_strong_veto().is_match("招标人不接受联合体报价的投标文件"));
+        assert!(re_strong_veto().is_match("本项目不接受备选方案"));
+        // 「利害关系[^，。；]{0,32}不得参加投标」形（间隔窗内命中）
+        assert!(re_strong_veto().is_match("与招标人存在利害关系的单位不得参加投标"));
+        // 「备选[^，。；]{0,8}不允许」形
+        assert!(re_strong_veto().is_match("报价中备选方案出现时不允许"));
+    }
+
+    /// 超集验证——旧 8 词全部仍命中（无行为回退面）。
+    #[test]
+    fn b16_old_mirror_words_still_hit() {
+        let old_eight = [
+            "将被否决",
+            "否决投标处理",
+            "否决所有投标",
+            "视为无效",
+            "无效投标",
+            "取消其中标",
+            "没收其投标保证金",
+            "废标",
+        ];
+        for w in old_eight {
+            let text = format!("违反本条规定的，{w}。");
+            assert!(
+                re_strong_veto().is_match(&text),
+                "旧镜像词不应回退失命中：{w}"
+            );
+        }
+    }
+
+    /// 反例面——正面资格/商务要求句不含处置动词，不得误命中。
+    #[test]
+    fn b16_positive_clauses_do_not_hit() {
+        let positive = [
+            "投标人应具备有效的营业执照。",
+            "投标人须提供近三年的财务报表。",
+            "本项目要求投标人具有 ISO9001 质量管理体系认证。",
+            "服务期限为合同签订后 12 个月。",
+        ];
+        for text in positive {
+            assert!(
+                !re_strong_veto().is_match(text),
+                "正面资格/商务句不应命中强短语面：{text}"
+            );
+        }
+    }
+
+    /// 单一真源锁定——本 harness 的 pattern 与生产 veto_lexicon 逐字符相等
+    /// （防止未来有人把派生改回拷贝）。
+    #[test]
+    fn b16_pattern_is_single_sourced() {
+        assert_eq!(
+            re_strong_veto().as_str(),
+            bid_parse::veto_lexicon::strong_patterns(),
+            "harness 强短语面必须由 veto_lexicon::strong_patterns 派生（B-16：不得回拷）"
+        );
+    }
+
+    /// SCHEMA 升版锁定——v2 起检测语义变更（8 子串 → 46 词形正则），
+    /// 旧基线不可比；若再改检测语义必须再升版。
+    #[test]
+    fn b16_schema_version_bumped() {
+        assert_eq!(super::SCHEMA, "bid-health-check/2");
     }
 }

@@ -1207,13 +1207,27 @@ impl BidService {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
+        // #323：内容绑定锚定物——当前章节树摘要（与宿主签发面
+        // `issue_approval_receipt` 同源；#180 口径：不绑全局 content_version）。
+        let digest = self.store.sections_digest();
         // ---- 1. 人类签域（现状路径）
-        match principal::verify_approval_receipt(receipt, &self.approval_key, human_scope, now) {
+        match principal::verify_approval_receipt(
+            receipt,
+            &self.approval_key,
+            human_scope,
+            now,
+            &digest,
+        ) {
             Ok(p) => return Ok(p),
             Err(human_err) => {
                 // ---- 2. agent 签域（#277 声明面）
-                match principal::verify_agent_receipt(receipt, &self.approval_key, agent_scope, now)
-                {
+                match principal::verify_agent_receipt(
+                    receipt,
+                    &self.approval_key,
+                    agent_scope,
+                    now,
+                    &digest,
+                ) {
                     Ok(p) => {
                         if self.require_human_receipt {
                             return Err(ToolError::EUnprocessable {
@@ -1228,8 +1242,15 @@ impl BidService {
                     }
                     Err(agent_err) => {
                         // ---- 3. 报错面：混用签域（Human 用 agent 签域）优先
-                        //      报不匹配；其余报人类验签面原始错误
-                        if matches!(agent_err, principal::ReceiptError::NotAgent) {
+                        //      报不匹配；其余报人类验签面原始错误。
+                        //      #323：混用判定收紧为「人类路 BadSignature 且
+                        //      agent 路 NotActor」——receipt 实为人类身份但
+                        //      MAC 对不上人类签域（即用了 agent 签域）；
+                        //      过期/漂移的人类 receipt 走人类路真实诊断，
+                        //      不误诊成签域混用。
+                        if matches!(human_err, principal::ReceiptError::BadSignature)
+                            && matches!(agent_err, principal::ReceiptError::NotAgent)
+                        {
                             return Err(ToolError::EUnprocessable {
                                 reason: format!(
                                     "{}：审批 receipt 验签失败（NOT_AGENT_ACTOR——{}）。{}",
@@ -1286,7 +1307,23 @@ impl BidService {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
-        principal::issue_approval_receipt(&self.approval_key, actor_id, scope, now)
+        // #323：签发即绑内容——摘要取当前章节树（真人看到/批下的内容
+        // 状态锚点；签发后章节树被改 → 旧 receipt 过门时 ContentDrifted 拒）。
+        principal::issue_approval_receipt(
+            &self.approval_key,
+            actor_id,
+            scope,
+            now,
+            &self.store.sections_digest(),
+        )
+    }
+
+    /// #323：receipt 内容绑定的宿主侧只读面——当前章节树摘要（与 MCP
+    /// `get_bid_project_state` 的 `content_binding.sections_digest` 同源；
+    /// 进程内宿主直接读本方法，外部宿主经 MCP 只读面取值）。
+    #[must_use]
+    pub fn receipt_binding_digest(&self) -> String {
+        self.store.sections_digest()
     }
 
     /// 验签面（#182）：receipt → TrustedPrincipal（now 取系统时钟）。
@@ -1301,7 +1338,15 @@ impl BidService {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
-        principal::verify_approval_receipt(receipt, &self.approval_key, scope, now).map_err(
+        // #323：验签同绑内容——与签发面对称，当前摘要不匹配即拒。
+        principal::verify_approval_receipt(
+            receipt,
+            &self.approval_key,
+            scope,
+            now,
+            &self.store.sections_digest(),
+        )
+        .map_err(
             |e| ToolError::EUnprocessable {
                 reason: format!(
                     "审批 receipt 验签失败（{}——{}）。人工确认由宿主签发 receipt 提供，Agent 不得伪造",

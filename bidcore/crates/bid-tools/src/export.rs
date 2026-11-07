@@ -1579,14 +1579,6 @@ fn order_tree<'a>(
     Ok((ordered, children))
 }
 
-/// 章正文切段（\n 为界，剥 \r，跳过空段）——迭代器借用面，零复制。
-fn content_paragraphs(content: &str) -> impl Iterator<Item = &str> {
-    content
-        .split('\n')
-        .map(|l| l.trim_end_matches('\r'))
-        .filter(|l| !l.is_empty())
-}
-
 // ---------------------------------------------------------------- #68 阶段 3：md 块解析与嵌入
 
 /// 章正文的 md 块（issue §3.1/§3.2 的最小语法面）。

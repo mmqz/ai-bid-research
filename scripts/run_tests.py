@@ -740,13 +740,30 @@ def t_b5_gt_eval():
 def t_bidcore_cargo():
     """T19 · bidcore 产品仓 cargo 测试门禁（V3-1 新增——此前 run_tests 只覆盖 m1/
     研究线，产品 workspace 的 175 测试不在 Python 门禁里）。cargo 缺件 → SKIP
-    （issue #9 口径：环境缺失 ≠ 业务失败）；测试失败 → FAIL（产品面回归）。"""
+    （issue #9 口径：环境缺失 ≠ 业务失败）；测试失败 → FAIL（产品面回归）。
+    FG-15（#306）：磁盘预算前置检查（审计事故：沙箱磁盘满 → ironcalc_base
+    编译失败 → T19a 假红，掩盖真红信号）+ 失败原因分类标注（环境 vs 产品）。"""
     print("[T19] bidcore 产品仓 cargo test --workspace")
     import shutil as _sh
     import subprocess as _sp
     cargo = _sh.which("cargo")
     if cargo is None:
         skip("T19 bidcore cargo 测试", "ENV_MISSING: cargo（Rust 工具链不在场）")
+        return
+    # ---- FG-15①：磁盘预算前置检查（cargo test --workspace 的 target 增量
+    # 实测可达数 GB；预算不足时编译失败是环境红不是产品红——先检先 SKIP）
+    min_free_gb = 3.0
+    try:
+        free_gb = _sh.disk_usage(REPO / "bidcore").free / (1024 ** 3)
+    except OSError as e:
+        skip("T19 bidcore cargo 测试", f"ENV_MISSING: 磁盘状态不可读（{e}）")
+        return
+    if free_gb < min_free_gb:
+        skip(
+            "T19 bidcore cargo 测试",
+            f"ENV_MISSING: 磁盘余量不足（{free_gb:.1f}GB < {min_free_gb}GB 预算——"
+            f"清理 cargo target 或扩容后重跑；磁盘满时编译失败是假红，FG-15）",
+        )
         return
     _p = _sp.run([cargo, "test", "--workspace"], capture_output=True, text=True,
                  cwd=REPO / "bidcore", timeout=900)
@@ -755,9 +772,29 @@ def t_bidcore_cargo():
     import re as _re
     passed = sum(int(m) for m in _re.findall(r"test result: \w+\. (\d+) passed", out))
     failed = sum(int(m) for m in _re.findall(r"(\d+) failed", out))
+    # ---- FG-15②：失败原因分类（环境 vs 产品——环境红单独标注，不当产品回归计）
+    env_signatures = [
+        "No space left on device",
+        "Bus error",                       # 磁盘满时 ld 链接的实测形态（#306 复现）
+        "error: could not compile `ironcalc_base`",  # 审计登记的沙箱假红形态
+        "EMFILE", "Too many open files",
+    ]
+    env_hits = [s for s in env_signatures if s in out]
+    all_green = _p.returncode == 0 and failed == 0
+    if all_green:
+        check("T19a bidcore workspace 测试全绿（V3-1：175+ 测试——domain/parse/engine/mcp/tools）",
+              True, f"passed={passed}")
+        return
+    if env_hits and failed == 0 and "error: could not compile" in out:
+        # 编译面环境失败（磁盘/文件句柄耗尽）——假红分类：环境问题，非产品回归
+        check("T19a bidcore workspace 测试全绿（V3-1：175+ 测试——domain/parse/engine/mcp/tools）"
+              f" —— ENV_FAIL 环境红（{'；'.join(env_hits)}），非产品回归；"
+              f"处置：清 target / 扩容后重跑（FG-15 分类）",
+              False, "")
+        return
     check("T19a bidcore workspace 测试全绿（V3-1：175+ 测试——domain/parse/engine/mcp/tools）",
-          _p.returncode == 0 and failed == 0,
-          f"passed={passed} failed={failed} rc={_p.returncode} " + out[-300:] if _p.returncode != 0 else f"passed={passed}")
+          False,
+          f"passed={passed} failed={failed} rc={_p.returncode} " + out[-300:])
 
 
 def t_engine_diff():

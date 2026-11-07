@@ -336,8 +336,12 @@ impl Drop for TmpGuard {
 }
 
 // ---------------------------------------------------------------- 测试（负向为主——T-03/T-04 纪律）
+// FG-14（#306）：测试模块不再整体 #[cfg(unix)]——平台无关子集（输入门/
+// sha256/TmpGuard/Spawn 分类）在 Windows CI 同编译同执行（windows-check
+// 真跑 cargo test --workspace，#295 起 poppler 亦在位）；仅真正依赖 sh
+// 语义的子进程负向保留 #[cfg(unix)]（Linux 开发机/CI 面执行——测试依赖
+// sh 而非生产依赖，Windows cmd 等价翻译未经实测不盲写，防新造假绿）。
 #[cfg(test)]
-#[cfg(unix)]
 mod tests {
     use super::*;
 
@@ -396,6 +400,8 @@ mod tests {
     // （#200 R2 实锤：env_preflight/engines 的测试也起子进程，仅 guard
     // 内部互斥不够——锁提升到模块级 pub(crate) 共享）。
 
+    // sh 依赖面（unix-only 测试专用——见模块头 FG-14 注）
+    #[cfg(unix)]
     fn sh(script: &str) -> Command {
         let mut c = Command::new("sh");
         c.arg("-c").arg(script);
@@ -450,8 +456,9 @@ mod tests {
         }
     }
 
+    /// Spawn 失败分类（平台无关——路径不存在在任一平台都是 NotFound，
+    /// FG-14 拆分后 Windows 亦执行）。
     #[test]
-    #[cfg(unix)]
     fn subprocess_spawn_failure_classified() {
         let _g = SUBPROC_TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         let out = run_limited(Command::new("/nonexistent/binary/xyz"), Duration::from_secs(5), 4096);
@@ -515,7 +522,10 @@ mod tests {
         assert!(!p2.exists());
     }
 
+    /// T-04 核心纪律：超时/溢出/非零 → into_result 全部 Err（不误标成功）。
+    /// 依赖 sh（unix-only——见模块头 FG-14 注）。
     #[test]
+    #[cfg(unix)]
     fn timeout_never_lies_as_success() {
         let _g = SUBPROC_TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         // T-04 核心纪律：超时/溢出/非零 → into_result 全部 Err（不误标成功）

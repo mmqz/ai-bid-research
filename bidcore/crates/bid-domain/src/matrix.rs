@@ -388,7 +388,19 @@ impl DomainStore {
         // 占位绑定进 pending 面（待补可见），不计为响应材料。
         let (effective, pending) = self.split_live_bindings();
         let overrides = self.matrix_overrides.clone();
-        let rows = derive_matrix_rows(&self.requirements, &effective, &pending, &self.sections, &overrides);
+        // #316 按包收敛：矩阵行与大纲同口径（已选分包 → 该包 + 共用条款；
+        // 未选/无分包 → 全集——既有行为零位移）。范围内的空集是选包后的
+        // 异常态（build_outline 已保证非空，重抽后可能出现）——fail-loud。
+        let scoped = self.requirements_in_scope();
+        if scoped.is_empty() && !self.requirements.is_empty() {
+            return Err(ToolError::EUnprocessable {
+                reason: format!(
+                    "所选分包 {} 的条款范围为空（重抽后归属变化？——用 list_packages 复核后重建）",
+                    self.selected_package.as_deref().unwrap_or("?")
+                ),
+            });
+        }
+        let rows = derive_matrix_rows(&scoped, &effective, &pending, &self.sections, &overrides);
         let blocking = rows.iter().filter(|r| r.blocking).count();
         let changed = rows != self.matrix;
         self.matrix = rows;

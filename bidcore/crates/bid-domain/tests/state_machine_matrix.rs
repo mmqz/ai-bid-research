@@ -35,8 +35,11 @@ const ALL_STATES: [ProjectStatus; 10] = [
 ///（尾插——append/rewrite 与整稿同窗口，list 全矩阵窗口只读）= 29；
 /// #287 增 `recommend_length_profile`（尾插——篇幅档位推荐只读，
 /// REQUIREMENTS_EXTRACTED+ 含 Exported：信号来自 REQ 面，建纲前后均可查）= 30。
+/// #316 增 `list_packages`（尾插——分包清单只读，REQUIREMENTS_EXTRACTED+
+/// 含 Exported：识别面在抽取时落注册表，选包前后均可查）。
 
 const ALL_TOOLS: [&str; 37] = [
+
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -62,9 +65,6 @@ const ALL_TOOLS: [&str; 37] = [
     "submit_block_marks",
     "get_coverage_report",
     "get_star_coverage",
-    "get_requirement_provenance",
-    "get_block_requirements",
-    "get_annotation_overlay",
     "set_matrix_override",
     "recover_validating_state",
     "append_section_segment",
@@ -74,6 +74,7 @@ const ALL_TOOLS: [&str; 37] = [
     "rewrite_section_partial",
     "recommend_length_profile",
     "list_tools",
+    "list_packages",
 ];
 
 // ---------------------------------------------------------------- 1. 前向迁移表
@@ -238,7 +239,9 @@ fn terminal_state_blocks_write_tools() {
 #[test]
 fn full_matrix_snapshot() {
     let grid: Vec<(ProjectStatus, &str)> = vec![
-        // 32 工具位串（ALL_TOOLS 顺序）。合并说明（2026-11-05 三方并集）：
+        // 33 工具位串（ALL_TOOLS 顺序；#316 尾位 = list_packages——
+        // REQUIREMENTS_EXTRACTED+ 含 Exported：抽取时落注册表，选包前后均可查）。
+        // 合并说明（2026-11-05 三方并集）：
         //   #254 尾插三位 append/rewrite/list（与整稿同窗口）；
         //   #241 在 DRAFTING..READY_TO_EXPORT 翻 5/6 位（register/bind evidence——
         //        证据补件通道）。两个 PR 各自改位串矩阵，本表为两者并集。
@@ -264,6 +267,7 @@ fn full_matrix_snapshot() {
         // Exported（终态不变量：终态不改数据——#241 不被括进来；#254 仅只读
         //   list；#287 尾位 1——导出后仍可查推荐口径追溯）
         (ProjectStatus::Exported, "0001001001101000110110011000100011110"),
+
 
 
     ];

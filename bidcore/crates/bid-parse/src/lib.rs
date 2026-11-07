@@ -43,6 +43,7 @@ pub mod bidi;
 pub mod merge;
 pub mod nesting;
 pub mod numbering;
+pub mod packages;
 pub mod pdf_text;
 pub mod review_table;
 pub mod scoring_table;

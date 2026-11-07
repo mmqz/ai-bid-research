@@ -576,6 +576,8 @@ fn report_manifest_serde_roundtrip() {
         toc_field_present: true,
         // #117 表格/格式件对账面（旧清单无这些字段 → serde default 兼容读入）
         tables_written: 6,
+        // #317 暗标清理报告（明标导出不在场——serde default 兼容读入同款）
+        dark_bid: None,
         table_kinds: vec!["技术参数偏离表".into()],
         forms_written: 0,
         form_titles: vec![],

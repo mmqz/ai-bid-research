@@ -753,6 +753,11 @@ pub struct ExportReport {
     /// 写入 docx 的结构化表格数（注入章内 + 附表部分）。
     #[serde(default)]
     pub tables_written: usize,
+    /// #317 暗标清理报告（dark 导出在场；serde default——旧清单兼容读入）。
+    /// BLOCKER 归零才走到这里（复验不过则导出被拦）；manual_review 清单
+    /// 在响应面透出（人工确认项不静默跳过）。
+    #[serde(default)]
+    pub dark_bid: Option<crate::darkbid::DarkBidReport>,
     /// 逐表种类名（「技术参数偏离表」…——e2e 断言/人工对账面）。
     #[serde(default)]
     pub table_kinds: Vec<String>,
@@ -1294,6 +1299,46 @@ impl<'a> DocumentExporter<'a> {
         let file = std::fs::File::create(&tmp_path).map_err(ExportError::Io)?;
         docx.pack(file)
             .map_err(|e| ExportError::Pack(e.to_string()))?;
+
+        // ⑧b 暗标清理（#317）：dark = anonymize 在场。扫描 6 类泄露 → 自动
+        // 清理（docProps 清零/修订批注作者匿名化/页眉页脚名字替换）→ 复验
+        // **BLOCKER 归零才放行**（issue 验收 4）；残余 WARNING 进报告人工
+        // 确认清单（验收 3——不静默跳过）。过渡实现：zip 部件级手术
+        // （docx-rs 无 creator 设置器；引擎 G3 产品化后迁移，见 darkbid.rs）。
+        let mut dark_bid_report: Option<crate::darkbid::DarkBidReport> = None;
+        if opts.anonymize.is_some() {
+            use std::io::Write as _;
+            let raw = std::fs::read(&tmp_path).map_err(ExportError::Io)?;
+            match crate::darkbid::process(&raw, opts.anonymize, out_path) {
+                Ok((cleaned, report)) => {
+                    let mut cleaned_file = std::fs::File::create(&tmp_path).map_err(ExportError::Io)?;
+                    cleaned_file
+                        .write_all(&cleaned)
+                        .and_then(|_| cleaned_file.sync_all())
+                        .map_err(ExportError::Io)?;
+                    dark_bid_report = Some(report);
+                }
+                Err(residual) => {
+                    // 复验不通过：tmp 清理 + fail-loud（BLOCKER 清单逃逸面）
+                    let _ = std::fs::remove_file(&tmp_path);
+                    let detail = residual
+                        .iter()
+                        .map(|h| format!(
+                            "{} {}: {}（{}）",
+                            h.location.as_str(),
+                            h.part,
+                            h.content,
+                            h.suggested_action
+                        ))
+                        .collect::<Vec<_>>()
+                        .join("；");
+                    return Err(ExportError::Io(std::io::Error::other(format!(
+                        "暗标复验不通过（残余 BLOCKER {} 条）：{detail}——处置后重导",
+                        residual.len()
+                    ))));
+                }
+            }
+        }
         std::fs::rename(&tmp_path, out_path).map_err(ExportError::Io)?;
 
         // ⑨ 产物指纹 + 幂等清单落盘（导出后产物不可变——sha 是纯读）。
@@ -1305,6 +1350,7 @@ impl<'a> DocumentExporter<'a> {
             output_sha256: output_sha256.clone(),
             toc_field_present: true, // 构造面：toc_field() 恒插（见字段注释）
             tables_written,
+            dark_bid: dark_bid_report, // #317：dark 导出的清理/复验报告
             table_kinds,
             forms_written,
             form_titles,

@@ -340,7 +340,10 @@ in : { project_id, format:"docx"|"pdf", output_path(必填——产物路径，�
 out: { artifact:{url, sha256, size}, content_version_snapshot, precheck:{blockers:0, waived:[VF-*]},
        tables_written, table_kinds:[...], forms_written, form_titles:[...],
        agent_waivers:[{ gate, actor, actor_type, method, human_confirmed, at, reason }](#277),
-       human_review_complete(bool)(#277), warnings[] }
+       human_review_complete(bool)(#277), warnings[],
+       dark_bid?(#317——profile.dark_bid=true 时在场): { blockers(恒 0——复验不过则导出被拒),
+       cleaned:[动作清单], manual_review:[{location, part, content, action}](人工确认面——
+       联系方式/EXIF/路径等 WARNING，不静默跳过), pre_scan_count } }
      ← #117/#122 导出面对账：六表/七件全部进 docx，逐张点名（tables_written
        == 6 且 table_kinds 逐类在座；forms_written == 7）。e2e 不信任工具
        返回值——解包 docx 数节验：`<w:tbl>`==6、七件关键词、表行数下限、
@@ -351,6 +354,13 @@ out: { artifact:{url, sha256, size}, content_version_snapshot, precheck:{blocker
        携带同一事实 + 响应面 machine-readable 清单。真人补 human receipt
        重过对应门后（追认，导出**前**——EXPORTED 是审核门终态）最新一条翻
        human → 横幅消失、human_review_complete=true，审计账两条并存可追溯。
+暗标: （#317 端到端清理）profile.dark_bid=true 且 bidder_name 在场 → 导出产物
+     落盘前过暗标清理链：扫描 6 类泄露（正文/页眉页脚公司名、docProps 作者、
+     修订/批注作者、联系方式/EXIF/路径）→ 自动清理（docProps 清零+修订批注
+     作者匿名化+页眉页脚名字替换——zip 部件级过渡实现，引擎 G3 产品化后
+     迁移）→ 复验 **BLOCKER 归零才落盘**（残余 → E_UNPROCESSABLE 附清单——
+     如正文公司名跨 run 切分等人工处置面）；WARNING 进 manual_review 清单。
+     docx-rs 默认 core.xml 作者 `unknown` 由本链清零（修前即泄漏面）。
 六表: （#117 三真源 + #122 接线）①项目概况表（恒生成——REQ 参数+项目面，
       缺栏落【待填】）；②技术参数偏离表（有「技术参数」类 REQ 才生成——
       参数响应账 set_param_responses；负偏离★整行标红 5 格；无技术参数

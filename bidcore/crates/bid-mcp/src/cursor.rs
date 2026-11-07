@@ -17,9 +17,17 @@
 //!   E_UNPROCESSABLE 拒绝——静默给错页数据比报错危险得多（borrow：mdcore
 //!   corrupt-sidecar 哲学——损坏/错配输入响亮拒绝，不猜测加载）。工具名也入
 //!   fp：不同工具的 offset 索引的是不同列表，跨工具复用同样拒；
-//! - **版本字节**：v=1。不认识的版本（含未来版本）→ E_UNPROCESSABLE——
-//!   跨版本游标语义不可知，fail-closed 不猜测（线格式演进时 bump 版本 + 老
-//!   游标显式失效，与 StoreSnapshot 的 schema_version 同一口径）；
+//! - **游标与数据版本绑定（#406/C-14）**：载荷携 cv = 签发时 store 的
+//!   content_version；解码时与当前值不等 → E_UNPROCESSABLE「请从首页重取」。
+//!   旧只防缩水（offset > total）不防增长——两页之间列表增长且插在本页
+//!   之前，同一 offset 指向不同的行（静默重复/跳行），翻页链照常走完、
+//!   对账面无法发现。cv 绑定后增长/缩水/任何变更一网打尽（缩水方向的
+//!   越界检查保留为冗余兑底）。代价是「无关变更也拒」（过严方向：
+//!   多取一次首页 vs 静默错页——fail-closed 教义下取前者）；
+//! - **版本字节**：v=2（#406/C-14：线格式增 cv 字段——bump 版本，v1 老游标
+//!   显式失效，与 StoreSnapshot 的 schema_version 同一口径）。不认识的
+//!   版本（含未来版本）→ E_UNPROCESSABLE——跨版本游标语义不可知，
+//!   fail-closed 不猜测；
 //! - **limit 显式拒**：1..=1000，缺省 100。越界/非整数 → E_UNPROCESSABLE
 //!   而非 clamp——静默 clamp 会让调用方以为拿到了请求的页宽（对账面出错），
 //!   这是 B5 期 get_compliance_matrix `.max(1)` clamp 习惯的显式修正；
@@ -39,7 +47,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// 游标线格式版本。bump = 线格式不兼容变更（老游标显式失效，fail-closed）。
-pub const CURSOR_VERSION: u8 = 1;
+/// v2（#406/C-14）：载荷增 cv（content_version）字段；v1 老游标被版本门拒。
+pub const CURSOR_VERSION: u8 = 2;
 
 /// limit 下界（0 页宽无意义——显式拒）。
 pub const LIMIT_MIN: u64 = 1;
@@ -106,23 +115,31 @@ struct CursorPayload {
     offset: u64,
     /// 过滤器指纹（与本次调用的过滤参数绑定——错配即拒）。
     fp: String,
+    /// #406/C-14：签发时 store 的 content_version（数据版本绑定——
+    /// 翻页中途任何 store 变更（增长/缩水/换序）都使旧游标失效）。
+    /// `Option` 仅为 **v1→v2 解析过渡**：v1 载钩无此字段（解析为 None，
+    /// 由版本门先行拒绝——报因明确指向版本而非笼统「损坏」）；v2 载钩
+    /// 缺此字段 = 损坏（显式拒，不走 cv=0 默认值伪装）。
+    cv: Option<u64>,
 }
 
-/// 编码游标（内部值：offset 由 slice 保证 ≤ total，fp 为内部计算值——
-/// 纯标量 struct 的 serde_json 序列化不可失败）。
-pub fn encode(offset: u64, fp: &str) -> String {
+/// 编码游标（内部值：offset 由 slice 保证 ≤ total，fp 为内部计算值，
+/// cv 为调用方传入的当前版本——纯标量 struct 的 serde_json 序列化不可失败）。
+pub fn encode(offset: u64, fp: &str, cv: u64) -> String {
     use base64::Engine as _;
-    let payload = CursorPayload { v: CURSOR_VERSION, offset, fp: fp.to_string() };
+    let payload = CursorPayload { v: CURSOR_VERSION, offset, fp: fp.to_string(), cv: Some(cv) };
     let json = serde_json::to_string(&payload)
-        .expect("游标 payload 序列化不可失败（u8/u64/String 三标量字段）");
+        .expect("游标 payload 序列化不可失败（u8/u64/String 标量字段）");
     base64::engine::general_purpose::STANDARD.encode(json.as_bytes())
 }
 
 /// 解码游标（**不可信输入面**——任何一步坏 → E_UNPROCESSABLE，绝不 panic）。
 ///
-/// 检查序：base64 → JSON → 版本字节 → 指纹匹配。任一失败即 fail-closed；
-/// 通过则返回 offset（是否越界由 [`slice`] 结合当前总数裁决）。
-pub fn decode(cursor: &str, expected_fp: &str) -> Result<u64, ToolError> {
+/// 检查序：base64 → JSON → 版本字节 → 指纹匹配 → **数据版本匹配**（#406/C-14：
+/// cv ≠ 当前 content_version → 拒——两页之间 store 变更使 offset 语义漂移，
+/// 静默给错页比要求重取危险得多）。任一失败即 fail-closed；通过则返回
+/// offset（是否越界由 [`slice`] 结合当前总数裁决）。
+pub fn decode(cursor: &str, expected_fp: &str, expected_cv: u64) -> Result<u64, ToolError> {
     use base64::Engine as _;
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(cursor.as_bytes())
@@ -136,7 +153,7 @@ pub fn decode(cursor: &str, expected_fp: &str) -> Result<u64, ToolError> {
     if payload.v != CURSOR_VERSION {
         return Err(ToolError::EUnprocessable {
             what: format!(
-                "cursor 版本 v{} 不认识（当前支持 v{CURSOR_VERSION}——跨版本游标语义不可知，fail-closed 拒）",
+                "cursor 版本 v{} 不认识（当前支持 v{CURSOR_VERSION}——跨版本游标语义不可知，fail-closed 拒；线格式升级后请从首页重取）",
                 payload.v
             ),
         });
@@ -144,6 +161,17 @@ pub fn decode(cursor: &str, expected_fp: &str) -> Result<u64, ToolError> {
     if payload.fp != expected_fp {
         return Err(ToolError::EUnprocessable {
             what: "cursor 与当前过滤器指纹不匹配（跨过滤器/跨工具复用游标——拒绝静默给错页数据；请用相同过滤参数从头取）".into(),
+        });
+    }
+    // v2 载钩 cv 必备（v1 无 cv 已被上方版本门拦下——此处 None 即损坏）
+    let payload_cv = payload.cv.ok_or_else(|| ToolError::EUnprocessable {
+        what: "cursor 载钩缺 cv 字段（v2 线格式必备——损坏拒，fail-closed）".into(),
+    })?;
+    if payload_cv != expected_cv {
+        return Err(ToolError::EUnprocessable {
+            what: format!(
+                "cursor 已过期：签发时数据版本 cv={payload_cv}，当前 cv={expected_cv}（翻页期间数据已变更——增长/缩水/换序都会使偏移漂移；请从首页重取，fail-closed 不静默跳行/重复）"
+            ),
         });
     }
     Ok(payload.offset)
@@ -165,9 +193,11 @@ pub struct Window {
 /// - `limit`：1..=1000，缺省 100，越界/非整数显式拒（不 clamp）；
 /// - `cursor`：opaque 字符串，优先级最高（与 `page` 并存时 page 被忽略——
 ///   page 仅为旧调用兼容保留，映射 offset=(page-1)*limit 后走同一游标路径）；
+/// - `cv`：当前 store 的 content_version（#406/C-14——与游标载荷比对，
+///   翻页期间数据变更即拒）；
 /// - `page`：正整数（1 起；0 → 拒——B5 期 `.max(1)` clamp 习惯的显式修正），
 ///   乘法溢出 → 拒（fail-closed）。
-pub fn resolve(args: &Value, tool: &str, fp: &str) -> Result<Window, ToolError> {
+pub fn resolve(args: &Value, tool: &str, fp: &str, cv: u64) -> Result<Window, ToolError> {
     // ---- limit（显式边界，不静默 clamp）
     let limit = match args.get("limit") {
         None | Some(Value::Null) => LIMIT_DEFAULT,
@@ -192,7 +222,7 @@ pub fn resolve(args: &Value, tool: &str, fp: &str) -> Result<Window, ToolError> 
     };
     // ---- offset（cursor 优先；page 兼容映射；缺省首页 0）
     let offset = match args.get("cursor") {
-        Some(Value::String(c)) => decode(c, fp)?,
+        Some(Value::String(c)) => decode(c, fp, cv)?,
         None | Some(Value::Null) => match args.get("page") {
             None | Some(Value::Null) => 0,
             Some(Value::Number(n)) => {
@@ -245,8 +275,9 @@ pub struct PageSlice {
 /// 按窗口切过滤后列表（`total` = 过滤后总数——调用方先过滤后分页）。
 ///
 /// offset > total → E_UNPROCESSABLE（底层列表在两页之间缩水——fail-closed
-/// 不静默给空页）；offset == total 合法（恰取到尾的空页）。
-pub fn slice(window: &Window, fp: &str, total: usize) -> Result<PageSlice, ToolError> {
+/// 不静默给空页；#406/C-14 cv 绑定后此检查为冗余兑底，保留无成本）；
+/// offset == total 合法（恰取到尾的空页）。
+pub fn slice(window: &Window, fp: &str, cv: u64, total: usize) -> Result<PageSlice, ToolError> {
     if window.offset > total as u64 {
         return Err(ToolError::EUnprocessable {
             what: format!(
@@ -259,11 +290,11 @@ pub fn slice(window: &Window, fp: &str, total: usize) -> Result<PageSlice, ToolE
     // limit ≤ 1000 已在 resolve 收口，saturating_add 仅作 32 位平台兜底
     let end = start.saturating_add(window.limit as usize).min(total);
     let next_cursor = if end < total {
-        Some(encode(end as u64, fp))
+        Some(encode(end as u64, fp, cv))
     } else {
         None
     };
-    Ok(PageSlice { start, end, cursor: encode(window.offset, fp), next_cursor })
+    Ok(PageSlice { start, end, cursor: encode(window.offset, fp, cv), next_cursor })
 }
 
 // ---------------------------------------------------------------- 测试
@@ -305,37 +336,67 @@ mod tests {
     #[test]
     fn encode_decode_roundtrip_and_fail_closed() {
         let fp = fingerprint(&[Some("t"), Some("PRJ-0001"), None]);
-        let c = encode(120, &fp);
-        assert_eq!(decode(&c, &fp).unwrap(), 120);
+        let c = encode(120, &fp, 7);
+        assert_eq!(decode(&c, &fp, 7).unwrap(), 120);
         // 坏 base64 / 坏 JSON / 坏版本 / 错指纹 / 负 offset / 缺字段 → 全拒
-        assert!(decode("!!!", &fp).is_err());
+        assert!(decode("!!!", &fp, 7).is_err());
         assert!(decode(
             &base64::engine::general_purpose::STANDARD.encode(b"\x00\xff garbage"),
-            &fp
+            &fp,
+            7
         ).is_err());
-        assert!(decode(&encode_for_test(9, 5, &fp), &fp).is_err(), "版本 9 拒");
-        assert!(decode(&c, "0000000000000000").is_err(), "指纹错配拒");
-        assert!(decode(&encode_for_test(1, 5, &fp), "wrong").is_err(), "指纹错配拒");
+        assert!(decode(&encode_for_test(9, 5, &fp, 7), &fp, 7).is_err(), "版本 9 拒");
+        assert!(decode(&c, "0000000000000000", 7).is_err(), "指纹错配拒");
+        assert!(decode(&encode_for_test(1, 5, &fp, 7), "wrong", 7).is_err(), "指纹错配拒");
         assert!(decode(
             &base64::engine::general_purpose::STANDARD
-                .encode(br#"{"v":1,"offset":-5,"fp":"x"}"#),
-            &fp
+                .encode(br#"{"v":2,"offset":-5,"fp":"x","cv":7}"#),
+            &fp,
+            7
         ).is_err(), "负 offset（u64 反序列化拒）");
         assert!(decode(
             &base64::engine::general_purpose::STANDARD
-                .encode(br#"{"v":1,"offset":5}"#),
-            &fp
+                .encode(br#"{"v":2,"offset":5,"cv":7}"#),
+            &fp,
+            7
         ).is_err(), "缺 fp 字段拒");
-        assert!(decode("", &fp).is_err(), "空串拒");
+        assert!(decode("", &fp, 7).is_err(), "空串拒");
         // 截断（丢 padding）拒
-        assert!(decode(&c[..c.len() - 4], &fp).is_err());
+        assert!(decode(&c[..c.len() - 4], &fp, 7).is_err());
+    }
+
+    /// #406/C-14：数据版本绑定——cv 变化拒（增长位移防护的核心面）。
+    #[test]
+    fn cv_binding_rejects_on_any_data_change() {
+        let fp = fingerprint(&[Some("get_compliance_matrix"), Some("PRJ-0001"), None, None]);
+        // 页 1 在 cv=7 时签发
+        let page1 = encode(0, &fp, 7);
+        assert_eq!(decode(&page1, &fp, 7).unwrap(), 0, "同 cv 正常翻页");
+        // 翻页中途 store 任何变更（content_version bump）→ 旧游标拒
+        let err = decode(&page1, &fp, 8).unwrap_err();
+        let msg = un(err);
+        assert!(msg.contains("已过期"), "报因是数据漂移（非过滤器错配）：{msg}");
+        assert!(msg.contains("cv=7") && msg.contains("cv=8"), "报因带版本号对比");
+        assert!(msg.contains("首页"), "指引从首页重取");
+        // 与过滤器错配报因可区分（调用方排障面）
+        let fp_err = un(decode(&page1, "0000000000000000", 7).unwrap_err());
+        assert!(fp_err.contains("过滤器"), "过滤器错配报因不同：{fp_err}");
+        // v1 旧游标（无 cv 字段）→ 版本门拒（线格式升级显式失效）
+        let v1 = base64::engine::general_purpose::STANDARD
+            .encode(br#"{"v":1,"offset":100,"fp":"x"}"#);
+        let v1_err = un(decode(&v1, "x", 7).unwrap_err());
+        assert!(v1_err.contains("v1") || v1_err.contains("版本"), "v1 游标被版本门拒：{v1_err}");
+        // v2 形状但缺 cv 字段 → JSON 解析拒（fail-closed）
+        let no_cv = base64::engine::general_purpose::STANDARD
+            .encode(br#"{"v":2,"offset":5,"fp":"x"}"#);
+        assert!(decode(&no_cv, "x", 7).is_err(), "缺 cv 字段拒");
     }
 
     /// 测试专用锻造（绕过 encode 的版本常量——坏版本注入面）。
-    fn encode_for_test(v: u8, offset: u64, fp: &str) -> String {
+    fn encode_for_test(v: u8, offset: u64, fp: &str, cv: u64) -> String {
         use base64::Engine as _;
         base64::engine::general_purpose::STANDARD
-            .encode(serde_json::to_string(&CursorPayload { v, offset, fp: fp.to_string() }).unwrap())
+            .encode(serde_json::to_string(&CursorPayload { v, offset, fp: fp.to_string(), cv: Some(cv) }).unwrap())
     }
 
     /// resolve：limit 边界 / cursor 优先 / page 映射与显式拒。
@@ -343,37 +404,42 @@ mod tests {
     fn resolve_limit_cursor_page_semantics() {
         let fp = "fp";
         // 缺省 limit=100
-        let w = resolve(&serde_json::json!({}), "t", fp).unwrap();
+        let w = resolve(&serde_json::json!({}), "t", fp, 7).unwrap();
         assert_eq!((w.offset, w.limit), (0, 100));
         // 边界值合法
         for ok in [1u64, 1000] {
-            assert_eq!(resolve(&serde_json::json!({ "limit": ok }), "t", fp).unwrap().limit, ok);
+            assert_eq!(resolve(&serde_json::json!({ "limit": ok }), "t", fp, 7).unwrap().limit, ok);
         }
         // 越界 / 非整数显式拒（不 clamp）
         for bad in [0u64, 1001, u64::MAX] {
-            assert!(resolve(&serde_json::json!({ "limit": bad }), "t", fp).is_err(), "limit={bad} 拒");
+            assert!(resolve(&serde_json::json!({ "limit": bad }), "t", fp, 7).is_err(), "limit={bad} 拒");
         }
         for bad in [serde_json::json!("50"), serde_json::json!(1.5), serde_json::json!(-3)] {
-            assert!(resolve(&serde_json::json!({ "limit": bad }), "t", fp).is_err(), "limit 非整数拒");
+            assert!(resolve(&serde_json::json!({ "limit": bad }), "t", fp, 7).is_err(), "limit 非整数拒");
         }
         // null = 缺省（与 opt_u64 缺席口径一致）
-        assert_eq!(resolve(&serde_json::json!({ "limit": null }), "t", fp).unwrap().limit, 100);
+        assert_eq!(resolve(&serde_json::json!({ "limit": null }), "t", fp, 7).unwrap().limit, 100);
         // page 映射：offset=(page-1)*limit；page=1 首页
-        let w = resolve(&serde_json::json!({ "page": 3, "limit": 50 }), "t", fp).unwrap();
+        let w = resolve(&serde_json::json!({ "page": 3, "limit": 50 }), "t", fp, 7).unwrap();
         assert_eq!((w.offset, w.limit), (100, 50));
         // page=0 拒（显式，不 clamp）；page 非整数拒
-        assert!(resolve(&serde_json::json!({ "page": 0 }), "t", fp).is_err());
-        assert!(resolve(&serde_json::json!({ "page": "2" }), "t", fp).is_err());
+        assert!(resolve(&serde_json::json!({ "page": 0 }), "t", fp, 7).is_err());
+        assert!(resolve(&serde_json::json!({ "page": "2" }), "t", fp, 7).is_err());
         // page 溢出拒
-        assert!(resolve(&serde_json::json!({ "page": u64::MAX, "limit": 1000 }), "t", fp).is_err());
-        // cursor 优先于 page
-        let c = encode(77, fp);
-        let w = resolve(&serde_json::json!({ "cursor": c, "page": 9, "limit": 10 }), "t", fp).unwrap();
+        assert!(resolve(&serde_json::json!({ "page": u64::MAX, "limit": 1000 }), "t", fp, 7).is_err());
+        // cursor 优先于 page（cv 匹配时）
+        let c = encode(77, fp, 7);
+        let w = resolve(&serde_json::json!({ "cursor": c, "page": 9, "limit": 10 }), "t", fp, 7).unwrap();
         assert_eq!(w.offset, 77, "cursor 与 page 并存 → cursor 优先");
         // cursor 非字符串拒
-        assert!(resolve(&serde_json::json!({ "cursor": 42 }), "t", fp).is_err());
+        assert!(resolve(&serde_json::json!({ "cursor": 42 }), "t", fp, 7).is_err());
         // cursor 指纹错配拒
-        assert!(resolve(&serde_json::json!({ "cursor": c }), "t", "other-fp").is_err());
+        assert!(resolve(&serde_json::json!({ "cursor": c }), "t", "other-fp", 7).is_err());
+        // #406/C-14：cv 变化 → resolve 里的 decode 同样拒
+        assert!(
+            resolve(&serde_json::json!({ "cursor": c }), "t", fp, 8).is_err(),
+            "翻页期间数据变更（cv 7→8）→ 拒"
+        );
     }
 
     /// slice：区间 / 尾页 / 恰尽 / 越界拒 / 空集。
@@ -381,28 +447,46 @@ mod tests {
     fn slice_windows_and_bounds() {
         let fp = "fp";
         // 中页
-        let s = slice(&Window { offset: 100, limit: 100 }, fp, 12_000).unwrap();
+        let s = slice(&Window { offset: 100, limit: 100 }, fp, 7, 12_000).unwrap();
         assert_eq!((s.start, s.end), (100, 200));
-        assert_eq!(s.next_cursor.as_deref(), Some(encode(200, fp).as_str()));
-        assert_eq!(s.cursor, encode(100, fp));
+        assert_eq!(s.next_cursor.as_deref(), Some(encode(200, fp, 7).as_str()));
+        assert_eq!(s.cursor, encode(100, fp, 7));
         // 尾页不整除
-        let s = slice(&Window { offset: 11_950, limit: 100 }, fp, 12_000).unwrap();
+        let s = slice(&Window { offset: 11_950, limit: 100 }, fp, 7, 12_000).unwrap();
         assert_eq!((s.start, s.end), (11_950, 12_000));
         assert!(s.next_cursor.is_none(), "尾页取完 next_cursor=null");
         // 恰尽（limit == 剩余）
-        let s = slice(&Window { offset: 11_900, limit: 100 }, fp, 12_000).unwrap();
+        let s = slice(&Window { offset: 11_900, limit: 100 }, fp, 7, 12_000).unwrap();
         assert_eq!(s.end, 12_000);
         assert!(s.next_cursor.is_none(), "limit>剩余 单页取完 next_cursor=null");
         // offset == total 合法（空尾页）
-        let s = slice(&Window { offset: 12_000, limit: 100 }, fp, 12_000).unwrap();
+        let s = slice(&Window { offset: 12_000, limit: 100 }, fp, 7, 12_000).unwrap();
         assert_eq!((s.start, s.end), (12_000, 12_000));
         assert!(s.next_cursor.is_none());
-        // offset > total 拒（数据缩水 fail-closed）
-        let err = slice(&Window { offset: 12_001, limit: 100 }, fp, 12_000).unwrap_err();
+        // offset > total 拒（数据缩水 fail-closed——cv 绑定后的冗余兑底）
+        let err = slice(&Window { offset: 12_001, limit: 100 }, fp, 7, 12_000).unwrap_err();
         assert!(un(err).contains("越界"), "越界错误须指明语义");
         // 空集：offset 0 合法
-        let s = slice(&Window { offset: 0, limit: 100 }, fp, 0).unwrap();
+        let s = slice(&Window { offset: 0, limit: 100 }, fp, 7, 0).unwrap();
         assert_eq!((s.start, s.end), (0, 0));
         assert!(s.next_cursor.is_none());
+        // 翻页全链模拟（同 cv 三页连翻 + 中途变更拒）——#406/C-14 端到端口径
+        let mut offset = 0u64;
+        let mut pages = 0;
+        loop {
+            let w = Window { offset, limit: 500 };
+            let s = slice(&w, fp, 7, 12_000).unwrap();
+            pages += 1;
+            match s.next_cursor {
+                Some(nc) => offset = decode(&nc, fp, 7).unwrap(),
+                None => break,
+            }
+        }
+        assert_eq!(pages, 24, "12k 行 ÷ 500 页宽 = 24 页全链同 cv 翻完");
+        // 中途数据变更（cv 7→8）→ 下一页游标拒
+        let s1 = slice(&Window { offset: 0, limit: 500 }, fp, 7, 12_000).unwrap();
+        let next = s1.next_cursor.unwrap();
+        let err = decode(&next, fp, 8).unwrap_err();
+        assert!(un(err).contains("已过期"), "增长位移防护：翻页中途变更 → 拒");
     }
 }

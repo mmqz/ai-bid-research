@@ -1124,14 +1124,16 @@ fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
     let filters = filters_of(&args, "get_compliance_matrix")?;
     let filter_category = filter_str(filters, "category", "get_compliance_matrix")?;
     let filter_status = filter_str(filters, "status", "get_compliance_matrix")?;
-    // 游标窗口（S-4）：fp 绑定 工具名+project_id+过滤参数——跨过滤器游标 fail-closed 拒
+    // 游标窗口（S-4）：fp 绑定 工具名+project_id+过滤参数——跨过滤器游标 fail-closed 拒；
+    // cv 绑定当前数据版本（#406/C-14）——翻页期间 store 变更（增长位移）即拒
     let fp = cursor::fingerprint(&[
         Some("get_compliance_matrix"),
         Some(project_id.as_str()),
         filter_category.as_deref(),
         filter_status.as_deref(),
     ]);
-    let window = cursor::resolve(&args, "get_compliance_matrix", &fp)?;
+    let cv = svc.store().content_version();
+    let window = cursor::resolve(&args, "get_compliance_matrix", &fp, cv)?;
 
     // ---- 项目路由（只读工具：无状态机裁决——契约 §4 任何阶段可调）
     route_project(svc, &project_id, "get_compliance_matrix")?;
@@ -1168,7 +1170,7 @@ fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
     let total_rows = matched.len();
 
     // ---- 切片（S-4 游标窗口；offset 越界 → E_UNPROCESSABLE fail-closed）
-    let page = cursor::slice(&window, &fp, total_rows)?;
+    let page = cursor::slice(&window, &fp, cv, total_rows)?;
 
     // ---- 本页行组装（仅窗口内的行构建 JSON——大结果不付全量序列化成本）
     let rows: Vec<Value> = matched[page.start..page.end]
@@ -1365,7 +1367,8 @@ fn list_evidence(svc: &mut BidService, args: Value) -> ToolResult {
         f_kind.as_deref(),
         f_status.as_deref(),
     ]);
-    let window = cursor::resolve(&args, "list_evidence", &fp)?;
+    let cv = svc.store().content_version();
+    let window = cursor::resolve(&args, "list_evidence", &fp, cv)?;
 
     // ---- 项目路由（只读：任何阶段可调）
     route_project(svc, &project_id, "list_evidence")?;
@@ -1382,7 +1385,7 @@ fn list_evidence(svc: &mut BidService, args: Value) -> ToolResult {
     let total = matched.len();
 
     // ---- 切片 + 行组装（仅窗口内构建）
-    let page = cursor::slice(&window, &fp, total)?;
+    let page = cursor::slice(&window, &fp, cv, total)?;
     let items: Vec<Value> = matched[page.start..page.end]
         .iter()
         .map(|e| {
@@ -1442,7 +1445,8 @@ fn list_tasks(svc: &mut BidService, args: Value) -> ToolResult {
         f_owner.as_deref(),
         f_status.as_deref(),
     ]);
-    let window = cursor::resolve(&args, "list_tasks", &fp)?;
+    let cv = svc.store().content_version();
+    let window = cursor::resolve(&args, "list_tasks", &fp, cv)?;
 
     // ---- 项目路由（只读：任何阶段可调）
     route_project(svc, &project_id, "list_tasks")?;
@@ -1450,7 +1454,7 @@ fn list_tasks(svc: &mut BidService, args: Value) -> ToolResult {
     // ---- 过滤（domain 双过滤 + target_id 字典序）+ 切片 + 行组装
     let matched = svc.store().list_tasks(f_owner.as_deref(), status);
     let total = matched.len();
-    let page = cursor::slice(&window, &fp, total)?;
+    let page = cursor::slice(&window, &fp, cv, total)?;
     let items: Vec<Value> = matched[page.start..page.end]
         .iter()
         .map(|a| {

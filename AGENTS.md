@@ -152,6 +152,167 @@ Struct                         新增字段       字面量点         定义文
 ```
 
 ---
+## 0.0.11 项目状态用 GitHub 原生机制查，建 issue 必须打标签
+
+**文档会落后。label / milestone / issue 搜索是活数据，永远准。**
+
+## 为什么废弃「任务池 / 排期总纲 / 工作地图」
+
+```
+旧做法的问题：
+  · 任务池、排期总纲、代理任务单 说的是同一件事
+  · 每个都要手工维护，永远落后于真实状态
+  · 代理要先读三个文档才知道该做什么
+
+新做法：
+  · 优先级用 label（P0/P1/P2/P3）
+  · 排期用 milestone（1.0-必须 / 1.0-应该 / 1.1 / 2.0）
+  · 领域用 label（area/pdf、area/office、area/gpui...）
+  · 状态用 label（status/ready、status/blocked、status/stale）
+  · 「谁在做」看 issue 认领评论 + 关联 PR
+```
+
+## 标签体系（两仓已建好，22 个）
+
+### 优先级
+
+```
+P0   最高优先——阻塞或用户直接受损
+P1   重要——1.0 必须有
+P2   一般——有空再做
+P3   后置——仅登记
+```
+
+### 领域
+
+```
+area/pdf       PDF 读写/渲染/批注/表单/签名
+area/office    DOCX/XLSX/PPTX 读写
+area/gpui      mang-shell UI 与交互
+area/canvas    画布/笔迹/绘图
+area/bid       标书业务逻辑
+area/mcp       MCP 工具面
+area/build     打包/发行/CI
+area/overlay   统一标注/双向索引层
+```
+
+### 类型
+
+```
+type/wiring      ★接线缺口——引擎有但产品没接
+type/fake-green  ★假绿——测试绿但产品不work
+type/debt        技术债
+type/perf        性能
+type/security    安全
+type/docs        文档
+```
+
+### 状态
+
+```
+status/ready         可接取
+status/blocked       被阻塞
+status/needs-review  待 Lead 审核
+status/stale         僵尸认领/长期无动静
+```
+
+## milestone（两仓一致）
+
+```
+1.0-必须   1.0 发布前必须有——不做就不能说「能办公」
+1.0-应该   1.0 应该有——影响体验但不阻塞
+1.1        1.0 之后第一个迭代
+2.0        长期——自研排版层等大工程
+```
+
+## ★ 找活干（不要读任务池）
+
+```bash
+# P0 且是我熟的领域
+gh issue list --label "P0,area/pdf" --state open
+
+# 接线缺口（最高价值）
+gh issue list --label type/wiring --state open
+
+# 假绿要清
+gh issue list --label type/fake-green --state open
+
+# 1.0 必须做的
+gh issue list --milestone "1.0-必须" --state open
+
+# 可接取的
+gh issue list --label status/ready --state open
+```
+
+## ★★ 建 issue 的硬要求（你在任何时候发现缺口都要遵守）
+
+**三条缺一不可：**
+
+```
+① 标题以优先级开头（P0: / P1: / P2: / P3:）
+② 打标签：优先级 + 领域 + 类型（至少三个）
+③ 挂 milestone
+```
+
+**命令模板：**
+
+```bash
+gh issue create --repo mmqz/mdcore \
+  --title "P1: <一句话说清做什么>" \
+  --body-file /tmp/body.md \
+  --label "P1,area/pdf,type/wiring" \
+  --milestone "1.0-必须"
+```
+
+**issue 正文必须四段：**
+
+```markdown
+## 现象
+用户看到什么 / 哪一步断了
+
+## 证据
+文件:行 / 命令输出 / 测试名——不要泛泛而谈
+
+## 任务
+改什么、不改什么
+
+## 验收
+可测的判据（能写 assert 的那种）
+```
+
+## 建完自检
+
+```bash
+# ① 能搜到吗
+gh issue list --label "P1,area/pdf" --state open
+
+# ② milestone 挂上了吗
+gh issue view <N> --json labels,milestone
+```
+
+**不打标签的 issue = 搜不到 = 等于不存在 = 白建。**
+
+## 还保留的固定 issue（只有 3 个，都不列任务）
+
+```
+#68   主线——mang-shell 为什么这么重建（设计决策，不列任务）
+#161  工作地图——能力矩阵 + 常见坑（现状快照）
+#392  常驻审计——审计流程 + commit 基线（流程，不是数据）
+```
+
+**任务列表、排期表、优先级表全部废弃，改用 label + milestone + 搜索。**
+
+## 反面教材
+
+```
+❌ 「我去看任务池 issue 有哪些任务」→ 那个 issue 可能三天没更新
+✅ 「gh issue list --label P0 --state open」→ 永远当前真实状态
+
+❌ 「我发现缺口，写个 issue 就完了」→ 没标签，没人搜得到
+✅ 「建 issue + 打 P1,area/pdf,type/wiring + 挂 1.0-必须」
+```
+
+---
 ## 0.0.1 一个 issue 只能有一个 PR
 
 ```

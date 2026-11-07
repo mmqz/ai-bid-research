@@ -65,7 +65,10 @@ pub fn get_document_chunks(svc: &mut BidService, args: Value) -> ToolResult {
         });
     }
 
-    route_project(svc, &project_id, TOOL)?;
+    // #482（C-16）：route_project → route_guard——契约 §17 的 E_STATE 承诺
+    // 此前空挂（实现无门任意态可调，与状态表/契约三方分裂）。version 传
+    // None：只读工具无并发语义（M1 内部步骤先例——乐观并发仅对写面强制）。
+    route_guard(svc, &project_id, TOOL, None)?;
 
     let file = find_parsed(svc, &file_id, TOOL)?;
     let total = file.blocks.len();
@@ -264,7 +267,8 @@ fn coverage_json(report: &bid_domain::coverage::CoverageReport) -> Value {
 pub fn get_coverage_report(svc: &mut BidService, args: Value) -> ToolResult {
     const TOOL: &str = "get_coverage_report";
     let project_id = req_str(&args, "project_id", TOOL)?;
-    route_project(svc, &project_id, TOOL)?;
+    // #482（C-16）：同族补门——契约 §19 承诺落地（DRAFT 态拒，导入后全程放行）
+    route_guard(svc, &project_id, TOOL, None)?;
 
     let tender_files: Vec<(String, String)> = svc
         .store()
@@ -349,7 +353,10 @@ pub fn get_star_coverage(svc: &mut BidService, args: Value) -> ToolResult {
     let project_id = req_str(&args, "project_id", TOOL)?;
     let file_id = req_str(&args, "file_id", TOOL)?;
 
-    route_project(svc, &project_id, TOOL)?;
+    // #482（同族第三处——巡检新发现）：get_star_coverage 状态表全态允许，
+    // 但实现同样走 route_project 无门（DRAFT 态可调 = 状态表 TC-11 越级
+    // 防护失效）。与上两处同款补 route_guard。
+    route_guard(svc, &project_id, TOOL, None)?;
 
     let file = find_parsed(svc, &file_id, TOOL)?;
     let file_name = file.name.clone();

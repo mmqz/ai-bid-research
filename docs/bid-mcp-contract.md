@@ -192,8 +192,10 @@ out: { hits:[{ev_id, chunk_id, content, source:{file, position}, score, match_ty
       限制（页级截取——全文检索/分块是 M2-b 面）**；
       **M2-b 落地时必须走 bid-mcp cursor.rs 游标模块（S-4）——hits 面同属大结果列表，
       分页信封/游标绑定/fail-closed 语义与 §0 大结果分页约定统一，不得自带第二套分页口径**。
-错误: E_STATE（项目无企业资料库绑定）
 ```
+      ← #482/C-17 契约对账修订：原此处承诺「E_STATE（项目无企业资料库绑定）」
+      为空承诺——朴素实现下项目路由即总闸（tools.rs 注释自认），无独立绑定
+      门可拒。M2-b 接知识库时落地真实绑定门并恢复本承诺。
 
 ## 6. draft_response_section
 ```
@@ -964,8 +966,12 @@ out: { file_id, total_blocks, from, returned, next_from(取完为 null),
 语义: 取单文件的块文本窗口（join 键 = sha256——与 #217 locate_content 同口径）。
       size 上限 200 防上下文吃爆（160 页文件 3600+ 块）；from 越界 → E_UNPROCESSABLE。
 错误: E_NOTFOUND（file_id 不存在）；E_UNPROCESSABLE（size 0/>200、from 越界、
-      无解析产物在服务态——须先 import 成功）；E_STATE（状态机窗口外）
-状态: FILES_IMPORTED / REQUIREMENTS_EXTRACTED
+      无解析产物在服务态——须先 import 成功）；E_STATE（DRAFT 态——项目已建
+      未导入；导入后全程放行）
+状态: FILES_IMPORTED+（全程——只读；#482/C-16 契约对账修订：原「两态窗口」
+      承诺与实现/合法用例不符——起草期读块参考是 #271 注明的合法用例，
+      get_document_chunks 与 get_coverage_report/get_star_coverage 统一为
+      只读全程放行口径，实现侧补 route_guard 使 E_STATE 真实生效）
 ```
 
 ## 18. submit_block_marks（#219 全块覆盖 · 写）

@@ -485,6 +485,7 @@ mod tests {
     // CI 并行即红）。
     use crate::test_support::workspace_files_guard;
 
+
     #[test]
     fn parses_and_errors() {
         let r = parse(r#"{"id":"a1","cmd":"ping"}"#).unwrap();
@@ -552,6 +553,7 @@ mod tests {
         // `remember_last_workspace`）——本测试不断言它，但它的写入会
         // 插进「持久化/直写」测试的断言序列里，必须持同一把锁。
         let _guard = workspace_files_guard();
+
         let a = std::fs::canonicalize(tmp_dir("a")).unwrap();
         let b = std::fs::canonicalize(tmp_dir("b")).unwrap();
         let ctx = Ctx::new(Workspace::new(&a).unwrap(), PathBuf::new());

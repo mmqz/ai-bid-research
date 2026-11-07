@@ -203,6 +203,11 @@ in : { project_id, section_id? | spec:{title, order, parent_id?, toc_ref}, instr
        content?:"外部手稿全文" }                        ← #100 任务 2（external 的正文来源）
 out: { section_id, content_ref:"DOC-*", version, stats:{words, citations, unanchored_claims:0,
        generator:"real"|"mock"|"external", uncovered_requirements:[REQ-*]}, warnings[],
+       quota:{target_chars, written_chars, remaining, min_chars, below_min,    ← #312：
+         min_segments, remaining_segments, progress_pct},                     80% 线与达标位
+         （写作时刻反馈——低于线 warnings 主动报「篇幅不足」分轨预告
+         E/W_CHARS_BELOW_MIN，与 validate 规则 4 同源同阈值；<1000 字
+         未达标稿另报「碎片小稿」提示）
        input_integrity:{ status:"COMPLETE"|"RESTRICTED",       ← 地图 P0-1：输入完整性面
          waived_files:[{file_id, name, readiness, reason}] },
        draft_note }                                        ← #128（#127 P0-2）：指令与缺失
@@ -1050,6 +1055,8 @@ in : { project_id, section_id(叶章节), content(本批段文——非章节全
        project_version? }
 out: { section_id, segment:{ id("SEG-xxxx"), seq, version, chars }, changed,
        deduplicated(!changed), assembled_chars, target_chars, remaining_chars,
+       min_chars(#312——80% 线，与 validate 规则 4 同口径；无配额叶 null),
+       below_min(#312——合稿低于 80% 线即 true；达标后翻 false),
        over_target, segment_count, citations, unanchored_claims, warnings,
        status, project_version, request_id }
 语义: 真增量追加——段按 seq 升序入账，合稿 = 全部段 "\n\n" 拼接写回
@@ -1059,6 +1066,10 @@ out: { section_id, segment:{ id("SEG-xxxx"), seq, version, chars }, changed,
       （绝不静默丢正文）。幂等：同章节同 idem_key 重放 → no-op
       （changed=false，content_version 不动）。状态推进/工作区落盘
       （ChapterRecorder 合稿）/checkpoint 与整稿路径同链。
+      #312 写作时刻反馈：实际变更（changed=true）且合稿 < 80% 线 →
+      warnings 主动报「篇幅不足」（评分叶预告 E_CHARS_BELOW_MIN /
+      行政实质叶预告 W_CHARS_BELOW_MIN——分类与 validate 同源）；
+      幂等重放不重复告警（重放者不是在写作）。
 引用: pre-flight 整段拒——段内 [REQ-*]/[EV-*] 不在本章绑定集 →
       E_UNPROCESSABLE 点名（分段不自动剔除，保「合稿==段拼接」不变量；
       与整稿路径的「剔除+告警」语义差异是刻意的）。
@@ -1100,6 +1111,24 @@ out: { section_id, segments:[{ id, seq, version, chars, idem_key,
 （内容 = 整稿全文——账本与正文永不对不上）；同内容重提（幂等 no-op）
 不动账本。Skill 面（bid-response-pipeline §篇幅纪律）已改写：分批写作
 必须走 21-A，`draft_response_section` 仅用于 ≤4000 字小节或整章重写。
+
+### 21-E. #312 篇幅产能墙修复的配额面（跨工具）
+
+```
+draft_response_section 的 quota 块与 21-A 出参共享同一套配额数字，
+#312 起增加：
+  min_chars   —— 80% 线（ceil(target×0.8)，与 validate 规则 4 逐值一致）
+  below_min   —— 是否低于 80% 线（无配额叶 null）
+build_outline 出参增加：
+  leaf_quotas —— [{section_id, title, target_chars}] 全量（建纲即可规划
+                 每叶几批，此前只有总量——黑盒代理无从规划）
+  warnings    —— 含「配额回退」：target < 评分叶底价和时点名
+                 （MIN_SCORING_LEAF_CHARS=10,000/叶；此前静默回退，
+                 代理把评分叶 80% 线压低而不自知）
+分轨口径：评分叶低于线 → 预告 E_CHARS_BELOW_MIN（BLOCKER）；
+          行政/实质叶 → 预告 W_CHARS_BELOW_MIN（MAJOR）。
+          分类面复用 bid_tools::validate::is_scoring_leaf（单一真源）。
+```
 
 ## 22. get_star_coverage（#285 ① ★漏标检测 · 只读）
 ```

@@ -569,7 +569,11 @@ fn chars_below_min_advisory(
 /// 双信号容错：#252 评分驱动大纲落地前 REQ 绑定是主信号；落地后若结构
 /// 改用映射面（ScoringMapping.section_id），账本信号兜底——两信号任一
 /// 命中即按评分章节的 BLOCKER 口径把关（fail-strict：分值主体不得漏管）。
-fn is_scoring_leaf(
+///
+/// #312 起对 MCP 壳层公开（pub）：draft/append 的写作时刻警告与 validate
+/// 的 E/W 分轨必须同源判定——两处各写一份必然漂移（同一叶在写作时说
+/// 「MAJOR 不拦导出」、导出时却 BLOCKER，是最伤 Agent 信任的形态）。
+pub fn is_scoring_leaf(
     node: &bid_domain::outline::OutlineNode,
     store: &DomainStore,
 ) -> bool {

@@ -1768,6 +1768,49 @@ impl DomainStore {
         Ok(m)
     }
 
+    /// #427 撤销评分映射（A-22：账本此前只有 upsert 写面——错建/错派生
+    /// 映射永久在账，`set_requirements`/`replace_requirements`/`set_outline`
+    /// 的 #224 孤儿守卫文案指路的「先处理该映射」无操作可指，三面死锁，
+    /// 唯一出路是手改 db.json）。
+    ///
+    /// 语义（与 upsert 同键面、同版本纪律）：
+    /// - 复合键 `(scoring_req_id, section_id)` 命中 → **删除该行**并返回
+    ///   被删行（审计面：调用方可见被删的 share/anchor，重新 upsert 即
+    ///   可撤销撤销）；`content_version += 1`——评分面数据变更，与 upsert
+    ///   「真变更必 bump」同口径；
+    /// - 未命中 → `E_NOT_FOUND`（fail-loud：静默 no-op 会掩盖调用方键错，
+    ///   与账本其它 not-found 面同款纪律）；
+    /// - **不限来源**：`OutlineDerived` 行同样可删——被映射 REQ 的条款
+    ///   重建死锁多数发生在这类行上；删除后下次 `build_outline`
+    ///   （`derive_and_set_outline` 先 retain 清派生行再按**当前**条款集
+    ///   重签）会按新树重新入账，属预期行为；
+    /// - 无状态门（与 upsert 同窗口——映射账本本就不设状态门，撤销面
+    ///   对称）；
+    /// - 份额聚合不变量（≤ 1.0）只受减压方向影响，删除无需新守卫。
+    pub fn remove_scoring_mapping(
+        &mut self,
+        scoring_req_id: &str,
+        section_id: &str,
+    ) -> Result<ScoringMapping, ToolError> {
+        self.project()?; // 账本挂在项目下（M1 单项目存储，与 upsert 同前置）
+        let idx = self
+            .scoring_mappings
+            .iter()
+            .position(|m| m.scoring_req_id == scoring_req_id && m.section_id == section_id)
+            .ok_or_else(|| ToolError::ENotFound {
+                what: format!(
+                    "评分映射 ({scoring_req_id}, {section_id}) 不存在（账本无此复合键行——\
+                     见 scoring_mappings() 现存行）"
+                ),
+            })?;
+        let removed = self.scoring_mappings.remove(idx);
+        // #224 content_version：映射出账 = 评分面数据变更 → bump。
+        if let Some(p) = self.project.as_mut() {
+            p.content_version += 1;
+        }
+        Ok(removed)
+    }
+
     /// 硬门清单（否决项 REQ id——T-3 验收「植入 1 个否决项漏响应 → 阻断导出」的输入面；
     /// 阻断裁决在 `check_export_ready`，此处只供核对/展示）。
     pub fn hard_gate_requirement_ids(&self) -> Vec<String> {

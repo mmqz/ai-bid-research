@@ -1195,8 +1195,8 @@ impl DomainStore {
             {
                 return Err(ToolError::EUnprocessable {
                     reason: format!(
-                        "评分映射 {} 引用的评分项 {} 将在本次写入后不存在（#224 引用完整性：条款重建不得孤儿化映射账本——先处理该映射再重建）",
-                        m.id, m.scoring_req_id
+                        "评分映射 {} 引用的评分项 {} 将在本次写入后不存在（#224 引用完整性：条款重建不得孤儿化映射账本——先 remove_scoring_mapping({}, {}) 撤销该映射再重建）",
+                        m.id, m.scoring_req_id, m.scoring_req_id, m.section_id
                     ),
                 });
             }
@@ -1255,8 +1255,8 @@ impl DomainStore {
             {
                 return Err(ToolError::EUnprocessable {
                     reason: format!(
-                        "评分映射 {} 引用的评分项 {} 将在整集替换后不存在（#224 引用完整性：条款重建不得孤儿化映射账本——先处理该映射再替换）",
-                        m.id, m.scoring_req_id
+                        "评分映射 {} 引用的评分项 {} 将在整集替换后不存在（#224 引用完整性：条款重建不得孤儿化映射账本——先 remove_scoring_mapping({}, {}) 撤销该映射再替换）",
+                        m.id, m.scoring_req_id, m.scoring_req_id, m.section_id
                     ),
                 });
             }

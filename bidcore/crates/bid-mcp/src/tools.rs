@@ -401,6 +401,18 @@ fn create_bid_project(svc: &mut BidService, args: Value) -> ToolResult {
     Ok(out)
 }
 
+/// JSON 值的类型名（参数校验错误信息用——报「实际类型」比报「非法」可定位）。
+fn json_type_name(v: &Value) -> &'static str {
+    match v {
+        Value::Null => "null",
+        Value::Bool(_) => "boolean",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
+    }
+}
+
 /// `YYYY-MM-DD` 解析（前缀口径——截止时刻比对以日为粒度）。
 fn parse_ymd(s: &str) -> Option<(i64, u32, u32)> {
     let b = s.as_bytes();
@@ -3637,6 +3649,64 @@ fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
     svc.store()
         .check_version(project_version)
         .map_err(ToolError::from)?;
+
+    // ---- #322/R-05：开标日时效裁决接线（生产锚点 = 导出前——防废标最后关口）。
+    // apply_validity 此前全仓生产调用为零（仅测试引用）——时间性过期证据
+    // 长期被当 Active 消费。接线语义：
+    //   · 提供 bid_open_date → 按开标日单向翻转（翻转后矩阵在 apply_validity
+    //     内部重算——R-04，门 1a 读到的必是翻转后状态；翻转非空进 warnings
+    //     审计面）；非法日期/非字符串 → 响亮拒（不静默忽略）。
+    //   · 未提供 → 有 valid_until 的证据存在时响亮告警「时效未裁决」，
+    //     不硬拒（契约兼容：既有调用方不带该参数不应断链）。
+    // 幂等面：翻转使 content_version 前进 → 幂等键随之分叉（不同时效态 =
+    // 不同导出，不吃旧缓存）；重放时 apply_validity 幂等（同态不动）。
+    let bid_open_date: Option<String> = match args.get("bid_open_date") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(s)) => {
+            if !bid_domain::dates::is_valid_ymd(s) {
+                return Err(ToolError::EUnprocessable {
+                    what: format!(
+                        "{TOOL}: bid_open_date 须为 ISO 日期 YYYY-MM-DD，实际：{s:?}"
+                    ),
+                });
+            }
+            Some(s.clone())
+        }
+        Some(other) => {
+            return Err(ToolError::EUnprocessable {
+                what: format!(
+                    "{TOOL}: bid_open_date 须为 ISO 日期字符串（YYYY-MM-DD），实际类型：{}",
+                    json_type_name(other)
+                ),
+            })
+        }
+    };
+    if let Some(d) = &bid_open_date {
+        let flipped = svc
+            .store_mut()
+            .apply_validity(d)
+            .map_err(ToolError::from)?;
+        if !flipped.is_empty() {
+            warnings_pre.push(format!(
+                "证据时效裁决（开标日 {d}）：{} 条翻转——{}",
+                flipped.len(),
+                flipped.join("; ")
+            ));
+        }
+    } else {
+        let with_validity = svc
+            .store()
+            .evidences()
+            .iter()
+            .filter(|e| e.valid_until.is_some())
+            .count();
+        if with_validity > 0 {
+            warnings_pre.push(format!(
+                "{with_validity} 份证据带 valid_until 但本次导出未提供 bid_open_date——\
+                 时效未裁决，按当前登记状态导出（提供 bid_open_date 可按开标日翻转）"
+            ));
+        }
+    }
 
     // ---- #117 任务 1：投标决策（报价面）——从 profile 解析，进幂等键（不同的
     //      报价决策 ≠ 同一次导出，不能吃旧缓存）

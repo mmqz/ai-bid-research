@@ -643,6 +643,12 @@ impl DomainStore {
     /// 幂等：已达目标态的记录不动（同态迁移被 `degrade_to` 拒）；
     /// 只降不升：一旦 Expired，改回未来日期也不复活（复活 = 重新登记新版本）。
     /// 翻转 ≥1 条 → content_version +1（真实状态变化）。
+    ///
+    /// #322/R-04：翻转后**矩阵重算**——`check_export_ready`（门 1a）读持久化
+    /// 矩阵，不重算则翻转前构建的旧 RESPONDED 行继续放行（Active→Expired
+    /// 翻转后旧行照样过门 = 时效翻转形同虚设）。仅在矩阵已构建时重算
+    /// （未构建 = 未对账态，`export_blockers` 本就拒绝导出）；重算走
+    /// `build_matrix` 同一派生真源，1a 语义（读持久化矩阵）不变、内容必新。
     pub fn apply_validity(&mut self, bid_open_date: &str) -> Result<Vec<String>, ToolError> {
         self.project()?;
         if !dates::is_valid_ymd(bid_open_date) {
@@ -665,6 +671,10 @@ impl DomainStore {
             }
         }
         if !flipped.is_empty() {
+            // R-04：翻转落地后立刻重算矩阵（rows 变化由 build_matrix 自判幂等）
+            if !self.matrix.is_empty() {
+                self.build_matrix()?;
+            }
             if let Some(p) = self.project.as_mut() {
                 p.content_version += 1;
             }
@@ -986,6 +996,59 @@ mod tests {
         // Superseded 禁绑
         let err = s.bind_evidence(&id1, "REQ-0002", "2026-11-15").unwrap_err();
         assert_eq!(err.code(), "E_UNPROCESSABLE", "Superseded 禁绑");
+    }
+
+    /// #322/R-04：翻转后矩阵重算——Active/Expiring→Expired 翻转后，
+    /// `check_export_ready`（门 1a）不得放行翻转前构建的旧 RESPONDED 行。
+    /// 修复前：apply_validity 只翻状态不重算矩阵 → 导出门读持久化旧矩阵
+    /// → 「批的是过期证据」照常放行（时效翻转形同虚设）。
+    #[test]
+    fn r04_flip_rebuilds_matrix_export_gate_blocks_stale_rows() {
+        let mut s = store_with_reqs();
+        // GT-02 件（valid_until=2026-11-25）@开标日 2026-11-10：未过期可绑
+        let (ev_id, _) = s.register_evidence(gt02_spec()).unwrap();
+        s.bind_evidence(&ev_id, "REQ-0002", "2026-11-10").unwrap();
+        let (_, blocking) = s.build_matrix().unwrap();
+        assert_eq!(blocking, 0, "有效证据绑定 → 必选行已响应（非阻塞）");
+        assert!(s.check_export_ready().is_ok(), "翻转前门 1a 放行（基线）");
+
+        // 开标日推到 valid_until 之后（2026-11-27 > 11-25）→ 翻转 EXPIRED
+        let flipped = s.apply_validity("2026-11-27").unwrap();
+        assert_eq!(flipped.len(), 1, "一条翻转（EXPIRING → EXPIRED）");
+
+        // R-04 核心：门 1a 读到的必须是重算后的矩阵——旧 RESPONDED 行不得残留
+        let err = s.check_export_ready().unwrap_err();
+        assert_eq!(err.code(), "E_UNPROCESSABLE", "翻转后导出被阻断（门 1a）");
+        let msg = format!("{err:?}");
+        assert!(
+            msg.contains("REQ-0002") && msg.contains("必选未响应"),
+            "错误点名未响应行（实际：{msg}）"
+        );
+
+        // 矩阵视图同口径（1c/1d 同源派生面——死绑定不计响应）
+        let view = s.matrix_view();
+        let row = view
+            .iter()
+            .find(|r| r.requirement_id == "REQ-0002")
+            .unwrap();
+        assert!(row.blocking, "派生视图同口径：EXPIRED 绑定不计响应");
+    }
+
+    /// #322/R-04 伴生：无翻转不重算（幂等重放不动矩阵/版本）。
+    #[test]
+    fn r04_no_flip_no_matrix_touch() {
+        let mut s = store_with_reqs();
+        let (ev_id, _) = s.register_evidence(gt02_spec()).unwrap();
+        s.bind_evidence(&ev_id, "REQ-0002", "2026-11-10").unwrap();
+        let _ = s.build_matrix().unwrap();
+        let v_before = s.project().unwrap().content_version;
+        // 同一开标日重放（同态迁移被拒 → 零翻转 → 不触碰矩阵）
+        assert!(s.apply_validity("2026-11-10").unwrap().is_empty());
+        assert_eq!(
+            s.project().unwrap().content_version,
+            v_before,
+            "幂等重放不动 content_version"
+        );
     }
 
     /// 无有效期件（营业执照/业绩合同）不参与时间翻转（GT-01/GT-03 语义）。

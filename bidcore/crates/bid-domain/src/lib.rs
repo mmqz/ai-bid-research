@@ -202,6 +202,12 @@ impl ProjectStatus {
             ],
             MatrixReady | EvidenceBound => &[
                 "get_coverage_report",
+                // #482（C-16）：get_document_chunks 补进全程窗口——与
+                // get_coverage_report/get_star_coverage 同口径（只读全程
+                // 放行；#271 注释自述「起草时可参考模板结构——块面可经
+                // get_document_chunks 读」是合法用例，两态窗口是早期
+                // 过严承诺，契约 §17 同步修订）。
+                "get_document_chunks",
                 "recommend_length_profile",
                 "get_star_coverage",
                 "get_compliance_matrix",
@@ -231,6 +237,8 @@ impl ProjectStatus {
             ],
             Drafting => &[
                 "get_coverage_report",
+                // #482：同上——起草期读块参考（#271 合法用例）
+                "get_document_chunks",
                 "recommend_length_profile",
                 "get_star_coverage",
                 "get_compliance_matrix",
@@ -267,6 +275,8 @@ impl ProjectStatus {
             Validating => &[
                 "get_compliance_matrix",
                 "get_coverage_report",
+                // #482：同上——校验期对账读块
+                "get_document_chunks",
                 "recommend_length_profile",
                 "get_star_coverage",
                 "search_evidence",
@@ -299,6 +309,8 @@ impl ProjectStatus {
                 "get_coverage_report",
                 "recommend_length_profile",
                 "get_star_coverage",
+                // #482：只读全程窗口（同 get_coverage_report 口径）
+                "get_document_chunks",
                 "search_evidence",
                 "get_bid_project_state",
                 // #254 只读段账本（复核期对账面）
@@ -325,6 +337,8 @@ impl ProjectStatus {
                 "get_coverage_report",
                 "recommend_length_profile",
                 "get_star_coverage",
+                // #482：只读全程窗口（导出后追溯读块）
+                "get_document_chunks",
                 "get_compliance_matrix",
                 "search_evidence",
                 "get_bid_project_state",

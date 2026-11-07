@@ -250,20 +250,20 @@ fn full_matrix_snapshot() {
         // RequirementsExtracted（#287 尾位 1——推荐主窗口：P3 建纲前）
         (ProjectStatus::RequirementsExtracted, "0111001000100100010001111000000000010"),
         // MatrixReady（#254 尾三位 111——分段写入与整稿同窗口；#287 尾位 1）
-        (ProjectStatus::MatrixReady, "0001001100101011110110011000101111110"),
+        (ProjectStatus::MatrixReady, "0001001100101011110111011000101111110"),
         // EvidenceBound（同上）
-        (ProjectStatus::EvidenceBound, "0001001100101011110110011000101111110"),
+        (ProjectStatus::EvidenceBound, "0001001100101011110111011000101111110"),
         // Drafting（#254 尾三位 111；#241 5/6 位翻 1——证据补件主战场；#287 尾位 1）
-        (ProjectStatus::Drafting, "0001001111101011110110011000101111110"),
+        (ProjectStatus::Drafting, "0001001111101011110111011000101111110"),
         // Validating（#243 尾区位 1；#254 尾三 001；#241 5/6 位翻 1；#287 尾位 1）
-        (ProjectStatus::Validating, "0001001011101011110110011000110011110"),
+        (ProjectStatus::Validating, "0001001011101011110111011000110011110"),
         // Reviewing（#254 尾三 001；#241 5/6 位翻 1；#287 尾位 1）
-        (ProjectStatus::Reviewing, "0001001011101011110110011000100011110"),
+        (ProjectStatus::Reviewing, "0001001011101011110111011000100011110"),
         // ReadyToExport（同上）
-        (ProjectStatus::ReadyToExport, "0001001011101011110110011000100011110"),
+        (ProjectStatus::ReadyToExport, "0001001011101011110111011000100011110"),
         // Exported（终态不变量：终态不改数据——#241 不被括进来；#254 仅只读
         //   list；#287 尾位 1——导出后仍可查推荐口径追溯）
-        (ProjectStatus::Exported, "0001001001101000110110011000100011110"),
+        (ProjectStatus::Exported, "0001001001101000110111011000100011110"),
 
 
     ];

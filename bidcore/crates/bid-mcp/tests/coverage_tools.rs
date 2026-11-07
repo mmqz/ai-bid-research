@@ -386,3 +386,33 @@ fn submitted_persists_across_restart() {
     assert_eq!(r["merge"]["agent_requirements"].as_u64().unwrap(), 1,
         "submitted 必须经快照持久化——PR #227 checkpoint 缺口的修复验证");
 }
+
+// ================================================================
+// #482（C-16/C-17）：只读族状态门收口——route_project → route_guard。
+//
+// 修前三工具实现无门（任意态可调，状态表 TC-11 越级防护失效）；
+// 修后 DRAFT 态拒（E_STATE）、FILES_IMPORTED+ 全程放行（与状态表/
+// 契约三方对齐——只读口径与 get_coverage_report/get_star_coverage 统一）。
+
+/// DRAFT 态（项目已建未导入文件）调三只读工具 → E_STATE（越级防护生效）。
+/// 不依赖真件（E_STATE 门在 file 解析之前——route_guard 先于 find_parsed）。
+#[test]
+fn draft_state_read_tools_rejected() {
+    let ws = tmp_ws("c16-draft");
+    let mut svc = BidService::open(&ws).expect("打开工作区").with_fs_root(fixtures());
+    ok_result(call(&mut svc, "create_bid_project", json!({
+        "name": "C-16 状态门", "bid_deadline": "2026-12-31", "mode": "明标",
+        "external_key": "c16-draft"
+    })));
+    // 三工具：file 型（file_id 必填以过参数校验，值虚构——门在其前）
+    for (tool, args) in [
+        ("get_document_chunks", json!({"project_id": "PRJ-0001", "file_id": "TF-9999"})),
+        ("get_coverage_report", json!({"project_id": "PRJ-0001"})),
+        ("get_star_coverage", json!({"project_id": "PRJ-0001", "file_id": "TF-9999"})),
+    ] {
+        let code = err_code(call(&mut svc, tool, args));
+        assert_eq!(code, "E_STATE",
+            "DRAFT 态调 {tool} 须 E_STATE（#482 越级防护——修前无门任意态可调）");
+    }
+    std::fs::remove_dir_all(ws).ok();
+}

@@ -36,8 +36,7 @@ const ALL_STATES: [ProjectStatus; 10] = [
 /// #287 增 `recommend_length_profile`（尾插——篇幅档位推荐只读，
 /// REQUIREMENTS_EXTRACTED+ 含 Exported：信号来自 REQ 面，建纲前后均可查）= 30。
 
-const ALL_TOOLS: [&str; 37] = [
-
+const ALL_TOOLS: [&str; 41] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -249,26 +248,26 @@ fn full_matrix_snapshot() {
         //        证据补件通道）。两个 PR 各自改位串矩阵，本表为两者并集。
         // Draft（record_addendum_waiver 拒——导入前无件可确认；#287 尾位 0
         //   ——无 REQ 面，推荐信号不存在）
-        (ProjectStatus::Draft, "1100000000100000000000000000000000000"),
+        (ProjectStatus::Draft, "11000000001000000000000000000000000000000"),
         // FilesImported（#287 尾位 0——同上，抽取前无信号）
-        (ProjectStatus::FilesImported, "0111001000100000010001111000000000000"),
+        (ProjectStatus::FilesImported, "01110010001000000100011110000000000000000"),
         // RequirementsExtracted（#287 尾位 1——推荐主窗口：P3 建纲前）
-        (ProjectStatus::RequirementsExtracted, "0111001000100100010001111000000000010"),
+        (ProjectStatus::RequirementsExtracted, "01110010001001000100011110000000000100010"),
         // MatrixReady（#254 尾三位 111——分段写入与整稿同窗口；#287 尾位 1）
-        (ProjectStatus::MatrixReady, "0001001100101011110110011000101111110"),
+        (ProjectStatus::MatrixReady, "00010011001010111101100110001011111100011"),
         // EvidenceBound（同上）
-        (ProjectStatus::EvidenceBound, "0001001100101011110110011000101111110"),
+        (ProjectStatus::EvidenceBound, "00010011001010111101100110001011111100011"),
         // Drafting（#254 尾三位 111；#241 5/6 位翻 1——证据补件主战场；#287 尾位 1）
-        (ProjectStatus::Drafting, "0001001111101011110110011000101111110"),
+        (ProjectStatus::Drafting, "00010011111010111101100110001011111100011"),
         // Validating（#243 尾区位 1；#254 尾三 001；#241 5/6 位翻 1；#287 尾位 1）
-        (ProjectStatus::Validating, "0001001011101011110110011000110011110"),
+        (ProjectStatus::Validating, "00010010111010111101100110001100111100010"),
         // Reviewing（#254 尾三 001；#241 5/6 位翻 1；#287 尾位 1）
-        (ProjectStatus::Reviewing, "0001001011101011110110011000100011110"),
+        (ProjectStatus::Reviewing, "00010010111010111101100110001000111100010"),
         // ReadyToExport（同上）
-        (ProjectStatus::ReadyToExport, "0001001011101011110110011000100011110"),
+        (ProjectStatus::ReadyToExport, "00010010111010111101100110001000111100010"),
         // Exported（终态不变量：终态不改数据——#241 不被括进来；#254 仅只读
         //   list；#287 尾位 1——导出后仍可查推荐口径追溯）
-        (ProjectStatus::Exported, "0001001001101000110110011000100011110"),
+        (ProjectStatus::Exported, "00010010011010001101100110001000111100000"),
 
 
 

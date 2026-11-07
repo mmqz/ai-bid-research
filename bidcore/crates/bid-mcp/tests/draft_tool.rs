@@ -288,7 +288,7 @@ fn tool_face_remains_twenty_with_draft_implemented() {
     // 人工确认）→ 21；#219 增 3 覆盖工具 → 24；#226 增 set_matrix_override
     // （否决项死锁出口）→ 25；#243 增 recover_validating_state（历史
     // 异常态恢复出口）→ 26；#254 增分段三工具（append/rewrite/list
-assert_eq!(arr.len(), 37, "工具面保持 37 个（21 + #219 三工具 + #226 死锁出口 + #243 恢复出口 + #254 分段三工具 + #279 发现面 + #287 篇幅档位推荐 + #285① ★漏标检测 + #285② 块级双向索引三工具 + #319 补遗后增量重写两工具）");
+assert_eq!(arr.len(), 41, "工具面保持 37 个（21 + #219 三工具 + #226 死锁出口 + #243 恢复出口 + #254 分段三工具 + #279 发现面 + #287 篇幅档位推荐 + #285① ★漏标检测 + #285② 块级双向索引三工具 + #319 补遗后增量重写两工具）");
 
     let draft = arr.iter().find(|t| t["name"] == "draft_response_section").unwrap();
     assert_eq!(draft["implemented"], json!(true));

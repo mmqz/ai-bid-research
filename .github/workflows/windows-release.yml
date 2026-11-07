@@ -1,0 +1,258 @@
+name: windows-release
+
+# #248 独立 Windows 发行构建工作流。
+#
+# 设计纪律（issue #248 任务指令）：
+#   · **只在手动触发 / 正式版本 tag 时运行**——PR 与日常 push 走
+#     windows-check.yml（编译 + 测试），不因发行面变慢、不跑 minify/打包；
+#   · 产物 = mang-app.exe（release profile）+ web-ui/dist（MANG_RELEASE=1
+#     minify、无 sourcemap）→ portable ZIP + SHA-256 清单 + 构建元数据；
+#   · 失败不得上传半成品：上传步骤排在全部校验门之后（非 always()）；
+#   · 签名：证书就绪前显式标「未签名」（build-manifest.signed=false）；
+#     证书经 secrets 提供（AUTHENTICODE_CERT / AUTHENTICODE_PASSWORD），
+#     缺席时跳过签名步骤、状态可见——fail-closed 由 REQUIRE_SIGNED 控制。
+#
+# 环境事实（windows-check.yml 已验证绿的组合，本工作流复用）：
+#   · windows-latest + dtolnay/rust-toolchain@stable
+#   · mdcore 私有仓凭据 = 只读 deploy key（secret MD_CORE_DEPLOY_KEY，
+#     条件布置——缺席时匿名 clone 公开窗口，真门禁是 cargo 的 fetch）
+#   · mang-app 已并入 bidcore workspace（#303/FG-01）——release profile 在
+#     bidcore/Cargo.toml [profile.release]（strip/LTO 保守档），无独立 workspace
+
+on:
+  workflow_dispatch:
+    # 手动触发（ Lead 触发或带 inputs 复验）
+    inputs:
+      require_signed:
+        description: "无签名证书时是否判红（fail-closed 正式发版用）"
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*" # 正式版本 tag 触发
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_NET_RETRY: 3
+  CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+
+jobs:
+  release:
+    name: windows / portable release
+    runs-on: windows-latest
+    env:
+      MD_CORE_DEPLOY_KEY: ${{ secrets.MD_CORE_DEPLOY_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # mdcore 只读 deploy key（与 windows-check.yml 同款条件布置——
+      # secret 缺席时跳过，真门禁是 cargo build 的 git fetch）
+      - name: Configure mdcore read access (deploy key)
+        if: env.MD_CORE_DEPLOY_KEY != ''
+        shell: pwsh
+        run: |
+          $sshDir = "$env:USERPROFILE\.ssh"
+          New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          $key = $env:MD_CORE_DEPLOY_KEY -replace "`r`n", "`n"
+          [IO.File]::WriteAllText("$sshDir\id_ed25519", $key + "`n")
+          icacls "$sshDir\id_ed25519" /inheritance:r /grant:r "$($env:USERNAME):R" | Out-Null
+          ssh-keyscan -t ed25519 github.com 2>$null | Out-File -FilePath "$sshDir\known_hosts" -Encoding ascii
+          git config --global url."git@github.com:mmqz/mdcore.git".insteadOf "https://github.com/mmqz/mdcore"
+          ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -T git@github.com 2>$null | Out-Null
+          Write-Host "ssh -T exit: $LASTEXITCODE (0/1=认证面 OK)"
+          exit 0
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # 发行构建的缓存键与 windows-check 分离（release 产物体积/形态不同，
+      # 共 key 会互相驱逐）。只 restore + 后置显式 save（#308 纪律：save
+      # 挂死不阻塞 run 结论——continue-on-error + timeout 钳制）。
+      - name: Restore cargo cache
+        id: cache-cargo
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        timeout-minutes: 10
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            bidcore/target/
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('bidcore/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-release-
+            ${{ runner.os }}-cargo-
+
+      # ---- 1. UI 发行构建（minify + 无 sourcemap——mang-build.mjs #248 档）
+      - name: "Build Web UI (release mode: minify, no sourcemap)"
+        working-directory: web-ui
+        env:
+          MANG_RELEASE: "1"
+        run: |
+          npm ci
+          node mang-build.mjs
+          # 发行面断言：dist 零 sourcemap（验收条件不依赖工具缺省行为）
+          $maps = @(Get-ChildItem -Recurse -Filter '*.map' dist)
+          if ($maps.Count -gt 0) {
+            Write-Host "::error::发行 UI 产物含 $($maps.Count) 个 sourcemap（.map）——禁止分发"
+            exit 1
+          }
+          Write-Host "UI 发行构建 OK：零 .map，dist/mang 已 minify"
+        shell: pwsh
+
+      # ---- 2. exe 发行构建（workspace release profile：strip/LTO 保守档）
+      - name: cargo build --release (mang-app)
+        working-directory: bidcore
+        run: cargo build --release -p mang-app
+
+      # 发行面断言：无 PDB（debug=false 下 MSVC 不产 PDB——出现即配置漂移）
+      - name: Assert no PDB next to exe
+        shell: pwsh
+        run: |
+          $exe = "bidcore\target\release\mang-app.exe"
+          if (-not (Test-Path $exe)) { Write-Host "::error::mang-app.exe 不存在"; exit 1 }
+          $pdb = @(Get-ChildItem "bidcore\target\release" -Filter '*.pdb' -ErrorAction SilentlyContinue)
+          if ($pdb.Count -gt 0) {
+            Write-Host "::error::release 目录出现 PDB（$($pdb.Count) 个）——发行配置漂移，禁止打包"
+            exit 1
+          }
+          $size = "{0:N1}" -f ((Get-Item $exe).Length / 1MB)
+          Write-Host "mang-app.exe OK（$size MB，无 PDB）"
+
+      # ---- 3. 打包 + 发行校验门（脚本内置：版本一致性/开发产物零容忍/
+      #         SHA-256 清单/构建元数据——任一失败即 exit 1，后续步骤不跑）
+      - name: Package portable ZIP (release gates)
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File scripts\package-mang-app.ps1 -SkipBuild -SkipUiBuild -Release
+
+      # ---- 4. Smoke check（工作流层跑，不在打包脚本里——打包机≠运行机的
+      #         分离留给脚本使用者；CI 上二者同机，就地验证启动面）
+      - name: Smoke check (--selftest / --ls-ui / 资源完整性)
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem "dist-pkg" -Filter "mang-app-portable-*.zip" | Select-Object -First 1
+          if (-not $zip) { Write-Host "::error::发行 zip 不存在（打包步骤失败被跳过？）"; exit 1 }
+          $smokeDir = Join-Path $env:RUNNER_TEMP "smoke"
+          if (Test-Path $smokeDir) { Remove-Item $smokeDir -Recurse -Force }
+          Expand-Archive -Path $zip.FullName -DestinationPath $smokeDir
+          $exe = Join-Path $smokeDir "mang-app.exe"
+          & $exe --selftest
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::--selftest 退出码 $LASTEXITCODE"; exit 1 }
+          Write-Host "--selftest OK（退出码 0）"
+          & $exe --ls-ui
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::--ls-ui 退出码 $LASTEXITCODE"; exit 1 }
+          Write-Host "--ls-ui OK"
+          # 资源完整性：解包形态下 ui\ 紧邻 exe（候选链第一项命中）
+          $uiIndex = Join-Path $smokeDir "ui\mang\index.html"
+          if (-not (Test-Path $uiIndex)) { Write-Host "::error::解包缺 ui\mang\index.html（布局约定破坏）"; exit 1 }
+          Write-Host "资源完整性 OK（ui\mang\index.html 在位）"
+
+      # ---- 5. 可选 Authenticode 签名（证书经 secrets 提供，不入库不入日志）
+      #         无证书 → 跳过 + 状态可见（build-manifest.signed=false）；
+      #         REQUIRE_SIGNED（发版 tag / 手动勾选）+ 无证书 → 红（fail-closed）。
+      - name: Authenticode signing (optional, secret-gated)
+        id: sign
+        shell: pwsh
+        env:
+          CERT_B64: ${{ secrets.AUTHENTICODE_CERT }}
+          CERT_PASSWORD: ${{ secrets.AUTHENTICODE_PASSWORD }}
+          REQUIRE_SIGNED: ${{ github.event_name == 'push' || inputs.require_signed }}
+        run: |
+          if (-not $env:CERT_B64 -or -not $env:CERT_PASSWORD) {
+            if ($env:REQUIRE_SIGNED -eq 'true') {
+              Write-Host "::error::REQUIRE_SIGNED=true 但签名 secrets（AUTHENTICODE_CERT/AUTHENTICODE_PASSWORD）未配置——fail-closed 拒发未签名正式版"
+              exit 1
+            }
+            Write-Host "::warning::未配置签名证书——本产物未签名（signed=false，manifest 状态可见）"
+            exit 0
+          }
+          # 证书 = base64 编码的 PFX（secret 传输面安全），落盘临时文件后即删。
+          # 严禁 echo 证书内容/密码到日志。
+          $pfxPath = Join-Path $env:RUNNER_TEMP "sign.pfx"
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:CERT_B64))
+          $zip = Get-ChildItem "dist-pkg" -Filter "mang-app-portable-*.zip" | Select-Object -First 1
+          # osslsigncode 不在 runner 预装面；用 signtool（Windows SDK 自带）。
+          $signtool = (Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse -Filter signtool.exe |
+            Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          if (-not $signtool) { Remove-Item $pfxPath -Force; Write-Host "::error::signtool.exe 不在 Windows SDK"; exit 1 }
+          & $signtool sign /fd SHA256 /f $pfxPath /p $env:CERT_PASSWORD /tr http://timestamp.digicert.com /td SHA256 $zip.FullName
+          $code = $LASTEXITCODE
+          Remove-Item $pfxPath -Force
+          if ($code -ne 0) { Write-Host "::error::signtool 退出码 $code"; exit 1 }
+          # manifest 状态翻转（signed=true）
+          $manifest = Get-ChildItem "dist-pkg" -Filter "build-manifest-*.json" | Select-Object -First 1
+          if ($manifest) {
+            $m = Get-Content $manifest.FullName -Raw | ConvertFrom-Json
+            $m.signed = $true
+            $m | ConvertTo-Json | Set-Content $manifest.FullName -Encoding utf8
+          }
+          Write-Host "Authenticode 签名完成（SHA256 + RFC3161 时间戳）"
+
+      # ---- 6. 上传产物（非 always()：全部校验门过才上传——失败零半成品）
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mang-app-portable-${{ github.sha }}
+          path: |
+            dist-pkg/mang-app-portable-*.zip
+            dist-pkg/SHA256SUMS-*.txt
+            dist-pkg/build-manifest-*.json
+          if-no-files-found: error
+
+      # ---- 7. tag 触发时创建 GitHub Release（手动触发只出 artifact）
+      - name: Create GitHub Release (tag only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $zip = Get-ChildItem "dist-pkg" -Filter "mang-app-portable-*.zip" | Select-Object -First 1
+          $sums = Get-ChildItem "dist-pkg" -Filter "SHA256SUMS-*.txt" | Select-Object -First 1
+          gh release create $tag --title "mang-app $tag" --generate-notes $zip.FullName $sums.FullName
+
+      # ---- 8. 构建摘要（版本/commit/工具链/哈希/签名状态——审计面）
+      - name: Build summary
+        if: always()
+        shell: pwsh
+        run: |
+          echo '### mang-app 发行构建（#248）' >> $env:GITHUB_STEP_SUMMARY
+          $manifest = Get-ChildItem "dist-pkg" -Filter "build-manifest-*.json" | Select-Object -First 1
+          if ($manifest) {
+            $m = Get-Content $manifest.FullName -Raw | ConvertFrom-Json
+            echo "| 项 | 值 |" >> $env:GITHUB_STEP_SUMMARY
+            echo "|---|---|" >> $env:GITHUB_STEP_SUMMARY
+            echo "| 版本 | $($m.version) |" >> $env:GITHUB_STEP_SUMMARY
+            echo "| commit | $($m.commit) |" >> $env:GITHUB_STEP_SUMMARY
+            echo "| Rust | $($m.rust) |" >> $env:GITHUB_STEP_SUMMARY
+            echo "| Node | $($m.node) |" >> $env:GITHUB_STEP_SUMMARY
+            echo "| 文件数 | $($m.files) |" >> $env:GITHUB_STEP_SUMMARY
+            echo "| ZIP SHA-256 | ``$($m.zip_sha256)`` |" >> $env:GITHUB_STEP_SUMMARY
+            $signed = if ($m.signed) { "已签名 ✅" } else { "未签名 ⚠️" }
+            echo "| 签名 | $signed |" >> $env:GITHUB_STEP_SUMMARY
+          } else {
+            echo '（manifest 未产出——上游校验门失败时本摘要无产物面）' >> $env:GITHUB_STEP_SUMMARY
+          }
+
+      # #308 纪律：save 后置显式步骤（失败/超时不阻塞 run 结论）
+      - name: Save cargo cache
+        if: always() && steps.cache-cargo.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        timeout-minutes: 15
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            bidcore/target/
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('bidcore/Cargo.lock') }}

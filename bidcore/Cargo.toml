@@ -41,5 +41,21 @@ image = "0.25"
 # docx/xlsx 解析收敛引擎（bid-engine → mdc-office-io），workspace 成员不再
 # 直接依赖 OOXML 解析栈（引擎侧依赖不入本清单）。
 
+# #248 发行 profile（workspace 根 = 唯一生效位——mang-app 已并入本
+# workspace，#303/FG-01 后不再有独立 workspace；日常开发走 [profile.dev]
+# 不受影响，仅 --release 构建（发行工作流）消费本段）。
+#
+# 保守档（不引入高风险面）：
+#   strip = "symbols"     不分发调试符号（Windows 面配合 debug=false：无 PDB
+#                          路径残留；strip 再兜底剥符号表）；
+#   lto = "thin"          跨 crate 优化的低风险档（fat LTO 编译时数倍且对
+#                          tao/wry/webview2 绑定链未经实测——不冒进）；
+#   codegen-units = 1     发行构建慢一点换更优代码（只影响 release 构建）。
+# 明确不做：panic = "abort"（改变 unwind 语义——引擎面 guard/恢复逻辑
+# 依赖 panic unwinding，未经 Windows 实测不开）；商业加壳/反调试（issue
+# #248 明确排除，如需再独立评估）。
 [profile.release]
 debug = false
+strip = "symbols"
+lto = "thin"
+codegen-units = 1

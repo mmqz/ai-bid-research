@@ -109,9 +109,42 @@ scope 门级绑定；旧 `reviewer` 参数显式拒——AI 操作者不得自�
 3. 规则：
    - status 已达阶段 N → 从 N 继续，禁止重跑已完成阶段（幂等也勿滥用）；
    - 上游 content_version 变化 → 仅重跑 DIRTY 章节（影响面分析），不整单重跑；
-   - 新增补遗文件 → P1 幂等导入 → P2 增量抽取 → 受影响 REQ/CMP/SEC 标 DIRTY → 从 P4 起补；
+   - 新增补遗文件 → P1 幂等导入 → 起草已开始（MATRIX_READY+）则走 **#319 增量重写流**（见「补遗后的增量重写」节：register_addendum_changes → 逐指令 rewrite_section_partial——只改受影响段，不整章重写）；起草前到达则 P2 增量抽取；
    - 换模型 → 读最后模型记录，仅 SEC 非 ACCEPTED 且 DIRTY 的章节重写；ACCEPTED 章节默认保留（用户可显式推翻）；
 4. 每次恢复先输出「恢复计划摘要」（从哪步起、重跑哪些 SEC、预计动作）供用户确认。
+
+## 补遗后的增量重写（#319——起草后补遗到达）
+
+起草/导出后收到补遗或更正公告时，**不要整章重写**（浪费已写好且已通过
+的内容）。走两步：
+
+1. **登记变更**：`register_addendum_changes`——逐条说清补遗改了什么：
+   - 数值变更（`value_changed`）：req_id + old_text（旧要求片段——引擎
+     用它定位受影响段）+ new_requirement（新要求全文）；
+   - 新增要求（`requirement_added`）：new_requirement + category（七类
+     之一）+ section_id（归属叶章节）；
+   - 删除要求（`requirement_removed`）：req_id + old_text。
+   返回**改写指令**（RD-xxxx）：每条指令列出受影响段清单（引用该 REQ 或
+   含旧文本的段——`matched_by` 标命中腿），受影响章节标 DIRTY。
+2. **逐指令执行**：`rewrite_section_partial`：
+   - **先 dry_run=true 预览**（「将修改 X 段，Y 段不动」——确认影响面
+     无误再真跑）；
+   - 真跑只提供受影响段的新内容（rewrites ⊆ 指令影响面——越界段会被
+     拒）；兄弟段字节级零改动；
+   - 返回局部复验结果（只验受影响章节）+「改了 N 段，M 条 REQ 重新响应」；
+   - 章节全部指令处置完自动清 DIRTY（`get_bid_project_state` 的
+     dirty_sections / pending_rewrite_directives 是进度面）。
+   - 特殊路径：**新增要求**的指令影响面恒空——用 `append_section_segment`
+     新增响应段（引用新 REQ id）后，回 `rewrite_section_partial` 空处置；
+     人工判定无需改写 → `dismiss=true`。
+   - CAS：并发写作面带 expected_version（list_section_segments 回显）。
+
+纪律：
+- 补遗变更是**上游事实**：登记后矩阵/条款集立即反映（R-del 连证据绑定
+  一起解除），不要在正文里「口头响应」已删除的条款；
+- 已导出（EXPORTED）后补遗到达同样走本流程，处置完重验 + 再导出即新稿；
+- 整章重写只留给「指令影响面覆盖了绝大多数段」的场景——那是真重构，
+  走 draft_response_section（整稿替换，段账本重置单段）。
 
 ## 门禁阻塞降级协议（用户不在场时怎么办）
 
@@ -229,6 +262,7 @@ project_version 恒为本次完成后最新值，直接传给下一个工具。
 - `references/p3-matrix.md`——建纲/矩阵用法、五态与 blocking 判定（#241 两分账：正文响应/证据缺口）、资格结论推导、blocking 行排查表
 - `references/p4-evidence.md`——证据登记/绑定面、有效期核对法、补料清单模板
 - `references/p5b-segments.md`——章节分段写入三工具（#254：长章节分批写作的引擎对偶面——append/rewrite/list、幂等与 CAS、恢复流程）
+- `references/addendum-rewrite.md`——补遗后的增量重写两工具（#319：起草后补遗到达——登记变更生成指令、dry_run 预览、只改受影响段、局部复验）
 - `references/p6-validation.md`——确定性规则清单与模型检查范围、WAIVED 审批话术
 - `references/p7-review.md`——四道审门与 receipt 验签、RevisionTask 闭环、质量复核收口清单
 - `references/p8-export.md`——导出双前置门、六表七件对账、暗标与幂等、产物验证

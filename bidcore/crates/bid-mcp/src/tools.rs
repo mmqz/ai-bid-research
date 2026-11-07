@@ -47,6 +47,9 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         "append_section_segment" => append_section_segment(svc, args),
         "rewrite_section_segment" => rewrite_section_segment(svc, args),
         "list_section_segments" => list_section_segments(svc, args),
+        // ---- #319 补遗后增量重写（变更登记→指令→局部改写+局部复验）----
+        "register_addendum_changes" => register_addendum_changes(svc, args),
+        "rewrite_section_partial" => rewrite_section_partial(svc, args),
         // ---- #59 阶段 2：导出（契约 §8——双前置门 + format-spec + 暗标）----
         "export_bid_document" => export_bid_document(svc, args),
         // ---- #59 阶段 3：双层校验（契约 §7——确定性规则先行 + 模型复核注入）----
@@ -313,10 +316,51 @@ fn get_bid_project_state(svc: &mut BidService, args: Value) -> ToolResult {
         }
     };
 
+    // #319 发现面：DIRTY 章节（补遗/重开致脏）+ 待处置改写指令——
+    // 断点恢复时「哪些章节还没追上补遗」一眼可见（无脏零指令 = 零成本）
+    let dirty_sections: Vec<Value> = svc
+        .store()
+        .sections()
+        .iter()
+        .filter(|n| n.dirty)
+        .map(|n| {
+            json!({
+                "section_id": n.id,
+                "title": n.title,
+                "section_status": n.status.as_str(),
+                "pending_directives": svc.store().pending_rewrite_directives_of(&n.id).len(),
+            })
+        })
+        .collect();
+    let pending_directives: Vec<Value> = svc
+        .store()
+        .pending_rewrite_directives()
+        .iter()
+        .map(|d| {
+            json!({
+                "id": d.id,
+                "section_id": d.section_id,
+                "change_id": d.change_id,
+                "req_id": d.req_id,
+                "change_type": d.change_type.as_str(),
+                "old_text": d.old_text,
+                "new_requirement": d.new_requirement,
+                "affected_segments": d.affected_segments.iter().map(|a| json!({
+                    "segment_id": a.segment_id,
+                    "seq": a.seq,
+                    "matched_by": a.matched_by,
+                })).collect::<Vec<_>>(),
+                "created_at": d.created_at,
+            })
+        })
+        .collect();
+
     Ok(json!({
         "status": status.as_str(),
         "allowed_next_tools": status.allowed_tools(),
         "terminal": status.next_allowed().is_empty(),
+        "dirty_sections": dirty_sections,
+        "pending_rewrite_directives": pending_directives,
         // #277：过门审计面（断点恢复时可见——agent 声明过的门带警告导出；
         // human_review_complete=false 时 export_bid_document 正文插警告横幅）
         "agent_waivers": agent_waivers_json(svc),
@@ -5357,6 +5401,213 @@ fn list_section_segments(svc: &mut BidService, args: Value) -> ToolResult {
         "project_version": svc.store().content_version(),
         "request_id": next_request_id(),
     }))
+}
+
+/// `register_addendum_changes` —— #319 ①：补遗变更登记（DIRTY 打标 +
+/// 改写指令生成 + 矩阵重算）。起草后补遗到达的主入口——把「补遗改了什么」
+/// 翻译成「哪些章节哪些段要改」。
+fn register_addendum_changes(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "register_addendum_changes";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
+
+    // ---- changes 数组解析（壳校验：结构 + 键值域；业务校验在服务/域层）
+    let changes_raw = args
+        .get("changes")
+        .and_then(Value::as_array)
+        .ok_or_else(|| ToolError::EUnprocessable {
+            what: format!("{TOOL}: changes 缺失或非数组（补遗变更清单至少一条）"),
+        })?
+        .clone();
+    let mut specs = Vec::with_capacity(changes_raw.len());
+    for (i, c) in changes_raw.iter().enumerate() {
+        let type_key = c
+            .get("change_type")
+            .and_then(Value::as_str)
+            .ok_or_else(|| ToolError::EUnprocessable {
+                what: format!("{TOOL}: changes[{i}].change_type 缺失（value_changed|requirement_added|requirement_removed）"),
+            })?;
+        let change_type = bid_domain::rewrite::ChangeType::from_key(type_key)
+            .ok_or_else(|| ToolError::EUnprocessable {
+                what: format!(
+                    "{TOOL}: changes[{i}].change_type 非法：{type_key}（合法值：value_changed|requirement_added|requirement_removed）"
+                ),
+            })?;
+        specs.push(bid_domain::rewrite::ChangeSpec {
+            req_id: opt_str(c, "req_id", &format!("{TOOL}[{i}]"))?,
+            change_type,
+            old_text: c
+                .get("old_text")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string(),
+            new_requirement: c
+                .get("new_requirement")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string(),
+            category: opt_str(c, "category", &format!("{TOOL}[{i}]"))?,
+            clause_no: opt_str(c, "clause_no", &format!("{TOOL}[{i}]"))?,
+            section_id: opt_str(c, "section_id", &format!("{TOOL}[{i}]"))?,
+            source_file_id: opt_str(c, "source_file_id", &format!("{TOOL}[{i}]"))?,
+        });
+    }
+
+    route_guard(svc, &project_id, TOOL, project_version)?;
+
+    let out = svc
+        .register_addendum_changes(specs)
+        .map_err(ToolError::from)?;
+
+    let changes: Vec<Value> = out
+        .changes
+        .iter()
+        .map(|r| {
+            json!({
+                "id": r.change.id,
+                "req_id": r.change.req_id,
+                "change_type": r.change.change_type.as_str(),
+                "old_text": r.change.old_text,
+                "new_requirement": r.change.new_requirement,
+                "source_file_id": r.change.source_file_id,
+                "registered_at": r.change.registered_at,
+                "affected_sections": r.affected_sections,
+                "warnings": r.warnings,
+            })
+        })
+        .collect();
+    let directives: Vec<Value> = out.directives.iter().map(directive_json).collect();
+    let dirty_sections: Vec<Value> = out
+        .dirty_sections
+        .iter()
+        .map(|sec| dirty_section_json(svc, sec))
+        .collect();
+    Ok(json!({
+        "changes": changes,
+        "directives": directives,
+        "dirty_sections": dirty_sections,
+        "directive_warnings": out.directive_warnings,
+        "matrix": { "rows": out.matrix_rows, "blocking": out.matrix_blocking },
+        "next": "逐指令处置：rewrite_section_partial（dry_run 先预览；新增要求走 append_section_segment 后回本工具 dismiss 或空 rewrites 处置）",
+        "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
+}
+
+/// `rewrite_section_partial` —— #319 ②+③：指令执行（局部改写只动受影响段
+/// + 局部复验只跑受影响章节）。dry_run 预览「将修改 X 段，Y 段不动」；
+/// dismiss 人工裁定不适用；rewrites 空表 = 确认无需改写直接处置。
+fn rewrite_section_partial(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "rewrite_section_partial";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let directive_id = req_str(&args, "directive_id", TOOL)?;
+    let dry_run = args
+        .get("dry_run")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let dismiss = args
+        .get("dismiss")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let project_version = opt_cas_version(&args, TOOL)?;
+
+    // rewrites 数组解析（可选——空表 = 确认无需改写/纯处置）
+    let mut rewrites = Vec::new();
+    if let Some(arr) = args.get("rewrites").and_then(Value::as_array) {
+        for (i, r) in arr.iter().enumerate() {
+            rewrites.push(bid_tools::rewrite::SegmentRewrite {
+                segment_id: req_str(r, "segment_id", &format!("{TOOL}[{i}]"))?,
+                content: req_str(r, "content", &format!("{TOOL}[{i}]"))?,
+                expected_version: opt_u64(r, "expected_version", &format!("{TOOL}[{i}]"))?
+                    .map(|v| v as u32),
+            });
+        }
+    }
+
+    route_guard(svc, &project_id, TOOL, project_version)?;
+
+    let out = svc
+        .rewrite_section_partial(&directive_id, rewrites, dry_run, dismiss)
+        .map_err(ToolError::from)?;
+
+    let modified: Vec<Value> = out
+        .modified
+        .iter()
+        .map(|m| {
+            json!({
+                "segment_id": m.segment_id,
+                "seq": m.seq,
+                "version_before": m.version_before,
+                "version_after": m.version_after,
+                "chars": m.chars,
+            })
+        })
+        .collect();
+    Ok(json!({
+        "directive": directive_json(&out.directive),
+        "section_id": out.directive.section_id,
+        "dry_run": out.dry_run,
+        // 改动前预告面（真跑也回显——「改了 X 段 / Y 段不动」的对账）
+        "plan": {
+            "segments_to_modify": out.segments_to_modify,
+            "segments_untouched": out.segments_untouched,
+        },
+        "modified_segments": modified,
+        "untouched_segment_ids": out.untouched_segment_ids,
+        "assembled_chars": out.assembled_chars,
+        "target_chars": out.target_chars,
+        "remaining_chars": out.remaining_chars,
+        "over_target": out.over_target,
+        // ③ 局部复验（只跑受影响章节——未受影响章节零重跑）
+        "revalidation": {
+            "section_id": out.revalidation.section_id,
+            "ok": out.revalidation.ok,
+            "blocker": out.revalidation.blocker,
+            "major": out.revalidation.major,
+            "minor": out.revalidation.minor,
+            "reqs_revalidated": out.revalidation.reqs_revalidated,
+            "reqs_responded": out.revalidation.reqs_responded,
+        },
+        "remaining_pending_directives": out.remaining_pending,
+        "dirty_cleared": out.dirty_cleared,
+        "warnings": out.warnings,
+        "status": svc.store().project().map(|p| p.status.as_str()).unwrap_or(""),
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
+}
+
+/// 指令的 JSON 形态（register / partial / state 三面共用）。
+fn directive_json(d: &bid_domain::rewrite::RewriteDirective) -> Value {
+    json!({
+        "id": d.id,
+        "section_id": d.section_id,
+        "change_id": d.change_id,
+        "req_id": d.req_id,
+        "change_type": d.change_type.as_str(),
+        "old_text": d.old_text,
+        "new_requirement": d.new_requirement,
+        "affected_segments": d.affected_segments.iter().map(|a| json!({
+            "segment_id": a.segment_id,
+            "seq": a.seq,
+            "matched_by": a.matched_by,
+        })).collect::<Vec<_>>(),
+        "status": d.status.as_str(),
+        "created_at": d.created_at,
+        "applied_at": d.applied_at,
+    })
+}
+
+/// 脏章节的 JSON 形态（标题/状态 + 待处置指令数——发现面）。
+fn dirty_section_json(svc: &BidService, section_id: &str) -> Value {
+    let node = svc.store().sections().iter().find(|n| n.id == section_id);
+    json!({
+        "section_id": section_id,
+        "title": node.map(|n| n.title.clone()).unwrap_or_default(),
+        "section_status": node.map(|n| n.status.as_str()).unwrap_or(""),
+        "pending_directives": svc.store().pending_rewrite_directives_of(section_id).len(),
+    })
 }
 
 #[cfg(test)]

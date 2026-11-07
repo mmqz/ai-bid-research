@@ -64,6 +64,7 @@ pub mod review;
 pub mod scoring;
 pub mod scoring_outline;
 pub mod coverage;
+pub mod rewrite;
 pub mod segments;
 
 pub use principal::{ActorType, TrustedPrincipal};
@@ -223,6 +224,10 @@ impl ProjectStatus {
                 "score_document",
                 // #226：人工覆写条款响应（否决项死锁出口——矩阵已建才有可覆写对象）
                 "set_matrix_override",
+                // #319：补遗后增量重写（变更登记+局部改写——起草后补遗到达的
+                // 主工作面，与分段写入同窗口）
+                "register_addendum_changes",
+                "rewrite_section_partial",
             ],
             Drafting => &[
                 "get_coverage_report",
@@ -255,6 +260,9 @@ impl ProjectStatus {
                 // 绑定质量，状态门不承担绑定校验职责。
                 "register_evidence",
                 "bind_evidence",
+                // #319：起草中补遗到达——DIRTY 章节的局部改写出口
+                "register_addendum_changes",
+                "rewrite_section_partial",
             ],
             Validating => &[
                 "get_compliance_matrix",
@@ -282,6 +290,9 @@ impl ProjectStatus {
                 // #243：历史异常态（VALIDATING + 缺章——旧版校验误推进所致）
                 // 的受支持恢复出口；三重约束见 recover_validating_to_drafting
                 "recover_validating_state",
+                // #319：校验期补遗到达/复验发现需改稿——局部改写出口
+                "register_addendum_changes",
+                "rewrite_section_partial",
             ],
             Reviewing | ReadyToExport => &[
                 "get_compliance_matrix",
@@ -306,6 +317,9 @@ impl ProjectStatus {
                 // ——与 set_matrix_override 同窗口同理由）
                 "register_evidence",
                 "bind_evidence",
+                // #319：导出前补遗到达——局部改写后重验重导
+                "register_addendum_changes",
+                "rewrite_section_partial",
             ],
             Exported => &[
                 "get_coverage_report",
@@ -325,6 +339,9 @@ impl ProjectStatus {
                 "score_document",
                 // #226：已导出仍可改判（再导出走幂等重导）
                 "set_matrix_override",
+                // #319：已导出后补遗到达——登记变更+局部改写+重验，再导出即新稿
+                "register_addendum_changes",
+                "rewrite_section_partial",
             ],
         }
     }
@@ -556,6 +573,12 @@ pub struct DomainStore {
     /// 仍在 `OutlineNode.content`；账本与正文同进退的不变量与写入面见
     /// [`DomainStore::append_section_segment`]）
     segments: Vec<segments::SectionSegment>,
+    /// #319 补遗变更账本（AC-xxxx——append-only 审计账；条款集/章节树/
+    /// DIRTY 的维护与登记面见 [`DomainStore::register_addendum_changes`]）
+    addendum_changes: Vec<rewrite::AddendumChangeRecord>,
+    /// #319 改写指令账本（RD-xxxx——变更 × 受影响章节的落账面；处置见
+    /// [`DomainStore::apply_rewrite_directive`]）
+    rewrite_directives: Vec<rewrite::RewriteDirective>,
     /// 幂等键 → 首次结果 JSON（同 key 重放返回首次结果，不重复执行）
     idempotency: HashMap<String, serde_json::Value>,
     id_seq: u64,
@@ -585,6 +608,8 @@ impl DomainStore {
             scoring_mappings: vec![],
             state_recoveries: vec![],
             segments: vec![],
+            addendum_changes: vec![],
+            rewrite_directives: vec![],
             idempotency: HashMap::new(),
             id_seq: 0,
         }
@@ -1331,6 +1356,14 @@ pub struct StoreSnapshot {
     /// 无分段账本时正文仍以 `OutlineNode.content` 为真相，行为与旧版一致）
     #[serde(default)]
     pub segments: Vec<segments::SectionSegment>,
+    /// #319 补遗变更账本（加性迁移——旧快照无此字段 → 空集合加载：
+    /// 无变更登记时无 DIRTY/指令面，行为与旧版一致；schema_version 不
+    /// bump，见头注释的加性演进纪律）
+    #[serde(default)]
+    pub addendum_changes: Vec<rewrite::AddendumChangeRecord>,
+    /// #319 改写指令账本（加性迁移——旧快照无此字段 → 空集合加载）
+    #[serde(default)]
+    pub rewrite_directives: Vec<rewrite::RewriteDirective>,
     #[serde(default)]
     pub idempotency: BTreeMap<String, serde_json::Value>,
     #[serde(default)]
@@ -1368,6 +1401,8 @@ impl DomainStore {
             scoring_mappings: self.scoring_mappings.clone(),
             state_recoveries: self.state_recoveries.clone(),
             segments: self.segments.clone(),
+            addendum_changes: self.addendum_changes.clone(),
+            rewrite_directives: self.rewrite_directives.clone(),
             // HashMap → BTreeMap：持久化 DTO 要求跨进程字节一致（HashMap 迭代序不确定）
             idempotency: self.idempotency.clone().into_iter().collect(),
             id_seq: self.id_seq,
@@ -1484,6 +1519,9 @@ impl DomainStore {
             max_suffix(snap.scoring_mappings.iter().map(|m| m.id.clone())),
             // #254 SEG-xxxx 入水位（store 签发命名空间——防重启后重签碰撞）
             max_suffix(snap.segments.iter().map(|s| s.id.clone())),
+            // #319 AC-/RD- 入水位（store 签发命名空间）
+            max_suffix(snap.addendum_changes.iter().map(|c| c.id.clone())),
+            max_suffix(snap.rewrite_directives.iter().map(|d| d.id.clone())),
             snap.project
                 .as_ref()
                 .map(|p| max_suffix([p.id.clone()].into_iter()))
@@ -1662,7 +1700,9 @@ impl DomainStore {
                 || !snap.file_roles.is_empty()
                 || !snap.scoring_mappings.is_empty()
                 || !snap.state_recoveries.is_empty()
-                || !snap.segments.is_empty())
+                || !snap.segments.is_empty()
+                || !snap.addendum_changes.is_empty()
+                || !snap.rewrite_directives.is_empty())
         {
             return Err(un("快照有数据但无项目（孤儿集合——拒绝加载半个库）".into()));
         }
@@ -1705,6 +1745,59 @@ impl DomainStore {
                 )));
             }
         }
+        // #319 变更/指令账本引用完整性：id 唯一；指令的 change_id 必须
+        // 存在于变更账（孤儿指令 = 指不到源变的重写要求，拒）；指令的
+        // section_id 必须存在于章节树（同孤儿段判定）；affected_segments
+        // 的段必须存在且属于该章节（错位段 = 改错地方，拒）。
+        if let Some(e) = dup_in(
+            snap.addendum_changes.iter().map(|c| c.id.clone()).collect(),
+            "addendum_changes",
+        ) {
+            return Err(un(e));
+        }
+        if let Some(e) = dup_in(
+            snap.rewrite_directives
+                .iter()
+                .map(|d| d.id.clone())
+                .collect(),
+            "rewrite_directives",
+        ) {
+            return Err(un(e));
+        }
+        if let Some(bad) = snap
+            .rewrite_directives
+            .iter()
+            .find(|d| !snap.addendum_changes.iter().any(|c| c.id == d.change_id))
+        {
+            return Err(un(format!(
+                "指令 {} 引用的变更 {} 不存在（孤儿指令——半个闭环，拒载）",
+                bad.id, bad.change_id
+            )));
+        }
+        if let Some(bad) = snap
+            .rewrite_directives
+            .iter()
+            .find(|d| !snap.sections.iter().any(|n| n.id == d.section_id))
+        {
+            return Err(un(format!(
+                "指令 {} 引用的章节 {} 不存在（孤儿指令——拒载）",
+                bad.id, bad.section_id
+            )));
+        }
+        if let Some(bad) = snap.rewrite_directives.iter().find_map(|d| {
+            d.affected_segments.iter().find(|a| {
+                let hit = snap.segments.iter().find(|s| s.id == a.segment_id);
+                match hit {
+                    None => true,
+                    Some(s) => s.section_id != d.section_id,
+                }
+            })
+        }) {
+            return Err(un(format!(
+                "指令的影响面段 {} 不存在或不属于指令章节（错位段——改错地方，拒载）",
+                bad.segment_id
+            )));
+        }
         Ok(Self {
             project: snap.project,
             files: snap.files,
@@ -1727,6 +1820,8 @@ impl DomainStore {
             scoring_mappings: snap.scoring_mappings,
             state_recoveries: snap.state_recoveries,
             segments: snap.segments,
+            addendum_changes: snap.addendum_changes,
+            rewrite_directives: snap.rewrite_directives,
             idempotency: snap.idempotency.into_iter().collect(),
             id_seq: snap.id_seq,
         })

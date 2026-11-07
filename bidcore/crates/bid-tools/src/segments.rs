@@ -264,7 +264,7 @@ impl BidService {
     // ---------------- 内部
 
     /// 合稿落盘 + checkpoint（与 draft_section 的 S-2 半边同源）。
-    fn commit_assembled(&mut self, section_id: &str) -> Result<(), ToolError> {
+    pub(crate) fn commit_assembled(&mut self, section_id: &str) -> Result<(), ToolError> {
         if let Some(dir) = self.workspace_dir() {
             let mut asm = crate::assembly::ChapterAssembler::open(&dir).map_err(|e| {
                 ToolError::EUnprocessable {

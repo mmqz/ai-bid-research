@@ -786,7 +786,7 @@ impl BidService {
         }
     }
 
-    fn auto_checkpoint(&self) -> Result<(), ToolError> {
+    pub(crate) fn auto_checkpoint(&self) -> Result<(), ToolError> {
         self.checkpoint().map_err(|e| ToolError::EUnprocessable {
             reason: format!("checkpoint 落盘失败（内存已变更、磁盘未跟上——不得当作成功）: {e}"),
         })

@@ -762,7 +762,7 @@ pub(crate) fn describe(name: &str) -> &'static str {
         "export_bid_document" => "导出（含暗标模式；#117 表格接线——profile.bid_amount/price_breakdown 报价决策，六表自动注入/附表）",
         "get_bid_project_state" => "只读：项目状态与 allowed_next_tools",
         "save_version" => "AI 主动存版本快照（mang-snap 同源）",
-        "check_bid_quality" => "只读：生成质量覆盖度检查 + 报告落盘（#68 阶段 2）",
+        "check_bid_quality" => "只读：生成质量覆盖度检查 + 全局一致性（#423——金额/工期/术语/承诺跨章冲突，位置锚 SEC-xxxx|PR-xxxx）+ 负偏离清单（A-07）+ 报告落盘（#68 阶段 2）",
         "build_outline" => "建纲 + 矩阵首建（G1——#80 第三批补齐；REQUIREMENTS_EXTRACTED 态；#287 篇幅档位：length_profile 四档 practical|standard|conservative|maximum 与 target_total_chars 三者优先，默认档 Conservative 1,200,000≈1422 页；响应 length 回显生效档）",
         "recommend_length_profile" => "只读：篇幅档位推荐（#287——P3 建纲前先调：信号面细则数/★条款数/预算/采购类型/明写篇幅→推荐档+理由+alternatives；决策权在用户，Agent 只推荐；明写篇幅覆盖一切推断）",
         "register_evidence" => "证据登记（G2——语义位查重/换版；MATRIX_READY+；#185 来源验证：source_file_id 须指向已导入文件，sha256/指纹由服务端生成；带 locator 且对账通过 → CONTENT_MATCHES + 正文摘录入账，缺省文件级锚 → FILE_EXISTS（#217 四态）；#245 占位：placeholder=true → PLACEHOLDER 占位/待核验——可绑定但不清合规阻塞（矩阵 PENDING_EVIDENCE 待补）、不得声称资质已具备，升级 = 换版重登；verification_tier 不可自报；业绩类可带 client/amount_wan/completed_on 业务面；结构化字段走可选 fields 对象）",

@@ -423,13 +423,18 @@ out: { artifact:{url, sha256, size}, content_version_snapshot, precheck:{blocker
 ```
 in : { project_id }
 out: { project_id, summary:{total, drafted, failed, pending, uncovered_req_total, out_of_band,
-       unanchored_total}, needs_human:[SEC-*],
+       unanchored_total, dup_pairs, dup_max_similarity, char_total, char_target,
+       char_deviation_pct}, needs_human:[SEC-*],
        submission_readiness:{ #241 裁定（2026-11-05）——提交就绪面（与 §7 同源同构：
          ready/not_built/blockers/unresponded_count/evidence_missing_count/
          unresponded[]/evidence_missing[]——单一出口，两工具面永不分叉）},
        sections:[{section_id, title, status, chars,
        target_chars, within_band, requirement_ids, covered_reqs, uncovered_reqs, ghost_reqs,
        cited_evs, uncited_evs, unknown_citations, unanchored_claims, error, needs_human}],
+       global_conflicts:[{ #423（S-5 全局一致性——run_review 的首个生产消费方）
+         kind, severity, section_id, message }],
+       negative_deviations:[{ #423（A-07 负偏离查询挂同一响应面）
+         param_id, requirement_id, param_name, required_value, response_value }],
        artifact:{path, size}|null, warnings[] }
 前置: MATRIX_READY+（起草中即可查进度）；章节树已建
 语义: 只读诊断（D2 同款——报告是导数不是源数据）：
@@ -448,6 +453,20 @@ out: { project_id, summary:{total, drafted, failed, pending, uncovered_req_total
      - requirement_ids（#86 摩擦 #4 清偿）：章节绑定的 REQ 全集——章节→REQ
        归属的正式查询口（无需从矩阵反推）；与 covered/uncovered/ghost 的并集
        一致（三者在响应面内互斥分桶）。
+     - global_conflicts（#423）：S-5 全局一致性——金额（amount_conflict）/
+       工期（schedule_conflict）/术语（term_conflict）/承诺（commitment_conflict）
+       四类跨章冲突，恒 blocker；比对面 = 叶章节正文 + 参数响应账（逐行合成，
+       响应值是承诺面）；位置锚 section_id = SEC-xxxx（章）| PR-xxxx（参数行，
+       修复回路直达）；message 含全部归一化取值与各自首现位置（万×10000、
+       个月×30 归一）；空数组 = 比对面内无冲突（字段不缺席），词表口径保守
+       （投标保证金/招标控制价/项目预算/服务费/工期/交付周期/实施周期/服务期
+       + 缩写（全称）+ 7x24/5x8/全天候 + 响应时间 N 小时），空清单 ≠ 全文
+       已人工核对；run_review 的局部柱（占位符/悬空引用/格式偏差）不进本面
+       ——P6 validate 的同域规则码是单一真源，防双工具异阈值双报。
+     - negative_deviations（#423，A-07）：参数响应账中 deviation=NEGATIVE 的
+       行（废标级——技术参数不达标）；修复面 = set_param_responses 改响应值
+       或如实声明偏离（不可伪装满足）；required/response 原文对照可复算
+       （derive_deviation 单一真源）。
 状态: 不推状态（只读）
 章节发现面（#80 第三批外部 Agent 实测摩擦 #3，从末尾括号注提升到正文）：
      - 本工具 sections[] **只列叶节点**（可起草面，按 order 排序）——外部 Agent

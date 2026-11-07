@@ -70,6 +70,20 @@ pub enum CheckKind {
     CommitmentConflict,
 }
 
+impl CheckKind {
+    /// 是否全局柱（S-5 两柱分野——接线面 #423 的分桶判据：check_bid_quality
+    /// 响应只承载全局冲突分节，局部发现归 P6 validate 的同域规则码）。
+    pub fn is_global(self) -> bool {
+        matches!(
+            self,
+            CheckKind::AmountConflict
+                | CheckKind::ScheduleConflict
+                | CheckKind::TermConflict
+                | CheckKind::CommitmentConflict
+        )
+    }
+}
+
 /// 严重度：Blocker（废标级——硬冲突/占位/悬空）| Warning（偏差级——格式面）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

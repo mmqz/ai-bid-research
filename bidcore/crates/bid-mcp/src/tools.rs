@@ -2645,6 +2645,49 @@ fn check_bid_quality(svc: &mut BidService, args: Value) -> ToolResult {
         Some((pct * 10.0).round() / 10.0)
     };
 
+    // ---- S-5 全局一致性 + 负偏离接线（#423——run_review 的首个生产消费方）
+    //
+    // 装配面见 bid-tools review_wire：叶章节正文 + 参数响应账（PR-xxxx 逐行
+    // 合成——响应值是我方承诺面，与章节正文同维度数值必须一致）。响应面只
+    // 承载**全局柱**（金额/工期/术语/承诺四类冲突，Blocker 级）——run_review
+    // 的局部柱（占位符/悬空引用/格式偏差）有意不进本面：P6 validate 已用
+    // 既有规则码（W_PLACEHOLDER/E_CITATION_GHOST/W_CHARS_OFF_TARGET）覆盖
+    // 同域信号，双工具异阈值双报只会制造信号冲突。
+    let review = bid_tools::review_wire::run_review_from_store(svc.store());
+    let global_conflicts: Vec<Value> = review
+        .findings
+        .iter()
+        .filter(|f| f.kind.is_global())
+        .map(|f| {
+            serde_json::json!({
+                // kind：amount_conflict/schedule_conflict/term_conflict/commitment_conflict
+                "kind": f.kind,
+                // 四类全局冲突恒 blocker（废标级——跨章口径不一致）
+                "severity": f.severity,
+                // 位置锚：SEC-xxxx（章正文）| PR-xxxx（参数响应行——修复回路直达）
+                "section_id": f.section_id,
+                // 含全部取值与各自首现位置（如「投标保证金 在 SEC-0001=3500000 与 PR-0001=3580000」）
+                "message": f.message,
+            })
+        })
+        .collect();
+    // A-07 负偏离查询挂同一响应面（废标级：技术参数不达标——negative_deviations
+    // 的行必须逐条给用户，漏检一行就是放一行废标风险过闸）
+    let negative_deviations: Vec<Value> = svc
+        .store()
+        .negative_deviations()
+        .iter()
+        .map(|p| {
+            serde_json::json!({
+                "param_id": p.id,
+                "requirement_id": p.requirement_id,
+                "param_name": p.param_name,
+                "required_value": p.required_value,
+                "response_value": p.response_value,
+            })
+        })
+        .collect();
+
     // ---- out 组装（sections 内联——全量诊断一次到位；大文档以 artifact 为准）
     let sm = &report.summary;
     Ok(serde_json::json!({
@@ -2668,6 +2711,12 @@ fn check_bid_quality(svc: &mut BidService, args: Value) -> ToolResult {
         // 而未就绪是合法状态，两分账在响应面同场可见）
         "submission_readiness": submission_readiness_json(svc),
         "sections": report.sections,
+        // #423：全局一致性（金额/工期/术语/承诺跨章冲突）+ 负偏离——
+        // 空数组是「无比对面冲突」的诚实态（字段不缺席）；词表口径见
+        // bid-tools check.rs 的 AMOUNT_DIMS/SCHEDULE_DIMS（保守词面，空清单
+        // ≠ 全文已人工核对）
+        "global_conflicts": global_conflicts,
+        "negative_deviations": negative_deviations,
         "artifact": artifact,
         "warnings": warnings,
         "request_id": next_request_id(),

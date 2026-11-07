@@ -370,7 +370,11 @@ fn run_window(
     let proxy = event_loop.create_proxy();
     let _ = PROXY.set(proxy.clone());
 
-    let window = WindowBuilder::new()
+    // #405：with_undecorated_shadow 是 tao 的 Windows-only API（WM_NCCALCSIZE
+    // 阴影内缩处理仅存在于 Windows 后端），Linux 编译不过（E0599）——此前
+    // mang-app 在 Linux 整体不可构建的阻断点之一。链式拆两段 + cfg 门控，
+    // Windows 行为完全不变（builder 方法顺序无语义影响）。
+    let wb = WindowBuilder::new()
         .with_title("mang — 标书工作台")
         // 精确尺寸由 chrome::apply_workarea 在窗口建好后钉一次（见那里的说明）：
         // tao 的 set_inner_size 在「无边框无阴影」时会把尺寸当外框算，这里先给初值，
@@ -380,14 +384,16 @@ fn run_window(
         // 自绘标题栏：去掉系统标题栏/边框，改由 UI 的菜单栏当标题栏
         // （拖动/缩放/双击最大化/贴边吸附由 chrome.rs 的 WM_NCHITTEST 交还系统处理）
         .with_decorations(false)
-        // ⚠ 关键：必须关掉「无边框阴影」。tao 0.37 的默认值是 true，此时它的
-        //   WM_NCCALCSIZE 会按 util::calculate_window_insets() 把客户区按阴影内缩
-        //   （本机 1243x682 的窗口算出 1228x673 的客户区），WebView 于是顶在窗口
-        //   第 1 像素、把 32px 标题带整条盖住 —— 拖动/双击/上边缩放全部失效的根因。
-        //   关掉之后 tao 原样保留 rgrc：整窗 = 客户区，WebView 从 0,0 铺满。
-        .with_undecorated_shadow(false)
         // 先隐藏，等 WebView 建好再显示，避免白屏闪一下
-        .with_visible(false)
+        .with_visible(false);
+    // ⚠ 关键：必须关掉「无边框阴影」。tao 0.37 的默认值是 true，此时它的
+    //   WM_NCCALCSIZE 会按 util::calculate_window_insets() 把客户区按阴影内缩
+    //   （本机 1243x682 的窗口算出 1228x673 的客户区），WebView 于是顶在窗口
+    //   第 1 像素、把 32px 标题带整条盖住 —— 拖动/双击/上边缩放全部失效的根因。
+    //   关掉之后 tao 原样保留 rgrc：整窗 = 客户区，WebView 从 0,0 铺满。
+    #[cfg(windows)]
+    let wb = wb.with_undecorated_shadow(false);
+    let window = wb
         .build(&event_loop)
         .unwrap_or_else(|e| {
             eprintln!("[mang] 窗口创建失败：{e}");

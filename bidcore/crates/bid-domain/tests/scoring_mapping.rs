@@ -893,3 +893,225 @@ fn mapping_snapshot_roundtrip_and_old_snapshot_loads() {
         Err(ToolError::EUnprocessable { .. })
     ));
 }
+
+// ---------------------------------------------------------------- #427 撤销面（A-22）
+//
+// 账本此前只有 upsert 写面：错建映射永久在账（share 域 (0,1] 拒 0 清零），
+// 四处 #224 孤儿守卫（set/replace_requirements、set_outline、rewrite 删除面）
+// 文案指路的「先处理该映射」无操作可指——三面死锁，唯一出路手改 db.json。
+// 撤销面补齐后：删除 = 真出账 + 版本 bump + 审计回执，死锁闭环关闭。
+
+/// 不存在的复合键 → E_NOT_FOUND 响亮拒（静默 no-op 掩盖调用方键错），
+/// 账本与版本零变化。
+#[test]
+fn remove_scoring_mapping_not_found_is_loud_and_inert() {
+    let mut s = store_base();
+    let v0 = s.content_version();
+
+    let e = s.remove_scoring_mapping("REQ-0001", "SEC-01").unwrap_err();
+    assert!(
+        matches!(e, ToolError::ENotFound { .. }),
+        "不存在键删除必须 E_NOTFOUND"
+    );
+    assert_eq!(s.scoring_mappings().len(), 0, "账本不变");
+    assert_eq!(s.content_version(), v0, "被拒删除不 bump 版本");
+
+    // 在账行 + 部分匹配键（req 对 sec 错 / sec 对 req 错）→ 同样拒
+    upsert(&mut s, "REQ-0001", "SEC-01", 0.6);
+    let v1 = s.content_version();
+    assert!(s.remove_scoring_mapping("REQ-0001", "SEC-02").is_err());
+    assert!(s.remove_scoring_mapping("REQ-0002", "SEC-01").is_err());
+    assert_eq!(s.scoring_mappings().len(), 1, "部分键不命中不误删");
+    assert_eq!(s.content_version(), v1, "误删尝试不 bump 版本");
+}
+
+/// 命中删除：行消失 + content_version bump + 返回被删行（审计回执——
+/// 调用方可见 share/anchor，重新 upsert 即可撤销撤销）。
+#[test]
+fn remove_scoring_mapping_deletes_bumps_and_returns_row() {
+    let mut s = store_base();
+    let m = upsert(&mut s, "REQ-0001", "SEC-01", 0.6);
+    let v0 = s.content_version();
+
+    let removed = s
+        .remove_scoring_mapping("REQ-0001", "SEC-01")
+        .expect("在账复合键删除必须成功");
+    assert_eq!(removed.id, m.id, "回执行身份 = 被删行");
+    assert_eq!(removed.weight_share, 0.6);
+    assert_eq!(removed.scoring_req_id, "REQ-0001");
+    assert_eq!(removed.section_id, "SEC-01");
+    assert_eq!(s.scoring_mappings().len(), 0, "行真出账");
+    assert_eq!(
+        s.content_version(),
+        v0 + 1,
+        "真删除 bump 版本（与 upsert 同口径）"
+    );
+
+    // 幂等面：同键再删 → 拒（无静默 no-op 形态）
+    assert!(s.remove_scoring_mapping("REQ-0001", "SEC-01").is_err());
+    assert_eq!(s.content_version(), v0 + 1, "拒绝路径零副作用");
+}
+
+/// 份额预算释放：占满 1.0 后删一行 → 预算回补，原被聚合守卫拒的
+/// 写入放行（删除只减压，聚合不变量无需新守卫）。
+#[test]
+fn remove_frees_aggregate_share_budget() {
+    let mut s = store_three_leaves();
+    upsert(&mut s, "REQ-0001", "SEC-01", 0.6);
+    upsert(&mut s, "REQ-0001", "SEC-02", 0.4); // 占满 1.0
+
+    // 满额 → 再入账拒（聚合守卫在位）
+    let e = upsert_try(&mut s, "REQ-0001", "SEC-03", 0.1);
+    assert!(
+        matches!(e, Err(ToolError::EUnprocessable { .. })),
+        "占满后再入账必须拒"
+    );
+
+    // 撤销 SEC-02 的 0.4 → 预算释放 0.4
+    let removed = s.remove_scoring_mapping("REQ-0001", "SEC-02").unwrap();
+    assert_eq!(removed.weight_share, 0.4);
+
+    // 释放面内（0.6+0.4=1.0）放行；释放面外（0.6+0.5=1.1）仍拒
+    upsert(&mut s, "REQ-0001", "SEC-03", 0.4);
+    assert_eq!(s.scoring_mappings().len(), 2, "预算内再入账成功");
+    assert!(upsert_try(&mut s, "REQ-0001", "SEC-02", 0.5).is_err());
+}
+
+/// 核心验收——死锁闭环关闭：条款重建被映射拦（守卫文案指名 remove 出口）
+/// → 撤销 → set/replace 双面放行。
+#[test]
+fn remove_unblocks_requirements_rebuild_deadlock() {
+    let mut s = store_base();
+    upsert(&mut s, "REQ-0001", "SEC-01", 1.0);
+
+    // 同锚同文克隆换 id（哈希命中 → 覆盖）→ REQ-0001 将消失 → 拒，
+    // 且守卫文案指名存在的出口操作（不再指向死胡同）
+    let drifted = score_req(
+        "REQ-0099",
+        "4.1 技术方案完整性与针对性 20 分（方案须覆盖架构与选型）",
+        20.0,
+        None,
+    );
+    let e = s.set_requirements(vec![drifted.clone()]).unwrap_err();
+    match e {
+        ToolError::EUnprocessable { reason } => {
+            assert!(
+                reason.contains("remove_scoring_mapping"),
+                "守卫必须指名撤销出口，实际：{reason}"
+            );
+            assert!(reason.contains("REQ-0001"), "出口带具体键（req）：{reason}");
+            assert!(reason.contains("SEC-01"), "出口带具体键（sec）：{reason}");
+        }
+        other => panic!("孤儿守卫应 E_UNPROCESSABLE，实际 {other:?}"),
+    }
+
+    // 撤销 → 重建放行（守卫描述的场景成立）
+    s.remove_scoring_mapping("REQ-0001", "SEC-01").unwrap();
+    s.set_requirements(vec![drifted]).unwrap();
+    assert!(
+        !s.requirements().iter().any(|r| r.id == "REQ-0001"),
+        "撤销后重建放行，旧 REQ 出账"
+    );
+
+    // 整集替换面同款：映射重建（新 REQ）→ 缺映射对象拒 → 撤销 → 放行
+    upsert(&mut s, "REQ-0002", "SEC-02", 0.5);
+    let e = s
+        .replace_requirements(vec![body_req(
+            "REQ-0003",
+            "5.1 核心交换机须支持 48 口千兆光接口",
+        )])
+        .unwrap_err();
+    assert!(
+        matches!(e, ToolError::EUnprocessable { .. }),
+        "整集替换守卫在位"
+    );
+    s.remove_scoring_mapping("REQ-0002", "SEC-02").unwrap();
+    let n = s
+        .replace_requirements(vec![body_req(
+            "REQ-0003",
+            "5.1 核心交换机须支持 48 口千兆光接口",
+        )])
+        .unwrap();
+    assert_eq!(n, 1, "撤销后整集替换放行");
+}
+
+/// 来源无关撤销：OutlineDerived 行（build_outline 签发的多数面）同样
+/// 可删——派生行阻塞条款重建的死锁由此解除；下次建纲按当前条款集重签。
+#[test]
+fn remove_works_for_outline_derived_rows() {
+    let mut s = store_base();
+    s.upsert_scoring_mapping(
+        "REQ-0001".into(),
+        "SEC-01".into(),
+        1.0,
+        vec![],
+        anchor("4.1 技术方案完整性……（规则原文锚）"),
+        MappingSource::OutlineDerived,
+    )
+    .unwrap();
+
+    // 派生行在账 → 移走 REQ-0001 的替换被拦（死锁形态）
+    let e = s
+        .replace_requirements(vec![body_req(
+            "REQ-0003",
+            "5.1 核心交换机须支持 48 口千兆光接口",
+        )])
+        .unwrap_err();
+    assert!(
+        matches!(e, ToolError::EUnprocessable { .. }),
+        "派生行同样阻塞重建"
+    );
+
+    // 来源无关撤销 → 放行
+    let removed = s
+        .remove_scoring_mapping("REQ-0001", "SEC-01")
+        .expect("OutlineDerived 行必须可撤销（来源不设限）");
+    assert_eq!(removed.created_from, MappingSource::OutlineDerived);
+    s.replace_requirements(vec![body_req(
+        "REQ-0003",
+        "5.1 核心交换机须支持 48 口千兆光接口",
+    )])
+    .unwrap();
+}
+
+/// 删除不造孤儿：撤销后快照往返 restore 正常（restore 行约束面零破坏）。
+#[test]
+fn snapshot_roundtrip_after_remove_restores_cleanly() {
+    let mut s = store_base();
+    upsert(&mut s, "REQ-0001", "SEC-01", 0.6);
+    upsert(&mut s, "REQ-0002", "SEC-02", 1.0);
+    s.remove_scoring_mapping("REQ-0001", "SEC-01").unwrap();
+    assert_eq!(s.scoring_mappings().len(), 1);
+
+    let snap = s.to_snapshot();
+    let mut restored = DomainStore::restore(snap).expect("删除后快照必须可恢复");
+    assert_eq!(restored.scoring_mappings().len(), 1, "往返保真");
+    assert!(
+        restored
+            .scoring_mappings()
+            .iter()
+            .all(|m| m.scoring_req_id == "REQ-0002"),
+        "被删行不出现在恢复态"
+    );
+    // 撤销撤销：恢复态重新 upsert 同键 → 新行入账（删除可逆）
+    let m = upsert(&mut restored, "REQ-0001", "SEC-01", 0.6);
+    assert_ne!(m.id, "", "重 upsert 签新行");
+    assert_eq!(restored.scoring_mappings().len(), 2);
+}
+
+/// 便于区分「预期拒」与 unwrap 的 upsert 包装（聚合守卫负例用）。
+fn upsert_try(
+    s: &mut DomainStore,
+    req: &str,
+    sec: &str,
+    share: f64,
+) -> Result<ScoringMapping, ToolError> {
+    s.upsert_scoring_mapping(
+        req.to_string(),
+        sec.to_string(),
+        share,
+        vec![],
+        anchor("4.1 技术方案完整性……（规则原文锚）"),
+        MappingSource::AgentSubmitted,
+    )
+}

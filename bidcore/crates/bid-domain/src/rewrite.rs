@@ -344,8 +344,8 @@ impl DomainStore {
                 {
                     return Err(ToolError::EUnprocessable {
                         reason: format!(
-                            "评分映射 {} 引用的评分项 {req_id} 将随删除消失（#224 引用完整性——先处理该映射再删除）",
-                            m.id
+                            "评分映射 {} 引用的评分项 {req_id} 将随删除消失（#224 引用完整性——先 remove_scoring_mapping({req_id}, {}) 撤销该映射再删除）",
+                            m.id, m.section_id
                         ),
                     });
                 }

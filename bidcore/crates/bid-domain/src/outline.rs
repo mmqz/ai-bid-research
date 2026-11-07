@@ -1475,8 +1475,8 @@ impl DomainStore {
             {
                 return Err(ToolError::EUnprocessable {
                     reason: format!(
-                        "评分映射 {} 引用的章节 {} 将在重挂大纲后不存在（#224 引用完整性：大纲重建不得孤儿化映射账本——先处理该映射或保留该章节）",
-                        m.id, m.section_id
+                        "评分映射 {} 引用的章节 {} 将在重挂大纲后不存在（#224 引用完整性：大纲重建不得孤儿化映射账本——先 remove_scoring_mapping({}, {}) 撤销该映射或保留该章节）",
+                        m.id, m.section_id, m.scoring_req_id, m.section_id
                     ),
                 });
             }

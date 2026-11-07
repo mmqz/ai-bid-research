@@ -215,7 +215,7 @@ fn tools_list_declares_search_evidence_implemented() {
     // 声明数 = 实装数（#145 时点 20；#184 增 record_addendum_waiver → 21；
     // #219 增三覆盖工具 → 24；#226 增 set_matrix_override → 25；
     // #243 增 recover_validating_state → 26；#254 增分段三工具 → 29；
-assert_eq!(names.len(), 37, "TOOL_NAMES 声明数应为 37（21 + #219 全块覆盖三工具 + #226 确认面 + #243 恢复出口 + #254 分段三工具 + #279 list_tools + #287 篇幅档位推荐 + #285① ★漏标检测 + #285② 块级双向索引三工具 + #319 补遗后增量重写两工具）：{names:?}");
+assert_eq!(names.len(), 38, "TOOL_NAMES 声明数应为 38（21 + #219 全块覆盖三工具 + #226 确认面 + #243 恢复出口 + #254 分段三工具 + #279 list_tools + #287 篇幅档位推荐 + #285① ★漏标检测 + #285② 块级双向索引三工具 + #318 细则逐条响应覆盖检查 + #319 补遗后增量重写两工具）：{names:?}");
 }
 
 /// 验收①：exact 模式 cert=ISO9001（有界短语——不误报 ISO14001）。

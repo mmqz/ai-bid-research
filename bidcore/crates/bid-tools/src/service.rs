@@ -136,6 +136,27 @@ fn ocr_tier_of(status: ParseStatus, ocr_blocks: usize) -> &'static str {
     }
 }
 
+/// B-13（#415）：OCR「白扫」告警判据——OCR 依赖件（无文本层）零文本产出。
+///
+/// 全页 OCR 成功但 0 行块 = 诚实空（可能是真空白的扫描件），**不拦截**
+/// （不改 Err 语义——空文件合法）；但「内容丢失」与「空文件」在导入
+/// 响应面必须可区分：此前该形态零信号——全局 `ZERO_REQUIREMENTS` 只在
+/// 整批 0 REQ 时亮（同批其他件会掩盖），readiness 主件门在建纲侧兜底
+/// （抽取响应面无定位线索）。本判据补 per-file 告警（`per_file.warnings`
+/// 已透传 MCP import 响应，tools.rs:626）。
+fn ocr_blank_scan_warning(status: ParseStatus, chunks: usize, pages: usize) -> Option<String> {
+    if status == ParseStatus::OcrRequired && chunks == 0 {
+        Some(format!(
+            "OCR_BLANK_SCAN: 本件无文本层且扫描层 OCR 零文本块（{pages} 页全成功、0 产出）\
+             ——内容丢失与空文件不可区分，请人工核验：① 扫描质量/方向（过淡/倾斜/\
+             分辨率不足）；② OCR 语言数据口径（chi_sim 与 TESSDATA_PREFIX）；\
+             ③ 原件确为空白页。导入状态保持 Ok（诚实空语义，不拦截）。"
+        ))
+    } else {
+        None
+    }
+}
+
 /// 定位内容（#185 缺口 1 对账 + #217 缺口 2 抽取一体）。
 ///
 /// 验证基准 = 本仓解析产物（`ParsedFile.blocks`——服务态唯一的内容真源）：
@@ -462,6 +483,14 @@ pub fn import_files(
                             "EXPECTED_PAGES_MISMATCH: 期望 {exp} 页，实际 {pages} 页（页数口径因格式而异——docx 为结构页 1+章数，pdf 为文本层/渲染页）"
                         ));
                     }
+                }
+                // B-13（#415）：OCR 白扫可见性——OCR 依赖件零文本产出时
+                // per-file 告警（内容丢失 vs 空文件可区分）。诚实空语义
+                // 不拦截（不升 Err），与 #380 的「失败可见性」互补：
+                // 那是「OCR 失败页」的截断可见，这是「全页成功 0 块」
+                // 的空产出可分。
+                if let Some(w) = ocr_blank_scan_warning(status, chunks, pages) {
+                    warnings.push(w);
                 }
                 report.new_records += 1;
                 report.per_file.push(PerFileOutcome {
@@ -2500,4 +2529,36 @@ fn sha256_of(path: &std::path::Path) -> Result<String, ToolError> {
     let mut h = Sha256::new();
     h.update(&bytes);
     Ok(hex::encode(h.finalize()))
+}
+
+#[cfg(test)]
+mod b13_tests {
+    use super::*;
+
+    /// B-13（#415）判据正反钉子（纯函数——CI Windows 无 poppler/tesseract
+    /// 也能跑，与 #380 的「可单测性」验收同款纪律）：
+    /// - OcrRequired + 0 chunks = 白扫告警（告警码/页数/根因可机判）；
+    /// - Ok（文本层件）/ OcrRequired + 有产出 / Failed（走 errors）不告。
+    #[test]
+    fn ocr_blank_scan_warning_fires_only_for_ocr_empty() {
+        let w = ocr_blank_scan_warning(ParseStatus::OcrRequired, 0, 3)
+            .expect("白扫（全页成功 0 块）必须告警");
+        assert!(w.contains("OCR_BLANK_SCAN"), "告警码可机判: {w}");
+        assert!(w.contains("3 页"), "页数入告警定位: {w}");
+        assert!(w.contains("零文本块"), "根因入告警: {w}");
+        assert!(w.contains("TESSDATA_PREFIX"), "排查线索入告警: {w}");
+
+        assert!(
+            ocr_blank_scan_warning(ParseStatus::Ok, 0, 3).is_none(),
+            "文本层空件不属 OCR 白扫面（Ok 档——真空 docx 是合法输入）"
+        );
+        assert!(
+            ocr_blank_scan_warning(ParseStatus::OcrRequired, 42, 3).is_none(),
+            "OCR 有产出不告（ocr 档）"
+        );
+        assert!(
+            ocr_blank_scan_warning(ParseStatus::Failed, 0, 3).is_none(),
+            "失败件走 errors 面，不走 warnings"
+        );
+    }
 }

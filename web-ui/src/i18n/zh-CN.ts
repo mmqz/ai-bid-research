@@ -102,6 +102,8 @@ export const zhCN: Dict = {
   'sb.unsaved': '未保存 · Ctrl+S',
   'sb.unsavedHint': '未保存 · Ctrl+S（建议保存）',
   'sb.savedRev': '已保存 · rev {n}',
+  // #484（D-02）：web 独立态保存反馈——无宿主壳，保存=事件+草稿（无文件落盘），不得报裸「已保存」
+  'sb.savedLocal': 'rev {n} 已记录 · 草稿已自动备份（独立模式无文件保存）',
   'sb.savedTitle': 'Ctrl+S 保存（宿主桥接路径 = __md() + save_document）',
 
   // ---- 导入/导出状态行（main.ts 组合串）----

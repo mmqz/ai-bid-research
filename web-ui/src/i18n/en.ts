@@ -106,6 +106,8 @@ export const en = {
   'sb.unsaved': 'Unsaved · Ctrl+S',
   'sb.unsavedHint': 'Unsaved · Ctrl+S (save recommended)',
   'sb.savedRev': 'Saved · rev {n}',
+  // #484 (D-02): standalone save feedback — no host shell; save = event + draft (no file persistence)
+  'sb.savedLocal': 'rev {n} recorded · draft auto-backed-up (no file save in standalone mode)',
   'sb.savedTitle': 'Ctrl+S save (host bridge path = __md() + save_document)',
 
   // ---- 导入/导出状态行（main.ts 组合串）----

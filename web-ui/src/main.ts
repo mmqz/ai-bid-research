@@ -1393,8 +1393,10 @@ declare global {
     __tocJump: (idx: number) => boolean;
     /** TR-UI 批 A-2：Ctrl+S 保存动作（mdc-save 事件 + dirty 清位；宿主桥路径 = __md() + save_document）。 */
     __save: () => boolean;
-    /** TR-UI 批 A-2：最近一次保存结果（{ok, revision, bytes}）。 */
-    __lastSave: { ok: boolean; revision?: number; bytes?: number } | null;
+    /** TR-UI 批 A-2：最近一次保存结果（{ok, revision, bytes}；#484/D-02 增 standalone
+     *  形态标记——true = web 独立态（无宿主壳，保存=事件+草稿，无文件落盘，
+     *  persisted 恒 false）；false = 宿主态（壳消费 mdc-save 走 CONTRACT 路径落盘）。 */
+    __lastSave: { ok: boolean; revision?: number; bytes?: number; standalone?: boolean; persisted?: boolean } | null;
     /** M-2（#29）：未保存态（状态栏 Ctrl+S 口径 dirty——beforeunload
      *  拦截与 e2e 的单一真源；草稿落稿不改此位——草稿≠保存）。 */
     __unsaved: () => boolean;
@@ -2694,16 +2696,29 @@ function setupStatusBar(): void {
 
   // Ctrl+S：preventDefault（浏览器下载对话框拦截）+ mdc-save 事件
   //（宿主桥消费；web 独立态 = 提示自足）+ dirty 清位 + 测试桥。
+  // #484（D-02）诚实化分流：顶层窗口（window.parent === window）=
+  // 浏览器直接打开的独立态——保存无文件落盘（mdc-save 无人消费，草稿
+  // 是崩溃安全网非保存替身），状态栏不得报裸「已保存」；宿主壳全部
+  // iframe/webview 嵌入（parent ≠ self）——维持「已保存 · rev N」。
+  const isStandalone = (): boolean => window.parent === window;
   const doSave = (): boolean => {
     const core = window.__core;
     if (!core) return false;
     dirty = false;
     if (saveEl) {
-      saveEl.textContent = t('sb.savedRev', { n: Number(core.revision()) });
+      saveEl.textContent = isStandalone()
+        ? t('sb.savedLocal', { n: Number(core.revision()) })
+        : t('sb.savedRev', { n: Number(core.revision()) });
       saveEl.classList.remove('sb-dirty');
     }
     window.dispatchEvent(new CustomEvent('mdc-save', { detail: { revision: Number(core.revision()) } }));
-    window.__lastSave = { ok: true, revision: Number(core.revision()), bytes: core.to_markdown().length };
+    window.__lastSave = {
+      ok: true,
+      revision: Number(core.revision()),
+      bytes: core.to_markdown().length,
+      standalone: isStandalone(),
+      persisted: !isStandalone(), // 独立态无文件落盘（事件+草稿）；宿主态由壳 CONTRACT 路径落盘
+    };
     return true;
   };
   document.addEventListener('keydown', (ev: KeyboardEvent) => {

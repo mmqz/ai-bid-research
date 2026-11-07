@@ -150,7 +150,16 @@ def main() -> int:
         # 追加字段不升版（消费方按字段名读取，serde/default 语义）。
         # 变更记录：1.0 = R3-S3-4 严格引用判据 + 类别命中维度定稿（2026-10-25）。
         "schema_version": "1.0",
-        "gt_status": "AI 初标草案（待人工验收）——指标为草案对齐结果，不外推为验收指标",
+        # FG-18（#307）：半自证口径登记——GT 锚定核验（gt_enrich 的
+        # anchor_verification）对的是解析产物文本层，真值流向 = 解析器输出→GT，
+        # anchor PASS 不构成独立验证。冻结前两道防线：①异源抽检
+        # gt-crosscheck.json（pypdf 独立提取器，2026-11-07 起）；②人工逐条
+        # 复核（Lead——GT 冻结的最终裁决）。字段追加不升版（SC-11 语义）。
+        "gt_status": (
+            "AI 初标草案（待人工验收）——指标为草案对齐结果，不外推为验收指标；"
+            "GT 锚定核验对解析文本层，属半自证（FG-18）：anchor PASS 不构成独立验证，"
+            "冻结前须过异源抽检（gt-crosscheck.json）+ 人工逐条复核"
+        ),
         "gt_file_target": "04_某水利工程施工标段_施工招标文件.pdf（142 页）",
         "reqs_in_file": len(reqs_04),
         "gt_total": total,

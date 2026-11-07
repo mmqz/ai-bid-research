@@ -1,0 +1,260 @@
+{
+  "eval": "FG-18-gt-crosscheck",
+  "purpose": "GT 页码锚定异源抽检（pypdf vs 解析链 poppler）——半自证口径的工具面交叉验证",
+  "generated_at": "2026-11-07T02:16:17+00:00",
+  "pdf": "A-某水利施工标段招标文件.pdf",
+  "pdf_pages_pypdf": 142,
+  "extractor": "pypdf（独立于解析管线——无共享代码）",
+  "criterion": "excerpt 归一核心前 24 字符出现在自报页 ±1 的 pypdf 文本层；次级 12 字符滑窗（跨行容忍）；页窗未中另记全文定位",
+  "limitations": "工具面交叉验证 ≠ 人工读原文——pypdf 无 -layout 模式，双列前附表/跨行拆断条目的阅读序差异属预期（见逐条 note）；GT 冻结前的人工逐条复核义务不变（REPORT.md FG-18 节登记）",
+  "gt_total": 24,
+  "verbatim_window_hit": 23,
+  "slide_window_hit": 0,
+  "window_miss_but_elsewhere": 0,
+  "window_miss_total": 1,
+  "window_miss_ids": [
+    "GT-S05"
+  ],
+  "items": [
+    {
+      "gt_id": "GT-R01",
+      "category": "资格条件",
+      "claimed_page": 9,
+      "verbatim_hit": true,
+      "hit_page": 9,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 9,
+      "note": "前附表双列穿插（『水利水电/誉 工程施工总承包』）——pypdf 无 -layout 模式，双列阅读序与 poppler 不同属预期；人工核版式原文（双写法：叁级/三级）"
+    },
+    {
+      "gt_id": "GT-R02",
+      "category": "资格条件",
+      "claimed_page": 10,
+      "verbatim_hit": true,
+      "hit_page": 10,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 10,
+      "note": ""
+    },
+    {
+      "gt_id": "GT-R03",
+      "category": "资格条件",
+      "claimed_page": 7,
+      "verbatim_hit": true,
+      "hit_page": 7,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 7,
+      "note": ""
+    },
+    {
+      "gt_id": "GT-R04",
+      "category": "资格条件",
+      "claimed_page": 34,
+      "verbatim_hit": true,
+      "hit_page": 34,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 34,
+      "note": ""
+    },
+    {
+      "gt_id": "GT-R05",
+      "category": "资格条件",
+      "claimed_page": 9,
+      "verbatim_hit": true,
+      "hit_page": 9,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 9,
+      "note": "前附表行被表格两列拆行——表格结构面已知差距；人工核版式原文"
+    },
+    {
+      "gt_id": "GT-R06",
+      "category": "资格条件",
+      "claimed_page": 15,
+      "verbatim_hit": true,
+      "hit_page": 15,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 15,
+      "note": ""
+    },
+    {
+      "gt_id": "GT-V01",
+      "category": "否决项",
+      "claimed_page": 10,
+      "verbatim_hit": true,
+      "hit_page": 10,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 10,
+      "note": ""
+    },
+    {
+      "gt_id": "GT-V02",
+      "category": "否决项",
+      "claimed_page": 11,
+      "verbatim_hit": true,
+      "hit_page": 11,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 11,
+      "note": ""
+    },
+    {
+      "gt_id": "GT-V03",
+      "category": "否决项",
+      "claimed_page": 19,
+      "verbatim_hit": true,
+      "hit_page": 19,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 19,
+      "note": ""
+    },
+    {
+      "gt_id": "GT-V04",
+      "category": "否决项",
+      "claimed_page": 21,
+      "verbatim_hit": true,
+      "hit_page": 21,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 21,
+      "note": "跨行否决条款——关键词窗定位条目；人工核完整句"
+    },
+    {
+      "gt_id": "GT-V05",
+      "category": "否决项",
+      "claimed_page": 24,
+      "verbatim_hit": true,
+      "hit_page": 24,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 24,
+      "note": ""
+    },
+    {
+      "gt_id": "GT-V06",
+      "category": "否决项",
+      "claimed_page": 23,
+      "verbatim_hit": true,
+      "hit_page": 23,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 23,
+      "note": ""
+    },
+    {
+      "gt_id": "GT-V07",
+      "category": "否决项",
+      "claimed_page": 12,
+      "verbatim_hit": true,
+      "hit_page": 12,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 12,
+      "note": ""
+    },
+    {
+      "gt_id": "GT-B01",
+      "category": "商务要求",
+      "claimed_page": 11,
+      "verbatim_hit": true,
+      "hit_page": 11,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 11,
+      "note": ""
+    },
+    {
+      "gt_id": "GT-B02",
+      "category": "商务要求",
+      "claimed_page": 9,
+      "verbatim_hit": true,
+      "hit_page": 9,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 9,
+      "note": ""
+    },
+    {
+      "gt_id": "GT-B03",
+      "category": "商务要求",
+      "claimed_page": 12,
+      "verbatim_hit": true,
+      "hit_page": 12,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 12,
+      "note": ""
+    },
+    {
+      "gt_id": "GT-B04",
+      "category": "商务要求",
+      "claimed_page": 23,
+      "verbatim_hit": true,
+      "hit_page": 23,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 23,
+      "note": ""
+    },
+    {
+      "gt_id": "GT-S01",
+      "category": "评分项",
+      "claimed_page": 38,
+      "verbatim_hit": true,
+      "hit_page": 38,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 38,
+      "note": ""
+    },
+    {
+      "gt_id": "GT-S02",
+      "category": "评分项",
+      "claimed_page": 38,
+      "verbatim_hit": true,
+      "hit_page": 38,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 38,
+      "note": ""
+    },
+    {
+      "gt_id": "GT-S03",
+      "category": "评分项",
+      "claimed_page": 38,
+      "verbatim_hit": true,
+      "hit_page": 38,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 38,
+      "note": "评分算法行被 layout 跨行拆断——跨行族；人工核断行拼接口径"
+    },
+    {
+      "gt_id": "GT-S04",
+      "category": "评分项",
+      "claimed_page": 39,
+      "verbatim_hit": true,
+      "hit_page": 39,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 39,
+      "note": "同 S03 跨行拆断族——同上口径"
+    },
+    {
+      "gt_id": "GT-S05",
+      "category": "评分项",
+      "claimed_page": 26,
+      "verbatim_hit": false,
+      "hit_page": null,
+      "slide_hit_page": null,
+      "found_elsewhere_page": null,
+      "note": "抽检实证（2026-11-07）：自报 p26 为章节标题页，内容实在 p39（poppler 产物 block#1100 locator=第39页 行6）；且摘录前缀系跨句转写（原文『招标控制价的下浮率。K 值为…』）——keyword(3/3) 的 anchor PASS 掩盖页锚错位+转写双缺陷。人工验收改判候选：页锚 26→39，摘录取 p39 无损连续段"
+    },
+    {
+      "gt_id": "GT-T01",
+      "category": "技术参数",
+      "claimed_page": 12,
+      "verbatim_hit": true,
+      "hit_page": 12,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 12,
+      "note": "文本层阅读序损坏（『10.8 其它』小节头穿插句中）——gt_enrich 已改取无损连续段；异源阅读序差异属预期，人工核 PDF 版式原文"
+    },
+    {
+      "gt_id": "GT-T02",
+      "category": "技术参数",
+      "claimed_page": 34,
+      "verbatim_hit": true,
+      "hit_page": 34,
+      "slide_hit_page": null,
+      "found_elsewhere_page": 34,
+      "note": ""
+    }
+  ]
+}

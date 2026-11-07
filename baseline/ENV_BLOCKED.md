@@ -76,3 +76,15 @@
 - chi_sim.traineddata —— github.com/tesseract-ocr/tessdata_fast → chi_sim.traineddata 放 ~/.tessdata/
 
 受影响测试项已 SKIP（3 项），未计为失败。
+
+## 2026-11-07 02:18 run_tests.py 预检登记（issue #9 SKIP 机制）
+
+- chi_sim.traineddata —— github.com/tesseract-ocr/tessdata_fast → chi_sim.traineddata 放 ~/.tessdata/
+
+受影响测试项已 SKIP（4 项），未计为失败。
+
+## 2026-11-07 02:21 run_tests.py 预检登记（issue #9 SKIP 机制）
+
+- chi_sim.traineddata —— github.com/tesseract-ocr/tessdata_fast → chi_sim.traineddata 放 ~/.tessdata/
+
+受影响测试项已 SKIP（4 项），未计为失败。

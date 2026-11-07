@@ -17,6 +17,13 @@
      追加 enrichment 块（时间/方法/统计）。
 
 退出码：0 补全且定位核验完成（允许存在"定位存疑"条目——它们本身就是人工复核输入）。
+
+FG-18（#307，2026-11-07）半自证口径登记：本脚本的 anchor_verification
+对的是**解析产物文本层**（同源自证）——真值流向 = 解析器输出→GT，
+anchor PASS 不构成对原文的独立验证。冻结前两道防线：
+① 异源抽检 scripts/real_eval_gt_crosscheck.py（pypdf 独立提取器）；
+② 人工逐条复核（Lead——冻结最终裁决）。enrichment 块新增
+semi_self_certification 键登记本口径。
 """
 from __future__ import annotations
 
@@ -139,7 +146,7 @@ def main() -> int:
             "readback": "PASS" if hit else "FAIL",
             "method": method,
             "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-            "note": "excerpt 见于解析文本层" if hit else "excerpt 未完整见于解析文本层——定位存疑，人工验收必查（可能与拆列/跨行受损相关）",
+            "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）" if hit else "excerpt 未完整见于解析文本层——定位存疑，人工验收必查（可能与拆列/跨行受损相关）",
         }
         it["rationale"] = RATIONALE[it["gt_id"]]
         it["review_status"] = "draft_pending_human"
@@ -154,6 +161,17 @@ def main() -> int:
         "verbatim_fixed": fixed_ids,
         "disputed_items": sorted(KNOWN_ISSUES),
         "protocol": "人工冻结协议：逐条复核 → 接受/退回修订（GT-T02 改判候选、GT-B04 类别裁决、GT-R05/S03~S05/V04 结构受损核原文、GT-R01/T01 转写已修正待确认）→ 冻结为 gold；冻结前任何准确率输出必须标注 EXPLORATORY",
+        # FG-18（#307）：半自证口径登记——anchor_verification 对解析产物
+        # （同源），冻结前须过异源抽检 + 人工逐条复核。
+        "semi_self_certification": {
+            "registered": "2026-11-07（FG-18/#307）",
+            "nature": "anchor_verification 对解析产物文本层（同源自证）——真值流向 = 解析器输出→GT，anchor PASS 不构成独立验证",
+            "defenses": [
+                "异源抽检：scripts/real_eval_gt_crosscheck.py（pypdf，独立于解析管线）→ artifacts/real-eval/gt-crosscheck.json",
+                "人工逐条复核（Lead——GT 冻结的最终裁决）",
+            ],
+            "crosscheck_first_run": "2026-11-07：页窗±1 逐字 23/24；GT-S05 页锚错位实证（自报 p26 实为标题页，内容在 p39）+ 跨句转写——改判候选",
+        },
     }
     GT_PATH.write_text(json.dumps(gt, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"24 条四要素补全完成：定位核验 PASS={sum(1 for i in gt['items'] if i['anchor_verification']['readback']=='PASS')}"

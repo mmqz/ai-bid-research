@@ -14,7 +14,7 @@
     "readback": "PASS",
     "method": "verbatim",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "法定一票否决资格：独立法人+水利水电施工总承包三级以上是资格审查硬门槛；前附表与须知 1.4.1 双处出现，抽取+可定位双锚点缺一不可（漏抽即资格误判）",
    "review_status": "draft_pending_human",
@@ -32,7 +32,7 @@
     "readback": "PASS",
     "method": "verbatim",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "类似业绩资格要求：投标截止前承担过类似工程——资格类业绩门槛；『投标截止时间）至少承担过』为前附表括注结构，检验日期边界与括注粘连解析",
    "review_status": "draft_pending_human"
@@ -48,7 +48,7 @@
     "readback": "PASS",
     "method": "verbatim",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "资格后审机制条款：决定资格审查发生在开标后而非报名时——影响资格检查流程语义（前审/后审不可互换）",
    "review_status": "draft_pending_human"
@@ -64,7 +64,7 @@
     "readback": "PASS",
     "method": "normalized",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "名称一致性条款：投标人名称与证照五方一致——形式审查类，错抽会导致证照核对遗漏",
    "review_status": "draft_pending_human"
@@ -80,7 +80,7 @@
     "readback": "PASS",
     "method": "keyword(1/1)",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "资质总条款（前附表行）：资格条件汇总行，为 R01/R02 的上位汇总；D1 拆列导致原文受损（见 review_note）",
    "review_status": "draft_pending_human",
@@ -97,7 +97,7 @@
     "readback": "PASS",
     "method": "verbatim",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "联合体资质就低条款：同类法规语义（较低资质定级）——联合体场景的资格计算规则",
    "review_status": "draft_pending_human"
@@ -113,7 +113,7 @@
     "readback": "PASS",
     "method": "normalized",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "弄虚作假否决+保证金没收：否决项+资金罚则双重后果；『一经发现』句式检验否决触发语义抽取",
    "review_status": "draft_pending_human"
@@ -129,7 +129,7 @@
     "readback": "PASS",
     "method": "verbatim",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "保证金时限否决：『规定时间内转入』——时限型否决，与 V03 缺交型否决互补构成保证金否决面",
    "review_status": "draft_pending_human"
@@ -145,7 +145,7 @@
     "readback": "PASS",
     "method": "verbatim",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "编号条款引用否决（本章第 3.4.1 项）：检验编号交叉引用解析（3.4.1 的义务在别处，否决在此）",
    "review_status": "draft_pending_human"
@@ -161,7 +161,7 @@
     "readback": "PASS",
     "method": "verbatim",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "递交渠道无效条款：电子交易平台外递交无效——渠道合规类否决；跨行受损（见 review_note）",
    "review_status": "draft_pending_human",
@@ -178,7 +178,7 @@
     "readback": "PASS",
     "method": "verbatim",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "挂靠借用资质否决：转让/租借资质=主体不适格——资格类与否决类交叉，两通道都应命中",
    "review_status": "draft_pending_human"
@@ -194,7 +194,7 @@
     "readback": "PASS",
     "method": "verbatim",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "否决全部投标条款：评审后整体否决的例外出口——流程级否决（非针对单一投标人）",
    "review_status": "draft_pending_human"
@@ -210,7 +210,7 @@
     "readback": "PASS",
     "method": "verbatim",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "取消中标资格条款：中标后阶段否决——时间维度上的否决（开标前否决面之外的补全）",
    "review_status": "draft_pending_human"
@@ -226,7 +226,7 @@
     "readback": "PASS",
     "method": "verbatim",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "控制价 3496688.66 元：报价红线（超限=废标）——金额参数必须保数值精度，是矩阵价格口径的锚",
    "review_status": "draft_pending_human"
@@ -242,7 +242,7 @@
     "readback": "PASS",
     "method": "verbatim",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "计划工期 180 日历天：工期参数（合同/进度/偏差计算基准）——与 DURATION_MISMATCH 规则联动",
    "review_status": "draft_pending_human"
@@ -258,7 +258,7 @@
     "readback": "PASS",
     "method": "verbatim",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "下浮率 K 值条款：评标联动商务参数（与 S05 K 值抽取机制同族，商务-评分双通道条目）",
    "review_status": "draft_pending_human"
@@ -274,7 +274,7 @@
     "readback": "PASS",
     "method": "verbatim",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "拒签合同取消资格：违约后果条款；否决/商务双重属性待人工裁决（见 review_note）",
    "review_status": "draft_pending_human",
@@ -291,7 +291,7 @@
     "readback": "PASS",
     "method": "verbatim",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "投标总报价 65 分：价格分权重——评分结构锚点，分值参数必须精确（评分总分构成 65+20+…）",
    "review_status": "draft_pending_human"
@@ -307,7 +307,7 @@
     "readback": "PASS",
     "method": "verbatim",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "单价合理性 20 分：评分细则第二权重——与 S01 合计构成报价评分主体",
    "review_status": "draft_pending_human"
@@ -323,7 +323,7 @@
     "readback": "PASS",
     "method": "verbatim",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "评标基准价算法：评标核心算法条款（控制价与有效报价算术平均）——错抽即价格分全错，评标语义关键",
    "review_status": "draft_pending_human",
@@ -340,7 +340,7 @@
     "readback": "PASS",
     "method": "verbatim",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "有效报价界定（下浮 15% 含）：无效报价判定的边界值条款——边界『含 15%』的闭区间语义不可丢",
    "review_status": "draft_pending_human",
@@ -357,7 +357,7 @@
     "readback": "PASS",
     "method": "keyword(3/3)",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "K 值抽取机制：开标现场抽取的下浮率——算法输入条款（与 B03 同族双通道）",
    "review_status": "draft_pending_human",
@@ -374,7 +374,7 @@
     "readback": "PASS",
     "method": "verbatim",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "技术标准优先级：与图纸不符以图纸为准——技术响应的让位条款（影响技术偏离判定方向）",
    "review_status": "draft_pending_human",
@@ -392,7 +392,7 @@
     "readback": "PASS",
     "method": "verbatim",
     "against": "artifacts/real-eval/parse/A-某水利施工标段招标文件.pdf.json（文本层 142 页）",
-    "note": "excerpt 见于解析文本层"
+    "note": "excerpt 见于解析文本层（FG-18：半自证——对解析产物非原文，独立验证见 gt-crosscheck.json + 人工复核）"
    },
    "rationale": "信息登记形式条款：登记/资质符合表述——标注争议条目（见 review_note），人工验收时改判",
    "review_status": "draft_pending_human",
@@ -400,7 +400,7 @@
   }
  ],
  "enrichment": {
-  "enriched_at": "2026-10-26 07:05",
+  "enriched_at": "2026-11-07 02:17",
   "enriched_by": "M1.7-C（scripts/real_eval_gt_enrich.py）——用户口径：未人工冻结前仅探索性指标",
   "fields_added": [
    "anchor_verification(原文定位核验)",
@@ -427,6 +427,15 @@
    "GT-T02",
    "GT-V04"
   ],
-  "protocol": "人工冻结协议：逐条复核 → 接受/退回修订（GT-T02 改判候选、GT-B04 类别裁决、GT-R05/S03~S05/V04 结构受损核原文、GT-R01/T01 转写已修正待确认）→ 冻结为 gold；冻结前任何准确率输出必须标注 EXPLORATORY"
+  "protocol": "人工冻结协议：逐条复核 → 接受/退回修订（GT-T02 改判候选、GT-B04 类别裁决、GT-R05/S03~S05/V04 结构受损核原文、GT-R01/T01 转写已修正待确认）→ 冻结为 gold；冻结前任何准确率输出必须标注 EXPLORATORY",
+  "semi_self_certification": {
+   "registered": "2026-11-07（FG-18/#307）",
+   "nature": "anchor_verification 对解析产物文本层（同源自证）——真值流向 = 解析器输出→GT，anchor PASS 不构成独立验证",
+   "defenses": [
+    "异源抽检：scripts/real_eval_gt_crosscheck.py（pypdf，独立于解析管线）→ artifacts/real-eval/gt-crosscheck.json",
+    "人工逐条复核（Lead——GT 冻结的最终裁决）"
+   ],
+   "crosscheck_first_run": "2026-11-07：页窗±1 逐字 23/24；GT-S05 页锚错位实证（自报 p26 实为标题页，内容在 p39）+ 跨句转写——改判候选"
+  }
  }
 }

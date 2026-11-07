@@ -43,15 +43,17 @@
 //!
 //! ## 幂等导出清单（「已写入的章不重写」在导出层的落点）
 //!
-//! `export-manifest.json` 记录 { 源章指纹列表 (section_id + attempt +
-//! content sha256，按文档序), 导出时间戳, 输出 sha256, 上次 ExportReport }。
-//! 重跑 export：输入指纹全等 **且** 输出存在且 sha 吻合 → **no-op 直返上次
+//! `export-manifest.json`（v2，#394/C-07）记录 { 源章指纹列表 (section_id +
+//! attempt + content sha256，按文档序), 塑形输入指纹 [`document_inputs_digest`]
+//! （anonymize/extras/format_spec/project_name/review_banner/evidences → sha256）,
+//! 导出时间戳, 输出 sha256, 上次 ExportReport }。重跑 export：章节指纹全等
+//! **且** 塑形输入指纹全等 **且** 输出存在且 sha 吻合 → **no-op 直返上次
 //! 报告**（输出一个字节不重写——产物 sha 对账 borrow `bid-domain::
-//! export_gate.rs` 的「EXPORTED 以产物 sha256 落库为界」语义）；输入变了
-//! （任一章 attempt/内容指纹漂移、增删章）→ 全量重建。manifest 是**导数**
-//! 不是源数据：损坏/缺字段/未来版本 → 当作无 manifest 全量重建（真源
-//! chapters/*.json 的 fail-closed 已在 `ChapterAssembler::open` 拦截——
-//! 主数据严格、导数宽容，两层面各司其职）。
+//! export_gate.rs` 的「EXPORTED 以产物 sha256 落库为界」语义）；任一变了
+//! （章内容漂移/换投标人名/表格/格式规格/证据台账）→ 全量重建。manifest 是
+//! **导数**不是源数据：损坏/缺字段/未来版本 → 当作无 manifest 全量重建
+//! （真源 chapters/*.json 的 fail-closed 已在 `ChapterAssembler::open` 拦截
+//! ——主数据严格、导数宽容，两层面各司其职）。
 //!
 //! ## fail-closed 导出门（半个文档不猜测——borrow mdcore 哲学）
 //!
@@ -92,8 +94,11 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 /// 幂等导出清单文件名（与 `chapters/` 平级：`{dir}/export-manifest.json`）。
 pub const MANIFEST_FILE: &str = "export-manifest.json";
 
-/// 导出清单 schema 版本（结构性变更时 +1——当前仅 v1）。
-const MANIFEST_SCHEMA_VERSION: u32 = 1;
+/// 导出清单 schema 版本（结构性变更时 +1——当前 v2）。
+/// v2（#394/C-07）：增 [`ExportManifest::inputs_digest`]（文档塑形输入
+/// 指纹）。v1 清单无此字段且版本门不识别 → 视为无清单全量重建一次
+/// （导数宽容：重建是安全方向，错吃旧缓存才是事故）。
+const MANIFEST_SCHEMA_VERSION: u32 = 2;
 
 /// TOC 域开关（规格原文）：`TOC \o "1-3" \h \u`——标题层级 1-3 + 超链接 +
 /// 应用段落大纲级别。构造常量函数，唯一真源。
@@ -161,7 +166,8 @@ pub struct PriceItem {
 }
 
 /// 表格落点：锚定章节（标题关键词命中）或文末附表。
-#[derive(Debug, Clone, PartialEq)]
+/// `Serialize`（#394/C-07）：进导出幂等输入指纹。
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum TableAnchor {
     /// 章标题链（自身 + 祖先）任一命中关键词 → 注入该子树**最后一个叶章**
     /// 正文之后（表在章内容后——评委读完响应看表）。
@@ -172,7 +178,8 @@ pub enum TableAnchor {
 }
 
 /// 一张待导出的表格 + 它的落点。
-#[derive(Debug, Clone, PartialEq)]
+/// `Serialize`（#394/C-07）：进导出幂等输入指纹（见 [`inputs_digest`]）。
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct LocatedBidTable {
     pub table: BidTable,
     pub anchor: TableAnchor,
@@ -184,7 +191,7 @@ pub struct LocatedBidTable {
 /// [`BidderProfile`]（工作区 bidder-profile.json）、[`ExportDecision`]（调用方
 /// 报价决策）。**零编造**：任一真源缺数据 → 该表不生成 + 告警，或生成带
 /// 【待填】的模板行——绝不填 0/「无」这类假值。
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct ExportExtras {
     /// 六种结构化表格（按固定序：概况 → 偏离 → 报价 → 业绩 → 人员 → 设备）。
     pub tables: Vec<LocatedBidTable>,
@@ -785,6 +792,10 @@ pub struct ExportManifest {
     pub schema_version: u32,
     /// 按文档序的源章指纹列表（顺序确定——Vec 全等比较含序）
     pub fingerprints: Vec<ChapterFingerprint>,
+    /// #394/C-07：文档塑形输入指纹（五选项面 + evidence 台账 →
+    /// [`inputs_digest`]）。no-op 第三合取——章节未变但投标人名/表格/
+    /// 格式规格变了也必须重建（旧产物直返 = 错标书风险）。
+    pub inputs_digest: String,
     /// UNIX_EPOCH 秒（no-chrono 纪律）
     pub exported_at: u64,
     /// 上次导出报告（no-op 直返面——「一个字节不重写」的对价是报告可复现）
@@ -1117,8 +1128,10 @@ impl<'a> DocumentExporter<'a> {
             }
         }
 
-        // ⑤ 幂等 no-op：指纹全等 + 输出在位且 sha 吻合 → 上次报告直返
-        // （输出零重写——「已写入的章不重写」的导出层落点）。
+        // ⑤ 幂等 no-op：章节指纹全等 **且** 塑形输入指纹全等（#394/C-07）
+        // + 输出在位且 sha 吻合 → 上次报告直返（输出零重写——「已写入的章
+        // 不重写」的导出层落点）。塑形输入变化（换投标人名/表格/格式规格）
+        // → 不吃旧缓存，全量重建。
         let fingerprints: Vec<ChapterFingerprint> = ordered
             .iter()
             .filter(|n| is_leaf(n, &children))
@@ -1132,9 +1145,11 @@ impl<'a> DocumentExporter<'a> {
                 }
             })
             .collect();
+        let inputs_digest = document_inputs_digest(opts, self.evidences);
         let manifest_path = dir.join(MANIFEST_FILE);
         if let Some(manifest) = read_manifest(&manifest_path)? {
             if manifest.fingerprints == fingerprints
+                && manifest.inputs_digest == inputs_digest
                 && out_path.is_file()
                 && sha256_file(out_path)? == manifest.report.output_sha256
             {
@@ -1358,6 +1373,7 @@ impl<'a> DocumentExporter<'a> {
         let manifest = ExportManifest {
             schema_version: MANIFEST_SCHEMA_VERSION,
             fingerprints,
+            inputs_digest,
             exported_at: now_secs(),
             report: report.clone(),
         };
@@ -1368,6 +1384,32 @@ impl<'a> DocumentExporter<'a> {
 }
 
 // ---------------------------------------------------------------- 私有辅助
+
+/// #394/C-07：文档塑形输入指纹——章节内容之外的、能改变产物字节的全部
+/// 输入面 → canonical JSON → sha256：
+///
+/// - `anonymize`（暗标投标人名——scrub 替换键；空串归一 None，与
+///   [`ExportOptions::scrub`] 语义一致：空串 = 无替换）；
+/// - `extras`（六表/七格式件——BidderProfile/报价决策的派生面）；
+/// - `format_spec`（页面/边距/字体/页眉页脚）；
+/// - `project_name`（页眉）；`review_banner`（#277 警告横幅）；
+/// - `evidences`（EV-id 图片解析的台账面——记录级；源文件字节变化属
+///   IO 面不在本指纹职责内）。
+///
+/// 注：`Some(空 extras)` 与 `None` 产物相同但指纹不同——会触发一次重建
+/// （安全方向：多建不错标；生产调用方恒 Some，无往返鞭动面）。
+fn document_inputs_digest(opts: &ExportOptions<'_>, evidences: &[Evidence]) -> String {
+    let anonymize = opts.anonymize.filter(|s| !s.is_empty());
+    let payload = serde_json::json!({
+        "anonymize": anonymize,
+        "project_name": &opts.project_name,
+        "review_banner": opts.review_banner,
+        "format_spec": opts.format_spec,
+        "extras": opts.extras,
+        "evidences": evidences,
+    });
+    sha256_hex(payload.to_string().as_bytes())
+}
 
 /// #117 任务 2：格式件组的锚定关键词（招标文件「投标文件格式」章——
 /// forms.rs 模块头锚定的同一语义位；不含裸「格式」——避免误中
@@ -1951,6 +1993,123 @@ fn write_manifest_atomic(path: &Path, manifest: &ExportManifest) -> Result<(), E
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 测试用最小 Evidence（#394/C-07 单测——字段全显式，缺字段即编译红，
+    /// 结构演进时本测试即提醒同步 digest 面）。
+    fn sample_evidence(id: &str, title: &str) -> Evidence {
+        Evidence {
+            id: id.to_string(),
+            kind: EvidenceKind::Contract,
+            title: title.to_string(),
+            source_file: "合同.pdf".into(),
+            source_sha256: "a".repeat(64),
+            locator: bid_domain::locator::EngineLocator::DocxParagraph {
+                paragraph_index: 0,
+                text_fingerprint: "fnv64:1".into(),
+            },
+            fingerprint: "fnv64:1".into(),
+            valid_from: None,
+            valid_until: None,
+            subject_name: "某公司".into(),
+            scope: "测试".into(),
+            version: 1,
+            status: EvidenceStatus::Active,
+            client: None,
+            amount_wan: None,
+            completed_on: None,
+            fields: Default::default(),
+            excerpt: None,
+            excerpt_locator: None,
+            verification_tier: None,
+        }
+    }
+
+    /// #394/C-07：塑形输入指纹——换投标人名/横幅/项目名/附加件/evidence
+    /// 任一变化必须改变指纹；同输入恒同指纹（确定性）；anonymize 空串与
+    /// None 归一（scrub 同语义——两者产物逐字节相同，不得逼出无谓重建）。
+    /// 破坏推演：指纹漏盖某塑形输入 → 换该输入重导吃旧缓存 → 错标书直返。
+    #[test]
+    fn document_inputs_digest_covers_shaping_options() {
+        let base = ExportOptions::default();
+        let d0 = document_inputs_digest(&base, &[]);
+        assert_eq!(document_inputs_digest(&base, &[]), d0, "同输入恒同指纹（确定性）");
+
+        // 换投标人名（C-07 主场景：暗标换名不得命中 no-op 吃旧脱敏产物）
+        let dark_a = ExportOptions { anonymize: Some("甲公司"), ..base.clone() };
+        let dark_b = ExportOptions { anonymize: Some("乙公司"), ..base.clone() };
+        let d_a = document_inputs_digest(&dark_a, &[]);
+        let d_b = document_inputs_digest(&dark_b, &[]);
+        assert_ne!(d0, d_a, "明标 vs 暗标指纹不同");
+        assert_ne!(d_a, d_b, "换投标人名 → 指纹变（no-op 不得命中）");
+
+        // 空串归一 None（scrub 语义：空串 = 无替换——产物逐字节相同）
+        let dark_empty = ExportOptions { anonymize: Some(""), ..base.clone() };
+        assert_eq!(
+            document_inputs_digest(&dark_empty, &[]),
+            d0,
+            "Some(\"\") 与 None 同指纹（scrub 同语义归一）"
+        );
+
+        // 横幅 / 项目名 / 附加件面
+        let banner = ExportOptions {
+            review_banner: Some("W: 存在 agent 过门".into()),
+            ..base.clone()
+        };
+        assert_ne!(document_inputs_digest(&banner, &[]), d0, "横幅变化 → 指纹变");
+        let proj = ExportOptions { project_name: "另一个项目".into(), ..base.clone() };
+        assert_ne!(document_inputs_digest(&proj, &[]), d0, "项目名变化 → 指纹变");
+        let extras = ExportExtras::default();
+        let with_extras = ExportOptions { extras: Some(&extras), ..base.clone() };
+        assert_ne!(
+            document_inputs_digest(&with_extras, &[]),
+            d0,
+            "附加件 Some vs None → 指纹变"
+        );
+
+        // evidence 台账变化（EV-id 图片解析面）
+        let ev = sample_evidence("EV-0001", "测试合同");
+        assert_ne!(
+            document_inputs_digest(&base, &[ev]),
+            d0,
+            "evidence 台账变化 → 指纹变"
+        );
+        // 台账内容变（同 id 换标题）也变
+        let ev2 = sample_evidence("EV-0001", "另一份合同");
+        assert_ne!(
+            document_inputs_digest(&base, &[ev2]),
+            document_inputs_digest(&base, &[sample_evidence("EV-0001", "测试合同")]),
+            "证据记录内容变化 → 指纹变"
+        );
+    }
+
+    /// #394/C-07：v1 旧清单（无 inputs_digest 字段）被版本门拒 → 视为无清单
+    /// 全量重建（导数宽容——重建是安全方向）。
+    #[test]
+    fn manifest_v1_rejected_by_version_gate() {
+        let dir = std::env::temp_dir().join("bid-export-v1-gate-test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let manifest_path = dir.join(MANIFEST_FILE);
+        // report 形状补齐必填字段——让两版唯一差异是 schema_version
+        // （v1 被拒才能归因版本门而非解析失败）
+        let report = r#"{"chapters_written":0,"total_chars":0,"duration_ms":null,"output_sha256":"","toc_field_present":false}"#;
+        // 手写 v1 形状清单（旧版字段：无 inputs_digest）
+        let v1_json = format!(
+            r#"{{"schema_version":1,"fingerprints":[],"exported_at":0,"report":{report}}}"#
+        );
+        std::fs::write(&manifest_path, v1_json).unwrap();
+        let m = read_manifest(&manifest_path).unwrap();
+        assert!(m.is_none(), "v1 清单 → None（版本门拒，全量重建一次）");
+        // v2 形状（带 inputs_digest）正常读入
+        let v2_json = format!(
+            r#"{{"schema_version":2,"fingerprints":[],"inputs_digest":"deadbeef","exported_at":0,"report":{report}}}"#
+        );
+        std::fs::write(&manifest_path, v2_json).unwrap();
+        let m = read_manifest(&manifest_path).unwrap();
+        assert!(m.is_some(), "v2 清单正常读入");
+        assert_eq!(m.unwrap().inputs_digest, "deadbeef");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     /// TOC 域开关渲染面（vendored docx-rs 单元测试同款断言——`TOC \o "1-3"
     /// \h \u` 的 XML 字面）。锚定「构造的域指令 == 规格原文」。

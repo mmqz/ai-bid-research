@@ -712,3 +712,81 @@ fn export_bid_open_date_input_validation() {
     assert_eq!(err_code(&reply2), "E_UNPROCESSABLE", "非字符串响亮拒");
     assert!(format!("{reply2:?}").contains("number"), "错误点名实际类型");
 }
+
+/// #394/C-07：暗标换投标人名重导——章节指纹全等也不得吃旧缓存。
+///
+/// 场景（审计原文）：暗标导出 → 改投标人名重导 → 旧 manifest 只比章节指纹
+/// → no-op 直返**旧脱敏产物**（错标书 + 报告声称成功）。
+/// 修复后：塑形输入指纹（inputs_digest）随名变化 → 真实重建。
+#[test]
+fn export_dark_bid_rename_rebuilds_not_stale_cache() {
+    let (mut svc, pid, dir) = svc_drafted("dark-rename", false);
+
+    // 注入含公司名的正文（ExternalGenerator 走全链：CAS 写入 + S-2 落盘；
+    // 两次导出间正文不再变化——章节指纹恒全等，隔离出「输入指纹」这一变量）
+    let leaf: String = {
+        let parents: std::collections::HashSet<String> = svc.store().sections().iter()
+            .filter_map(|n| n.parent_id.clone()).collect();
+        svc.store().sections().iter()
+            .find(|n| !parents.contains(&n.id))
+            .map(|n| n.id.clone()).unwrap()
+    };
+    // 在既有 mock 正文后追加（篇幅门按项目总字数复算——纯替换短句会
+    // 把总量拉到 E_TOTAL_CHARS_BELOW_MIN 之下，走偏本测试目标）
+    let orig = svc.store().sections().iter()
+        .find(|n| n.id == leaf)
+        .and_then(|n| n.content.clone())
+        .unwrap_or_default();
+    svc.draft_section(&leaf, None, None, None, &mut bid_tools::draft::ExternalGenerator {
+        content: format!("{orig}\n项目实施承诺：甲公司承诺由甲公司总承包实施本项目。"),
+    }).unwrap();
+    pass_pre_export_confirm(&mut svc); // 改正文后重过记审（#180 既定纪律）
+
+    let out_docx = "out/暗标重命名.docx";
+    let docx_path = dir.join(out_docx);
+    let manifest_path = dir.join("export-manifest.json");
+
+    // 第一次：暗标 = 甲公司（正文脱敏：甲公司 → 投标人）
+    let a = ok_result(call(&mut svc, "export_bid_document", json!({
+        "project_id": pid, "format": "docx", "output_path": out_docx,
+        "profile": {"dark_bid": true, "bidder_name": "甲公司"},
+    })));
+    let doc1 = part_text(&docx_path, "word/document.xml");
+    assert!(!doc1.contains("甲公司"), "暗标脱敏在位（甲公司 → 投标人）");
+    let manifest_a: Value = serde_json::from_str(
+        &std::fs::read_to_string(&manifest_path).unwrap()
+    ).unwrap();
+    assert_eq!(manifest_a["schema_version"], 2, "v2 清单落盘（#394）");
+
+    // 第二次：换投标人名（同章节/同路径/同格式）——C-07 修复后必须重建
+    let b = ok_result(call(&mut svc, "export_bid_document", json!({
+        "project_id": pid, "format": "docx", "output_path": out_docx,
+        "profile": {"dark_bid": true, "bidder_name": "乙公司"},
+    })));
+    assert_ne!(
+        a["artifact"]["sha256"], b["artifact"]["sha256"],
+        "换投标人名 → 产物真实重建（旧 no-op 直返则 sha 恒等——错标书面）"
+    );
+    let doc2 = part_text(&docx_path, "word/document.xml");
+    assert!(
+        doc2.contains("甲公司"),
+        "重建产物按新脱敏键处理（乙公司无命中，正文保留原字样）——\
+         若是旧产物直返，document.xml 仍是「投标人」脱敏文本"
+    );
+    // manifest 侧证据：输入指纹随名变化（甲→乙 各自落盘）
+    let manifest_b: Value = serde_json::from_str(
+        &std::fs::read_to_string(&manifest_path).unwrap()
+    ).unwrap();
+    assert_ne!(
+        manifest_a["inputs_digest"], manifest_b["inputs_digest"],
+        "塑形输入指纹随投标人名变化（no-op 不重写 manifest——digest 恒等即缺陷）"
+    );
+
+    // 第三次：同名（乙公司）重放——修复后的键/指纹语义不破坏既有幂等
+    let c = ok_result(call(&mut svc, "export_bid_document", json!({
+        "project_id": pid, "format": "docx", "output_path": out_docx,
+        "profile": {"dark_bid": true, "bidder_name": "乙公司"},
+    })));
+    assert_eq!(c["deduplicated"], json!(true), "同名重放 → 幂等命中（语义不回归）");
+    assert_eq!(b["artifact"]["sha256"], c["artifact"]["sha256"]);
+}

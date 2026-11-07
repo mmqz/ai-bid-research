@@ -1137,6 +1137,39 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
             names
         ));
     }
+    // #472（B-08）：per-file 零抽取可见性——ZERO_REQUIREMENTS 只在整批
+    // total==0 时响；混合批次（清单型 xlsx 主件 + docx 主件）中单个文件
+    // 0 REQ 时此前完全静默（audit B-08 的「同批其它文件有产出即无信号」
+    // 面）。有抽取面的文件（与 merge 面同口径 has_extraction_face）逐件
+    // 对账 source_file（reqs 已落库——读 store 面与 by_category 同源）；
+    // 0 条 → 逐文件警告（Agent 可定位哪一份零贡献，fail-visible）。
+    if total > 0 {
+        let zero_req_files: Vec<&str> = svc
+            .parsed()
+            .iter()
+            .filter(|p| {
+                bid_parse::merge::has_extraction_face(
+                    kind_map.get(&p.name).map(String::as_str),
+                    &p.name,
+                )
+            })
+            .filter(|p| {
+                !svc
+                    .store()
+                    .requirements()
+                    .iter()
+                    .any(|r| r.source_file == p.name)
+            })
+            .map(|p| p.name.as_str())
+            .collect();
+        if !zero_req_files.is_empty() {
+            warnings.push(format!(
+                "SOURCE_FILE_ZERO_REQ: {} 个有抽取面的文件 0 条 REQ（{:?}）——同批其它文件有产出，该件零贡献零信号。常见原因：① 清单型 xlsx 主文件（XlsxRow 黑洞已修——若仍空请开 issue 附 parse_summary）；② 文本层损坏/扫描件未 OCR；③ 该件确无可识别条款结构。请用 get_coverage_report 核对该件的块面后处置。",
+                zero_req_files.len(),
+                zero_req_files
+            ));
+        }
+    }
     Ok(json!({
         "counts": {
             "total": total,

@@ -1,5 +1,6 @@
 //! bid-engine —— 引擎适配层**唯一接触面**（issue #2 §B3 预演 · T1 批；
-//! #110 任务 2：rev 提级 aa0c859d + pagination/style 接线）。
+//! #110 任务 2：rev 提级 + pagination/style 接线）。
+//! 溯源口径：引擎 rev 单一真源 = Cargo.toml 实钉（常量经 build.rs 注入，#327）。
 //!
 //! **本 crate 在 T1 阶段只定义、不实现**：trait / 镜像类型 / 映射函数签名。
 //! B3（适配层接通）将：
@@ -26,7 +27,9 @@
 //!
 //! 字段级映射规则与「缺失时怎么办」处置：`docs/engine-bid-mapping.md`（单一真源）。
 //!
-//! # 引擎能力账本（aa0c859d 面——#110 任务 2 如实登记）
+//! # 引擎能力账本（截至 aa0c859d 登记面——#110 任务 2 如实登记；
+//! aa0c859d → f4328ebf 段（93 提交）能力面未重审，bump 时未同步账本，
+//! 下次 bump 前不视为已核对口径）
 //!
 //! ## 已接（本 PR）
 //!
@@ -71,11 +74,16 @@ pub use types::{
     EngineWarning,
 };
 
-/// 引擎钉住 rev（与 Cargo.toml git 依赖一致——parse_summary 溯源口径）。
-/// 升级走独立 PR（`chore(dep): bump mdcore`）并重跑基线差分（issue #2 §3.1）。
-/// #110 任务 2：3204342d → aa0c859d（87 提交——消费面公开 API 零破坏，
-/// 差分验证见 PR 描述）。
-pub const MDCORE_REV: &str = "aa0c859d956597992c2d93e9055e2f0beca017c3";
+/// 引擎钉住 rev（parse_summary 溯源口径）——**单一真源 = Cargo.toml 实钉 rev**。
+/// #327（R-23/B-05）：由 build.rs 解析 Cargo.toml 的 mdcore git 依赖注入
+/// （`cargo:rustc-env=BID_MDCORE_REV`），此处 `env!` 取值——**手改字面量的
+/// 漂移面不存在**；rev 变更只能来自 Cargo.toml（= 有意 bump，走独立 PR
+/// `chore(dep): bump mdcore` 并重跑基线差分，issue #2 §3.1）。
+/// 编译期硬约束（见 build.rs）：mdcore 多包 rev 不一致 / 浮动钉扎 / 非完整
+/// 40 位 → 编译失败。
+/// 历史链：3204342d →（#110 任务 2，87 提交）→ aa0c859d →（后续 bump，
+/// 93 提交）→ f4328ebf（第二次 bump 漏改常量即 R-23 事故现场——#327 根治）。
+pub const MDCORE_REV: &str = env!("BID_MDCORE_REV");
 
 /// 门面：读文件 → 引擎解析 → 映射为 `ParsedFile`（B5 import 接线入口，docx 通道）。
 ///

@@ -93,8 +93,22 @@ jobs:
           pdfinfo -v
           pdftoppm -v
 
-      - name: Cache cargo
-        uses: actions/cache@v4
+      # #308：cache 拆分——合并式 actions/cache@v4 的 save 挂在 Post 阶段
+      # （2026-11-06 两次挂死 30-40 分钟：#289/#291，cancel+rerun 才过），
+      # 且 Post 步骤不属于显式步骤面——挂死即阻塞 run 结论、污染「还在跑
+      # 还是卡死了」的判断。拆法（issue #308 推荐组合）：
+      #   restore 前置（本步骤）+ save 后置为显式步骤（见文件末尾）。
+      # continue-on-error 纪律（issue #308）：只许加在 cache/产物类步骤——
+      # cache 是「加速」不是「正确性」，失败只降速不判红；测试/编译/验证
+      # 步骤严格不许加（不假绿）。
+      # timeout-minutes 是挂死的根治面：continue-on-error 只救「失败」，
+      # 救不了「不结束」；上限把 30-40 分钟挂死钳成有界损失。
+      # restore 上限 10 分钟：下载解包大缓存（bidcore/target 全量 ~GB 级）。
+      - name: Restore cargo cache (#308 拆分——Post save 挂死面根治)
+        id: cache-cargo
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        timeout-minutes: 10
         with:
           path: |
             ~/.cargo/bin/
@@ -193,3 +207,28 @@ jobs:
             echo '' >> $env:GITHUB_STEP_SUMMARY
             echo '#295 起 poppler 已在 CI 安装（pdftotext/pdfinfo/pdftoppm）；仍缺件的工具见上——其门禁测试按 issue #9 SKIP 机制跳过（横幅 + 提前 return，非 FAIL），明细见 SKIP 汇总。' >> $env:GITHUB_STEP_SUMMARY
           }
+
+      # #308（收尾）：save 独立后置——原合并式 cache@v4 的 save 挂在 Post 阶段
+      # 挂死（#289/#291 各 30-40 分钟）且阻塞 run 结论。拆为显式步骤后：
+      # · 失败/超时只影响自己（continue-on-error + timeout-minutes）——此时
+      #   job 结论已由上方测试/验证步骤定出，save 挂了不再拖住整个 run；
+      # · exact 命中（cache-hit == 'true'）时跳过——同 key 已存，重存纯浪费；
+      # · always()：测试红了也存——编译产物与测试结论正交，下轮照常加速
+      #   （「缓存已存」不代表「测试绿」，不构成假绿面）；
+      # · save 上限 15 分钟：压缩+上传全量 target（~GB 级，windows-latest
+      #   常态数分钟）；30-40 分钟挂死被钳成有界损失。若 Lead 想更紧
+      #   （issue 草案 3 分钟）可直接调小——代价是正常大缓存 save 被杀、
+      #   缓存停更（只慢不红）。
+      - name: Save cargo cache (#308——save 不再挂 Post 阻塞 run)
+        if: always() && steps.cache-cargo.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        timeout-minutes: 15
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            bidcore/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('bidcore/Cargo.lock') }}

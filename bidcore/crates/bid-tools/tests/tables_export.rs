@@ -276,20 +276,23 @@ fn deviation_draft_from_real_technical_requirements() {
         .map(|(i, ((name, req), resp))| TechDeviationRow::from_param(i + 1, name, req, resp))
         .collect();
     let table = BidTable::TechDeviation { rows };
-    // 两条负偏离，都是 domain 单一真源（derive_deviation）判出来的：
-    //   1. 800 人 < 1000 人 —— 正确（确实不满足）；
-    //   2. 1 秒 vs 「不大于 2 秒」—— **数值主判只比大小、不看方向词**，
-    //      把「1 < 2」判成负偏离。这是 param.rs 已登记的已知限制（模块头
-    //      「方向敏感参数留待 T-7 加 direction 覆写面」）——本测试如实
-    //      断言 2 条，不为了好看去改上游判定（改了就是掩盖真实行为）。
-    assert_eq!(table.negative_count(), 2, "两条负偏离（含方向词已知限制那一条）");
+    // 一条真负偏离 + 响应时间入不可比（A-19 方向守卫，#400）：
+    //   1. 800 人 < 1000 人 —— 负偏离（确实不满足）；
+    //   2. 1 秒 vs 「不大于 2 秒」—— 曾按「数值大=优」误判负偏离（响应快一倍
+    //      被写成废标级缺陷），A-19 方向敏感词面（「响应时间」命中）后 →
+    //      Incomparable（人工裁决，不再红标进导出偏离表）。断言从 2 改 1
+    //      **不是放宽**：原注释「如实断言已知限制（不改上游判定）」钉住的
+    //      是缺陷行为，其前提（上游方向盲）已由 #400 消除——基线随修复更新，
+    //      根因与判据变化在 issue 正文留档。
+    assert_eq!(table.negative_count(), 1, "一条负偏离（响应时间已入不可比——A-19）");
     let md = table.to_markdown();
     assert!(md.contains("负偏离"), "负偏离标签在位");
+    assert!(md.contains("不可比"), "响应时间行以不可比标签在位（A-19 守卫）");
     assert!(md.contains("{{r:"), "负偏离标红标记在位");
     let (store, dir) = committed_workspace("draftdev", &md);
     let xml = export_and_read_xml(&store, &dir);
     assert_eq!(count(&xml, "<w:tbl>"), 1);
-    assert_eq!(count(&xml, RED_XML), 10, "两条负偏离 × 5 格 = 10 个红 run");
+    assert_eq!(count(&xml, RED_XML), 5, "一条负偏离 × 5 格 = 5 个红 run");
     let _ = std::fs::remove_dir_all(&dir);
 }
 

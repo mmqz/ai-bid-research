@@ -7,9 +7,12 @@
 //!
 //! 偏离派生纪律（单一真源 [`derive_deviation`]——写入/查询/持久化共用）：
 //! - **数值主判**：两侧各提取首个数值（千分位逗号「1,000」、中文单位「万」
-//!   （×10000）、前后缀文字「≥100GB」「不低于 3 年」均容忍），**数值大 = 优**
-//!   （本批默认口径：技术参数主流是容量/年限/人数/功率等大者优；方向敏感参数
-//!   （响应时间/报价等低者优）留待 T-7 审核闭环加 direction 覆写面——本批不猜测方向）；
+//!   （×10000）、前后缀文字「≥100GB」「不低于 3 年」均容忍），等值 → 无偏离
+//!   （等值无方向性）；**不等值时先过方向守卫**（A-19：方向敏感词面命中 →
+//!   [`Deviation::Incomparable`]——响应时间/故障率低者优，容量/年限大者优，
+//!   词面本身无法区分，禁止猜测；T-7 审核闭环的 direction 覆写面仍是后续
+//!   增强，本层先诚实入不可比）；未命中词面才用**数值大 = 优**默认口径
+//!   （技术参数主流是容量/年限/人数/功率等大者优）；
 //! - **语义标记**（response 侧，数值比对不可用时）：含「满足/符合/响应/达到/
 //!   无偏离」→ 无偏离；含「优于/超过/高于/超出」→ 正偏离；含「低于/劣于/不足」
 //!   → 负偏离；
@@ -87,23 +90,59 @@ pub struct ParamInput {
 }
 
 // ---------------------------------------------------------------- 偏离派生（纯函数，单一真源）
-/// 偏离判定（确定性——同输入恒同输出；判定按序：数值主判 > 语义标记 > 不可比）。
+
+/// 方向敏感词面（A-19）：参数身份描述（param_name / required_value）命中
+/// 即视为**方向不可知**——数值大小不构成优劣判定依据（响应时间/故障率/
+/// 噪声低者优，存储容量/年限大者优——词面本身无法区分，禁止猜测）。
+///
+/// 词面来源：审计 A-19 建议词面「响应|时间|率|噪声」+ 审计自证低者优例
+/// 「报价」及其同族「费用」。**只匹配参数身份面（param_name 与
+/// required_value）**，不匹配 response_value——「已响应：120GB」这类应答
+/// 措辞里的「响应」不得把存储容量行误伤成不可比（误伤防回归锁见
+/// `direction_sensitive_params_go_incomparable`）。
+///
+/// 代价（如实登记，非放松）：「率」会网进功率/效率等大者优参数族 → 同样
+/// 入不可比（人工裁决）——方向不可知时诚实优先，宁可不判，不判错。
+const DIRECTION_SENSITIVE: [&str; 6] = ["响应", "时间", "率", "噪声", "报价", "费用"];
+
+/// 方向敏感判定（确定性：固定词表 contains，无外部态）。
+fn direction_sensitive(param_name: &str, required: &str) -> bool {
+    DIRECTION_SENSITIVE
+        .iter()
+        .any(|kw| param_name.contains(kw) || required.contains(kw))
+}
+
+/// 偏离判定（确定性——同输入恒同输出；判定按序：数值等值 > 方向守卫 >
+/// 数值主判 > 语义标记 > 不可比）。
 ///
 /// 为什么是纯函数：写入（set_param_responses）、查询、快照往返共用同一判定，
 /// 任何一处的偏离都可在别处重算复核——可审计性来自单一真源。
-pub fn derive_deviation(required: &str, response: &str) -> Deviation {
+///
+/// 方向守卫（A-19）：数值不等且词面命中 → Incomparable——「响应时间 2小时
+/// （要求 4小时）」按大者优口径会误判负偏离（把优势写成废标级缺陷），
+/// 反向「故障率 5%（要求 3%）」会误判正偏离（劣势洗成优势）——方向不可知
+/// 时进人工裁决清单（[`DomainStore::incomparable_deviations`]），不猜测。
+pub fn derive_deviation(param_name: &str, required: &str, response: &str) -> Deviation {
     // 1. 数值主判：两侧都拿到数值才可比（单侧有数值 ≠ 可比——拿 5 去对
     //    「详见技术白皮书」是猜测，不是判定）
     if let (Some(req_n), Some(resp_n)) = (extract_number(required), extract_number(response)) {
-        return if resp_n == req_n {
-            Deviation::None
-        } else if resp_n > req_n {
+        // 1a. 等值无方向性（2小时 == 2小时——快慢无关，先于词面判定）
+        if resp_n == req_n {
+            return Deviation::None;
+        }
+        // 1b. 方向守卫（A-19）：词面命中 → 数值大小无优劣语义，诚实入不可比
+        if direction_sensitive(param_name, required) {
+            return Deviation::Incomparable;
+        }
+        // 1c. 默认口径：数值大 = 优（未命中词面——容量/年限/人数等主流族）
+        return if resp_n > req_n {
             Deviation::Positive
         } else {
             Deviation::Negative
         };
     }
-    // 2. 语义标记（response 侧）：词表按序短路，确定性优先于「语义直觉」
+    // 2. 语义标记（response 侧）：词表按序短路，确定性优先于「语义直觉」。
+    //    方向守卫不进该分支——「优于/低于」是显式方向词，语义自足。
     semantic_deviation(response).unwrap_or(Deviation::Incomparable)
 }
 
@@ -229,7 +268,8 @@ impl DomainStore {
         // 避免 next_id 的 &mut self 与迭代借用冲突）
         let mut added = 0usize;
         for row in rows {
-            let deviation = derive_deviation(&row.required_value, &row.response_value);
+            let deviation =
+                derive_deviation(&row.param_name, &row.required_value, &row.response_value);
             match self.params.iter().position(|pr| {
                 pr.requirement_id == row.requirement_id && pr.param_name == row.param_name
             }) {
@@ -469,53 +509,124 @@ mod tests {
     }
 
     /// 数值主判变体：千分位/单位前后缀/单侧无数值走语义。
+    /// （param_name 用中性词面——本测试专测数值提取容忍面，方向守卫另测。）
     #[test]
     fn numeric_comparison_variants() {
         // 千分位逗号容忍：1,000 == 1000 → 无偏离
         assert_eq!(
-            derive_deviation("1,000", "1000"),
+            derive_deviation("存储容量", "1,000", "1000"),
             Deviation::None,
             "千分位等值"
         );
         assert_eq!(
-            derive_deviation("1,000", "1,200"),
+            derive_deviation("存储容量", "1,000", "1,200"),
             Deviation::Positive,
             "千分位比较"
         );
         // 单位前后缀容忍：3年 < 5年 → 正偏离；100GB > 60GB → 负偏离
-        assert_eq!(derive_deviation("3年", "5年"), Deviation::Positive);
-        assert_eq!(derive_deviation("100GB", "60GB"), Deviation::Negative);
         assert_eq!(
-            derive_deviation("≥100GB", "120GB"),
+            derive_deviation("质保年限", "3年", "5年"),
+            Deviation::Positive
+        );
+        assert_eq!(
+            derive_deviation("存储容量", "100GB", "60GB"),
+            Deviation::Negative
+        );
+        assert_eq!(
+            derive_deviation("存储容量", "≥100GB", "120GB"),
             Deviation::Positive,
             "≥ 前缀容忍"
         );
         // 单侧无数值：response 走语义（「满足」→ 无偏离）
         assert_eq!(
-            derive_deviation("不低于 3 年", "满足"),
+            derive_deviation("质保年限", "不低于 3 年", "满足"),
             Deviation::None,
             "response 无数值走语义标记"
         );
     }
 
-    /// 语义标记三态 + 不可比诚实态 + as_str/is_bid_fatal 口径。
+    /// **A-19 方向守卫**：方向敏感词面命中（param_name / required_value）→
+    /// 数值不等的比较诚实入不可比；等值仍无偏离；response 措辞不参与词面
+    /// 判定（误伤防回归锁）；未命中词面的大者优主流族零扰动。
     #[test]
-    fn semantic_markers_and_incomparable() {
+    fn direction_sensitive_params_go_incomparable() {
+        // 审计 A-19 原例：响应时间 2小时（要求 4小时）——优势曾被误判负偏离
+        //（废标级误报，评委按导出偏离表读直接误解）
         assert_eq!(
-            derive_deviation("支持国产化适配", "满足招标要求"),
-            Deviation::None
+            derive_deviation("响应时间", "≤4小时", "≤2小时"),
+            Deviation::Incomparable,
+            "响应快一倍不是缺陷——方向不可知，人工裁决"
+        );
+        // 反向误报面：故障率 5%（要求 3%）——劣势曾被洗成正偏离
+        assert_eq!(
+            derive_deviation("故障率", "≤3%", "5%"),
+            Deviation::Incomparable
         );
         assert_eq!(
-            derive_deviation("支持国产化适配", "优于招标要求"),
+            derive_deviation("噪声", "≤50dB", "45dB"),
+            Deviation::Incomparable
+        );
+        assert_eq!(
+            derive_deviation("维保报价", "100万元", "80万元"),
+            Deviation::Incomparable
+        );
+        // 词面在 required_value 同样生效（param_name 不含、要求原文含）
+        assert_eq!(
+            derive_deviation("维保费用", "每年费用不超过 50万元", "40万元"),
+            Deviation::Incomparable,
+            "required_value 词面命中同等守卫"
+        );
+        assert_eq!(
+            derive_deviation("到场时间", "4小时内到场", "2小时内到场"),
+            Deviation::Incomparable
+        );
+        // 等值方向无关：仍无偏离（先于词面判定）
+        assert_eq!(
+            derive_deviation("响应时间", "4小时", "4小时"),
+            Deviation::None
+        );
+        // 误伤防回归锁：response 措辞含「响应」但参数身份面无词面 → 不受守卫影响
+        assert_eq!(
+            derive_deviation("存储容量", "≥100GB", "已响应：120GB"),
+            Deviation::Positive,
+            "response 措辞不参与词面判定（「已响应」≠ 方向敏感参数）"
+        );
+        // 未命中词面的大者优主流族零扰动
+        assert_eq!(
+            derive_deviation("存储容量", "≥100GB", "120GB"),
             Deviation::Positive
         );
         assert_eq!(
-            derive_deviation("支持国产化适配", "低于要求"),
+            derive_deviation("存储容量", "100GB", "60GB"),
+            Deviation::Negative
+        );
+        // 方向敏感 + 单侧无数值：走语义标记（守卫只进数值分支）
+        assert_eq!(
+            derive_deviation("响应时间", "≤4小时", "满足要求"),
+            Deviation::None,
+            "「满足」是显式语义标记，不受方向词面影响"
+        );
+    }
+
+    /// 语义标记三态 + 不可比诚实态 + as_str/is_bid_fatal 口径。
+    /// （param_name 用中性词面——本测试专测语义标记路径。）
+    #[test]
+    fn semantic_markers_and_incomparable() {
+        assert_eq!(
+            derive_deviation("国产化能力", "支持国产化适配", "满足招标要求"),
+            Deviation::None
+        );
+        assert_eq!(
+            derive_deviation("国产化能力", "支持国产化适配", "优于招标要求"),
+            Deviation::Positive
+        );
+        assert_eq!(
+            derive_deviation("国产化能力", "支持国产化适配", "低于要求"),
             Deviation::Negative
         );
         // 两侧都无数值且无标记词 → 不可比（不猜测）
         assert_eq!(
-            derive_deviation("详见技术白皮书", "≥5A 安全等级"),
+            derive_deviation("安全等级", "详见技术白皮书", "≥5A 安全等级"),
             Deviation::Incomparable,
             "无数值无标记 → 诚实态不可比"
         );
@@ -534,27 +645,28 @@ mod tests {
     }
 
     /// 「万」单位解析（×10000）与千分位互通。
+    /// （param_name 用中性词面——本测试专测单位解析面。）
     #[test]
     fn wan_unit_parsing() {
         assert_eq!(
-            derive_deviation("100万", "1,000,000"),
+            derive_deviation("注册资金", "100万", "1,000,000"),
             Deviation::None,
             "100万 == 1,000,000（万 ×10000 与千分位等值——两侧对称，排列不敏感）"
         );
         // 规格「"50万" vs "100万" → Negative」的落位：要求 100万、响应 50万
         // （响应不足要求）——负偏离；数值大=优默认口径下这是唯一成立排列
         assert_eq!(
-            derive_deviation("100万", "50万"),
+            derive_deviation("注册资金", "100万", "50万"),
             Deviation::Negative,
             "响应 50万 不足要求 100万 → 负偏离（废标级）"
         );
         assert_eq!(
-            derive_deviation("50万", "100万"),
+            derive_deviation("注册资金", "50万", "100万"),
             Deviation::Positive,
             "要求 50万、响应 100万 → 正偏离（数值大=优默认口径）"
         );
         assert_eq!(
-            derive_deviation("注册资金 100万元", "注册资金 150万"),
+            derive_deviation("注册资金", "注册资金 100万元", "注册资金 150万"),
             Deviation::Positive,
             "前后缀文字下「万」仍然生效"
         );
@@ -678,20 +790,22 @@ mod tests {
     /// 确定性：同输入两次调用结果一致（对照 outline derive_is_deterministic 模式）。
     #[test]
     fn derive_deviation_is_deterministic() {
-        let cases: &[(&str, &str, Deviation)] = &[
-            ("≥100GB", "120GB", Deviation::Positive),
-            ("100GB", "60GB", Deviation::Negative),
-            ("1,000", "1000", Deviation::None),
-            ("100万", "1,000,000", Deviation::None),
-            ("不低于 3 年", "满足", Deviation::None),
-            ("详见技术白皮书", "≥5A 安全等级", Deviation::Incomparable),
-            ("质保期 3 年", "质保期 5 年", Deviation::Positive),
+        let cases: &[(&str, &str, &str, Deviation)] = &[
+            ("存储容量", "≥100GB", "120GB", Deviation::Positive),
+            ("存储容量", "100GB", "60GB", Deviation::Negative),
+            ("存储容量", "1,000", "1000", Deviation::None),
+            ("注册资金", "100万", "1,000,000", Deviation::None),
+            ("质保年限", "不低于 3 年", "满足", Deviation::None),
+            ("安全等级", "详见技术白皮书", "≥5A 安全等级", Deviation::Incomparable),
+            ("质保年限", "质保期 3 年", "质保期 5 年", Deviation::Positive),
+            // 方向守卫同样确定性（A-19）
+            ("响应时间", "≤4小时", "≤2小时", Deviation::Incomparable),
         ];
-        for (req, resp, expect) in cases {
-            let d1 = derive_deviation(req, resp);
-            let d2 = derive_deviation(req, resp);
+        for (name, req, resp, expect) in cases {
+            let d1 = derive_deviation(name, req, resp);
+            let d2 = derive_deviation(name, req, resp);
             assert_eq!(d1, d2, "同输入两次调用必须一致（可复现是审计前提）");
-            assert_eq!(d1, *expect, "({req} vs {resp}) 期望 {expect:?}");
+            assert_eq!(d1, *expect, "({name}: {req} vs {resp}) 期望 {expect:?}");
         }
     }
 

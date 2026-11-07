@@ -355,16 +355,6 @@ struct FontCMaps {
     merged: CMap,
 }
 
-impl FontCMaps {
-    /// 当前字体的解码表（未登记 → merged 回退）。
-    fn of(&self, font: Option<&str>) -> &CMap {
-        match font.and_then(|f| self.maps.get(f)) {
-            Some(cm) => cm,
-            None => &self.merged,
-        }
-    }
-}
-
 /// 收集「资源名 → 字体专属 ToUnicode CMap」映射。
 ///
 /// 三步扫描（与 collect_font_encodings 同款「字典层字节扫描」；ObjStm
@@ -1308,28 +1298,6 @@ fn flush_parts(parts: &mut Vec<(f64, f64, String)>, lines: &mut Vec<String>) {
     }
 }
 
-/// 遇到 `Tm`：若 y 变了就断行；否则继续同一行。
-fn on_tm(
-    cur: &mut String,
-    cur_y: &mut Option<f64>,
-    cur_x_end: &mut Option<f64>,
-    x: f64,
-    y: f64,
-    lines: &mut Vec<String>,
-) {
-    const Y_EPS: f64 = 1.5;
-    let line_changed = match *cur_y {
-        Some(prev) => (y - prev).abs() > Y_EPS,
-        None => false,
-    };
-    if line_changed && !cur.trim().is_empty() {
-        lines.push(cur.trim().to_string());
-        cur.clear();
-    }
-    *cur_y = Some(y);
-    *cur_x_end = Some(x);
-}
-
 /// 追加一段文本到当前行。
 ///
 /// 逐字 Tj 模式下，同一行的字符会按 x 从小到大依次出现，但也有生成器
@@ -2085,30 +2053,6 @@ pub fn probe_cjk_garble(pdf_bytes: &[u8], text: &str) -> CjkGarbleProbe {
         return CjkGarbleProbe::Clean;
     }
     CjkGarbleProbe::Clean
-}
-
-/// 文本是否像自然语言（#200 R1-C）——仅用于已确认含 CJK 的混排件。
-///
-/// 不能单独决定「是否乱码」：g, Tender document...（本被错解）形状完全正常。
-/// 乱码主判据在 probe_cjk_garble 的「零 CJK 输出」分支。
-fn looks_like_natural_text(text: &str) -> bool {
-    let chars: Vec<char> = text.chars().filter(|c| !c.is_whitespace()).collect();
-    if chars.is_empty() {
-        return false;
-    }
-    let letters = chars.iter().filter(|c| c.is_ascii_alphabetic()).count();
-    let letter_ratio = letters as f64 / chars.len() as f64;
-    if letter_ratio < 0.5 {
-        return false;
-    }
-    let total = text.chars().count();
-    let spaces = text.chars().filter(|c| c.is_whitespace()).count();
-    let space_ratio = spaces as f64 / total.max(1) as f64;
-    if space_ratio < 0.08 {
-        return false;
-    }
-    text.split(|c: char| !c.is_alphabetic())
-        .any(|w| w.len() >= 3 && w.chars().all(|c| c.is_ascii_alphabetic()))
 }
 
 /// 页级乱码判定结论（#223）。

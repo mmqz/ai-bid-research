@@ -2136,15 +2136,12 @@ fn convert_to_pdf_lo(docx: &std::path::Path, out_pdf: &std::path::Path) -> Resul
             stderr.chars().take(200).collect::<String>()
         ));
     }
-    // PDF 魔数校验（%PDF——防空文件/HTML 错误页伪装产物）
-    let mut magic = [0u8; 5];
-    use std::io::Read;
-    std::fs::File::open(&produced)
-        .and_then(|mut f| f.read_exact(&mut magic))
-        .map_err(|e| format!("产物读取失败: {e}"))?;
-    if &magic != b"%PDF-" {
-        return Err("产物不是 PDF（魔数校验失败）——soffice 可能输出了错误页".into());
-    }
+    // PDF 产物校验（魔数 + 存在性）——与 Word COM 通道共用单点（#498：
+    // 此前内联重复实现同一校验，verify_pdf_output 因唯一调用方
+    // #[cfg(windows)] 在 Linux 侧成 clippy 误报死码；收敛后注释「两条
+    // 转换通道共用」的承诺兑现）。rename 前校验 conv_out 里的原生产物。
+    verify_pdf_output(&produced)
+        .map_err(|e| format!("{e}——soffice 可能输出了错误页"))?;
     std::fs::rename(&produced, out_pdf).map_err(|e| format!("产物搬移失败: {e}"))?;
     // profile 清理在产物搬移**之后**（conv_out 住在 profile 内——先删会把
     // 产物一起删掉，「成功但产物缺失」的实测根因；rename 返回后产物已安全）

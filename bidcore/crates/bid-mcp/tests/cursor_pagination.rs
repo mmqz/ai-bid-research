@@ -359,6 +359,74 @@ fn matrix_filter_paging_and_cross_filter_cursor_rejected() {
 
 // ---------------------------------------------------------------- 3. 坏游标 fail-closed
 
+// ---------------------------------------------------------------- 2-B. #426 过滤值域校验
+
+/// 非法 category/status 显式拒（E_UNPROCESSABLE + 合法值清单）——不静默 0 行。
+/// 对照 issue #426 实例：`status: "BLOCK"` / `category: "资格审查"` 此前静默
+/// 返回 0 行 + ok:true，Agent 误判「无阻塞项」。
+#[test]
+fn matrix_filter_invalid_values_rejected_with_domain_list() {
+    let (mut svc, pid) = matrix_store(8);
+
+    // ---- 非法 category：中文近义误写 / 未知键 / 空串，全拒
+    for bad in ["资格审查", "vet o", ""] {
+        let reply = call(&mut svc, "get_compliance_matrix", json!({
+            "project_id": pid, "filters": { "category": bad }, "limit": 10,
+        }));
+        let what = match &reply {
+            ToolReply::Err { error, .. } => {
+                assert_eq!(err_code(&reply), "E_UNPROCESSABLE", "category={bad:?} 必须显式拒");
+                format!("{error}")
+            }
+            ToolReply::Ok(out) => panic!("category={bad:?} 预期拒绝，实际成功: {}", out.result),
+        };
+        // 报文附合法值清单（键 + 中文名双形态——契约 §4）
+        assert!(what.contains("qualification"), "清单须含契约键: {what}");
+        assert!(what.contains("tech_param"), "清单须含契约键: {what}");
+        assert!(what.contains("其他"), "清单须含中文名: {what}");
+        assert!(what.contains("格式要求"), "清单须含中文名: {what}");
+    }
+
+    // ---- 非法 status：issue 实例 "BLOCK" / 小写形态 / 空串，全拒
+    for bad in ["BLOCK", "responded", ""] {
+        let reply = call(&mut svc, "get_compliance_matrix", json!({
+            "project_id": pid, "filters": { "status": bad }, "limit": 10,
+        }));
+        let what = match &reply {
+            ToolReply::Err { error, .. } => {
+                assert_eq!(err_code(&reply), "E_UNPROCESSABLE", "status={bad:?} 必须显式拒");
+                format!("{error}")
+            }
+            ToolReply::Ok(out) => panic!("status={bad:?} 预期拒绝，实际成功: {}", out.result),
+        };
+        assert!(what.contains("NOT_RESPONDED"), "清单须含五态: {what}");
+        assert!(what.contains("PENDING_EVIDENCE"), "清单须含五态: {what}");
+    }
+
+    // ---- 合法值不回归（键 / 中文名 / other 兜底 / 五态过滤）
+    let r = ok_result(call(&mut svc, "get_compliance_matrix", json!({
+        "project_id": pid, "filters": { "category": "qualification" }, "limit": 100,
+    })));
+    assert_eq!(r["total"], json!(2), "qualification = CATS 轮转 i%4==0 → 2 行");
+    let r = ok_result(call(&mut svc, "get_compliance_matrix", json!({
+        "project_id": pid, "filters": { "category": "其他" }, "limit": 100,
+    })));
+    assert_eq!(r["total"], json!(0), "「其他」合法（兜底键）——夹具无该类 → 真 0 行");
+    let r = ok_result(call(&mut svc, "get_compliance_matrix", json!({
+        "project_id": pid, "filters": { "status": "NOT_RESPONDED" }, "limit": 100,
+    })));
+    assert_eq!(r["total"], json!(8), "夹具无矩阵行 → 全部 NOT_RESPONDED 派生态");
+
+    // ---- 双过滤合法组合不受影响
+    let r = ok_result(call(&mut svc, "get_compliance_matrix", json!({
+        "project_id": pid, "filters": { "category": "qualification", "status": "NOT_RESPONDED" },
+        "limit": 100,
+    })));
+    assert_eq!(r["total"], json!(2), "合法双过滤：资格条件 ∩ 未响应");
+}
+
+// ---------------------------------------------------------------- 3. 坏游标 fail-closed（续）
+
 /// 坏游标 fail-closed 三态（borrow：mdcore `workbench/tests/persistence_recovery.rs`
 /// 的损坏输入响亮拒绝范式）：坏编码 / 坏版本 / 越界——全拒 E_UNPROCESSABLE，
 /// 绝不 panic、绝不静默给错页；完好游标照常通过（坏输入拒绝不是无差别拒绝）。

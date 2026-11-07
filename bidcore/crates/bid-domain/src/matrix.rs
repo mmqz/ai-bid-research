@@ -75,6 +75,17 @@ pub enum ResponseStatus {
 }
 
 impl ResponseStatus {
+    /// 全值域（#426：工具面过滤校验的单一真源——`get_compliance_matrix`
+    /// `filters.status` 合法清单从这里派生，不另写字面量表；加状态时
+    /// 这里与 `as_str` 同步扩，工具面自动跟随）。
+    pub const ALL: [ResponseStatus; 5] = [
+        ResponseStatus::NotResponded,
+        ResponseStatus::Responded,
+        ResponseStatus::Partial,
+        ResponseStatus::NotApplicable,
+        ResponseStatus::PendingEvidence,
+    ];
+
     pub fn as_str(&self) -> &'static str {
         match self {
             ResponseStatus::NotResponded => "NOT_RESPONDED",

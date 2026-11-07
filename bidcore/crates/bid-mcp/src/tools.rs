@@ -772,6 +772,18 @@ fn category_key(cn: &str) -> &'static str {
     }
 }
 
+/// `filters.category` 合法值域（#426——契约 §4：契约键或中文类别名）。
+/// **键集从 [`category_key`] 派生**（同一张映射表，不另维护一份字面量——
+/// 类别面变化时两处自动一致）；中文名 = extract 产物七类口径
+/// （契约 submit_block_marks：资格条件|否决项|评分项|技术参数|商务要求|格式要求|其他）。
+fn category_filter_domain() -> (Vec<&'static str>, Vec<&'static str>) {
+    const NAMES: [&str; 7] = [
+        "资格条件", "否决项", "评分项", "技术参数", "商务要求", "格式要求", "其他",
+    ];
+    let keys: Vec<&'static str> = NAMES.iter().map(|n| category_key(n)).collect();
+    (keys, NAMES.to_vec())
+}
+
 /// 条款号数值化（`3.2.1` → [3, 2, 1]——缺号检测的序比较基元）。
 fn clause_digits(no: &str) -> Option<Vec<u64>> {
     let parts: Vec<&str> = no.split('.').collect();
@@ -1197,6 +1209,35 @@ fn get_compliance_matrix(svc: &mut BidService, args: Value) -> ToolResult {
     let filters = filters_of(&args, "get_compliance_matrix")?;
     let filter_category = filter_str(filters, "category", "get_compliance_matrix")?;
     let filter_status = filter_str(filters, "status", "get_compliance_matrix")?;
+    // ---- 过滤值域校验（#426——search_evidence mode 同款纪律：非法值显式拒。
+    // 此前传错值域静默 0 行 + ok:true，Agent 误判「无阻塞项」——0 行也是
+    // 一种伪装的空成功（issue #9 口径）。
+    if let Some(c) = filter_category.as_deref() {
+        let (keys, names) = category_filter_domain();
+        if !keys.contains(&c) && !names.contains(&c) {
+            return Err(ToolError::EUnprocessable {
+                what: format!(
+                    "get_compliance_matrix: filters.category={c:?} 非法（合法：契约键 {} 或中文类别名 {}——契约 §4；拼写错显式拒，不静默 0 行）",
+                    keys.join("|"),
+                    names.join("|"),
+                ),
+            });
+        }
+    }
+    if let Some(s) = filter_status.as_deref() {
+        let valid: Vec<&str> = bid_domain::matrix::ResponseStatus::ALL
+            .iter()
+            .map(|v| v.as_str())
+            .collect();
+        if !valid.contains(&s) {
+            return Err(ToolError::EUnprocessable {
+                what: format!(
+                    "get_compliance_matrix: filters.status={s:?} 非法（合法：{}——T-2+#245 五态派生；拼写错显式拒，不静默 0 行）",
+                    valid.join("|"),
+                ),
+            });
+        }
+    }
     // 游标窗口（S-4）：fp 绑定 工具名+project_id+过滤参数——跨过滤器游标 fail-closed 拒；
     // cv 绑定当前数据版本（#406/C-14）——翻页期间 store 变更（增长位移）即拒
     let fp = cursor::fingerprint(&[

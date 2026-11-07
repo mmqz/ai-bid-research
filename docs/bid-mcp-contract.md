@@ -147,7 +147,9 @@ out: { rows:[{cmp_id, requirement:{id, clause_no, category, statement, mandatory
 无有效证据无占位 → **RESPONDED**（写了就是写了——文本事实）；证据缺口由
 evidence_missing 正交承载，由提交就绪面（validate/check_bid_quality 的
 submission_readiness）拦截，不压进状态面。
-错误: E_UNPROCESSABLE（游标与过滤器不匹配/游标损坏/limit 或 page 越界——显式拒不 clamp）
+错误: E_UNPROCESSABLE（游标与过滤器不匹配/游标损坏/limit 或 page 越界——显式拒不 clamp；
+      #426：filters.category / filters.status 不在值域（合法清单见 in 段）——拼写错
+      显式拒 + 报文附合法值清单，不静默 0 行——0 行也是伪装的空成功（issue #9））
 ```
 
 ## 4-A. list_evidence（只读，S-4 新增）

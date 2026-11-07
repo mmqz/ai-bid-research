@@ -116,9 +116,35 @@ fn block_kind_str(k: BlockKind) -> &'static str {
 ///   稳定序全局递增）。`A` 前缀保证与正则数字编号零碰撞；CMP 派生 id
 ///   走非数字后缀回退分支（`CMP-0000-REQ-A0001`），与正则 `CMP-000N`
 ///   零碰撞（matrix.rs `derived_cmp_id`）。
+/// - 跨运行 id 稳定（#419/B-19）见 [`merge_extraction_with_prior`]——
+///   生产 extract 调用应传 store 现存 REQ-A 集，本便捷签名仅供首跑/
+///   测试。
 pub fn merge_extraction(
     faces: &[MergeFace<'_>],
+    regex_reqs: Vec<Requirement>,
+) -> (Vec<Requirement>, MergeStats) {
+    merge_extraction_with_prior(faces, regex_reqs, &[])
+}
+
+/// #419（B-19）：REQ-A id 跨运行稳定——带 prior 承接面的合并。
+///
+/// 「先 extract → 补 submit → 再 extract」工作流下，运行序编号会使同一
+/// 条款的 REQ-A id 漂移，以 req id 为外部键的下游对象（矩阵覆写/
+/// 证据绑定/人工记录）全部悬空。承接规则：
+///
+/// - **锚点命中保旧 id**：prior 中与新增项锚点（源文件名 + locator +
+///   excerpt——同文件版本内块级稳定）相同的项，其 id 被保留。同文件
+///   重解析（补遗/引擎变更）使锚点变化 → 不命中 → 起新 id（锚点变了
+///   即条款位置变了，保守起新）；
+/// - **新 id 从 max+1 起**：prior 数字后缀最大值 + 1 起、按 face 顺序 +
+///   block_idx 稳定序递增——**不复用已释放 id**（被删提交的旧 id 若被
+///   新条款复用，旧悬空引用会错位指向新条款，比悬空更危险）；
+/// - **首跑零回归**：`prior` 为空时与 [`merge_extraction`] 逐位一致
+///   （REQ-A0001.. 递增、正则项原 id 原序）。
+pub fn merge_extraction_with_prior(
+    faces: &[MergeFace<'_>],
     mut regex_reqs: Vec<Requirement>,
+    prior_agent_reqs: &[Requirement],
 ) -> (Vec<Requirement>, MergeStats) {
     let regex_total = regex_reqs.len();
 
@@ -168,8 +194,26 @@ pub fn merge_extraction(
     let regex_dropped_covered = before - regex_reqs.len();
 
     // ---- ③ 转换：submitted → REQ-Axxxx（按 face 顺序 + block_idx 稳定序）。
+    // #419（B-19）：id 承接——prior 锚点命中保旧 id（跨运行键稳定），
+    // 未命中从 max+1 起新编（不复用已释放 id）。
+    // prior 索引：锚点（源文件名 + locator + excerpt）→ 旧 id。首锚即
+    // 块锚（创建时固化，见下）；仅 REQ-A 前缀参与（正则项原 id 原序
+    // 不动，不在承接面）。
+    let prior_by_anchor: HashMap<(&str, &str, &str), &str> = prior_agent_reqs
+        .iter()
+        .filter(|r| r.id.starts_with("REQ-A"))
+        .filter_map(|r| {
+            let a = r.anchors.first()?;
+            Some(((r.source_file.as_str(), a.locator.as_str(), a.excerpt.as_str()), r.id.as_str()))
+        })
+        .collect();
+    // 新 id 起点零：首跑无 prior 时即旧行为（REQ-A0001..）。
+    let mut seq = prior_agent_reqs
+        .iter()
+        .filter_map(|r| r.id.strip_prefix("REQ-A")?.parse::<usize>().ok())
+        .max()
+        .unwrap_or(0);
     let mut agent_reqs: Vec<Requirement> = Vec::new();
-    let mut seq = 0usize;
     let mut offcategory = 0usize; // Agent 必选且类别不在类别阻断面（见 MergeStats 字段注）
     for f in faces {
         let mut subs: Vec<&SubmittedRequirement> = f.submitted.iter().collect();
@@ -180,7 +224,19 @@ pub fn merge_extraction(
             let Some(block) = f.blocks.iter().find(|b| b.idx == s.block_idx) else {
                 continue;
             };
-            seq += 1;
+            let id = match prior_by_anchor.get(&(
+                f.name,
+                block.locator.as_str(),
+                block.text.as_str(),
+            )) {
+                // 锚点命中：保旧 id（不占新号——号序与 face/block 序解耦，
+                // 新号只分给真正的新条款）
+                Some(old) => (*old).to_string(),
+                None => {
+                    seq += 1;
+                    format!("REQ-A{seq:04}")
+                }
+            };
             let category = s.category.clone().unwrap_or_else(|| "其他".to_string());
             if s.mandatory && !BLOCKING_CATEGORIES.contains(&category.as_str()) {
                 offcategory += 1;
@@ -194,7 +250,7 @@ pub fn merge_extraction(
             // 区别于抽取面的「仅在检测到★时写 true」；派生面统一按 == true 判）
             params.insert("star".into(), serde_json::json!(s.substantive));
             agent_reqs.push(Requirement {
-                id: format!("REQ-A{seq:04}"),
+                id,
                 category,
                 clause_no: None,
                 anchors: vec![{
@@ -557,5 +613,113 @@ mod tests {
         let (out, stats) = merge_extraction(&[f], vec![]);
         assert_eq!(out.len(), 2, "同块两条都保留");
         assert_eq!(stats.agent_requirements, 2);
+    }
+
+    // ---------------- #419（B-19）：REQ-A id 跨运行稳定 ----------------
+
+    /// 场景①首跑零回归：prior 为空时与旧签名逐位一致（REQ-A0001.. 递增）。
+    #[test]
+    fn prior_empty_matches_legacy_numbering() {
+        let blocks = vec![
+            block(0, "p1", "条款甲"),
+            block(1, "p1", "条款乙"),
+            block(2, "p1", "条款丙"),
+        ];
+        let subs = vec![submitted(0, "甲"), submitted(1, "乙"), submitted(2, "丙")];
+        let (legacy, _) = merge_extraction(&[face("A-主文件", &blocks, &[], &subs)], vec![]);
+        let (with_prior, _) =
+            merge_extraction_with_prior(&[face("A-主文件", &blocks, &[], &subs)], vec![], &[]);
+        assert_eq!(legacy, with_prior, "空 prior 必须与便捷签名逐位一致");
+        assert_eq!(
+            with_prior.iter().map(|r| r.id.clone()).collect::<Vec<_>>(),
+            vec!["REQ-A0001", "REQ-A0002", "REQ-A0003"],
+            "首跑编号从 1 起、按 block_idx 稳定序"
+        );
+    }
+
+    /// 场景②插入：补标后重跑，新提交插在更小 block_idx——旧三条 id 不漂移，
+    /// 新条款从 max+1 起新号（矩阵覆写/绑定键不悬空）。
+    #[test]
+    fn inserted_submission_keeps_prior_ids() {
+        let blocks = vec![
+            block(0, "p1", "条款甲"),
+            block(1, "p1", "条款乙"),
+            block(2, "p1", "条款丙"),
+        ];
+        // 首跑：两条（乙丙——甲尚未补标）
+        let subs1 = vec![submitted(1, "乙"), submitted(2, "丙")];
+        let f1 = face("A-主文件", &blocks, &[], &subs1);
+        let (first, _) = merge_extraction(&[f1], vec![]);
+        assert_eq!(
+            first.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(),
+            vec!["REQ-A0001", "REQ-A0002"]
+        );
+
+        // 重跑：Agent 在更小 block_idx=0 插入新提交「甲」+ 保留乙丙
+        let subs2 = vec![submitted(0, "甲"), submitted(1, "乙"), submitted(2, "丙")];
+        let f2 = face("A-主文件", &blocks, &[], &subs2);
+        let (second, _) = merge_extraction_with_prior(&[f2], vec![], &first);
+        let ids: Vec<&str> = second.iter().map(|r| r.id.as_str()).collect();
+        // 旧锚点（乙/丙）保旧 id；新锚点（甲）从 max+1=3 起
+        assert_eq!(ids, vec!["REQ-A0003", "REQ-A0001", "REQ-A0002"],
+            "插入不漂移：乙=A0001 丙=A0002 保旧，甲（新）=A0003；输出序仍按 block_idx");
+        // 承接的是同一 id 的条款内容（锚点不变）
+        assert_eq!(second[1].anchors[0].excerpt, "条款乙");
+        assert_eq!(second[2].anchors[0].excerpt, "条款丙");
+        assert_eq!(second[0].anchors[0].excerpt, "条款甲");
+    }
+
+    /// 场景③删减：重跑少一条——幸存者保旧 id（编号留空位，不复用）。
+    #[test]
+    fn removed_submission_leaves_gap_not_reuse() {
+        let blocks = vec![
+            block(0, "p1", "条款甲"),
+            block(1, "p1", "条款乙"),
+            block(2, "p1", "条款丙"),
+        ];
+        let subs1 = vec![submitted(0, "甲"), submitted(1, "乙"), submitted(2, "丙")];
+        let f1 = face("A-主文件", &blocks, &[], &subs1);
+        let (first, _) = merge_extraction(&[f1], vec![]);
+
+        // 重跑：只保留甲丙（乙被撤）
+        let subs2 = vec![submitted(0, "甲"), submitted(2, "丙")];
+        let f2 = face("A-主文件", &blocks, &[], &subs2);
+        let (second, _) = merge_extraction_with_prior(&[f2], vec![], &first);
+        assert_eq!(
+            second.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(),
+            vec!["REQ-A0001", "REQ-A0003"],
+            "幸存者保旧 id，A0002 留空不复用（悬空引用宁可指向空号也不错位新条款）"
+        );
+    }
+
+    /// 场景④非连续 max：prior 编号有空洞（历史删减）——新 id 从全局 max+1 起，
+    /// 不回填空洞。
+    #[test]
+    fn new_ids_start_from_global_max_even_with_gaps() {
+        let blocks = vec![block(0, "p1", "旧条款"), block(9, "p9", "新条款")];
+        let prior = vec![Requirement {
+            id: "REQ-A0007".into(),
+            category: "其他".into(),
+            clause_no: None,
+            anchors: vec![Anchor {
+                file: "A-主文件".into(),
+                kind: "pdf_line".into(),
+                locator: "p1".into(),
+                excerpt: "旧条款".into(),
+                block_idx: Some(0),
+                page: Some(1),
+                line: Some(1),
+            }],
+            params: HashMap::new(),
+            source_file: "A-主文件".into(),
+        }];
+        let subs = vec![submitted(9, "新")];
+        let f = face("A-主文件", &blocks, &[], &subs);
+        let (out, _) = merge_extraction_with_prior(&[f], vec![], &prior);
+        assert_eq!(
+            out.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(),
+            vec!["REQ-A0008"],
+            "非连续 max=7 → 新号从 8 起（不回填 1-6 空洞——被删条款的悬空引用不得错位）"
+        );
     }
 }

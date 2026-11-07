@@ -914,7 +914,18 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
             })
         })
         .collect();
-    let (mut reqs, merge_stats) = bid_parse::merge::merge_extraction(&faces, reqs);
+    // #419（B-19）：REQ-A id 承接——重跑 extract（Agent 补标后）时按锚点
+    // 匹配保留旧 id，防止矩阵覆写/证据绑定/人工记录等以 req id 为外部键
+    // 的下游对象悬空。正则项原 id 原序不受影响（承接面只认 REQ-A 前缀）。
+    let prior_agent_reqs: Vec<bid_domain::Requirement> = svc
+        .store()
+        .requirements()
+        .iter()
+        .filter(|r| r.id.starts_with("REQ-A"))
+        .cloned()
+        .collect();
+    let (mut reqs, merge_stats) =
+        bid_parse::merge::merge_extraction_with_prior(&faces, reqs, &prior_agent_reqs);
     drop(faces);
 
     // ---- 完整性校验：缺号检测（契约硬规则）

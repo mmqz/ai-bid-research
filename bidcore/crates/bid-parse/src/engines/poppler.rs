@@ -11,6 +11,8 @@ use crate::pdf_text::sanitize_line;
 use crate::{Block, BlockKind, ParsedFile};
 use std::path::Path;
 
+use super::tool_abs_path;
+
 /// poppler pdftotext 文本层引擎。
 pub struct PopplerText;
 
@@ -35,7 +37,8 @@ impl PdfExtractor for PopplerText {
 
     fn extract(&self, path: &Path) -> Result<Vec<PageText>, EngineError> {
         let mut text_cmd = std::process::Command::new("pdftotext");
-        text_cmd.arg("-layout").arg(path.as_os_str()).arg("-");
+        // B-25：路径经 tool_abs_path 绝对化（纵深防御——见 engines/mod.rs）
+        text_cmd.arg("-layout").arg(tool_abs_path(path)).arg("-");
         let text = guard::run_limited(text_cmd, TIMEOUT_PDFTOTEXT, LIMIT_PDFTOTEXT_STDOUT)
             .into_result()
             .map_err(map_run_err)?;

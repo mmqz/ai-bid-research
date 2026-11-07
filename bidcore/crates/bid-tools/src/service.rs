@@ -1512,7 +1512,9 @@ impl BidService {
         //      缺档/字段缺 → 【待填】+ 告警，绝不编造）
         let ws_for_profile = self.workspace_dir();
         let (profile, profile_warn) = match &ws_for_profile {
-            Some(ws) => match bid_domain::party::BidderProfile::load(ws) {
+            // #455：profile 落盘面迁 bid-tools::profile_io（bid-domain 零 IO 纪律）——
+            // 缺档 Io → 未建档告警的既有语义逐字保持
+            Some(ws) => match crate::profile_io::load(ws) {
                 Ok(p) => (p, None),
                 Err(bid_domain::party::FormError::Io { .. }) => (
                     bid_domain::party::BidderProfile::default(),

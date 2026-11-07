@@ -8,11 +8,12 @@
 //!    的人话缺陷清单），绝不用占位符蒙混过关；
 //! 2. **硬格式字段格式不对 = 缺**：统一社会信用代码/身份证/银行账号
 //!    都是会被评标委员会当场退回的硬格式，格式不合法就当缺处理；
-//! 3. **零 IO 纯函数**：不依赖环境变量/时钟。
+//! 3. **零 IO 纯函数**：不依赖环境变量/时钟；磁盘读写不住本 crate
+//!    （bidder-profile.json 的落盘面在 `bid_tools::profile_io`——#455
+//!    自本文件迁出，tmp→fsync→rename 原子纪律）。
 
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// 格式件层的错误（加载/保存/校验未过）。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,9 +46,6 @@ impl std::fmt::Display for FormError {
 }
 
 impl std::error::Error for FormError {}
-
-/// 主体信息在工作区里的缺省落盘名。
-pub const PROFILE_FILE: &str = "bidder-profile.json";
 
 /// 拟派人员的一条事实（#117 任务 1：人员配置表的数据面）。
 ///
@@ -200,39 +198,6 @@ pub fn is_valid_bank_account(s: &str) -> bool {
 }
 
 impl BidderProfile {
-    /// 从工作区读取 bidder-profile.json。
-    pub fn load(workspace: &Path) -> Result<Self, FormError> {
-        let path = workspace.join(PROFILE_FILE);
-        let raw = fs::read_to_string(&path).map_err(|e| FormError::Io {
-            path: path.clone(),
-            message: e.to_string(),
-        })?;
-        serde_json::from_str(&raw).map_err(|e| FormError::Json {
-            path,
-            message: e.to_string(),
-        })
-    }
-
-    /// 写回 bidder-profile.json（用于人工填表后回存）。
-    ///
-    /// **不验证完整性**：半填的中间态要能存盘（否则用户填一半就保存不了）。
-    /// 完整性的硬门在渲染侧（[`crate::forms`] 先调 [`BidderProfile::validate`]）。
-    pub fn save(&self, workspace: &Path) -> Result<(), FormError> {
-        let path = workspace.join(PROFILE_FILE);
-        let body = serde_json::to_string_pretty(self).map_err(|e| FormError::Json {
-            path: path.clone(),
-            message: e.to_string(),
-        })?;
-        fs::create_dir_all(workspace).map_err(|e| FormError::Io {
-            path: workspace.to_path_buf(),
-            message: e.to_string(),
-        })?;
-        fs::write(&path, body).map_err(|e| FormError::Io {
-            path,
-            message: e.to_string(),
-        })
-    }
-
     /// 检查完整性（缺字段 → 列出缺什么）。
     ///
     /// 返回空集 = 可填表。缺陷顺序固定（主体标识 → 法定代表人 →
@@ -386,10 +351,10 @@ mod tests {
         }
     }
 
-    /// #117：人员/设备事实随 profile 落盘往返（旧 JSON 无该两字段 → 空表，
-    /// 加性兼容面）。
+    /// #117：人员/设备事实的 serde 语义（往返/旧档兼容/未知不假造）——
+    /// 磁盘往返面在 bid-tools profile_io（#455 迁出）。
     #[test]
-    fn personnel_equipment_facts_roundtrip_and_default_absent() {
+    fn personnel_equipment_facts_serde_roundtrip_and_default_absent() {
         let mut p = complete();
         p.personnel.push(PersonnelFact {
             position: "项目经理".into(),
@@ -408,16 +373,8 @@ mod tests {
             spec: "LoRaWAN/RS485 双模".into(),
             arrival: "合同签订后 7 日内".into(),
         });
-        let dir = std::env::temp_dir().join(format!(
-            "party-facts-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        p.save(&dir).unwrap();
-        let back = BidderProfile::load(&dir).unwrap();
+        let raw = serde_json::to_string(&p).unwrap();
+        let back: BidderProfile = serde_json::from_str(&raw).unwrap();
         assert_eq!(back.personnel.len(), 1);
         assert_eq!(back.personnel[0].years, Some(12));
         assert_eq!(back.equipment[0].quantity, Some(48));
@@ -510,28 +467,5 @@ mod tests {
         assert!(!is_valid_id_card("3401041992020200"));
         assert!(is_valid_bank_account("34001468608059999999"));
         assert!(!is_valid_bank_account("34001"), "不足 6 位拒");
-    }
-
-    #[test]
-    fn save_then_load_roundtrips_even_when_incomplete() {
-        let dir = std::env::temp_dir().join(format!("bid-forms-party-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-
-        // A half-filled profile must still save: otherwise the user loses work.
-        let mut partial = complete();
-        partial.bank_account = String::new();
-        assert!(!partial.is_valid(), "半填确实不完整");
-        partial.save(&dir).expect("完整性不是保存的前置");
-
-        let loaded = BidderProfile::load(&dir).expect("回读应成功");
-        assert_eq!(loaded, partial, "往返全等");
-
-        // A missing file is an IO error, never a silently defaulted profile.
-        let missing = dir.join("nope");
-        match BidderProfile::load(&missing) {
-            Err(FormError::Io { path, .. }) => assert!(path.ends_with(PROFILE_FILE)),
-            other => panic!("应为 Io 错，实际：{other:?}"),
-        }
-        let _ = fs::remove_dir_all(&dir);
     }
 }

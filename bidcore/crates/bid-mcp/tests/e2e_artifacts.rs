@@ -508,7 +508,7 @@ fn e2e_artifacts_synth_tender() {
             },
         ],
     };
-    profile.save(&ws).expect("⑤.5 bidder-profile.json 落盘");
+    bid_tools::profile_io::save(&profile, &ws).expect("⑤.5 bidder-profile.json 落盘");
     // (d) 报价决策（导出时显式传——分项合计 = 总报价 1580 万 < 最高限价 1650 万）
     let bid_amount = 15_800_000.0_f64;
     let price_breakdown = serde_json::json!([

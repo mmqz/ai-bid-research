@@ -451,7 +451,25 @@ fn interpret_assert(a: &EtAssert, db: &RunDb, fx: &Fixtures, skipped: &mut Vec<V
                 Err(e) => json!({"kind": kind, "path": a.path, "pass": false, "reason": e}),
             }
         }
-        "metric" => pass(true), // A/B 指标比较由 TC-10 专项报告承载
+        // #481（A-20①）：metric 恒真 pass(true) 把「未判定」洗白成「通过」——
+        // 与 Python 判分器（scripts/grade.py:441 的 "pass": None + note）口径
+        // 分裂。对齐诚实口径：pass = null + skipped 登记——
+        //   · n_fail 统计 as_bool()==Some(false)：null 不计（TC-10 夹具自注
+        //     「不作发布门禁」——归档型用例）；
+        //   · pass 计数 ==Some(true)：null 不计（未判定不得计入全绿）；
+        //   · summary 的 skipped 计数可见（显式跳过，非静默洗白）。
+        "metric" => {
+            skipped.push(json!({
+                "kind": kind, "path": a.path,
+                "note": a.note,
+                "reason": "A/B 指标比较由 TC-10 专项报告承载（pass=null——未判定，不作门禁）",
+            }));
+            json!({
+                "kind": kind, "path": a.path,
+                "pass": Value::Null, "skipped": true,
+                "value": a.value, "note": a.note,
+            })
+        }
         "error" | "policy" | "state" | "count" => {
             // 核心断言不可跳过：路径不可解析即失败
             match resolve_path(&a.path, db, fx) {

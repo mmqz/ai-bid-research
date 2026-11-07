@@ -75,15 +75,18 @@ in : { project_id, scope:"all"|file_ids[], options:{granularity, include_scoring
      options.granularity：**保留位，当前未实现**（传入被忽略——#86 摩擦 #6 清偿：
      契约曾提到但无实现，如实标注；未来实现时枚举合法值并在此补记）
 out: { counts:{total, added(可为负——整集替换语义下的诚实增量), by_category{qualification,veto,scoring,tech_param,commercial,format,other}},
-       merge:{regex_total, regex_dropped_covered, agent_requirements, uncovered_blocks, coverage_complete}（#219 二步合并面），
+       merge:{regex_total, regex_dropped_covered, agent_requirements, uncovered_blocks, coverage_complete, regex_kept_unbacked_requirement}（#219 二步合并面；末位 #422 黑洞防护计数）,
        star_summary:{total, captured, missing, declarations}（#285 ① ★漏标检测汇总——
          抽取面文件口径；total 为真值★（样板句已排除，captured+missing==total
          恒成立）；missing>0 时 warnings 追加 STAR_MISSING；逐文件明细走 §22
          get_star_coverage），
        conflicts:[{a:REQ-*,b:REQ-*,reason}], missing_sequence:[{file_id,expected_clause_nos,found}], warnings[] }
 执行: 确定性先行（条款编号序列解析、表格结构化槽位抽取）→ #219 二步抽取通路合并
-      （Agent 块标记优先 + 正则兜底）：被任何区间标记覆盖的块，正则产物丢弃
-      （Agent 已看过该块——无论 noise/rule/review_table/requirement）；未覆盖块
+      （Agent 块标记优先 + 正则兜底，#422 按 verdict 分流）：被区间标记覆盖的块，
+      noise/rule/review_table 裁决下正则产物丢弃（Agent 显式拒绝）；requirement
+      裁决且有 submitted 承接 → REQ-A 替代；**requirement 裁决但无 submitted
+      承接 → 保留**（R-09/B-01 黑洞防护：requirement 语义即「本块含须响应的
+      要求」，无承接时丢弃正则产物 = 条款无告警地从矩阵消失）；未覆盖块
       正则保留（兜底）；Agent 提交的关键点转 REQ-Axxxx 追加（冲突以 Agent 为准；
       params 携 statement/mandatory/block_idx/marked_by=agent，溯源锚=块原文）。
       落库改整集替换（replace）——「先 extract → 补标 → 重跑」时被覆盖块上的旧
@@ -97,7 +100,9 @@ out: { counts:{total, added(可为负——整集替换语义下的诚实增量)
       进入矩阵 blocking 面，未响应即拦起草/导出；响应或人工 receipt 覆写后
       放行。历史名 AGENT_MANDATORY_NOT_BLOCKING 时代只亮警告不拦）；STAR_MISSING
       （#285 ① ★漏标警告——N 处★未见对应 REQ，不是 BLOCKER（可能误报），
-      逐文件核实面在 get_star_coverage）。
+      逐文件核实面在 get_star_coverage）；MARKED_REQUIREMENT_WITHOUT_SUBMITTED
+      （#422：N 条正则条款因「requirement 标记无关键点承接」被保留——补
+      submit_block_marks 的 requirements 或显式改标 noise/rule 后重跑消除）。
 硬规则: 条款编号缺号 → missing_sequence 必须报告（完整性校验）；补遗与正文冲突 → 双向登记 conflicts；
       合并守恒：counts.total = regex_total - regex_dropped_covered + agent_requirements
 错误: E_PARTIAL（某文件抽取失败，其余成功）；E_STATE（未导入文件）

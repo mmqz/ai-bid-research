@@ -360,13 +360,21 @@ fn danqing_engine_path_five_business_captured() {
     let _ = std::fs::remove_dir_all(ws);
 }
 
-// ---------------------------------------------------------------- 验收 2：黑盒 1/5 → missing=4
+// ---------------------------------------------------------------- 验收 2：黑盒 1/5 → 四题不丢（#422 黑洞防护）
 
-/// 黑盒复现（issue 验收 2 的「当前实测捕获 1/5，应报 missing=4」）：
+/// 黑盒复现（issue 验收 2 的「当前实测捕获 1/5，应报 missing=4」；
+/// #422 后语义升级——见下）：
 ///
 /// 六场黑盒实测中 Agent 只把商务表五题的 1 题标成 substantive——本用例
-/// 复刻该形态：Agent 标记覆盖商务表区间（第19页 行6..行25 → 引擎正则
-/// REQ 让位），仅提交 1 条 substantive（服务期限）；四题必须全部报出。
+/// 复刻该形态：Agent 标记覆盖商务表区间，仅提交 1 条 substantive
+/// （服务期限）。
+///
+/// #422（R-09/B-01）基线更新：旧口径下四题的正则 REQ 被无承接的
+/// requirement 覆盖静默丢弃，条款丢失只能靠 STAR_MISSING 报警兑底；
+/// 新口径下这四题的正则 REQ **保留**（黑洞防护）——四题不再进 missing
+/// 而是直接 captured（star=true、REQ 为正则 id），摩擦信号改由
+/// MARKED_REQUIREMENT_WITHOUT_SUBMITTED 告警承载（Agent 仍被提醒
+/// 补交提炼后的关键点，REQ-A 承接后替代）。
 #[test]
 fn danqing_blackbox_one_of_five_reports_missing_four() {
     if skip_if_no_layout_engine("star_285_danqing_blackbox") {
@@ -430,8 +438,25 @@ fn danqing_blackbox_one_of_five_reports_missing_four() {
         "extract_requirements",
         json!({ "project_id": &pid }),
     ));
-    // 合并面统计可见：Agent 关键点 1 条承接（engine REQ 对被覆盖块让位）
+    // 合并面统计可见：Agent 关键点 1 条承接（有承接块 REQ-A 替代）
     assert_eq!(extract["merge"]["agent_requirements"], json!(1), "Agent 提交 1 条关键点");
+    // #422 黑洞防护：四题无承接 → 正则 REQ 保留 + 计数 + 告警在場
+    // （旧口径：丢弃 + 仅 STAR_MISSING 报警——条款丢失）
+    assert_eq!(
+        extract["merge"]["regex_kept_unbacked_requirement"],
+        json!(4),
+        "四题无承接正则 REQ 必须保留并计数（#422）"
+    );
+    let warns: Vec<String> = extract["warnings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|w| w.as_str().map(String::from))
+        .collect();
+    assert!(
+        warns.iter().any(|w| w.starts_with("MARKED_REQUIREMENT_WITHOUT_SUBMITTED")),
+        "摩擦信号必须在場（#422——提醒 Agent 补交关键点）：{warns:?}"
+    );
 
     let out = star_coverage_of(&mut svc, &pid, &fid);
     assert_eq!(out["star_total"], json!(13));
@@ -456,20 +481,33 @@ fn danqing_blackbox_one_of_five_reports_missing_four() {
         served["req_id"]
     );
 
-    // ★验收 2 核心：missing=4——四题全部报出（服务地点/验收要求/合同支付方式/履约验收方式）
-    let missing_texts: Vec<String> = out["missing"]
+    // ★验收 2（#422 后口径）：四题不再丢失——直接 captured（正则 REQ 保留、
+    // star=true）；摩擦信号由 MARKED_REQUIREMENT_WITHOUT_SUBMITTED 承载。
+    let captured_texts: Vec<String> = out["captured"]
         .as_array()
         .unwrap()
         .iter()
-        .map(|m| nfkc(m["text"].as_str().unwrap_or("")))
+        .map(|c| nfkc(c["text"].as_str().unwrap_or("")))
         .collect();
     for label in ["服务地点", "验收要求", "合同支付方式", "履约验收方式"] {
+        let hit = out["captured"].as_array().unwrap().iter().find(|c| {
+            nfkc(c["text"].as_str().unwrap_or("")).contains(label)
+        });
+        let c = hit.unwrap_or_else(|| panic!(
+            "四题必须捕获（#422 黑洞防护——正则 REQ 保留）：{label} 不在 captured\ncaptured: {captured_texts:?}"
+        ));
+        assert_eq!(c["star"], json!(true), "{label} 保留的正则 REQ 带 star=true");
         assert!(
-            missing_texts.iter().any(|t| t.contains(label)),
-            "漏标四题必须报出：{label} 不在 missing（黑盒 1/5 场景）\nmissing: {missing_texts:?}"
+            c["req_id"].as_str().unwrap_or("").starts_with("REQ-"),
+            "{label} 由保留的正则 REQ 承接: {}",
+            c["req_id"]
+        );
+        assert!(
+            !c["req_id"].as_str().unwrap_or("").starts_with("REQ-A"),
+            "{label} 未由 Agent 提交（黑盒 1/5 形态——仅服务期限有 REQ-A）"
         );
     }
-    let business_missing = missing_texts
+    let business_captured = captured_texts
         .iter()
         .filter(|t| t.contains("★"))
         .filter(|t| {
@@ -478,9 +516,32 @@ fn danqing_blackbox_one_of_five_reports_missing_four() {
                 .any(|l| t.contains(*l))
         })
         .count();
-    assert_eq!(business_missing, 4, "商务表漏标恰为 4（missing=4）");
-    // 黑盒路径总量口径：Agent 只接 1 题 + p18 行1 锚（REQ-0149 未被覆盖）= 2 捕获
-    assert_eq!((cap, miss), (2, 10), "黑盒 1/5 形态：真值 12 = 捕获 2 + 漏 10（四商务题 + p18×4 + p48×2）");
+    assert_eq!(business_captured, 4, "商务表四题恰为 4（captured，#422）");
+    // 黑盒路径总量口径（#422 后）：真值 12 = 捕获 6（Agent 1 + 保留正则 4
+    // + p18 行1 锚 REQ-0149）+ 漏 6（p18×4 + p48×2——无正则也无提交，
+    // 仍是真漏标）；旧口径为 (2, 10)——其中 4 题「漏」实为黑洞丢失的兑底报警。
+    assert_eq!(
+        (cap, miss),
+        (6, 6),
+        "黑盒 1/5 形态（#422 后）：真值 12 = 捕获 6 + 漏 6（四商务题保留不丢 + p18/p48 真漏标）"
+    );
+    let missing_texts: Vec<String> = out["missing"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| nfkc(m["text"].as_str().unwrap_or("")))
+        .collect();
+    for label in ["服务地点", "验收要求", "合同支付方式", "履约验收方式"] {
+        assert!(
+            !missing_texts.iter().any(|t| t.contains(label)),
+            "{label} 已捕获，不应再进 missing（#422——旧口径的黑洞丢失面）"
+        );
+    }
+    assert_eq!(
+        missing_texts,
+        vec!["2 ★", "3 ★", "4 ★", "5 ★", "★ 1.1", "★ 2.1"],
+        "真漏标清单（p18×4 + p48×2——无正则无提交的★块）"
+    );
     let _ = std::fs::remove_dir_all(ws);
 }
 

@@ -235,14 +235,27 @@ fn extract_merge_agent_priority_with_regex_fallback() {
     assert!(dropped > 0, "noise 区（前 1/4 块）必有正则误报被 Agent 压制");
     assert_eq!(merge["agent_requirements"].as_u64().unwrap(), 1);
     assert_eq!(merge["coverage_complete"].as_bool().unwrap(), true, "全覆盖标记");
+    // #422 黑洞防护：requirement 区间仅块 k+2 有承接，其余块的正则 REQ
+    // 不再被静默丢弃（保留 + 计数 + 告警）——这正是 B-01 的部分提交形态。
+    assert!(
+        merge["regex_kept_unbacked_requirement"].as_u64().unwrap() > 0,
+        "requirement 区无承接块的正则 REQ 必须保留并计数（#422）"
+    );
+    let warns = r["warnings"].as_array().unwrap();
+    assert!(
+        warns.iter().any(|w| w.as_str().unwrap_or("").starts_with("MARKED_REQUIREMENT_WITHOUT_SUBMITTED")),
+        "黑洞防护告警必须在场（#422）"
+    );
     // counts 自洽：total = regex_total - dropped + agent
     let t = r["counts"]["total"].as_u64().unwrap();
     assert_eq!(t, regex_total - dropped + 1, "合并守恒：正则保留 + Agent 承接");
     assert_eq!(r["status"], "REQUIREMENTS_EXTRACTED");
 
-    // REQ-A0001 真落库（矩阵面验证：params.statement 承载 Agent 陈述）
+    // REQ-A0001 真落库（矩阵面验证：params.statement 承载 Agent 陈述）。
+    // #422 后无承接正则项不再被清——总数可能超过矩阵缺省页（100），
+    // 显式拉大 limit 取全量（断言不放松，只取全页）。
     let m = ok_result(call(&mut svc, "get_compliance_matrix", json!({
-        "project_id": "PRJ-0001"
+        "project_id": "PRJ-0001", "limit": 1000
     })));
     assert_eq!(m["counts"]["total"].as_u64().unwrap(), t);
     let rows = m["rows"].as_array().unwrap();

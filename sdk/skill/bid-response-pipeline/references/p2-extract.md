@@ -32,14 +32,20 @@ marked_by=agent；溯源锚=块原文）。 REQ-A 后缀非纯数字 → CMP 派
 ```
 counts:  { total, added(可为负——整集替换语义), by_category{…七类} }
 merge:   { regex_total, regex_dropped_covered, agent_requirements,
-           uncovered_blocks, coverage_complete }        ← #219 二步合并面
+           uncovered_blocks, coverage_complete,
+           regex_kept_unbacked_requirement }  ← #219 合并面；末位 #422 黑洞防护计数
 conflicts:        [ { a: "REQ-*", b: "REQ-*", reason } ]   ← 补遗与正文冲突双向登记
 missing_sequence: [ { file_id, expected_clause_nos, found } ] ← 条款编号缺号
-warnings:         [ …含 UNCOVERED_BLOCKS / AGENT_MANDATORY_OFFCATEGORY ]
+warnings:         [ …含 UNCOVERED_BLOCKS / AGENT_MANDATORY_OFFCATEGORY / MARKED_REQUIREMENT_WITHOUT_SUBMITTED ]
 ```
 
 **合并守恒**：counts.total = regex_total − regex_dropped_covered + agent_requirements。
 `UNCOVERED_BLOCKS`：未覆盖块正则已兜底——Agent 补标后重跑更准。
+`MARKED_REQUIREMENT_WITHOUT_SUBMITTED`（#422）：N 条正则条款因「requirement
+标记无关键点承接」被**保留**（未丢弃——旧版会静默清掉，条款从矩阵消失）。
+处置：用 get_coverage_report 定位后补 submit_block_marks 的 requirements
+参数（REQ-A 承接）；若该块其实不是要求，显式改标 noise/rule 后重跑 extract
+消除。向用户提示的口径：这批条款已进矩阵不会丢，但 Agent 的提炼面缺位。
 `AGENT_MANDATORY_OFFCATEGORY`：Agent 标必选且类别不在资格/否决阻断面——
 **已接线**：这些条款进入矩阵 blocking 面，未响应将拦起草与导出（重跑
 build_matrix 后生效）；响应（绑证据）或人工 receipt 覆写（set_matrix_override）

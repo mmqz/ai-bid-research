@@ -416,6 +416,57 @@ fn input_schema(name: &str) -> Value {
             },
             "required": ["project_id", "section_id"]
         }),
+        "register_addendum_changes" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid,
+                "changes": {
+                    "type": "array",
+                    "minItems": 1,
+                    "description": "补遗变更清单（逐条：改了什么条款、旧文本、新要求）",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "req_id": {"type": "string", "description": "目标条款 REQ-xxxx（value_changed/requirement_removed 必填；requirement_added 缺省由引擎签发新 id）"},
+                            "change_type": {"type": "string", "enum": ["value_changed", "requirement_added", "requirement_removed"]},
+                            "old_text": {"type": "string", "description": "旧要求片段（受影响段定位线索——段含此文本即入影响面）"},
+                            "new_requirement": {"type": "string", "description": "新要求全文（value_changed/requirement_added 必填）"},
+                            "category": {"type": "string", "enum": ["资格条件", "否决项", "评分项", "技术参数", "商务要求", "格式要求", "其他"], "description": "requirement_added 必填（类别驱动矩阵 blocking 派生）"},
+                            "clause_no": {"type": "string", "description": "requirement_added 可选：条款号"},
+                            "section_id": {"type": "string", "description": "requirement_added 可选：归属叶章节 SEC-xxxx（缺省=零章节影响，只进条款集与矩阵）"},
+                            "source_file_id": {"type": "string", "description": "关联补遗件 TF-xxxx（可溯源）"}
+                        },
+                        "required": ["change_type"]
+                    }
+                },
+                "project_version": pv
+            },
+            "required": ["project_id", "changes"]
+        }),
+        "rewrite_section_partial" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid,
+                "directive_id": {"type": "string", "description": "目标指令 RD-xxxx（register 回显 / get_bid_project_state 发现）"},
+                "rewrites": {
+                    "type": "array",
+                    "description": "段重写清单（必须⊆指令影响面；空表=确认无需改写直接处置）",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "segment_id": {"type": "string", "description": "目标段 SEG-xxxx"},
+                            "content": {"type": "string", "description": "该段重写后全文"},
+                            "expected_version": {"type": "integer", "minimum": 1, "description": "CAS 对照（不匹配 E_CONFLICT；缺省跳过）"}
+                        },
+                        "required": ["segment_id", "content"]
+                    }
+                },
+                "dry_run": {"type": "boolean", "description": "纯预览（将修改 X 段 Y 段不动，零落笔）——建议先预览后真跑", "default": false},
+                "dismiss": {"type": "boolean", "description": "人工裁定不适用（与 rewrites 互斥；Dismissed 同样参与清 DIRTY 判定）", "default": false},
+                "project_version": pv
+            },
+            "required": ["project_id", "directive_id"]
+        }),
         "validate_bid_document" => json!({
             "type": "object",
             "properties": {
@@ -704,6 +755,8 @@ pub(crate) fn describe(name: &str) -> &'static str {
         "append_section_segment" => "追加章节分段（#254——content 是段正文非章节全文，引擎按序合稿，前段不丢；同 idem_key/同内容重提幂等 no-op；长章节分批写作的安全路径）",
         "rewrite_section_segment" => "重写指定段（#254——局部修订不动兄弟段；expected_version CAS，过期 E_CONFLICT；定位用 list 回显的 segment_id）",
         "list_section_segments" => "只读段账本（#254——段清单 + 合稿字数 + 剩余配额，续写前对账）",
+        "register_addendum_changes" => "补遗变更登记（#319①——起草后补遗到达：数值变更/新增/删除三类登记→DIRTY 打标+改写指令生成（影响面×段账本匹配：引用该 REQ 或含旧文本的段）+矩阵幂等重算；批量原子，任一失败零副作用）",
+        "rewrite_section_partial" => "局部改写+局部复验（#319②③——只改指令影响面内的段（rewrites⊆affected），兄弟段零改动；dry_run 预览将修改 X 段 Y 段不动；局部 validate 只跑受影响章节；全部指令处置完清 DIRTY）",
         "list_tools" => "只读：工具清单 + 行协议契约摘要（#279 发现面——无上下文代理的握手入口；返回信封形态/错误码面/CAS 纪律；JSON-RPC 客户端用 tools/list 等价）",
         "validate_bid_document" => "双层校验（确定性规则 + 模型复核）",
         "export_bid_document" => "导出（含暗标模式；#117 表格接线——profile.bid_amount/price_breakdown 报价决策，六表自动注入/附表）",
@@ -776,6 +829,9 @@ fn is_implemented(name: &str) -> bool {
             | "append_section_segment"
             | "rewrite_section_segment"
             | "list_section_segments"
+            // #319 补遗后增量重写两工具
+            | "register_addendum_changes"
+            | "rewrite_section_partial"
             // #279 行协议发现面（tools.rs 纯只读臂，无状态前置）
             | "list_tools"
     )

@@ -64,7 +64,7 @@ use serde_json::Value;
 /// 三工具（get_requirement_provenance / get_block_requirements /
 /// get_annotation_overlay——REQ↔块双向反查 + 视图渲染 overlay 数据面）
 /// = 35。
-pub const TOOL_NAMES: [&str; 35] = [
+pub const TOOL_NAMES: [&str; 37] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -106,6 +106,10 @@ pub const TOOL_NAMES: [&str; 35] = [
     "append_section_segment",
     "rewrite_section_segment",
     "list_section_segments",
+    // #319 补遗后增量重写（起草后补遗到达：变更登记→改写指令→只改受影响
+    // 段+局部复验——DIRTY 章节不再只能整章重写）
+    "register_addendum_changes",
+    "rewrite_section_partial",
     // #287 篇幅档位推荐（只读——P3 建纲前调，建议+理由+alternatives 交用户确认）
     "recommend_length_profile",
     // #279 行协议发现面：无上下文代理合理预期先握手（六场实测两个独立代理

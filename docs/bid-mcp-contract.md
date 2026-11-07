@@ -17,9 +17,9 @@
   `in : { project_id, filters:{...}, cursor?, limit?, page?(仅矩阵兼容) }`；
   `out: { rows|items, total(过滤后总数), limit(生效页宽), cursor(本次生效游标), next_cursor: string|null }`，`next_cursor=null` 即取完，原样回传取下一页。
   游标规则（fail-closed）：opaque base64（内嵌版本字节/偏移/过滤器指纹）；跨过滤器或跨工具复用游标 → `E_UNPROCESSABLE`；limit 合法域 1..=1000、缺省 100，越界/非整数**显式拒**（不静默 clamp）；游标损坏/版本不认识/偏移越界（底层列表已变化）→ `E_UNPROCESSABLE`。行序确定性（矩阵=条款位置序 CMP-0001..N；证据=id 字典序；任务=target_id 字典序）是分页安全前提，不得破坏。
-- **补充建议（第 9 个只读工具）**：`get_bid_project_state`——断点恢复的入口（读项目状态、各阶段完成度、DIRTY 章节、BLOCKER 计数），仿 LingYan `check_pipeline_state`。原 8 工具契约不受影响。V3-5（S-4）另增两个只读列表工具 `list_evidence` / `list_tasks`（§4-A/§4-B，工具面共 11）。issue #42 阶段 10 增第 12 个工具 `save_version`（AI 主动存版本快照，见文末 §SV）。#80 第三批（G1-G3）后工具面 21；#219 全块覆盖三工具（§17/§18/§19）后工具面 24（§3 同步抽取通路合并语义）；#226 增 `set_matrix_override` → 25；#243 增 `recover_validating_state`（§20，校验状态安全与恢复）后工具面 26；#254 增分段三工具 `append_section_segment` / `rewrite_section_segment` / `list_section_segments`（§21，章节级增量写入）后工具面 29；#285 ① 增 `get_star_coverage`（§22，★漏标检测——只读）后工具面 **30**。
+- **补充建议（第 9 个只读工具）**：`get_bid_project_state`——断点恢复的入口（读项目状态、各阶段完成度、DIRTY 章节、BLOCKER 计数），仿 LingYan `check_pipeline_state`。原 8 工具契约不受影响。V3-5（S-4）另增两个只读列表工具 `list_evidence` / `list_tasks`（§4-A/§4-B，工具面共 11）。issue #42 阶段 10 增第 12 个工具 `save_version`（AI 主动存版本快照，见文末 §SV）。#80 第三批（G1-G3）后工具面 21；#219 全块覆盖三工具（§17/§18/§19）后工具面 24（§3 同步抽取通路合并语义）；#226 增 `set_matrix_override` → 25；#243 增 `recover_validating_state`（§20，校验状态安全与恢复）后工具面 26；#254 增分段三工具 `append_section_segment` / `rewrite_section_segment` / `list_section_segments`（§21，章节级增量写入）后工具面 29；#285 ① 增 `get_star_coverage`（§22，★漏标检测——只读）后工具面 30。
 
-- **补充建议（第 9 个只读工具）**：`get_bid_project_state`——断点恢复的入口（读项目状态、各阶段完成度、DIRTY 章节、BLOCKER 计数），仿 LingYan `check_pipeline_state`。原 8 工具契约不受影响。V3-5（S-4）另增两个只读列表工具 `list_evidence` / `list_tasks`（§4-A/§4-B，工具面共 11）。issue #42 阶段 10 增第 12 个工具 `save_version`（AI 主动存版本快照，见文末 §SV）。#80 第三批（G1-G3）后工具面 21；#219 全块覆盖三工具（§17/§18/§19）后工具面 24（§3 同步抽取通路合并语义）；#226 增 `set_matrix_override` → 25；#243 增 `recover_validating_state`（§20，校验状态安全与恢复）后工具面 26；#254 增分段三工具 `append_section_segment` / `rewrite_section_segment` / `list_section_segments`（§21，章节级增量写入）后工具面 29；#279 增 `list_tools`（§LT，行协议发现面）后工具面 30；#287 增 `recommend_length_profile`（§22，篇幅档位推荐）后工具面 **31**。
+- **补充建议（第 9 个只读工具）**：`get_bid_project_state`——断点恢复的入口（读项目状态、各阶段完成度、DIRTY 章节、BLOCKER 计数），仿 LingYan `check_pipeline_state`。原 8 工具契约不受影响。V3-5（S-4）另增两个只读列表工具 `list_evidence` / `list_tasks`（§4-A/§4-B，工具面共 11）。issue #42 阶段 10 增第 12 个工具 `save_version`（AI 主动存版本快照，见文末 §SV）。#80 第三批（G1-G3）后工具面 21；#219 全块覆盖三工具（§17/§18/§19）后工具面 24（§3 同步抽取通路合并语义）；#226 增 `set_matrix_override` → 25；#243 增 `recover_validating_state`（§20，校验状态安全与恢复）后工具面 26；#254 增分段三工具 `append_section_segment` / `rewrite_section_segment` / `list_section_segments`（§21，章节级增量写入）后工具面 29；#279 增 `list_tools`（§LT，行协议发现面）后工具面 30；#287 增 `recommend_length_profile`（§22，篇幅档位推荐）后工具面 31；#319 增补遗后增量重写两工具 `register_addendum_changes` / `rewrite_section_partial`（§23/§24，DIRTY 章节局部改写 + 局部复验）后工具面 **33**。
 
 ## 1. create_bid_project
 ```
@@ -1155,4 +1155,86 @@ out: { recommended_profile("practical"|"standard"|"conservative"|"maximum"),
       2000 页 4 册；3-7 天评 20-50 家——起草成本极高，是用户显式选择）。
 门禁联动: E_TOTAL_CHARS_BELOW_MIN 按 outline_total_chars()（配额总和
       = 选中档位目标）动态判——档位化后自动按选中档生效（非固定 844,000）。
+```
+
+## 23. register_addendum_changes（#319① 补遗变更登记 · 起草后补遗的主入口）
+```
+in : { project_id,
+       changes:[{ req_id?("REQ-xxxx"——value_changed/requirement_removed 必填；
+                        requirement_added 缺省由引擎签发新 id),
+                  change_type("value_changed"|"requirement_added"|"requirement_removed"),
+                  old_text?(旧要求片段——受影响段定位线索：段含此文本即入影响面),
+                  new_requirement?(新要求全文——value_changed/requirement_added 必填),
+                  category?(requirement_added 必填：资格条件|否决项|评分项|技术参数|
+                        商务要求|格式要求|其他——驱动矩阵 blocking 派生),
+                  clause_no?(requirement_added 可选：条款号),
+                  section_id?(requirement_added 可选：归属叶章节 SEC-xxxx——
+                        缺省=零章节影响，只进条款集与矩阵),
+                  source_file_id?(关联补遗件 TF-xxxx——须已导入，可溯源) }×N,
+       project_version? }
+out: { changes:[{ id(AC-xxxx), req_id, change_type, old_text, new_requirement,
+                  source_file_id, registered_at, affected_sections, warnings }],
+       directives:[{ id(RD-xxxx), section_id, change_id, req_id, change_type,
+                  old_text, new_requirement,
+                  affected_segments:[{ segment_id, seq, matched_by
+                     (citation|old_text|citation+old_text) }],
+                  status, created_at, applied_at }],
+       dirty_sections:[{ section_id, title, section_status, pending_directives }],
+       directive_warnings:[…无段账本/未匹配到段等指令级告警…],
+       matrix:{ rows, blocking }, next, status, project_version, request_id }
+语义: 起草后补遗到达——把「补遗改了什么」翻译成「哪些章节哪些段要改」：
+      ① 变更落账（R-mod：params.addendum_requirement 记最新要求 + 关联叶
+      DIRTY；R-add：新 REQ 入条款集 + 挂叶沿祖先传播（不变量 9）+ 矩阵行
+      新增；R-del：REQ 出集 + **绑定解除** + 矩阵行随重算消失 + 覆写清理
+      + 叶/父 requirement_ids 同步下架）；② 改写指令生成（变更 × 受影响
+      章节 × 段账本匹配：段引用该 REQ ∪ 段含 old_text——#254 段是真增量
+      单元，整章重写不再是唯一出口）；③ 矩阵幂等重算（一次）。
+原子: 批量登记全过校验才落账（任一失败零副作用——版本/DIRTY/账本全不动）。
+守卫: 叶清空守卫（R-del 使某叶 REQ 归零 → E_UNPROCESSABLE 指名——整章
+      下线属结构重建）；#224 评分映射引用完整性（被映射的评分项不得删除）；
+      添加类别受检（七类枚举）。
+错误: E_NOTFOUND（REQ 不存在 / source_file_id 不存在——消息带 changes[i]
+      定位前缀）；E_UNPROCESSABLE（空 changes / 非法 change_type / 叶清空 /
+      评分映射孤儿化）；E_STATE；E_CONFLICT（project_version 过期）。
+状态: MATRIX_READY+ 含 Exported（补遗可能在任何时刻到达——已导出后登记
+      +局部改写+重验，再导出即新稿）。
+发现面: get_bid_project_state 回显 dirty_sections + pending_rewrite_directives
+      （断点恢复时「哪些章节还没追上补遗」一眼可见）。
+```
+
+## 24. rewrite_section_partial（#319②+③ 指令执行：局部改写 + 局部复验）
+```
+in : { project_id, directive_id("RD-xxxx"),
+       rewrites?:[{ segment_id("SEG-xxxx"), content(该段重写后全文),
+                    expected_version?(CAS 对照——不匹配 E_CONFLICT) }×N],
+       dry_run?(默认 false——纯预览「将修改 X 段，Y 段不动」，零落笔),
+       dismiss?(默认 false——人工裁定不适用，与 rewrites 互斥),
+       project_version? }
+out: { directive:{…处置后状态…}, section_id, dry_run,
+       plan:{ segments_to_modify, segments_untouched },
+       modified_segments:[{ segment_id, seq, version_before, version_after, chars }],
+       untouched_segment_ids:[…], assembled_chars, target_chars,
+       remaining_chars, over_target,
+       revalidation:{ section_id, ok, blocker, major, minor,
+                      reqs_revalidated(章节责任条款数), reqs_responded(新内容
+                      引用的 distinct REQ 数) },
+       remaining_pending_directives, dirty_cleared, warnings,
+       status, project_version, request_id }
+语义: 只改指令影响面内的段（rewrites ⊆ affected——越界段显式拒，防「借
+      指令改无关段」）；兄弟段零改动（字节级不动、version 不动）；合稿与
+      正文同进退（#254 不变量）。pre-flight 全过才落笔（新内容引用回查 +
+      CAS 预检——与 rewrite_section_segment 同纪律，多段一次性预检 = 原子面）。
+      dry_run = 改动前预告（建议先预览后真跑）；rewrites 空 + 非 dismiss =
+      确认无需改写直接处置；dismiss = Dismissed（同样参与清 DIRTY 判定）。
+复验: 处置后**只跑受影响章节**（validate scope=[section_id]——未受影响
+      章节零重跑）；报告「改了 N 段，M 条 REQ 重新响应」。
+清脏: 章节全部指令处置完（Applied/Dismissed）→ DIRTY 清除（「改写追上
+      补遗」的可计算判据）；仍有 Pending → 保持脏。
+新增要求路径: 指令影响面恒空（无既有段可改）——Agent 用
+      append_section_segment 新增响应段（引用新 REQ 过 pre-flight——REQ
+      已挂叶），然后回本工具空 rewrites 处置。
+错误: E_NOTFOUND（指令/段不存在）；E_UNPROCESSABLE（非 pending 重放 /
+      越界段 / 空白内容 / 引用回查失败 / dismiss+rewrites 互斥）；
+      E_CONFLICT（expected_version 过期——无部分写入）。
+状态: MATRIX_READY+ 含 Exported（与 register 同窗口）。
 ```

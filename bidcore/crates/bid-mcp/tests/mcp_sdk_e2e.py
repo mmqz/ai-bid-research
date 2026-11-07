@@ -53,6 +53,9 @@ EXPECTED_TOOLS = {
     "get_requirement_provenance",  # #285② 块级双向索引三工具（与 TOOL_NAMES 34 对齐）
     "get_block_requirements",
     "get_annotation_overlay",
+    # #319 补遗后增量重写两工具（与 TOOL_NAMES 37 对齐）
+    "register_addendum_changes",
+    "rewrite_section_partial",
 }
 
 server_bin = sys.argv[1] if len(sys.argv) > 1 else "bid-mcp-server"
@@ -87,7 +90,7 @@ async def main() -> None:
             # ---- ② list_tools（全量工具面 + inputSchema 形态）----
             tools = (await session.list_tools()).tools
             names = {t.name for t in tools}
-            check(len(tools) == 35, f"list_tools: 工具数 = {len(tools)}（35）")
+            check(len(tools) == 37, f"list_tools: 工具数 = {len(tools)}（37）")
             check(names == EXPECTED_TOOLS, "list_tools: 与 TOOL_NAMES 单一真源一致")
             for t in tools:
                 check(isinstance(t.inputSchema, dict) and t.inputSchema.get("type") == "object",

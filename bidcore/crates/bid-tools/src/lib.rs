@@ -14,6 +14,8 @@ pub mod llm;
 pub mod placeholder;
 pub mod quality;
 pub mod readiness;
+// #319 补遗后增量重写（登记编排 + 局部改写编排）
+pub mod rewrite;
 pub mod runner;
 pub mod schema;
 pub mod segments;

@@ -736,6 +736,74 @@ fn input_schema(name: &str) -> Value {
             "properties": {},
             "description": "无参数——发现面工具，任何状态可用"
         }),
+        // ---- #315 业绩材料库四工具 ----
+        "register_performance" => json!({
+            "type": "object",
+            "description": "业绩材料库登记（#315——跨项目资产：库文件在项目工作区之外，BID_PERF_LIB / 用户目录；无项目路由，建项目前可维护）",
+            "properties": {
+                "entries": {
+                    "type": "array", "maxItems": 200,
+                    "description": "批量登记（单批 <= 200——分批登记）；语义幂等键 = (name, client, amount_wan, completed_on) 四元组，命中既有条目回显既有 id 不重复登记；一条非法整批拒（零副作用）",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "项目名称（业绩合同标的项目）"},
+                            "client": {"type": "string", "description": "客户/发包人（甲方）"},
+                            "amount_wan": {"type": "number", "minimum": 0, "description": "合同金额（万元，>= 0）"},
+                            "completed_on": {"type": "string", "description": "完成日期（YYYY-MM-DD）"},
+                            "categories": {"type": "array", "items": {"type": "string"}, "maxItems": 20, "description": "行业/类型标签（匹配面——短标签如「医疗设备」）"},
+                            "materials": {"type": "array", "items": {"type": "string"}, "maxItems": 20, "description": "材料文件路径（合同扫描/验收单——write_performance_section 按文件名匹配已导入文件）"},
+                            "key_points": {"type": "array", "items": {"type": "string"}, "maxItems": 20, "description": "亮点（写给正文的事实点）"},
+                            "subject_name": {"type": "string", "description": "乙方主体（业绩证据 subject_name 的条目级覆盖；缺省用库主/工作区投标人档案）"}
+                        },
+                        "required": ["name", "client", "amount_wan", "completed_on"]
+                    }
+                },
+                "owner_name": {"type": "string", "description": "库主 = 投标人主体名（证据登记面的 subject_name 默认源；一次登记全程生效，可更新）"}
+            }
+        }),
+        "list_performance" => json!({
+            "type": "object",
+            "description": "业绩材料库列表（#315——只读，无项目路由）",
+            "properties": {
+                "filters": {
+                    "type": "object",
+                    "properties": {
+                        "category": {"type": "string", "description": "标签子串（categories 任一含此串）"},
+                        "keyword": {"type": "string", "description": "关键词（name/client 包含）"},
+                        "min_amount_wan": {"type": "number", "description": "金额下界（万元，含）"},
+                        "max_amount_wan": {"type": "number", "description": "金额上界（万元，含）"},
+                        "since": {"type": "string", "description": "完成日期下界（YYYY-MM-DD，含）"}
+                    }
+                },
+                "limit": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "返回上限（缺省 100；显式越界拒，不静默 clamp）"}
+            }
+        }),
+        "recommend_performance" => json!({
+            "type": "object",
+            "description": "业绩匹配推荐（#315——只读：四因子确定性打分 + 建议写入章节；缺信号因子弃权重归一，分数是排序依据不是正确率，选哪几条由用户/Agent 裁决）",
+            "properties": {
+                "project_id": pid,
+                "budget_wan": {"type": "number", "description": "项目预算（万元）——显式入参（仓内无预算结构面，不猜；缺省则金额因子弃权）"},
+                "base_date": {"type": "string", "description": "评标基准日（YYYY-MM-DD；不传用系统今日——响应面注明来源）"},
+                "client_type": {"type": "string", "enum": ["government", "soe", "private", "other"], "description": "采购人类型（不传则该因子弃权）"},
+                "focus": {"type": "string", "description": "额外侧重关键词（拼进匹配语料——用户明示的侧重点）"},
+                "top_k": {"type": "integer", "minimum": 1, "maximum": 20, "description": "推荐条数（缺省 10）"}
+            },
+            "required": ["project_id"]
+        }),
+        "write_performance_section" => json!({
+            "type": "object",
+            "description": "一键写入业绩章节（#315——材料文件名命中已导入文件则证据自动登记（kind=业绩）+ 绑定业绩类 REQ + 矩阵重算；正文 = 业绩表（GFM）+ 逐条描述段（key_points + [EV-*] 引用）单段写入（幂等键 perf-section:<section_id>，重跑 no-op）；材料未导入 → materials_pending 诚实列明（正文照写、证据不伪造）；readiness 门（可用业绩 < 3）会拦写入并带材料指引",
+            "properties": {
+                "project_id": pid,
+                "section_id": {"type": "string", "description": "目标叶章节（SEC-xxxx——recommend_performance 的 suggested_section）"},
+                "perf_ids": {"type": "array", "minItems": 1, "items": {"type": "string"}, "description": "PERF-* 清单（选中写入的业绩）"},
+                "bid_open_date": {"type": "string", "description": "开标日（YYYY-MM-DD——证据有效性裁决基准日；不传用系统今日）"},
+                "project_version": pv
+            },
+            "required": ["project_id", "section_id", "perf_ids"]
+        }),
         _ => json!({"type": "object"}),
     }
 }
@@ -781,6 +849,10 @@ pub(crate) fn describe(name: &str) -> &'static str {
         "get_requirement_provenance" => "只读：REQ 溯源（#285②——REQ→原文：锚点带 block_idx/page/line，块位三级真源＝回填值→旧锚(locator,excerpt)兜底→null 诚实；resolved_via 标记腿来源）",
         "get_block_requirements" => "只读：块反查（#285②——块→REQ：原文+verdict（无标记=null）+req_ids+marked_by；无 REQ 块照常返回）",
         "get_annotation_overlay" => "只读：视图层 overlay 数据面（#285②——逐块 req_ids/semantic(emphasis|requirement)/status/suspected_miss；计数全量、明细≤200 截断，page 参数分页）",
+        "register_performance" => "业绩材料库登记（#315——跨项目资产：库文件在项目工作区之外（BID_PERF_LIB/用户目录），无项目路由建项目前可维护；批量 + 语义幂等（四元组命中回显既有 id）；owner_name = 投标人主体（证据 subject_name 默认源）",
+        "list_performance" => "业绩材料库列表（#315——只读：标签/关键词/金额窗/日期过滤；行含 client_type 推断；无项目路由）",
+        "recommend_performance" => "业绩匹配推荐（#315——只读：标签重叠 40%/金额规模 30%/近三年 20%/客户类型 10% 四因子确定性打分，缺信号弃权重归一；reasons 逐因子人读依据 + suggested_section 建议章节；REQUIREMENTS_EXTRACTED+）",
+        "write_performance_section" => "一键写入业绩章节（#315——证据自动登记（材料命中已导入文件）+ 绑定业绩类 REQ + 矩阵重算 + 业绩表/描述段单段写入（幂等）；材料缺口 materials_pending 诚实列明；readiness 门（<3 可用业绩）拦写入并带材料指引；MATRIX_READY+）",
         _ => "unknown",
     }
 }
@@ -834,5 +906,11 @@ fn is_implemented(name: &str) -> bool {
             | "rewrite_section_partial"
             // #279 行协议发现面（tools.rs 纯只读臂，无状态前置）
             | "list_tools"
+            // #315 业绩材料库四工具（perf_tools.rs——登记/列表无项目路由，
+            // 推荐/写入走项目态路由）
+            | "register_performance"
+            | "list_performance"
+            | "recommend_performance"
+            | "write_performance_section"
     )
 }

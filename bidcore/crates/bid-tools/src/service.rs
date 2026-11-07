@@ -595,6 +595,11 @@ pub struct BidService {
     /// `<dir>/.mang/config.json` 的 `require_human_receipt` 位（缺省 true
     /// ——旧工作区行为零变化）；纯内存态恒 true。
     require_human_receipt: bool,
+    /// #315 业绩材料库句柄（跨项目面——库文件在项目工作区之外：
+    /// BID_PERF_LIB / 用户级默认位 / 内存态；惰性加载 + 写路径自动落盘，
+    /// 见 bid_tools::performance）。**不随项目快照走**（db.json 是单项目态，
+    /// 库跨项目共享——正交持久化是 #315 验收 1 的实现面）。
+    pub(crate) perf_lib: crate::performance::PerfLibHandle,
 }
 
 /// #182：32 字节随机密钥（getrandom——OS 熵源，不手拼）。
@@ -733,6 +738,9 @@ impl BidService {
             fs_root: None,
             // #277：纯内存态恒严格模式（自动化场景走持久化工作区显式配置）
             require_human_receipt: true,
+            // #315：库路径解析序 BID_PERF_LIB → 用户级默认位 → 内存态
+            // （new 未开工作区，但 env 显式指定时应尊重——env 只在此刻读一次）
+            perf_lib: Self::perf_handle_default(),
         }
     }
 
@@ -770,6 +778,8 @@ impl BidService {
             persist: Some(sf),
             approval_key,
             require_human_receipt,
+            // #315：同 new()——库是跨项目资产，不随工作区 db.json 走
+            perf_lib: Self::perf_handle_default(),
         })
     }
 

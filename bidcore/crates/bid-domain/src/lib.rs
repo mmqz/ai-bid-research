@@ -58,6 +58,7 @@ pub mod matrix;
 pub mod outline;
 pub mod param;
 pub mod party;
+pub mod performance;
 pub mod pricing;
 pub mod principal;
 pub mod review;
@@ -187,6 +188,9 @@ impl ProjectStatus {
                 "get_compliance_matrix",
                 "search_evidence",
                 "get_bid_project_state",
+                // #315 业绩匹配推荐（只读——抽取后 REQ 陈述/评分项构成匹配
+                // 语料；建纲前也能看推荐，帮用户决定库里的业绩够不够投）
+                "recommend_performance",
                 // #80 第三批 MCP 补齐 G1：建纲+矩阵首建（P3 的前置）
                 "build_outline",
                 // #287 篇幅档位推荐（建纲前只读——建议+理由+alternatives 交用户确认）
@@ -207,6 +211,10 @@ impl ProjectStatus {
                 "get_compliance_matrix",
                 "search_evidence",
                 "get_bid_project_state",
+                // #315 业绩库（推荐只读；一键写入 = 证据登记+绑定+分段写入的
+                // 组合面——三个组成工具都在本窗口，组合面同窗）
+                "recommend_performance",
+                "write_performance_section",
                 "draft_response_section",
                 // #254 分段写入（与整稿同窗口——矩阵就绪即可续写）
                 "append_section_segment",
@@ -236,6 +244,9 @@ impl ProjectStatus {
                 "get_compliance_matrix",
                 "search_evidence",
                 "get_bid_project_state",
+                // #315 业绩库（推荐只读 + 一键写入——起草期补业绩章/补证据）
+                "recommend_performance",
+                "write_performance_section",
                 "draft_response_section",
                 // #254 分段写入（起草主战场——长章节安全续写）
                 "append_section_segment",
@@ -271,6 +282,8 @@ impl ProjectStatus {
                 "get_star_coverage",
                 "search_evidence",
                 "get_bid_project_state",
+                // #315 业绩推荐（只读——校验期对账：缺业绩时看库里还有什么可用）
+                "recommend_performance",
                 // #254 只读段账本（校验期对账面——写作工具不重开）
                 "list_section_segments",
                 "validate_bid_document",
@@ -301,6 +314,8 @@ impl ProjectStatus {
                 "get_star_coverage",
                 "search_evidence",
                 "get_bid_project_state",
+                // #315 业绩推荐（只读——导出前最后对账）
+                "recommend_performance",
                 // #254 只读段账本（复核期对账面）
                 "list_section_segments",
                 "validate_bid_document",

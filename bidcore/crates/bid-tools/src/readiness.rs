@@ -128,7 +128,7 @@ pub const MIN_PERFORMANCE_COUNT: usize = 3;
 const QUALIFICATION_TITLE_WORDS: &[&str] = &["资格", "资质"];
 
 /// 业绩类章节的标题词。
-const PERFORMANCE_TITLE_WORDS: &[&str] = &["业绩", "类似项目"];
+pub(crate) const PERFORMANCE_TITLE_WORDS: &[&str] = &["业绩", "类似项目"];
 
 /// 条款类别字面量（extract 产物口径：资格条件|否决项|评分项|技术参数|商务要求|格式要求|其他）。
 pub const CAT_TECH: &str = "技术参数";

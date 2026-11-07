@@ -23,13 +23,14 @@ P1 导入  → import_tender_files（PDF / DOCX / XLSX / .doc 两层转换）
 P2 抽取  → extract_requirements（语义表 + 评分表 + ★条款结构化）
 P3 建纲  → build_outline（评分驱动 + 篇幅档位 + 覆盖闭环门）
 P4 证据  → register_evidence / bind_evidence（台账 + 只降不升）
+          + 业绩材料库（#315 跨项目资产：登记/推荐/一键写入业绩章）
 P5 起草  → draft_response_section / append_section_segment（增量写入）
 P6 校验  → validate_bid_document（门禁 + BLOCKER 汇总）
 P7 复核  → record_review_gate（签域四重绑定 + 提交就绪面）
 P8 导出  → export_bid_document（篇幅门 + 矩阵 blocking 清零）
 ```
 
-### 31 个 MCP 工具
+### 39 个 MCP 工具
 
 ```
 建项导入（2）：create_bid_project / import_tender_files
@@ -46,6 +47,8 @@ P8 导出  → export_bid_document（篇幅门 + 矩阵 blocking 清零）
 任务（1）：list_tasks
 导出（1）：export_bid_document
 发现（1）：list_tools
+业绩库（4）：register_performance / list_performance /
+             recommend_performance / write_performance_section
 ```
 
 ### 篇幅档位（四档）

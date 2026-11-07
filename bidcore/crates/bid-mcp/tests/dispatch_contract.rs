@@ -28,7 +28,7 @@ fn tool_names_are_the_contract_twenty() {
     // get_coverage_report——全块覆盖：Agent 区间标记 + 引擎覆盖检查）= 24；
     // #226 增 1（set_matrix_override——否决项死锁的人工出口）= 25；
     // #243 增 1（recover_validating_state——历史异常态恢复出口）= 26
-assert_eq!(TOOL_NAMES.len(), 37, "工具面必须恰为 37 个（21 + #219 全块覆盖三工具 + #226 否决项死锁出口 + #243 恢复出口 + #254 分段三工具 + #279 行协议发现面 + #287 篇幅档位推荐 + #285① ★漏标检测 + #285② 块级双向索引三工具 + #319 补遗后增量重写两工具）");
+assert_eq!(TOOL_NAMES.len(), 38, "工具面必须恰为 37 个（21 + #219 全块覆盖三工具 + #226 否决项死锁出口 + #243 恢复出口 + #254 分段三工具 + #279 行协议发现面 + #287 篇幅档位推荐 + #285① ★漏标检测 + #285② 块级双向索引三工具 + #319 补遗后增量重写两工具）");
     for name in TOOL_NAMES {
         assert!(!name.is_empty());
     }

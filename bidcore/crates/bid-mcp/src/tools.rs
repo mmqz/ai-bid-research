@@ -949,6 +949,7 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
     // 兜底（夹具约定）。#196/#250 同根因的第三处收口：真实命名的补遗
     // （「澄清修改文件.pdf」/「补遗通知.docx」）不再漏检冲突。kind 在值域
     // 的其他件（答疑/评分办法/附件…）不误入补遗面。）
+
     let addenda_names: Vec<String> = svc
         .parsed()
         .iter()

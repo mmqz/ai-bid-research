@@ -305,7 +305,7 @@ fn fixture(tag: &str, target_chars: u32) -> Fixture {
             arrival: "合同签订后 7 日内".into(),
         }],
     };
-    profile.save(&dir).expect("bidder-profile.json 落盘");
+    bid_tools::profile_io::save(&profile, &dir).expect("bidder-profile.json 落盘");
 
     use bid_domain::review::{Decision, Gate};
     // #180 审核内容绑定：AddendumWaiver/矩阵/大纲门批的是补遗/响应面/结构面，

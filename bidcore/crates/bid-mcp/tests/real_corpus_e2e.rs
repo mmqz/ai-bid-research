@@ -635,7 +635,7 @@ fn real_corpus_full_chain() {
                 },
             ],
         };
-        profile.save(&ws).expect("bidder-profile.json 落盘");
+        bid_tools::profile_io::save(&profile, &ws).expect("bidder-profile.json 落盘");
 
         // ---------------- ⑧' PreExportConfirm 记审（#180：定稿内容过门——
         //      全部叶起草完成后、导出前，绑定的才是将进产物的正文摘要）

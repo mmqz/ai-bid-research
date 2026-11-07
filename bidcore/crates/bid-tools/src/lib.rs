@@ -12,6 +12,9 @@ pub mod format_spec;
 pub mod fs_fence;
 pub mod llm;
 pub mod placeholder;
+// #455（审计 A-15）：bidder-profile.json 持久化自 bid-domain/party.rs 迁入——
+// bid-domain 恢复真零 IO；写路径 tmp→fsync→rename 原子纪律（store_io 同款）
+pub mod profile_io;
 pub mod quality;
 pub mod readiness;
 // #319 补遗后增量重写（登记编排 + 局部改写编排）

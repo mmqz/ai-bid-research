@@ -104,7 +104,7 @@ fn json_roundtrip_failure_is_typed() {
 fn tools_schema_lists_all_twenty() {
     let v = bid_mcp::tools_schema();
     let arr = v["tools"].as_array().unwrap();
-assert_eq!(arr.len(), 37, "tools/list 必须列出全部 37 个工具");
+assert_eq!(arr.len(), 38, "tools/list 必须列出全部 37 个工具");
     let implemented: Vec<&str> = arr
         .iter()
         .filter(|t| t["implemented"] == true)
@@ -170,6 +170,8 @@ assert_eq!(arr.len(), 37, "tools/list 必须列出全部 37 个工具");
             "rewrite_section_partial",
             // #287 篇幅档位推荐
             "recommend_length_profile",
+            // #316 多标段/多包投标——按包发现面
+            "list_packages",
             // #279 行协议发现面
             "list_tools",
         ]

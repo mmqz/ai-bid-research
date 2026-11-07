@@ -1417,6 +1417,10 @@ impl DomainStore {
     /// - `id_seq` 水位 ≥ 全体 id 的数字后缀（防重启后 id 重签碰撞）；
     /// - T-7 引用完整：RT 的 finding_id 与 ReviewRecord 引用的 FND-id 必须
     ///   存在于 findings（孤儿 RT / 幽灵 FND 引用 = 半个闭环，拒载）；
+    /// - #372 引用完整（R-08/A-05）：evidence_bindings 复合键唯一 + 双向
+    ///   引用存在；matrix 行 id 唯一 + requirement/章节/证据引用存在；
+    ///   matrix_overrides 键存在且键值一致；block_marks/submitted_requirements
+    ///   的 file_id 存在（幽灵绑定 = 恢复即「已响应」假象，拒载）；
     /// - 有数据必有项目（孤儿集合 = 半个库）。
     pub fn restore(snap: StoreSnapshot) -> Result<Self, ToolError> {
         if snap.schema_version != STORE_SCHEMA_VERSION {
@@ -1796,6 +1800,100 @@ impl DomainStore {
             return Err(un(format!(
                 "指令的影响面段 {} 不存在或不属于指令章节（错位段——改错地方，拒载）",
                 bad.segment_id
+            )));
+        }
+        // #372（R-08/A-05）：四类引用完整性补齐——restore 不得比登记面宽
+        // （#224 给 scoring_mappings 补三查的同款纪律；当时
+        // evidence_bindings / matrix / matrix_overrides / block_marks
+        // (+submitted) 四类没跟上）。威胁模型 = restore 头注释自列的
+        // 「手改/旧版本落盘」：幽灵绑定的实害路径是直接进
+        // derive_matrix_rows 的 ev_by_req → 该 REQ 恒 has_ev（PARTIAL
+        // 以上）→ 资格条件不再 blocking——恢复即「幽灵已响应」，与全库
+        // fail-closed 口径不一致。
+        //
+        // ① evidence_bindings：复合键 (ev, req) 唯一（幂等面）+ 双向引用
+        //    存在（ev∈evidences、req∈requirements——与 scoring_mappings
+        //    的三查形成对照）。
+        {
+            let mut seen: std::collections::HashSet<(String, String)> =
+                std::collections::HashSet::new();
+            if let Some(b) = snap.evidence_bindings.iter().find(|b| {
+                !seen.insert((b.evidence_id.clone(), b.requirement_id.clone()))
+            }) {
+                return Err(un(format!(
+                    "evidence_binding ({}, {}) 重复（幂等面破坏，拒载）",
+                    b.evidence_id, b.requirement_id
+                )));
+            }
+            if let Some(b) = snap.evidence_bindings.iter().find(|b| {
+                !ev_ids.contains(b.evidence_id.as_str())
+                    || !req_ids.contains(b.requirement_id.as_str())
+            }) {
+                return Err(un(format!(
+                    "evidence_binding ({}, {}) 引用了不存在的证据/条款（幽灵绑定——恢复即「已响应」假象，拒载）",
+                    b.evidence_id, b.requirement_id
+                )));
+            }
+        }
+        // ② matrix（存量 CMP 行——导出门 1a 读的就是这份持久化矩阵）：
+        //    行 id 唯一 + requirement/响应章节/证据三向引用存在。
+        if let Some(e) = dup_in(snap.matrix.iter().map(|r| r.id.clone()).collect(), "matrix") {
+            return Err(un(e));
+        }
+        if let Some((row, why)) = snap.matrix.iter().find_map(|r| {
+            if !req_ids.contains(r.requirement_id.as_str()) {
+                return Some((r, format!("requirement {}", r.requirement_id)));
+            }
+            if let Some(sec) = r.response_section.as_ref() {
+                if !sec_ids.contains(sec.as_str()) {
+                    return Some((r, format!("response_section {sec}")));
+                }
+            }
+            r.evidence_ids
+                .iter()
+                .chain(&r.pending_evidence_ids)
+                .find(|e| !ev_ids.contains(e.as_str()))
+                .map(|e| (r, format!("evidence {e}")))
+        }) {
+            return Err(un(format!(
+                "matrix 行 {} 引用了不存在的 {}（幽灵行——存量矩阵进导出门读面，拒载）",
+                row.id, why
+            )));
+        }
+        // ③ matrix_overrides：键（=requirement_id）存在 + 键值一致。serde
+        //    的 HashMap 键与值是独立反序列化的——手改可造出键 REQ-0001、
+        //    值内 requirement_id=REQ-0002 的分裂账（消费面 overrides.get
+        //    (&r.id) 只认键，值内 id 仅供审计回溯——两者分裂 = 账本内部
+        //    不一致），拒载。
+        if let Some(k) = snap
+            .matrix_overrides
+            .keys()
+            .find(|k| !req_ids.contains(k.as_str()))
+        {
+            return Err(un(format!(
+                "matrix_override 键 {k} 引用了不存在的条款（幽灵覆写，拒载）"
+            )));
+        }
+        if let Some((k, o)) = snap
+            .matrix_overrides
+            .iter()
+            .find(|(k, o)| k.as_str() != o.requirement_id.as_str())
+        {
+            return Err(un(format!(
+                "matrix_override 键值分裂：键 {k} ≠ 值内 requirement_id {}（账本内部不一致，拒载）",
+                o.requirement_id
+            )));
+        }
+        // ④ block_marks / submitted_requirements：键 file_id 存在（孤儿
+        //    标记/提交会污染覆盖率统计与合并面口径）。
+        if let Some(k) = snap
+            .block_marks
+            .keys()
+            .chain(snap.submitted_requirements.keys())
+            .find(|k| !file_ids.contains(k.as_str()))
+        {
+            return Err(un(format!(
+                "block_marks/submitted_requirements 键 {k} 引用了不存在的文件（孤儿标记，拒载）"
             )));
         }
         Ok(Self {

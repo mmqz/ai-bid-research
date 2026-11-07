@@ -80,7 +80,11 @@ fn starred_project(tag: &str) -> Option<(BidService, String)> {
         "project_id": pid, "file_id": fid,
         "marks": [
             {"from": 0, "to": k, "verdict": "noise", "reason": "前置公告说明区"},
-            {"from": k + 1, "to": total - 1, "verdict": "requirement", "reason": "正文要求区"},
+            // #422 隔离带：requirement 区间只覆盖有承接的块，其余 rule 显式
+            // 拒绝——矩阵只含 REQ-A（无承接的 requirement 覆盖不再丢正则 REQ）。
+            {"from": k + 1, "to": k + 1, "verdict": "rule", "reason": "隔离带（测试面——#422）"},
+            {"from": k + 2, "to": k + 3, "verdict": "requirement", "reason": "正文要求区（两条关键点均有承接）"},
+            {"from": k + 4, "to": total - 1, "verdict": "rule", "reason": "尾部区（测试面——显式拒绝）"},
         ],
         "requirements": [
             {
@@ -226,7 +230,10 @@ fn star_summary_null_share_when_no_star() {
         "project_id": pid, "file_id": fid,
         "marks": [
             {"from": 0, "to": k, "verdict": "noise", "reason": "前置公告说明区"},
-            {"from": k + 1, "to": total - 1, "verdict": "requirement", "reason": "正文要求区"},
+            // #422 隔离带（同 starred_project）：requirement 区间只覆盖有承接的块。
+            {"from": k + 1, "to": k + 1, "verdict": "rule", "reason": "隔离带（测试面——#422）"},
+            {"from": k + 2, "to": k + 2, "verdict": "requirement", "reason": "正文要求区（关键点有承接）"},
+            {"from": k + 3, "to": total - 1, "verdict": "rule", "reason": "尾部区（测试面——显式拒绝）"},
         ],
         "requirements": [
             {

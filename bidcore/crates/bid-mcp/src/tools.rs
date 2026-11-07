@@ -1097,6 +1097,16 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
             merge_stats.agent_mandatory_offcategory
         ));
     }
+    // #422（R-09/B-01 黑洞防护）：requirement 裁决覆盖但无 submitted 承接的
+    // 块上，正则 REQ 不再被静默丢弃（保留 + 计数）。信息性提示：告诉
+    // Agent 这些块「标了有要求但没交关键点」——补提交后 REQ-A 承接，或
+    // 显式改标 noise/rule 后重跑 extract 消除。
+    if merge_stats.regex_kept_unbacked_requirement > 0 {
+        warnings.push(format!(
+            "MARKED_REQUIREMENT_WITHOUT_SUBMITTED: {} 条正则条款因「requirement 标记无关键点承接」被保留（黑洞防护 #422——未丢弃）——对应块 Agent 标了 requirement 但未提交 requirements；用 get_coverage_report 定位后补 submit_block_marks 的 requirements 参数（或显式改标 noise/rule 后重跑 extract 消除告警）",
+            merge_stats.regex_kept_unbacked_requirement
+        ));
+    }
 
     // 【#196 纪律补齐】抽取为 0 条必须响亮告警，不能静默「成功」。
     // 旧行为：counts.total=0 + ok:true + 状态推进 → 下游全部 E_STATE，
@@ -1121,6 +1131,7 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
             "agent_requirements": merge_stats.agent_requirements,
             "uncovered_blocks": merge_stats.uncovered_blocks,
             "coverage_complete": merge_stats.coverage_complete,
+            "regex_kept_unbacked_requirement": merge_stats.regex_kept_unbacked_requirement,
         },
         // #285 ① ★漏标检测汇总（抽取面文件口径；total 为真值★——样板句
         // 已排除，captured + missing == total 恒成立；逐文件明细走

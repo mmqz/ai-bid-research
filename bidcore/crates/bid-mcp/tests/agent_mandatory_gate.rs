@@ -82,12 +82,14 @@ fn override_receipt(
     )
 }
 
-/// 全链夹具：导入主文件 + 全覆盖标记（前 1/4 noise、其余 requirement）
-/// + 两条 Agent 关键点（REQ-A0001 商务要求 req_mandatory / REQ-A0002 商务要求非必选）
+/// 全链夹具：导入主文件 + 全覆盖标记（前 1/4 noise；k+1 隔离带 rule；
+/// k+2..k+3 requirement + 两条 Agent 关键点承接；尾部 rule）
 /// + extract + build_outline（内部联建矩阵——prepare_outline_and_matrix）。
 ///
-/// 返回 (svc, project_id, matrix_blocking)。合并产物只含两条 REQ-A（全覆盖
-/// → 正则全让位），起草/导出门的断言不被正则条款的面目污染。
+/// 返回 (svc, project_id, matrix_blocking)。合并产物只含两条 REQ-A——
+/// #422 口径下的隔离法：requirement 区间仅覆盖有 submitted 承接的两块
+/// （无承接的 requirement 覆盖不再丢弃正则 REQ——黑洞防护），其余块用
+/// noise/rule 显式拒绝，起草/导出门的断言不被正则条款的面目污染。
 fn gated_project(tag: &str, req_mandatory: bool) -> Option<(BidService, String, u64)> {
     let ws = tmp_ws(tag);
     let mut svc = BidService::open(&ws).expect("打开工作区").with_fs_root(fixtures());
@@ -115,7 +117,11 @@ fn gated_project(tag: &str, req_mandatory: bool) -> Option<(BidService, String, 
         "project_id": pid, "file_id": fid,
         "marks": [
             {"from": 0, "to": k, "verdict": "noise", "reason": "前置公告说明区"},
-            {"from": k + 1, "to": total - 1, "verdict": "requirement", "reason": "正文要求区"},
+            // #422 隔离带：requirement 区间只覆盖有承接的两块（k+2/k+3），
+            // 其余块 rule 显式拒绝——正则 REQ 被拒丢弃，不进矩阵污染门断言。
+            {"from": k + 1, "to": k + 1, "verdict": "rule", "reason": "隔离带（测试面——#422 后 requirement 区须有承接）"},
+            {"from": k + 2, "to": k + 3, "verdict": "requirement", "reason": "正文要求区（两条关键点均有承接）"},
+            {"from": k + 4, "to": total - 1, "verdict": "rule", "reason": "尾部区（测试面——显式拒绝）"},
         ],
         "requirements": [
             {

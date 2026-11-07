@@ -21,6 +21,25 @@ fn model_regex() -> Regex {
     Regex::new(r"[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+").unwrap()
 }
 
+/// 中文大写日期（#487 单一真源——原两处手抄副本的字符类不含「十」、
+/// 量词上限不足，真实日历日期约 93% 静默不命中）。
+///
+/// - 字符类 `[〇一二三四五六七八九零十]`：含「十」（U+5341）——
+///   「十月/十一月/十二月」与「十日~三十一日」是真实日历的主流形态
+///   （一年中无十字的日期仅约 7%：1-9 月 × 1-9 日）；
+/// - 月 `{1,3}`：「十一月/十二月」3 字；
+/// - 日 `{1,4}`：「三十一日/二十九日」4 字；
+/// - 结构锚定「X年Y月Z日」——无日期语义的「N年」列举（「近三年」）
+///   不匹配（需月/日锚位）。
+///
+/// 命中面实证（修复前 → 后）：
+/// 「二〇二六年十二月三十日」false → true（B1 夹具 40+ 行到货日期全量恢复）
+/// 「二〇二六年十月十五日」  false → true（工期/质保期主流写法）
+/// 「二〇二六年一月一日」    true  → true（无十形态不回归）
+fn date_cn_regex() -> Regex {
+    Regex::new(r"[〇一二三四五六七八九零十]{4}年[〇一二三四五六七八九零十]{1,3}月[〇一二三四五六七八九零十]{1,4}日").unwrap()
+}
+
 /// 纯 NFKC（不剥空白）——**只用于章节/小节识别**，不改任何落库数据。
 ///
 /// 真实政采平台 PDF 的文本层用康熙部首区编码汉字（「第⼀章」的「⼀」
@@ -1272,9 +1291,9 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
     let re_clause = Regex::new(r"^(\d+(?:\.\d+)+|\d{1,3}、)\s*").unwrap();
     let re_dunhao_list = Regex::new(r"^\d{1,3}、").unwrap();
     let re_model = model_regex();
+    let re_date_cn = date_cn_regex();
     let re_amount = Regex::new(r"(\d+(?:\.\d+)?)\s*万\s*元").unwrap();
     let re_date = Regex::new(r"\d{4}-\d{2}-\d{2}").unwrap();
-    let re_date_cn = Regex::new(r"[〇一二三四五六七八九零]{4}年[〇一二三四五六七八九零]{1,2}月[〇一二三四五六七八九零]{1,3}日").unwrap();
     // 分值形态（评分细则行「N分」——容忍空格；评标办法章内分值锚定的
     // 判定面，P0-B 修订 2）
     let re_score_shape = Regex::new(r"\d+(?:\.\d+)?\s*分").unwrap();
@@ -1575,7 +1594,7 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
 /// B1 设备清单：含型号或中文大写日期的行 → 技术参数 REQ（到货/规格要求行）。
 fn extract_b1_lines(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize) {
     let re_model = model_regex();
-    let re_date_cn = Regex::new(r"[〇一二三四五六七八九零]{4}年[〇一二三四五六七八九零]{1,2}月[〇一二三四五六七八九零]{1,3}日").unwrap();
+    let re_date_cn = date_cn_regex();
     let re_amount = Regex::new(r"(\d+(?:\.\d+)?)\s*万\s*元").unwrap();
     let re_date = Regex::new(r"\d{4}-\d{2}-\d{2}").unwrap();
     for b in &f.blocks {

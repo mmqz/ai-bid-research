@@ -88,8 +88,20 @@ fn probe_corpus_a_full_chain() {
     }
     assert!(reqs.iter().any(|r| r.anchors.iter().any(|a| a.kind == "ocr" && a.excerpt.contains("否决"))),
         "B2 OCR 否决条款未抽到");
-    assert!(reqs.iter().any(|r| r.source_file.starts_with("B1") && r.anchors.iter().any(|a| a.excerpt.contains("二〇二六年十二月三十日"))),
-        "B1 中文大写日期行未抽到");
+    // #487：钉「纯日期行」——旧断言用锚文 contains，被项目编号行
+    // （ZFCG-2026-GK model 命中，锚文恰好含日期串）误当证据通过，
+    // 40+ 条纯日期行（十字盲区）静默丢失（断言钉错对象）。改钉
+    // params.date_cn 精确等于日期串：修复前全仓 date_cn 恒 None（十字
+    // 不命中），本断言必红；修复后纯日期行产出才绿。
+    assert!(
+        reqs.iter().any(|r| r.source_file.starts_with("B1")
+            && r.params.get("date_cn").and_then(|v| v.as_str()) == Some("二〇二六年十二月三十日")),
+        "B1 纯日期行未抽到（date_cn 参数须承载完整日期串——旧断言被项目编号行误过，#487）"
+    );
+    // B1 到货日期行全量恢复：40 项清单 + 头部口径行（十字盲区回归锁）
+    let b1_date_reqs = reqs.iter().filter(|r| r.source_file.starts_with("B1")
+        && r.params.get("date_cn").and_then(|v| v.as_str()) == Some("二〇二六年十二月三十日")).count();
+    assert!(b1_date_reqs >= 40, "B1 到货日期行应 ≥40 条全量恢复——实际 {b1_date_reqs}（#487 十字盲区回归锁）");
     // B2 OCR 还原检查：拼接行须含「否决投标处理」全文（断行还原）
     let ocr_req = reqs.iter().find(|r| r.anchors.iter().any(|a| a.kind == "ocr" && a.excerpt.contains("否决投"))).unwrap();
     let joined: String = ocr_req.anchors.iter().map(|a| a.excerpt.clone()).collect::<Vec<_>>().join("");

@@ -157,6 +157,8 @@ assert_eq!(arr.len(), 38, "tools/list 必须列出全部 38 个工具");
             "get_requirement_provenance",
             "get_block_requirements",
             "get_annotation_overlay",
+            // #318 评分细则逐条响应覆盖检查（只读实装）
+            "check_scoring_coverage",
             // #226 层 1：否决项死锁的人工出口
             "set_matrix_override",
             // #243：历史异常态（VALIDATING+缺章）的受支持恢复出口

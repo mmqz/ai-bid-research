@@ -832,6 +832,10 @@ fn is_implemented(name: &str) -> bool {
             | "get_requirement_provenance"
             | "get_block_requirements"
             | "get_annotation_overlay"
+            // #318 评分细则逐条响应覆盖检查（只读诊断——拆点/命中/漏点/建议扣分；
+            // 漏登会让 mang-app diag 的动态断言 implemented==TOOL_NAMES 必红，
+            // 且该测试只在 Windows CI 执行，Linux 侧代理本地抓不到）
+            | "check_scoring_coverage"
             // #243 校验状态安全与恢复
             | "recover_validating_state"
             // #254 章节级增量写入三工具

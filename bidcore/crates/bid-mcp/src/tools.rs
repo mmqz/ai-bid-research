@@ -33,7 +33,7 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         // ---- #42 阶段 10：AI 主动存版本（skill 纪律「每完成一个章节调用」）----
         // 与桌面壳 snapshots.save 同一真源（mang-snap）；不走项目状态机（版本
         // 快照与项目状态正交，任何阶段都允许存）。
-        "save_version" => save_version(args),
+        "save_version" => save_version(svc, args),
         "create_bid_project" => create_bid_project(svc, args),
         "import_tender_files" => import_tender_files(svc, args),
         "extract_requirements" => extract_requirements(svc, args),
@@ -2043,7 +2043,12 @@ fn search_evidence(svc: &mut BidService, args: Value) -> ToolResult {
 /// 与桌面壳「改动面板 / 30s 自动快照」写同一份 `.mang/history`（mang-snap 单一真源），
 /// kind=ai 在面板显示 AI 徽章。工作区根 = 从 file_path 向上找最近的 `.mang` 目录
 /// （桌面壳建过就在），找不到用文件所在目录。
-fn save_version(args: Value) -> ToolResult {
+///
+/// #374 围栏（R-27/C-06）：file_path 经 fs_fence（BID_WS / persist /
+/// BID_FS_ROOT 围栏根——与 import 的 #183 壳层围栏同一真源）：无根响亮拒；
+/// 围栏外 / `..` / symlink 段拒（先于存在性检查——不泄露存在性 oracle）；
+/// find_root 的结果必须仍在围栏内（防围栏外祖先 `.mang` 牵引快照越界落盘）。
+fn save_version(svc: &BidService, args: Value) -> ToolResult {
     let file_path = req_str(&args, "file_path", "save_version")?;
     let message = opt_str(&args, "message", "save_version")?.unwrap_or_default();
     let message = message.trim();
@@ -2063,15 +2068,45 @@ fn save_version(args: Value) -> ToolResult {
             what: "save_version: 只支持文本文件（.md/.txt/.markdown）——源头是 md，二进制不做版本（issue #42 §八）".to_string(),
         });
     }
-    if !path.is_file() {
+    // ---- #374 围栏（R-27/C-06）：此前本工具是工具面唯一「绝对路径+
+    //      无根校验」的写盘口——Agent 可对围栏外任意可读文本（如
+    //      /home/user/notes/secret.md）做快照并在其目录家族落
+    //      .mang/history（文件存在性 oracle + 围栏外写入）。对照 import
+    //      的 #183 壳层围栏纪律（fs_fence 单一真源）；桌面壳不经工具面
+    //      （mang-app snapshots.rs 直调 mang_snap 库），本收紧零产品面影响。
+    //      围栏先于存在性检查：围栏外路径统一报围栏错误，不泄露存在性
+    //      （关闭 oracle）；围栏内缺失件仍走下方 E_NOTFOUND（import 同款
+    //      「缺失件不在围栏层抢答」语义）。
+    let fs_roots = svc.fs_roots();
+    if fs_roots.is_empty() {
+        return Err(ToolError::EUnprocessable {
+            what: "save_version 需要工作区（设 BID_WS 环境变量，或用 BidService::open 打开持久化工作区，或 BID_FS_ROOT 声明受信根）——无围栏根则文件面工具不可用（R-27：绝对路径无根校验的写盘口已收口）".into(),
+        });
+    }
+    let fenced = bid_tools::fs_fence::resolve_read_for("save_version", &fs_roots, &path)?;
+    let fenced_path = fenced.absolute().to_path_buf();
+    if !fenced_path.is_file() {
         return Err(ToolError::ENotFound {
             what: format!("save_version: 文件不存在（{file_path}）"),
         });
     }
-    let root = mang_snap::find_root(&path);
+    // root 围栏复验：find_root 向上找最近的 .mang 无上界——围栏内文件的
+    // 祖先（围栏外）若存在 .mang，root 会越出围栏，快照落到围栏外工作区。
+    let root = mang_snap::find_root(&fenced_path);
+    if !fs_roots
+        .iter()
+        .any(|r| bid_tools::fs_fence::is_inside(&root, r))
+    {
+        return Err(ToolError::EUnprocessable {
+            what: format!(
+                "save_version: 工作区根发现越界（{} 在围栏外——祖先 .mang 不得牵引快照落到围栏外）",
+                root.display()
+            ),
+        });
+    }
     // mang-snap 失败码（empty/too_large/denied/io）都是调用方可理解的面——
     // 契约枚举无 E_INTERNAL，统一 E_UNPROCESSABLE 并在 what 里带核心层码位
-    let saved = mang_snap::save(&root, &path, mang_snap::Kind::Ai, message).map_err(|e| {
+    let saved = mang_snap::save(&root, &fenced_path, mang_snap::Kind::Ai, message).map_err(|e| {
         ToolError::EUnprocessable {
             what: format!("save_version: {}（snap:{})", e.message, e.code),
         }

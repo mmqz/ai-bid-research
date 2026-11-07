@@ -254,7 +254,17 @@ fn resolve(
 /// 读面解析（导入 upload_ref）：围栏内即可——文件不存在/不可读不是围栏条件
 /// （R-01 逐件失败语义在下游 sha256_file，见模块头）。
 pub fn resolve_read(roots: &[PathBuf], user_path: &Path) -> Result<WorkspaceFileRef, ToolError> {
-    resolve(roots, user_path, "导入")
+    resolve_read_for("导入", roots, user_path)
+}
+
+/// 读面解析的动词可参数化变体（#374：save_version 等非导入消费面复用同一
+/// 围栏语义，报错文案不带「导入」语境错位——围栏实现仍然单一真源）。
+pub fn resolve_read_for(
+    verb: &str,
+    roots: &[PathBuf],
+    user_path: &Path,
+) -> Result<WorkspaceFileRef, ToolError> {
+    resolve(roots, user_path, verb)
 }
 
 /// 写面解析（导出 output_path）：目标文件可以尚不存在（lenient canonicalize

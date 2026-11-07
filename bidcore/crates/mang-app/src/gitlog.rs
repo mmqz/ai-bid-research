@@ -15,28 +15,93 @@ use crate::paths;
 /// 一次最多返回多少条提交（面板只需最近这些）
 const LIMIT: usize = 200;
 
+/// git 子进程超时（毫秒）。#476（D-16）：大仓库/坏 .git 上 git 可能极慢
+/// 或挂起——UI 线程同步等待无上限 = WebView 消息循环冻结（整窗无响应且
+/// 不可恢复）。常态 git log/status <1s；10s 覆盖慢盘，超出即判异常仓库。
+const GIT_TIMEOUT_MS: u64 = 10_000;
+
 /// 记录分隔符：RS(0x1e) 分条目，US(0x1f) 分字段 —— 提交标题里出现这两个字符的概率≈0
 const RS: char = '\u{1e}';
 const US: char = '\u{1f}';
 
 fn run_git(dir: &Path, args: &[&str]) -> Result<String, String> {
-    let out = Command::new("git")
+    run_git_timed(dir, args, GIT_TIMEOUT_MS)
+}
+
+/// 带超时的 git 调用（#476 可测核心——`run_git` 的固定 10s 包装）。
+///
+/// 错误语义与旧实现一致：stderr 优先，空则「git 命令执行失败」。
+fn run_git_timed(dir: &Path, args: &[&str], timeout_ms: u64) -> Result<String, String> {
+    let mut child = Command::new("git")
         .arg("-c")
         .arg("core.quotepath=off")
         .args(args)
         .current_dir(dir)
         .stdin(Stdio::null())
-        .output()
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .map_err(|e| format!("无法执行 git：{e}"))?;
-    if !out.status.success() {
-        let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+    let (status, out, err) = wait_output_with_deadline(&mut child, timeout_ms)?;
+    if !status.success() {
+        let err = err.trim();
         return Err(if err.is_empty() {
             "git 命令执行失败".to_string()
         } else {
-            err
+            err.to_string()
         });
     }
-    Ok(String::from_utf8_lossy(&out.stdout).to_string())
+    Ok(out)
+}
+
+/// 子进程带截止时间的输出收集（#476 核心机制——gitlog 生产面 + 单测共用）。
+///
+/// 结构（为什么不是简单 `output()` + join）：
+/// - **读线程消费 stdout/stderr**：轮询 `try_wait` 期间若无人读管道，
+///   输出超过管道缓冲区（Linux 64KB；LIMIT=200 条 commit 的 log 输出
+///   可超）会让子进程阻塞在 write——「进程活着但永不退出」的死锁面。
+///   读线程持续 drain，子进程正常退出；
+/// - **try_wait 轮询 + deadline**：deadline 只在「进程仍在跑」时检查
+///   （已退出则正常收集，不误伤快命令）。超时 `kill()` + `wait()`
+///   （收尸防僵尸）——kill 后管道 EOF，读线程自然退出，join 不悬空。
+fn wait_output_with_deadline(
+    child: &mut std::process::Child,
+    timeout_ms: u64,
+) -> Result<(std::process::ExitStatus, String, String), String> {
+    let mut stdout_pipe = child.stdout.take().expect("调用方须 piped stdout");
+    let mut stderr_pipe = child.stderr.take().expect("调用方须 piped stderr");
+    let reader = std::thread::spawn(move || {
+        use std::io::Read;
+        let mut out = String::new();
+        let mut err = String::new();
+        let _ = stdout_pipe.read_to_string(&mut out);
+        let _ = stderr_pipe.read_to_string(&mut err);
+        (out, err)
+    });
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(timeout_ms);
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(st)) => break st,
+            Ok(None) => {
+                if std::time::Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait(); // 收尸（防僵尸进程挂在面板会话下）
+                    let _ = reader.join(); // kill → 管道 EOF → 读线程退出
+                    return Err(format!(
+                        "git 命令超时（>{timeout_ms}ms）已终止——大仓库或损坏 .git 可能极慢，请检查仓库健康度"
+                    ));
+                }
+                std::thread::sleep(std::time::Duration::from_millis(15));
+            }
+            Err(e) => {
+                let _ = reader.join();
+                return Err(format!("git 等待失败：{e}"));
+            }
+        }
+    };
+    let (out, err) = reader.join().map_err(|_| "git 输出读取线程崩溃".to_string())?;
+    Ok((status, out, err))
 }
 
 /// git.log { path?: 相对路径, limit?: n }
@@ -155,4 +220,82 @@ pub fn status(ws: &paths::Workspace, rel: Option<&str>) -> Result<Value, IpcErro
         items.push(json!({ "code": code.trim(), "state": state, "path": path }));
     }
     Ok(json!({ "available": true, "items": items }))
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 稳定慢命令（~2s）：跨平台可用的「进程在跑」构造器。
+    /// Linux/macOS：sleep；Windows：ping 本机 2 包（~2s）。
+    fn slow_command() -> Command {
+        if cfg!(windows) {
+            let mut c = Command::new("ping");
+            c.args(["-n", "3", "127.0.0.1"]);
+            c
+        } else {
+            let mut c = Command::new("sleep");
+            c.arg("2");
+            c
+        }
+    }
+
+    fn spawn_piped(cmd: &Command) -> std::process::Child {
+        cmd.stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("慢命令应可 spawn（CI/开发机 sleep/ping 在 PATH）")
+    }
+
+    /// #476（D-16）主断言：进程仍在跑 + 预算耗尽 → kill + 超时 Err
+    ///（防回归锁：超时路径必须「可恢复地失败」，不是永久挂起）。
+    /// 慢命令 ~2s、预算 50ms → 稳定走超时分支（非时序敏感）。
+    #[test]
+    fn deadline_kills_slow_process_with_timeout_error() {
+        let mut child = spawn_piped(&slow_command());
+        let r = wait_output_with_deadline(&mut child, 50);
+        let msg = r.expect_err("2s 慢命令配 50ms 预算必超时");
+        assert!(
+            msg.contains("超时"),
+            "超时路径的错误文案须引导用户——实际: {msg}"
+        );
+        // kill 已收尸：后续 wait 立即返回（不再挂起）
+        let st = child.wait().expect("kill 后 wait 应立即成功");
+        assert!(!st.success(), "被 kill 的进程退出码非成功");
+    }
+
+    /// 充裕预算：慢命令（~2s）正常完成 → Ok + 输出收集无损
+    ///（timeout 机制不误伤慢但合法的命令；读线程的 stdout 传递面）。
+    #[test]
+    fn generous_budget_lets_slow_process_finish() {
+        let mut child = spawn_piped(&slow_command());
+        let (status, _out, _err) =
+            wait_output_with_deadline(&mut child, 15_000).expect("15s 预算足够 2s 命令完成");
+        assert!(status.success(), "sleep/ping 正常退出应 success");
+    }
+
+    /// 既有语义回归锁：git 命令失败（非仓库目录跑 log）→ run_git_timed
+    /// 的 Err 带 stderr 或「git 命令执行失败」——错误分流不因超时重构漂移。
+    #[test]
+    fn run_git_failed_command_returns_err_with_stderr_semantics() {
+        let dir = std::env::temp_dir();
+        let r = run_git_timed(&dir, &["log", "--oneline", "-n", "1"], 10_000);
+        match r {
+            Err(msg) => assert!(
+                !msg.contains("超时"),
+                "非仓库目录的 log 是立即失败（fatal: not a git repository），不是超时——实际: {msg}"
+            ),
+            Ok(out) => panic!("非仓库目录的 git log 应失败——实际 Ok: {out:?}"),
+        }
+    }
+
+    /// 快命令不误伤：git --version 在默认 10s 预算下完成
+    ///（deadline 只在「仍在跑」时检查——已退出则正常收集）。
+    #[test]
+    fn run_git_fast_command_completes_within_default_budget() {
+        let dir = std::env::temp_dir();
+        let out =
+            run_git(&dir, &["--version"]).expect("git 在 PATH 时 --version 应成功");
+        assert!(out.contains("git version"), "stdout 传递面——实际: {out:?}");
+    }
 }

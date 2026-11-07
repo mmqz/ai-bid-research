@@ -28,10 +28,25 @@ fn sidecar_path(ws: &Workspace, rel: &str) -> std::path::PathBuf {
     ws.sub(".mang").join("annotations").join(mang_snap::file_key(rel) + ".json")
 }
 
-/// 读边车（缺失 → 空数组；坏 JSON → 空数组 + error 提示，不炸 UI）
+/// 读边车（缺失 → 空数组；坏 JSON → 空数组 + error 提示，不炸 UI）。
+///
+/// #430 · IO 错误分流：`fs::read` 的**非 NotFound 失败**（Windows 文件锁 /
+/// Defender 实时扫描窗口的 sharing violation、权限面等瞬态）此前与「文件
+/// 不存在」同路（空 + 无错）——set_status 紧随 load 之后会误报
+/// not_found「标注不存在」，UI 显示「无标注」而非报错（静默丢数据面）。
+/// 现口径：NotFound 维持现状（「无标注」是正常态）；其他 IO 错误先做
+/// **有界重试**（3 次 × 50ms——吸收写→读序列撞上的扫描窗口），仍失败则
+/// 如实报 error（读失败 ≠ 不存在）。
 fn load_items(path: &std::path::Path) -> (Vec<Value>, Option<String>) {
-    let Ok(bytes) = std::fs::read(path) else {
-        return (Vec::new(), None);
+    let bytes = match read_with_retry(path) {
+        Ok(b) => b,
+        Err(None) => return (Vec::new(), None), // NotFound——无标注是正常态
+        Err(Some(e)) => {
+            return (
+                Vec::new(),
+                Some(format!("标注边车读取失败（可能被占用/权限问题）：{e}")),
+            )
+        }
     };
     match serde_json::from_slice::<Value>(&bytes) {
         Ok(Value::Object(o)) => {
@@ -43,6 +58,28 @@ fn load_items(path: &std::path::Path) -> (Vec<Value>, Option<String>) {
             Some(format!("标注边车损坏，已忽略：{}", paths::display(path))),
         ),
     }
+}
+
+/// 有界重试读（#430）：NotFound 立即返回 `Err(None)`；其他 IO 错误重试
+/// 3 次 × 50ms（瞬时文件锁窗口量级），仍失败返回 `Err(Some(错误描述))`。
+/// 收在模块内小 helper——不引依赖、不改调用方签名。
+fn read_with_retry(path: &std::path::Path) -> Result<Vec<u8>, Option<String>> {
+    const ATTEMPTS: usize = 3;
+    const BACKOFF_MS: u64 = 50;
+    let mut last_err: Option<String> = None;
+    for attempt in 0..ATTEMPTS {
+        match std::fs::read(path) {
+            Ok(b) => return Ok(b),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Err(None),
+            Err(e) => {
+                last_err = Some(format!("{}（第 {} 次尝试）", e, attempt + 1));
+                if attempt + 1 < ATTEMPTS {
+                    std::thread::sleep(std::time::Duration::from_millis(BACKOFF_MS));
+                }
+            }
+        }
+    }
+    Err(last_err)
 }
 
 /// 原子写：.tmp + rename（与 mang-snap 同款纪律）
@@ -199,6 +236,56 @@ mod tests {
             ("status".into(), json!("pending")),
         ]));
         assert!(set_status(&w, m).is_err());
+        let _ = std::fs::remove_dir_all(d);
+    }
+
+    /// #430 · IO 错误分流三分支（load_items 直测）：
+    /// NotFound → (空, None)（无标注是正常态）；
+    /// 读失败（目录当读取目标——跨平台确定性失败，免权限模拟）→ (空, Some)；
+    /// 正常读 → 内容解析照旧。
+    #[test]
+    fn load_items_routes_io_errors_not_silent() {
+        // ① NotFound：正常态，零错误提示
+        let (d, w) = ws();
+        let missing = sidecar_path(&w, "none.md");
+        let (items, err) = load_items(&missing);
+        assert!(items.is_empty());
+        assert!(err.is_none(), "NotFound 不得报错（无标注是正常态）");
+
+        // ② 读失败 ≠ 不存在：把边车路径本身占成目录——fs::read 必失败
+        //（Unix: IsADirectory / Windows: PermissionDenied——均非 NotFound），
+        // 有界重试耗尽后必须如实报错（修复前：静默空 + 无错 → set_status
+        // 误报 not_found、UI 显示「无标注」——静默丢数据面）。
+        let blocked = sidecar_path(&w, "blocked.md");
+        std::fs::create_dir_all(&blocked).unwrap();
+        let (items, err) = load_items(&blocked);
+        assert!(items.is_empty());
+        let err = err.expect("读失败必须报 error（不静默）");
+        assert!(err.contains("读取失败"), "报错须指明读失败：{err}");
+        let _ = std::fs::remove_dir_all(d);
+    }
+
+    /// #430 · set_status 接线面：边车不可读时报 **io 错误**而非误导性的
+    /// not_found「标注不存在」（#413 CI 假红的失败形态——load 刚读到、
+    /// set_status 却说标注不存在）。
+    #[test]
+    fn set_status_reports_io_error_when_sidecar_unreadable() {
+        let (d, w) = ws();
+        std::fs::write(d.join("u.md"), "内容").unwrap();
+        // 边车路径占成目录 → load_items 读失败 → set_status 必须走 io 路径
+        let blocked = sidecar_path(&w, "u.md");
+        std::fs::create_dir_all(&blocked).unwrap();
+        let m = args(serde_json::Map::from_iter([
+            ("path".into(), json!("u.md")),
+            ("id".into(), json!("1")),
+            ("status".into(), json!("confirmed")),
+        ]));
+        let err = set_status(&w, m).expect_err("边车不可读必须报错");
+        assert_eq!(
+            err.code,
+            "io",
+            "不可读 ≠ 不存在——报 io 而非 not_found（{err:?}）"
+        );
         let _ = std::fs::remove_dir_all(d);
     }
 }

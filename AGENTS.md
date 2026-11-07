@@ -241,6 +241,78 @@ cargo run -p bid-mcp --bin tool-surface -- --check
 **它能自动修掉 4 个派生面的不同步，比手工算位串快得多。**
 
 ---
+## 0.0.13 分支命名必须带 issue 号（防撞车）
+
+**多代理并发时，分支名撞车会导致「推错分支」——已发生过两次。**
+
+## 命名规范
+
+```
+<type>/<issue号>-<简短英文描述>
+
+type：feat | fix | docs | chore | ci | test | refactor
+```
+
+## ✅ 正确
+
+```
+feat/352-canvas-batch
+fix/318-d4-group-textbox
+docs/385-gpui-migration-notes
+chore/341-fmt-gate
+fix/314-skill-launcher-docs
+```
+
+## ❌ 错误（会撞车）
+
+```
+docs/agents-conflict-markers    ← 无 issue 号，多人都想叫这个
+docs/agents-product-loop        ← 同上
+docs/agents-sync-from-mdcore    ← 已经撞过：一个代理推了 AGENTS，
+                                   另一个从 reflog 恢复自己的 commit
+fix/hotfix                      ← 无 issue 号
+temp                            ← 无信息
+```
+
+## 为什么
+
+```
+2026-11-07 两次事故：
+
+① ai-bid #343（fix/314-skill-launcher-docs）
+   另一个代理也建了 docs/agents-sync-from-mdcore
+   我 checkout -f 时切到了它的分支
+   → #343 被推成 AGENTS 内容
+   → 需要从 reflog 找 88092cb 恢复
+
+② mdcore #379（fix/318-d6-empty-attr-sectpr）
+   rebase --continue 失败脚本继续 push
+   → 把 main 推到 D6 分支
+   → #379 被 GitHub 自动关闭（无差异）
+```
+
+**带 issue 号的分支名天然唯一——两个代理不会同时给同一个 issue 建分支（0.0.1 约束）。**
+
+## 建分支前必查
+
+```bash
+git fetch origin
+git branch -r | grep <issue号>
+# 有输出 = 已有人建过 → 停（AGENTS 0.0 第 1 步）
+```
+
+## push 前必查当前分支
+
+```bash
+git branch --show-current        # 必须是你期望的分支名
+git rev-parse --abbrev-ref HEAD  # 同上
+# 都不是期望值 → 你在 detached HEAD 或切错分支了，停下检查
+```
+
+**别用 `git push HEAD:xxx` 而不看当前在哪——HEAD 可能不是你想的那个。**
+
+---
+
 ## 0.0.1 一个 issue 只能有一个 PR
 
 ```

@@ -533,6 +533,34 @@ impl DomainStore {
             .collect()
     }
 
+    /// #456（A-09 残留面）：上游变更统一打脏入口——REQ 集变化 / 证据换版 /
+    /// 新绑定后，按 REQ→叶章节关联（[`Self::dirty_leaves_of_req`] 同一语义）
+    /// 打 DIRTY（失效信号：`get_bid_project_state` 的 `dirty_sections` 自动可见）。
+    ///
+    /// 幂等安全：已脏章节重复打标无副作用；返回**本次实际翻转**
+    /// （false→true）的章节 id（确定序——BTreeSet 去重排序，测试断言面）；
+    /// 空输入 / REQ 无归属章节 → 空 vec（与 #319 R-add 无归属语义对齐，不 panic）。
+    ///
+    /// 只打脏不清脏——清除仍归补遗指令处置面
+    /// （apply/dismiss 后 `pending_rewrite_directives_of` 为空才清，见上方两方法）
+    /// 与章节重开重走流程，本方法不发明第二条清标路径。
+    pub(crate) fn mark_dirty_by_requirements(&mut self, req_ids: &[String]) -> Vec<String> {
+        let targets: std::collections::BTreeSet<String> = req_ids
+            .iter()
+            .flat_map(|id| self.dirty_leaves_of_req(id))
+            .collect();
+        let mut marked = Vec::with_capacity(targets.len());
+        for sec in targets {
+            if let Some(n) = self.sections.iter_mut().find(|n| n.id == sec) {
+                if !n.dirty {
+                    n.dirty = true;
+                    marked.push(sec);
+                }
+            }
+        }
+        marked
+    }
+
     /// 新条款 id：既有最大数字后缀 + 1（与抽取层 REQ-NNNN 同形态；
     /// 建纲后抽取面 E_STATE 关闭，无重签碰撞面）。
     fn next_req_id(&mut self) -> String {

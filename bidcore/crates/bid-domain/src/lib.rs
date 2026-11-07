@@ -1169,12 +1169,17 @@ impl DomainStore {
         for (i, r) in merged.iter().enumerate() {
             index.entry(requirement_hash(r)).or_insert(i);
         }
+        // #456（A-09 残留面）：收集**新增**席位（hash miss）的 REQ id——
+        // 同 hash 覆盖 = 语义等价重放，不打脏（重跑 extract 不得全量打脏制造
+        // 噪音）；新增 REQ = 条款集实质变化，关联叶章节需要失效信号。
+        let mut added_req_ids: Vec<String> = Vec::new();
         for r in reqs {
             let h = requirement_hash(&r);
             match index.get(&h) {
                 Some(&i) => merged[i] = r, // 重跑覆盖（同 hash → 稳定）
                 None => {
                     index.insert(h, merged.len());
+                    added_req_ids.push(r.id.clone());
                     merged.push(r);
                 }
             }
@@ -1202,6 +1207,12 @@ impl DomainStore {
             }
         }
         self.requirements = merged;
+        // #456：新增 REQ 打脏关联叶（场景：建纲后发现漏抽条款 → 重跑 extract
+        // 带回新 REQ——已挂章节的响应面失效。此时状态 ≤ REQUIREMENTS_EXTRACTED，
+        // 章节只能 Pending，打脏是「调度面提示」而非「已写内容失效」；幂等
+        // 重放零新增打脏由 added_req_ids 只含 hash-miss 保证）。
+        // 空打脏（无大纲 / 无归属）静默空转——R-add 无归属语义对齐。
+        self.mark_dirty_by_requirements(&added_req_ids);
         let p = self.project.as_mut().unwrap();
         if p.status == ProjectStatus::FilesImported {
             p.status = ProjectStatus::RequirementsExtracted;
@@ -1261,7 +1272,27 @@ impl DomainStore {
                 });
             }
         }
+        // #456（A-09 残留面）：整集替换是破坏性变更——移除集与新增集**双向**
+        // 打脏关联叶（移除的 REQ 解除章节响应面，新增的 REQ 改变章节条款集，
+        // 两个方向都是实质变化；与 set_requirements 的「仅新增打脏」不同——
+        // 那边同 hash 覆盖=等价重放，这边替换无等价面）。
+        let old_ids: std::collections::HashSet<&str> =
+            self.requirements.iter().map(|r| r.id.as_str()).collect();
+        let new_ids: std::collections::HashSet<&str> =
+            reqs.iter().map(|r| r.id.as_str()).collect();
+        let changed_req_ids: Vec<String> = self
+            .requirements
+            .iter()
+            .filter(|r| !new_ids.contains(r.id.as_str()))
+            .map(|r| r.id.clone())
+            .chain(
+                reqs.iter()
+                    .filter(|r| !old_ids.contains(r.id.as_str()))
+                    .map(|r| r.id.clone()),
+            )
+            .collect();
         self.requirements = reqs;
+        self.mark_dirty_by_requirements(&changed_req_ids);
         let p = self.project.as_mut().unwrap();
         if p.status == ProjectStatus::FilesImported {
             p.status = ProjectStatus::RequirementsExtracted;

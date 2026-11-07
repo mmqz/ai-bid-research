@@ -550,6 +550,15 @@ impl DomainStore {
             // 换版：旧记录单向降级到 Superseded
             let old_id = existing.id.clone();
             let old_version = existing.version;
+            // #456（A-09 残留面）：换版前收集旧证据的**完整**绑定集（含下方
+            // migrate 过滤面排除的「新位已有绑定」——那些 REQ 的证据依据
+            // 同样换了版本）——待绑定迁移完成后打脏关联叶。
+            let superseded_req_ids: Vec<String> = self
+                .evidence_bindings
+                .iter()
+                .filter(|b| b.evidence_id == old_id)
+                .map(|b| b.requirement_id.clone())
+                .collect();
             let idx = self.evidences.iter().position(|e| e.id == old_id).unwrap();
             // Superseded 是一切状态的合法去向（含 Expired→Superseded：过期件被换版淘汰）
             self.evidences[idx].status = EvidenceStatus::Superseded;
@@ -603,6 +612,11 @@ impl DomainStore {
                     requirement_id: rid,
                 });
             }
+            // #456：换版打脏——支撑这些章节响应的证据版本已替换（旧件
+            // Superseded），即便绑定已跟随新版本，证据依据仍是「换了件的」。
+            // 已 ACCEPTED 章节由此拿到失效信号（get_bid_project_state 的
+            // dirty_sections 可见）；无绑定/无归属 → 空打脏静默空转。
+            self.mark_dirty_by_requirements(&superseded_req_ids);
             if let Some(p) = self.project.as_mut() {
                 p.content_version += 1;
             }
@@ -733,6 +747,11 @@ impl DomainStore {
             evidence_id: ev_id.into(),
             requirement_id: requirement_id.into(),
         });
+        // #456（A-09 残留面）：新绑定改变章节响应面（矩阵 blocking↔响应的
+        // 依据变化）——打脏该 REQ 关联叶。幂等重放（上方 return true 路径）
+        // 不打脏。绑定无状态门、MATRIX_READY+ 全程可调，此时章节可为
+        // Drafted/ACCEPTED——失效信号价值最高的场景。
+        self.mark_dirty_by_requirements(&[requirement_id.to_string()]);
         if let Some(p) = self.project.as_mut() {
             p.content_version += 1;
         }

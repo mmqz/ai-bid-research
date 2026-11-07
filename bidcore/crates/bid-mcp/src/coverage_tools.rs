@@ -109,6 +109,23 @@ pub fn get_document_chunks(svc: &mut BidService, args: Value) -> ToolResult {
     }))
 }
 
+/// #395（#269 卡点 #3）：类别英文键 → 中文字面量（与 tools.rs `category_key`
+/// 的映射互逆——响应面读英文、入参面写中文的双语词汇单向桥）。
+/// 中文字面量原样通过；未知英文键原样返回（由域层 REQUIREMENT_CATEGORIES
+/// 校验拒——fail-loud 不吞）。
+fn normalize_category(raw: &str) -> String {
+    match raw {
+        "qualification" => "资格条件".to_string(),
+        "veto" => "否决项".to_string(),
+        "scoring" => "评分项".to_string(),
+        "tech_param" => "技术参数".to_string(),
+        "commercial" => "商务要求".to_string(),
+        "format" => "格式要求".to_string(),
+        "other" => "其他".to_string(),
+        cn => cn.to_string(),
+    }
+}
+
 fn parse_verdict(s: &str, at: &str) -> Result<BlockVerdict, ToolError> {
     match s {
         "requirement" => Ok(BlockVerdict::Requirement),
@@ -181,7 +198,12 @@ pub fn submit_block_marks(svc: &mut BidService, args: Value) -> ToolResult {
             reqs.push(SubmittedRequirement {
                 block_idx,
                 statement,
-                category: r.get("category").and_then(|v| v.as_str()).map(String::from),
+                // #395（#269 卡点 #3）：类别词汇双语兼容——响应面（extract/
+                // matrix 的 by_category）用英文键，入参面此前只认中文字面量，
+                // 同一概念「读时英文写时要中文」造成黑盒会话首标被拒
+                // （commercial → 商务要求）。中文字面量原样通过（零位移）；
+                // 英文键归一化为中文后落库。
+                category: r.get("category").and_then(|v| v.as_str()).map(normalize_category),
                 mandatory: r.get("mandatory").and_then(|v| v.as_bool()).unwrap_or(false),
                 // #276：★实质性条款（缺省 false——未声明视为非★，与 mandatory 同宽）
                 substantive: r.get("substantive").and_then(|v| v.as_bool()).unwrap_or(false),
@@ -416,4 +438,25 @@ pub fn get_star_coverage(svc: &mut BidService, args: Value) -> ToolResult {
             "有★漏标——用 missing[].block_idx 定位后 submit_block_marks 补标（substantive=true），重跑 extract_requirements 生效"
         },
     }))
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// #395（#269 卡点 #3）：类别英文键归一化——双语词汇单向桥（响应读英文、
+    /// 入参写中文）。中文字面量零位移；未知键原样透传（域层 fail-loud 拒）。
+    #[test]
+    fn normalize_category_bridges_english_keys() {
+        assert_eq!(normalize_category("commercial"), "商务要求");
+        assert_eq!(normalize_category("qualification"), "资格条件");
+        assert_eq!(normalize_category("veto"), "否决项");
+        assert_eq!(normalize_category("scoring"), "评分项");
+        assert_eq!(normalize_category("tech_param"), "技术参数");
+        assert_eq!(normalize_category("format"), "格式要求");
+        assert_eq!(normalize_category("other"), "其他");
+        // 中文原样通过（零位移）
+        assert_eq!(normalize_category("商务要求"), "商务要求");
+        // 未知键透传——由 REQUIREMENT_CATEGORIES 校验拒（不吞错）
+        assert_eq!(normalize_category("nonsense"), "nonsense");
+    }
 }

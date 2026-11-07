@@ -1718,6 +1718,12 @@ fn max_suffix(ids: impl Iterator<Item = String>) -> u64 {
 }
 
 fn tool_name(tool: &str) -> &'static str {
+    // #395（#269 卡点 #2）：E_STATE 文案必须报真实工具名——旧表只登记前 13
+    // 个工具，后加工具（#219 覆盖三件套等）落 "unknown_tool" 回退，误导排障
+    // （黑盒实证：MATRIX_READY 调 submit_block_marks 报「不允许调用
+    // unknown_tool」）。新增工具时同步本表（漂移面由 bid-mcp
+    // dispatch_contract 的工具面计数护栏间接暴露——工具名对不上时
+    // 错误信息与工具面清单对不上号）。
     match tool {
         "create_bid_project" => "create_bid_project",
         "import_tender_files" => "import_tender_files",
@@ -1733,6 +1739,27 @@ fn tool_name(tool: &str) -> &'static str {
         "record_review_gate" => "record_review_gate",
         "record_addendum_waiver" => "record_addendum_waiver",
         "recover_validating_state" => "recover_validating_state",
+        "get_document_chunks" => "get_document_chunks",
+        "submit_block_marks" => "submit_block_marks",
+        "get_coverage_report" => "get_coverage_report",
+        "get_star_coverage" => "get_star_coverage",
+        "set_matrix_override" => "set_matrix_override",
+        "append_section_segment" => "append_section_segment",
+        "rewrite_section_segment" => "rewrite_section_segment",
+        "list_section_segments" => "list_section_segments",
+        "recommend_length_profile" => "recommend_length_profile",
+        "list_packages" => "list_packages",
+        "list_tools" => "list_tools",
+        "score_price" => "score_price",
+        "score_section" => "score_section",
+        "score_document" => "score_document",
+        "list_evidence" => "list_evidence",
+        "list_tasks" => "list_tasks",
+        "get_compliance_matrix" => "get_compliance_matrix",
+        "check_bid_quality" => "check_bid_quality",
+        "get_requirement_provenance" => "get_requirement_provenance",
+        "get_block_requirements" => "get_block_requirements",
+        "get_annotation_overlay" => "get_annotation_overlay",
         _ => "unknown_tool",
     }
 }
@@ -1759,6 +1786,34 @@ pub fn requirement_hash(r: &Requirement) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ---------------------------------------------------------------- #395（#269 卡点 #2）
+    // E_STATE 文案必须报真实工具名——黑盒实证：MATRIX_READY 调
+    // submit_block_marks 报「不允许调用 unknown_tool」（tool_name 表漏登记
+    // 后加工具），误导排障。
+
+    #[test]
+    fn estate_error_names_the_real_tool() {
+        let mut s = DomainStore::new();
+        s.create_project("文案测试", "TN-395", "明标", "tn-395").unwrap();
+        // Draft 态不放行的三个「后加工具」（#219 覆盖面 / #316 分包清单）
+        for tool in [
+            "submit_block_marks",
+            "get_document_chunks",
+            "list_packages",
+        ] {
+            let err = s.guard_tool(tool).unwrap_err();
+            match err {
+                ToolError::EState { attempted, .. } => {
+                    assert_eq!(
+                        attempted, tool,
+                        "E_STATE 文案必须点名真实工具（unknown_tool 回退 = 排障误导）"
+                    );
+                }
+                other => panic!("{tool} 在 Draft 态应 E_STATE，实际 {other:?}"),
+            }
+        }
+    }
 
     // ---------------------------------------------------------------- #285 ②
     // Anchor 块级定位：旧快照（无新字段）反序列化为 None——向后兼容验收面。

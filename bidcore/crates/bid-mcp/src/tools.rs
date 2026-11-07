@@ -3726,10 +3726,18 @@ fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
     // ---- 幂等前置：(project_id, content_version, format, dark_bid, output_path, decision)
     //      相同 → 直返首次结果（产物 sha 已在首次导出对账；重放零 IO）。
     //      #117：决策指纹入键——换了报价重导是新导出（否则返回旧报价的缓存）。
+    // anonymize 提前派生（暗标才有；#394/C-07 进幂等键——暗标换投标人名
+    // 是不同导出，不能吃旧键缓存返回旧脱敏产物）
+    let anonymize = if dark_bid {
+        bidder_name.as_deref()
+    } else {
+        None
+    };
     let ikey = format!(
-        "export:{project_id}:{}:{format}:{}:{output_path}:{decision_fp}",
+        "export:{project_id}:{}:{format}:{}:{}:{output_path}:{decision_fp}",
         svc.store().content_version(),
         dark_bid,
+        anonymize.unwrap_or(""),
     );
     if let Some(first) = svc.store().idempotent_hit(&ikey).cloned() {
         let mut out = first;
@@ -3752,11 +3760,6 @@ fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
                 .into(),
         );
     }
-    let anonymize = if dark_bid {
-        bidder_name.as_deref()
-    } else {
-        None
-    };
     let ws = svc
         .workspace_dir()
         .ok_or_else(|| ToolError::EUnprocessable {

@@ -46,6 +46,7 @@
 //! - **纯函数**：同输入恒同字节，无 IO、无时间、无随机。
 
 use bid_domain::param::Deviation;
+use serde::Serialize;
 use std::fmt::Write as _;
 
 // ---------------------------------------------------------------- 行内标记
@@ -82,7 +83,7 @@ pub fn red(text: impl AsRef<str>) -> String {
 /// `deviation` 取 [`bid_domain::param::Deviation`] 的**四态**（含
 /// Incomparable）而不是 issue 草案的三态：不可比是「待人工裁决」，
 /// 把它压成「无偏离」就是拿诚实态换太平——评标现场最危险的那种假。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TechDeviationRow {
     /// 序号（1 起，渲染时原样输出——评委按序号定位）
     pub seq: usize,
@@ -158,7 +159,7 @@ impl TechDeviationRow {
 }
 
 /// 人员配置表的一行。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PersonnelRow {
     /// 岗位（项目经理/技术负责人/安全员…）
     pub position: String,
@@ -194,7 +195,7 @@ impl PersonnelRow {
 }
 
 /// 设备清单表的一行。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct EquipmentRow {
     /// 设备名称
     pub name: String,
@@ -232,7 +233,7 @@ impl EquipmentRow {
 }
 
 /// 业绩一览表的一行。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct PerformanceRow {
     /// 项目名称
     pub project: String,
@@ -271,7 +272,7 @@ impl PerformanceRow {
 }
 
 /// 报价明细表的一行。
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct PriceRow {
     /// 序号
     pub seq: usize,
@@ -317,7 +318,11 @@ impl PriceRow {
 // ---------------------------------------------------------------- 表格枚举
 
 /// 结构化表格（六种——标书正文的表格面全集）。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// `Serialize`（#394/C-07）：导出幂等输入指纹需要 canonical 序列化表格面
+/// ——换表格数据重导不得吃旧 manifest 缓存。仅序列化面（无 Deserialize：
+/// 表格由三真源派生，不是落盘数据结构）。
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum BidTable {
     /// 项目概况表（项 / 值 两列直读）
     ProjectOverview { rows: Vec<(String, String)> },

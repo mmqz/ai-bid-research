@@ -1465,7 +1465,15 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                     veto_ctx = false;
                 }
             }
-            BlockKind::TableRow => {
+            // #473（B-08）：块面并入 XlsxRow——清单型招标文件（kind=招标文件
+            // 的 .xlsx）blocks 全为 XlsxRow，此前落入 `_ => {}` 黑洞静默
+            // 零抽取。语义同构：XlsxRow 与 TableRow 都是 cells 行块
+            // （text = 非空列单空格连接，bid-engine mapping.rs B3-4 口径），
+            // 表格行判据（否决面/审查语境/参数表）自然作用。
+            // 接管面零冲突：审查表/语义表装配（extract_docx_tables /
+            // extract_docx_semantic_tables）只组 TableRow 块——xlsx 文件
+            // 两个接管 map 为空，XlsxRow 全走旧链，无双抽风险。
+            BlockKind::TableRow | BlockKind::XlsxRow => {
                 // #144 审查表接管：数据行 → 结构化 REQ（旧链不走——防双抽）；
                 // 表头形状行只消费（防旧链误开语境/误产 REQ）。
                 if let Some(ri) = review_map.get(&b.idx) {
@@ -1573,13 +1581,15 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
 }
 
 /// B1 设备清单：含型号或中文大写日期的行 → 技术参数 REQ（到货/规格要求行）。
+/// #473：块面并入 XlsxRow——xlsx 报价清单经 bid-engine 产生 XlsxRow 块
+/// （mapping.rs B3-4），此前只匹配 PdfLine，xlsx 报价清单静默 0 抽取。
 fn extract_b1_lines(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize) {
     let re_model = model_regex();
     let re_date_cn = Regex::new(r"[〇一二三四五六七八九零]{4}年[〇一二三四五六七八九零]{1,2}月[〇一二三四五六七八九零]{1,3}日").unwrap();
     let re_amount = Regex::new(r"(\d+(?:\.\d+)?)\s*万\s*元").unwrap();
     let re_date = Regex::new(r"\d{4}-\d{2}-\d{2}").unwrap();
     for b in &f.blocks {
-        if matches!(b.kind, BlockKind::PdfLine)
+        if matches!(b.kind, BlockKind::PdfLine | BlockKind::XlsxRow)
             && (re_model.is_match(&b.text) || re_date_cn.is_match(&b.text))
         {
             let mut params = HashMap::new();
@@ -1739,10 +1749,16 @@ fn row_no_of(locator: &str) -> usize {
 }
 
 /// 表格键（locator 的 表N 序号——表切换检测用，P0-B 审查语境隔离）。
+/// #473：xlsx locator（`{sheet}!行{N}`，无 ` 行` 分隔）取 `!` 前的 sheet 名
+/// 做表键——否则每行自成键，review_ctx 逐行重置（审查语境传播在 xlsx 面失效）。
 fn table_key_of(locator: &str) -> String {
     // 「第二章 投标人须知 表1 行41」→「第二章 投标人须知 表1」
     match locator.find(" 行") {
         Some(i) => locator[..i].to_string(),
-        None => locator.to_string(),
+        // 「设备清单!行3」→「设备清单」（同一 sheet 内语境连续）
+        None => match locator.rfind('!') {
+            Some(i) => locator[..i].to_string(),
+            None => locator.to_string(),
+        },
     }
 }

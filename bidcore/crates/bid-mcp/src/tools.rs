@@ -160,7 +160,10 @@ fn opt_cas_version(v: &Value, at: &str) -> Result<Option<u64>, ToolError> {
 
 /// 契约 §2 `files[].kind` 枚举（MCP 壳校验面；服务层不重复——运行器自有
 /// 类别如「证据」不受此限，见 service.rs 分层说明）。
-const TENDER_FILE_KINDS: [&str; 7] = [
+/// #473：并入「报价文件」「扫描件」——B1/B2 抽取分支的 kind 判据
+/// （extract.rs `Some("报价文件")`/`Some("扫描件")`）此前不在导入值域内，
+/// 是不可达死分支（生产只能靠 B1/B2 文件名前缀触达——#196 在 B1/B2 面回归）。
+const TENDER_FILE_KINDS: [&str; 9] = [
     "招标文件",
     "附件",
     "图纸",
@@ -168,6 +171,8 @@ const TENDER_FILE_KINDS: [&str; 7] = [
     "答疑",
     "评分办法",
     "格式模板",
+    "报价文件",
+    "扫描件",
 ];
 
 pub(crate) fn req_str(v: &Value, key: &str, at: &str) -> Result<String, ToolError> {

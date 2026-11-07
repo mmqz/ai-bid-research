@@ -15,7 +15,15 @@ fn main() -> std::process::ExitCode {
         .map(PathBuf::from)
         .unwrap_or_else(|_| repo_root.join("fixtures"));
     if args.iter().any(|a| a == "--self-test") {
-        let fx = fixtures::Fixtures::load(&fixtures_dir).expect("夹具装载失败");
+        // #481（A-20④）：夹具装载失败不 panic——评测链终点被 run_tests.py 消费
+        // 退出码，panic 栈轨迹对自动化不友好（错误码纪律）。
+        let fx = match fixtures::Fixtures::load(&fixtures_dir) {
+            Ok(fx) => fx,
+            Err(e) => {
+                eprintln!("[grade] 夹具装载失败（{}）：{}", fixtures_dir.display(), e);
+                return std::process::ExitCode::FAILURE;
+            }
+        };
         let failed = selftest::run(&fx);
         if failed == 0 {
             println!("\n判分器自测：全部通过");
@@ -60,7 +68,14 @@ fn grade_one(run_dir: &Path, fixtures_dir: &Path) -> std::process::ExitCode {
             return std::process::ExitCode::FAILURE;
         }
     };
-    let fx = fixtures::Fixtures::load(fixtures_dir).expect("夹具装载失败");
+    // #481（A-20④）：同上——不 panic，原因 + 非零退出码。
+    let fx = match fixtures::Fixtures::load(fixtures_dir) {
+        Ok(fx) => fx,
+        Err(e) => {
+            eprintln!("[grade] 夹具装载失败（{}）：{}", fixtures_dir.display(), e);
+            return std::process::ExitCode::FAILURE;
+        }
+    };
     let report = grade::grade_run(&db, &fx);
     let out = run_dir.join("report.json");
     std::fs::write(&out, serde_json::to_vec_pretty(&report).unwrap()).ok();

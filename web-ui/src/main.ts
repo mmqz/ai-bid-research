@@ -2129,6 +2129,13 @@ function setupXlsxImport(): void {
       if (g.ok && statusEl) {
         const n = g.sheets.length;
         statusEl.textContent += t('status.gridSuffix', { n, plural: n === 1 ? '' : 's' });
+      } else if (!g.ok && statusEl) {
+        // #445（审计 D-03）：联动失败对用户可见——此前只回填
+        // __lastXlsxImport.grid 探针，状态行零信号（部分成功语义不完整：
+        // 主编辑成功但「表格」页缺席，用户无从得知）。诚实后缀：不回滚
+        // 主导入（#42 方案 A「增强面非前置条件」语义不变），只把缺席
+        // 与失败 code 可见化。
+        statusEl.textContent += t('status.gridFailSuffix', { code: g.code });
       }
     })();
     return { ok: true, markdown: result.markdown, stats: result.stats as unknown as Record<string, unknown> };

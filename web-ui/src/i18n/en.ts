@@ -114,6 +114,8 @@ export const en = {
   'status.importFailed': 'import failed ({code}): {message}',
   'status.exportFailed': 'export failed ({code}): {message}',
   'status.gridSuffix': ' · workbook in grid ({n} sheet{plural})',
+  // #445 (D-03): grid sync failure suffix — honest partial-success face
+  'status.gridFailSuffix': ' · grid session failed ({code}) — Grid tab unavailable, editing unaffected',
   'docx.heading.one': '{n} heading',
   'docx.heading.many': '{n} headings',
   'docx.paragraph.one': '{n} paragraph',

@@ -2895,6 +2895,13 @@
     }
     document.body.removeChild(ta);
   }
+  // #326（R-30/D-01）：链接 URL 协议白名单。
+  // esc() 已挡属性级引号/尖括号逃逸，但挡不住 javascript:/data:/vbscript: 协议本身；
+  // 大小写不敏感（JaVaScRiPt:），且 URL 规范会剥离首部 C0 控制符与空白
+  // （如 "\x01javascript:" 会被浏览器剥成 "javascript:"），所以必须锚定串首逐字符
+  // 白名单匹配，黑名单/前缀包含式判断均不可靠。仅放行 http:/https:/mailto:，
+  // 其余一律不产出 <a>，降级为纯文本链接文字。
+  var SAFE_LINK_SCHEME = /^(?:https?|mailto):/i;
   function mdToHtml(src) {
     const ls = String(src || "").replace(/\r\n?/g, "\n").split("\n");
     const out = [];
@@ -2905,7 +2912,13 @@
       x = x.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
       x = x.replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
       x = x.replace(/~~([^~]+)~~/g, "<del>$1</del>");
-      x = x.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+      x = x.replace(
+        /\[([^\]]+)\]\(([^)\s]+)\)/g,
+        (m, txt, url) =>
+          SAFE_LINK_SCHEME.test(url)
+            ? '<a href="' + url + '" target="_blank" rel="noreferrer">' + txt + "</a>"
+            : txt
+      );
       return x;
     };
     while (i < ls.length) {

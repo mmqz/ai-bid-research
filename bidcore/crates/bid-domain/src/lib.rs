@@ -12,8 +12,11 @@
 //!
 //! M1.5 扩展（V2/V3 SEMUL 语义实装——四关键案例契约测试的载体）：
 //! - [`impact`]：影响面引擎（补遗级联/DIRTY/content_version/终裁门禁/幂等）；
-//! - [`linkage`]：证据链状态账本（只降不升 + 显式重验 + 外部修改不自动 adopt）；
-//! - [`export_gate`]：两阶段导出门（EXPORTING → sha256 落库为界 → EXPORTED）。
+//! - [`linkage`]：证据链状态账本（只降不升 + 显式重验 + 外部修改不自动 adopt）
+//!   ——研究实装，**未接线产品路径**（A-08）；
+//! - [`export_gate`]：两阶段导出门（EXPORTING → sha256 落库为界 → EXPORTED）
+//!   ——研究实装，**未接线产品路径**（产品导出原子性真源 = bid-tools
+//!   export.rs manifest+tmp+rename，A-08）。
 //!
 //! V3-1 扩展（issue #11 批次 v3——三份台账起步 + 持久化地基）：
 //! - [`locator`]：引擎定位器七变体镜像（serde 形态与 mdcore 逐字节一致）；

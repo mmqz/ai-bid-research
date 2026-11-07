@@ -6,7 +6,12 @@
 //! - **失配恰一链**：正文变化只降级指纹失配的链，其余链不受牵连（锚不跨链误伤）；
 //! - 指纹口径：段落归一化文本 → fnv64（ooxml_util 同构；换 sha256 需过契约审查）。
 //!
-//! 验证状态：LINKAGE_SEMANTICS = IMPLEMENTED（本模块）；
+//! 验证状态（A-08 收口，双行口径）：
+//! - 模块语义：LINKAGE_SEMANTICS = IMPLEMENTED（本模块，four_contracts 测试锁定）；
+//! - 产品接线：**NOT_WIRED**——断链检测（refresh）/显式重验（reverify）只在
+//!   tests/ 里活着，生产链路零引用。易混淆面澄清：证据状态
+//!   Active→Expiring→Expired 的「只降不升」是 evidence.rs 的产品实现，
+//!   与本模块的**引用链**账本是两回事。
 //! DOCX 文件级书签寻址（bookmark_paragraph_map）属引擎面（mdcore），
 //! V1-b/V3 SEMUL 保留文件级证据，本模块做语义层实装。
 

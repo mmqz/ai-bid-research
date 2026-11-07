@@ -5,9 +5,16 @@
 //! 「业务态 EXPORTED 而产物缺失/无指纹」的虚假成功（T-04 治理面在
 //! pdf.rs 的 RunOutcome 分类之上，本模块承载状态面）。
 //!
-//! 验证状态：EXPORT_GATE_SEMANTICS = IMPLEMENTED（本模块）；
-//! 与 bid-domain ProjectStatus::ReadyToExport→Exported 状态机的接线
-//! 属 M4 导出面（当前 guard_tool 的状态机裁决已承载越级防护）。
+//! 验证状态（A-08 收口，双行口径）：
+//! - 模块语义：EXPORT_GATE_SEMANTICS = IMPLEMENTED（本模块，four_contracts
+//!   测试锁定两阶段/中断不变式/幂等恢复）；
+//! - 产品接线：**NOT_WIRED**——本模块不在生产导出路径上（grep 全仓仅
+//!   tests/four_contracts.rs 引用）。产品导出原子性的真源 =
+//!   bid-tools/src/export.rs 的 manifest+tmp+rename + service.rs 的
+//!   advance_project_to_exported；EXPORTING 中间态与 query_view
+//!   （SC-01「进度面必须显式 EXPORTING」）在产品路径不存在。
+//!   与 ProjectStatus::ReadyToExport→Exported 状态机的接线属后续单
+//!   （需 DomainStore 持久化设计——等 lib.rs/service.rs 在飞波次合入后）。
 
 use sha2::{Digest, Sha256};
 

@@ -85,6 +85,73 @@ gh api repos/mmqz/<repo>/issues/<pool> --jq '.body' | grep "<N>"
 2026-11-07 单日出现 4 组重复 PR（#334/#335、#343/#344、#342/#349、#346/#353）。
 ```
 
+## 0.0.5 给结构体加字段后必须检查所有字面量
+
+**`#[serde(default)]` 只让反序列化兼容——Rust 的结构体字面量初始化仍是全字段必需。**
+
+```rust
+// 你以为加了 serde(default) 就兼容了：
+#[serde(default)]
+pub crop_box: Option<PageBox>,
+
+// 但所有旧字面量全部编译失败：
+PageGeometry {
+    width_pt: 612.0,
+    height_pt: 792.0,
+    rotation: Rotation::Deg0,
+}  // → error[E0063]: missing fields crop_box and media_box
+```
+
+**2026-11-07 单日三次同类事故：**
+
+```
+① Anchor 加 block_idx/page/line（#285②）→ 6 个分支编译失败
+② ParagraphData 加 resolved_number（#266）→ PR #299 红
+③ PageGeometry 加 media_box/crop_box（#304）→ main 红，所有 PR 继承
+```
+
+**加字段后必做：**
+
+```bash
+# 1. 找出所有字面量构造点
+grep -rn "StructName {" --include="*.rs" crates/
+
+# 2. 两选一
+#    方案 A（推荐）：给结构体加 impl Default，字面量改成 ..Default::default()
+#    方案 B：逐个补字段
+```
+
+**为什么推荐 A：**
+
+```rust
+impl Default for Foo {
+    fn default() -> Self { Self { /* 所有字段的合理默认 */ } }
+}
+
+// 以后所有调用方：
+Foo {
+    existing_field: value,
+    ..Default::default()   // 新增字段不用逐个跟
+}
+```
+
+**mdcore 仓有现成工具查风险面：**
+
+```bash
+./scripts/struct-field-guard.ps1 -Repo .
+# 列出所有加过 serde(default) 字段的结构体 + 它们的字面量构造点
+```
+
+**报告样例：**
+
+```
+Struct                         新增字段       字面量点         定义文件
+[!] PageGeometry                 2          17           page.rs
+[!] EvidenceRecord               1          7            evidence.rs
+合计: 8 个加过字段的结构体 / 42 处字面量构造点
+```
+
+---
 ## 0.0.1 一个 issue 只能有一个 PR
 
 ```

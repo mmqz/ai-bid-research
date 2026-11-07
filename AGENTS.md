@@ -408,6 +408,59 @@ cargo run -p bid-mcp --bin tool-surface -- --check   # 确认同步
 
 ---
 
+
+## ★★ 合并其它工具类 PR 后，必须重跑 tool-surface
+
+**你的 PR 加了工具，同时别的 PR 也在加工具——合并顺序不同，派生面数字必然对不上。**
+
+## 症状
+
+```
+CI 报：left: 38 / right: 37
+（不是编译错，不是测试错，就是工具数对不上）
+```
+
+## 为什么
+
+```
+tool-surface 的 4 个派生面按「当前代码的工具集合」生成。
+
+#371（加 list_packages，工具面 38）
+  同时 #368（加 4 个业绩工具）
+  → #368 先合 → main 变 37
+  → #371 rebase 后，它的派生面还是按旧 base 算的
+  → CI 红
+```
+
+**同一 PR 修了三次（2026-11-07 实测）。**
+
+## 做法
+
+```bash
+# 每次 rebase 到新 main 后，都跑一次
+cd bidcore
+cargo run -p bid-mcp --bin tool-surface -- --write
+
+# 有改动就提交
+git status
+git add bidcore/crates/bid-domain/tests/state_machine_matrix.rs
+git commit -m "fix(#<issue>): 派生面重生成——工具面 N 个位串同步"
+
+# 确认
+cargo run -p bid-mcp --bin tool-surface -- --check
+# 必须输出：OK: 工具面 N 个，派生面全部同步
+```
+
+## 自查时机
+
+```
+① 开 PR 前 rebase 后     → 跑一次
+② CI 红且报 left/right  → 跑一次
+③ 合并前最后确认        → 跑一次
+```
+
+**不要靠手算位串——35 个工具 = 350 bit，必错。**
+
 ## 0.0.2 认领要写在 issue 正文的可见位置
 
 ```bash

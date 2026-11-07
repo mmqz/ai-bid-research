@@ -235,7 +235,7 @@ fn is_name_candidate(seg: &str) -> bool {
     if !n.iter().any(|c| ('\u{4e00}'..='\u{9fff}').contains(c)) {
         return false;
     }
-    if matches!(n[0], '，' | ',' | '。' | '；' | '：' | '：' | '、' | '（' | '）' | '(' | ')') {
+    if matches!(n[0], '，' | ',' | '。' | '；' | '：' | ':' | '、' | '（' | '）' | '(' | ')') {
         return false;
     }
     !n.iter().any(|c| NAME_FUNC_CHARS.contains(c))
@@ -785,5 +785,16 @@ mod tests {
         let f = file_with(&["综合评分表【综合评分法适⽤】", "第六章 合同"]);
         let (rows, _used) = extract_scoring_table_pdf(&f);
         assert!(rows.is_empty());
+    }
+
+    /// #495：首字符过滤的全角 `：` 重复位换半角 `:`——以半角冒号开头的
+    /// 候选评审项名同样被拒（修复前：半角冒号不在表内，混入名字列）。
+    #[test]
+    fn name_candidate_rejects_halfwidth_colon_prefix() {
+        assert!(!is_name_candidate(":商务响应程度"));
+        // 全角冒号原行为不回归
+        assert!(!is_name_candidate("：商务响应程度"));
+        // 正常名不受影响（正控）
+        assert!(is_name_candidate("商务响应程度"));
     }
 }

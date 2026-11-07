@@ -681,7 +681,7 @@ pub fn chapter_ref_of(text: &str) -> Option<String> {
     let rest: String = text[m.end()..]
         .chars()
         .take_while(|c| {
-            !c.is_whitespace() && !matches!(c, '，' | '。' | '；' | '、' | '：' | '（' | '）' | '（' | '）' | '"' | '"')
+            !c.is_whitespace() && !matches!(c, '，' | '。' | '；' | '、' | '：' | '（' | '）' | '(' | ')' | '"')
         })
         .take(12)
         .collect();
@@ -730,6 +730,28 @@ mod tests {
         assert_eq!(
             chapter_ref_of("见第十二章，并附证明材料"),
             Some("第十二章".to_string())
+        );
+    }
+
+    /// #495：停字符表重复位换半角变体——半角括号章名同样截断。
+    ///（修复前：`（`/`）` 各重复两次、半角变体缺失，`第3章(高级配置)…`
+    /// 的余文一路吃到 take(12) 兜底。）
+    #[test]
+    fn chapter_ref_of_halfwidth_parens_stop() {
+        // 半角括号：章名余文在 '(' 处截断
+        assert_eq!(
+            chapter_ref_of("详见第3章(高级配置)的详细说明"),
+            Some("第3章".to_string())
+        );
+        // 全角括号原行为不回归
+        assert_eq!(
+            chapter_ref_of("详见第3章（高级配置）的详细说明"),
+            Some("第3章".to_string())
+        );
+        // 半角引号（去重后仍为停字符）
+        assert_eq!(
+            chapter_ref_of("按第4章\"技术参数\"执行"),
+            Some("第4章".to_string())
         );
     }
 

@@ -112,11 +112,102 @@ fn strip_exceptions(text: &str) -> String {
     re_exception_clause().replace_all(text, "").into_owned()
 }
 
+/// #345 否定框架（负面清单词的排除面）：「未(被)列入/纳入/进入/出现/
+/// 处于…」框架内的负面词是**正面资格诉求**，不是负面情形断言。
+///
+/// 语料实证（corpus-A GT-06）：「3.2.6 投标人须提供未被列入失信被执行人、
+/// 重大税收违法案件当事人名单的书面承诺及信用中国网站查询记录截图」
+/// ——指令本体是「须提供承诺+截图」（资格条件），「失信」在「未被列入」
+/// 否定框架内描述的是**要求保持的清白状态**；负面清单词表设计目标
+/// （re_negative_list 注释）是「有下列情形之一的」类**负面情形列举**，
+/// 框架内的命中是误报（e2e_m1 TC-01 G1_recall 类别错配三之一）。
+///
+/// 窄口径纪律：仅「未+列入族动词」——「不是本单位人员」（负面清单
+/// 本词）与「未提供/未按要求」（违例条件形态，GT-11/真否决族）都
+/// **不在**剥离面。跨度截断：顿号（名单列举）、且/但（并列连词——
+/// 「未被列入失信名单且其投标将被否决」的处置词不得被吞）。
+fn re_negated_frame() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"未(被)?(列入|纳入|进入|出现|处于)[^，。；：且但]{0,30}").unwrap()
+    })
+}
+
+/// 剥离否定框架后的判定文本（「未被列入失信…名单」不参与负面词匹配）。
+/// PDF 侧 veto_hit（融合词表）同用本函数——跨格式对称（#233 纪律）。
+pub fn strip_negated_frames(text: &str) -> String {
+    re_negated_frame().replace_all(text, "").into_owned()
+}
+
 /// 强否决判定：处置短语或负面清单词命中（例外从句剥离后）。
 /// 正面资格要求（应具备资质/须提供报表）不会命中此面。
+/// #345：负面清单词在「未(被)列入…」否定框架内不判（正面资格诉求面
+/// ——GT-06 实锤，见 re_negated_frame 注释）；处置短语不受框架影响
+/// （「未被列入失信名单且其投标将被否决」仍判——强词在框架外）。
 pub fn is_veto(text: &str) -> bool {
     let stripped = strip_exceptions(text);
-    re_veto_strong().is_match(&stripped) || re_negative_list().is_match(&stripped)
+    if re_veto_strong().is_match(&stripped) {
+        return true;
+    }
+    let no_frames = strip_negated_frames(&stripped);
+    re_negative_list().is_match(&no_frames)
+}
+
+/// #345 制裁尾形态：指令本体之后的后果从句。否决处置词出现在此处时
+/// 是「违反指令的处罚预告」，不是条款的响应类别。
+///
+/// 两种形态（corpus-A 实锤）：
+/// - GT-24「…不得出现投标人名称…的标记，**否则作否决投标处理**。」
+///   →「否则」标记尾（暗标格式指令本体在句首）
+/// - GT-25「投标文件总页数不得超过 200 页（…），**超过页数上限的作否决
+///   投标处理**。」→「，<违限条件>的+<处置>」融合尾（的与处置间**无
+///   标点**——页数上限指令本体在逗号前）
+///
+/// 反例面（**不得**剥离——剥离即回归既有裁定）：
+/// - 「投标人未提供有效营业执照的，其投标将被否决」——违例条件与处置
+///   **分句**（的后隔逗号）→ 条款本体即否决规则（veto_lexicon 测试锁定）
+/// - T2b「出现实质性负偏离的，作否决投标处理」（#110 G4）——同分句形
+/// - A-17「偏差大于 5%，按废标处理」（GT true）——处置前无「的」
+/// - 「不包含运输费用的报价将被否决」——无前置指令逗号（整句即违例
+///   条件）→ 融合尾不激活（无 [，；] 锚）
+fn re_sanction_tail() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(concat!(
+            // ① 「否则」标记尾：否则起至句边界（。；）
+            "否则[^。；]*",
+            "|",
+            // ② 融合尾：[，；] 锚后「<条件>的<处置>」——的与处置动词间无
+            //    标点（分句形「的，处置」是违例条件主体，不剥）；处置
+            //    动词收「作/按/视为/予以」处理族（「的+将被否决」形无
+            //    语料证据，不剥——保守面）
+            "[，；][^，。；]*的(其投标|其报价|投标)?(作|按|视为|予以)(否决|无效|废标)[^。；]*",
+        ))
+        .unwrap()
+    })
+}
+
+/// #345：否决信号是否**只**存在于制裁尾（否则尾/融合处置尾）。
+///
+/// 返回 true 的语义：剥离制裁尾后的指令本体不再含任何否决信号——
+/// 条款的 operative directive（响应对象）是本体的要求（暗标标记/
+/// 页数上限），处置词只是违反后果。此时分类仲裁面（extract 编号分支）
+/// 可让类别随章节上下文走。
+///
+/// 返回 false 的情形：无可剥离尾 / 剥离后本体仍含否决信号（否决语义
+/// 不只在尾）/ 剥离后本体过短（纯制裁句——「否则作否决投标处理」
+/// 单独成段时无指令本体可言，保守不仲裁）。
+pub fn veto_confined_to_sanction_tail(text: &str) -> bool {
+    let stripped = strip_exceptions(text);
+    let rest = re_sanction_tail().replace_all(&stripped, "");
+    if rest == stripped {
+        return false; // 没有可剥离的制裁尾
+    }
+    let body: String = rest.chars().filter(|c| !c.is_whitespace()).collect();
+    if body.chars().count() < 6 {
+        return false; // 剥离后无指令本体（纯制裁句）——不仲裁
+    }
+    !is_veto(&rest)
 }
 
 /// 资格面判定（正面要求语境——分类为「资格条件」，非否决）。
@@ -648,5 +739,69 @@ mod tests {
         assert!(exclusion_reason("⑵ 与招标人存在利害关系可能影响招标公正性的法人、其他组织或者个人不得参加投标；").is_none());
         assert!(exclusion_reason("⑶ 与本招标项目的其他投标人为同一个单位负责人；").is_none());
         assert!(exclusion_reason("10.5 招标人拒收投标文件的其他情形").is_none());
+    }
+
+    // ============ #345 测试（e2e_m1 G1_recall 类别错配三例 + 反例锁） ============
+
+    /// GT-06：负面词在「未被列入」否定框架内 → 正面资格诉求，非否决。
+    #[test]
+    fn negated_frame_suppresses_negative_list() {
+        // GT-06 原文（corpus-A A-招标文件.docx 3.2.6——GT 类别资格条件）
+        assert!(!is_veto(
+            "3.2.6 投标人须提供未被列入失信被执行人、重大税收违法案件当事人名单的书面承诺及信用中国网站查询记录截图。"
+        ));
+        // 未列入（无「被」）同族形态
+        assert!(!is_veto("投标人未列入严重失信名单的证明材料。"));
+        // 框架外仍有强处置词 → 仍判否决（框架剥离不得吞框架外信号）
+        assert!(is_veto("投标人未被列入失信名单且其投标将被否决。"));
+        assert!(is_veto("未被列入失信名单的，其投标将被否决"));
+        // 反例锁：无框架的负面情形断言不受影响
+        assert!(is_veto("（12）在最近三年内有骗取中标或严重违约或重大工程质量问题的。"));
+        assert!(is_veto("投标人被列入失信被执行人名单的，取消其投标资格。"));
+        // 反例锁：「未提供/未按要求」违例条件形态不在剥离面（GT-11 族真否决）
+        assert!(is_veto("未按要求密封的投标文件，招标人有权拒收"));
+    }
+
+    /// GT-24/25：处置词只在制裁尾 → veto_confined_to_sanction_tail = true。
+    #[test]
+    fn sanction_tail_confined_true() {
+        // GT-24 原文（否则标记尾——暗标格式指令本体在句首）
+        assert!(veto_confined_to_sanction_tail(
+            "3.3.3 技术标部分采用暗标评审：技术标正文中不得出现投标人名称、投标人 Logo、项目班子成员姓名及其他可识别投标人身份的标记，否则作否决投标处理。"
+        ));
+        // GT-25 原文（，<违限条件>的+<处置>融合尾——页数上限指令在逗号前）
+        assert!(veto_confined_to_sanction_tail(
+            "3.3.4 投标文件总页数不得超过 200 页（含封面、目录及附件），超过页数上限的作否决投标处理。"
+        ));
+    }
+
+    /// 反例锁：制裁尾剥离不得激活于违例条件主体形（既有裁定——#110
+    /// T2b / A-17 GT true / 无前置指令融合形 / 分句处置形）。
+    #[test]
+    fn sanction_tail_confined_false_counterexamples() {
+        // 「…的，其投标将被否决」——违例条件与处置分句，条款本体即否决规则
+        assert!(!veto_confined_to_sanction_tail(
+            "3.4.2 投标人未提供有效营业执照的，其投标将被否决。"
+        ));
+        // #110 T2b：分句形「…的，作否决投标处理」（的与处置隔逗号）→ 不剥
+        assert!(!veto_confined_to_sanction_tail(
+            "4.6 投标文件技术参数出现一般负偏离的，每项扣 1 分（最多扣 5 分）；出现实质性负偏离的，作否决投标处理。"
+        ));
+        // A-17（GT true）：处置前无「的」
+        assert!(!veto_confined_to_sanction_tail(
+            "4.7 报价修正：每有一项错误扣1分，最多扣5分，修正后的报价与投标报价偏差大于 5%，按废标处理。"
+        ));
+        // 无前置指令（整句即违例条件，无 [，；] 锚）→ 融合尾不激活
+        assert!(!veto_confined_to_sanction_tail("不包含运输费用的报价将被否决。"));
+        // GT-11 形（前附表否决行——处置分句无的）
+        assert!(!veto_confined_to_sanction_tail(
+            "未按本表第 9 项规定格式填写技术偏离表的，其投标作否决投标处理"
+        ));
+        // 无制裁尾的普通否决句
+        assert!(!veto_confined_to_sanction_tail("投标报价超过招标控制价（最高限价）的，否决其投标。"));
+        // 剥离后本体仍含否决信号（否决语义不只在尾）→ 不仲裁
+        assert!(!veto_confined_to_sanction_tail(
+            "投标人串通投标报价的，其投标作废标处理，否则追究法律责任。"
+        ));
     }
 }

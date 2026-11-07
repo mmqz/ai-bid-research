@@ -111,3 +111,145 @@ fn none_kind_falls_back_to_prefix_and_real_names_extract() {
     // 抛错】——此处仅验证分发不 panic 且有定义行为。
     let _ = reqs_b1;
 }
+
+// ================================================================
+// #473（B-07/B-08）：B1/B2 kind 判据活化 + XlsxRow 黑洞回归。
+//
+// 背景：B1/B2 分支的 kind 判据（Some("报价文件")/Some("扫描件")）此前
+// 不在导入面 TENDER_FILE_KINDS 值域内——kind 路径不可达（死分支），
+// 生产只能靠 B1/B2 文件名前缀触达（#196「前缀不得作生产判据」在
+// B1/B2 面回归）；且 XlsxRow 块在 B1 面（只匹配 PdfLine）与主抽取面
+// （extract_main_docx 只匹配 Para/TableRow，`_ => {}`）双黑洞。
+
+fn xlsx_row(idx: usize, sheet: &str, row: usize, cells: Vec<&str>) -> Block {
+    let text = cells
+        .iter()
+        .filter(|c| !c.is_empty())
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(" ");
+    Block {
+        idx,
+        kind: BlockKind::XlsxRow,
+        locator: format!("{sheet}!行{row}"),
+        text,
+        cells: cells.into_iter().map(String::from).collect(),
+    }
+}
+
+fn ocr_line(idx: usize, locator: &str, text: &str) -> Block {
+    Block {
+        idx,
+        kind: BlockKind::OcrLine,
+        locator: locator.into(),
+        text: text.into(),
+        cells: vec![],
+    }
+}
+
+/// ① B1 kind 活化（B-07①②）：kind=报价文件（真实文件名，无 B1 前缀）
+/// + xlsx 报价清单（XlsxRow 型号行）→ 技术参数 REQ。修前双黑洞：
+/// kind 登记不进导入面 + XlsxRow 不匹配 PdfLine。
+#[test]
+fn b1_kind_quotation_xlsx_extracts() {
+    let f = pf(
+        "监控设备报价清单.xlsx",
+        vec![
+            xlsx_row(0, "报价", 1, vec!["序号", "设备名称", "型号", "数量"]),
+            xlsx_row(1, "报价", 2, vec!["1", "网络摄像机", "IPC-4T-IR-D2", "20"]),
+            xlsx_row(2, "报价", 3, vec!["2", "录像机", "NVR-64H-8P", "2"]),
+        ],
+    );
+    let reqs = extract_requirements_with_kind(&[f], |_| Some("报价文件".into()));
+    assert_eq!(
+        reqs.len(),
+        2,
+        "kind=报价文件 的 xlsx 报价清单（2 行型号）不得静默零抽取（B-07①②）"
+    );
+    assert!(
+        reqs.iter().all(|r| r.category == "技术参数"),
+        "B1 面产出应全为技术参数，实际：{:?}",
+        reqs.iter().map(|r| r.category.as_str()).collect::<Vec<_>>()
+    );
+}
+
+/// ② B2 kind 活化（B-07①）：kind=扫描件（真实文件名，无 B2 前缀）
+/// + OCR 否决行 → 否决项 REQ。
+#[test]
+fn b2_kind_scan_ocr_extracts() {
+    let f = pf(
+        "资质证书扫描件.pdf",
+        vec![ocr_line(
+            0,
+            "第1页 行3",
+            "未按规定签署并盖章的投标文件，评标委员会将否决其投标",
+        )],
+    );
+    let reqs = extract_requirements_with_kind(&[f], |_| Some("扫描件".into()));
+    assert_eq!(
+        reqs.len(),
+        1,
+        "kind=扫描件 的 OCR 否决行不得静默零抽取（B-07①）"
+    );
+    assert_eq!(reqs[0].category, "否决项");
+}
+
+/// ③ XlsxRow 主文件黑洞回归（B-08）：kind=招标文件 的清单型 xlsx
+/// （blocks 全 XlsxRow）此前落入 extract_main_docx 的 `_ => {}` 静默
+/// 零抽取。修后按表格行同口径：否决词行 → 否决项 REQ。
+#[test]
+fn xlsx_main_file_not_blackholed() {
+    let f = pf(
+        "物料采购需求清单.xlsx",
+        vec![
+            xlsx_row(0, "须知", 1, vec!["条款", "内容"]),
+            xlsx_row(1, "须知", 2, vec!["1", "投标文件未按要求密封的，其投标将被否决"]),
+        ],
+    );
+    let reqs = extract_requirements_with_kind(&[f], |_| Some("招标文件".into()));
+    assert_eq!(
+        reqs.len(),
+        1,
+        "xlsx 主文件的 XlsxRow 否决行不得落入 `_ => {{}}` 黑洞（B-08）"
+    );
+    assert_eq!(reqs[0].category, "否决项");
+    // 定位保真：anchor 指回原块（sheet/行号在 locator 可查）
+    assert!(
+        reqs[0]
+            .anchors
+            .iter()
+            .any(|a| a.locator.contains("须知!行2")),
+        "anchor locator 应保留 xlsx 块定位，实际：{:?}",
+        reqs[0].anchors.iter().map(|a| a.locator.as_str()).collect::<Vec<_>>()
+    );
+}
+
+/// ④ xlsx 审查语境传播（#473 table_key_of 增强）：同一 sheet 内
+/// 「评审标准」表头行开启语境 → 后续符合性行继承否决语义。修前
+/// xlsx locator（`{sheet}!行{N}`）无 ` 行` 分隔 → 每行自成表键 →
+/// review_ctx 逐行重置，语境传播在 xlsx 面失效。
+#[test]
+fn xlsx_review_context_propagates_within_sheet() {
+    let f = pf(
+        "评审细则.xlsx",
+        vec![
+            xlsx_row(0, "评审标准", 1, vec!["评审标准", "说明"]),
+            xlsx_row(1, "评审标准", 2, vec!["投标保证金", "应与招标文件要求相一致"]),
+            xlsx_row(2, "其他", 3, vec!["联系人", "张三"]),
+        ],
+    );
+    let reqs = extract_requirements_with_kind(&[f], |_| Some("招标文件".into()));
+    assert_eq!(
+        reqs.len(),
+        1,
+        "同一 sheet 内审查语境应传播到符合性行（实际 {} 条：{:?}）",
+        reqs.len(),
+        reqs.iter().map(|r| (r.category.as_str(), r.anchors[0].locator.as_str())).collect::<Vec<_>>()
+    );
+    // 「其他」sheet 是新表键 → 语境终止，联系人行不产出
+    assert!(
+        !reqs.iter()
+            .any(|r| r.anchors.iter().any(|a| a.locator.contains("其他!行3"))),
+        "跨 sheet 语境应终止（表键切换）"
+    );
+}

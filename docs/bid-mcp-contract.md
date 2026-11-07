@@ -35,7 +35,7 @@ out: { project_id, status: "DRAFT" }
 
 ## 2. import_tender_files（内含知识库入库）
 ```
-in : { project_id, files:[{upload_ref, filename, kind(招标文件|附件|图纸|补遗|答疑|评分办法|格式模板)?, expected_pages?}], project_version }
+in : { project_id, files:[{upload_ref, filename, kind(招标文件|附件|图纸|补遗|答疑|评分办法|格式模板|报价文件|扫描件)?, expected_pages?}], project_version }
       upload_ref（#183/#189 文件围栏）: 必须落在受信根内——BID_FS_ROOT 声明的
       导入根，或 BID_WS 工作区（二者的并集）；相对路径按受信根锚定（不再按
       进程 CWD 解析）；词法 `..` 分量预拒（先于一切磁盘操作，零副作用）。

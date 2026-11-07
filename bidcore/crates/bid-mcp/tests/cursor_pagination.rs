@@ -410,6 +410,76 @@ fn matrix_bad_cursors_fail_closed_no_panic() {
     assert_eq!(err_code(&reply), "E_UNPROCESSABLE", "底层列表缩水 → offset 越界拒");
 }
 
+// ---------------------------------------------------------------- 3.5 C-14 增长位移守卫
+
+/// **C-14 增长位移守卫（#399）**：两页之间行集**增长**（重跑 extract 整集
+/// 替换追加 REQ——#219 工作流「翻页标注 → 重跑 extract → 再看矩阵」的现实
+/// 场景）时 offset ≤ total 仍成立，旧防线（越界拒）不触发——游标 v2 的
+/// total 绑定必须拦下：E_UNPROCESSABLE（fail-closed，不静默给移位窗口）；
+/// 从首页重取后照常翻页（拒绝面不是无差别拒绝）。
+#[test]
+fn matrix_growth_between_pages_rejected_not_silently_shifted() {
+    let (mut svc, pid) = matrix_store(100);
+    // 第 1 页：total=100，next_cursor 锚定 (offset=50, total=100)
+    let r = ok_result(call(&mut svc, "get_compliance_matrix", json!({
+        "project_id": pid, "limit": 50,
+    })));
+    assert_eq!(r["total"], json!(100));
+    let nc = r["next_cursor"].as_str().unwrap().to_string();
+
+    // 两页之间行集增长：重跑合并（set_requirements 按 dedupe_hash 幂等合并——
+    // 同哈希覆盖原位、新件追加）——前 100 条与首轮完全同构（同 locator/excerpt
+    // → 同哈希 → 覆盖不增行），追加 5 条新哈希 → total 105。fp 只绑
+    // 工具/项目/过滤器，与行数无关，指纹门不拦，只能靠总数绑定拦。
+    {
+        let st = svc.store_mut();
+        let reqs: Vec<Requirement> = (0..105)
+            .map(|i| Requirement {
+                id: format!("REQ-{:04}", i + 1),
+                category: CATS[i % CATS.len()].into(),
+                clause_no: Some(format!("3.{}", i + 1)),
+                anchors: vec![Anchor {
+                    file: "A".into(),
+                    kind: "para".into(),
+                    locator: format!("第三章 > 3.{}", i + 1),
+                    excerpt: format!("S-4 合成条款 {i}（唯一锚——dedupe_hash 不互撞）"),
+                    block_idx: None,
+                    page: None,
+                    line: None,
+                }],
+                params: HashMap::new(),
+                source_file: "A".into(),
+            })
+            .collect();
+        let (total, added) = st.set_requirements(reqs).unwrap();
+        assert_eq!((total, added), (105, 5), "增长夹具自检：100 覆盖 + 5 追加");
+    }
+
+    // 旧游标翻页 → E_UNPROCESSABLE（增长位移 fail-closed，不静默翻错页）
+    let reply = call(&mut svc, "get_compliance_matrix", json!({
+        "project_id": pid, "limit": 50, "cursor": nc,
+    }));
+    assert_eq!(err_code(&reply), "E_UNPROCESSABLE", "行集增长位移必须拒");
+
+    // 从首页重取：新游标锚定 total=105，第二页照常翻（守卫拒绝的是漂移游标，
+    // 不是翻页本身）
+    let r = ok_result(call(&mut svc, "get_compliance_matrix", json!({
+        "project_id": pid, "limit": 50,
+    })));
+    assert_eq!(r["total"], json!(105), "增长后 total=105");
+    let nc2 = r["next_cursor"].as_str().unwrap().to_string();
+    let r = ok_result(call(&mut svc, "get_compliance_matrix", json!({
+        "project_id": pid, "limit": 50, "cursor": nc2,
+    })));
+    assert_eq!(r["rows"].as_array().unwrap().len(), 50, "新首页游标正常翻页");
+    // 第二页首行 = 全量第 51 条（无跳行——位移守卫下的行序连续性）
+    assert_eq!(
+        r["rows"][0]["cmp_id"].as_str().unwrap(),
+        "CMP-0051",
+        "第二页从第 51 行起（无位移）"
+    );
+}
+
 // ---------------------------------------------------------------- 4. limit 边界
 
 /// limit 边界：0 / 1001 / 非数字 → 显式拒（不静默 clamp）；缺省 → 100；

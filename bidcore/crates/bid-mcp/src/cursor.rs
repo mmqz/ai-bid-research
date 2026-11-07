@@ -7,7 +7,7 @@
 //! `next_cursor=null` 即取完；调用方把 next_cursor 原样回传取下一页。
 //!
 //! 设计决策：
-//! - **游标即偏移**：cursor = base64(JSON{v, offset, fp})——对调用方 opaque，
+//! - **游标即偏移**：cursor = base64(JSON{v, offset, fp, total})——对调用方 opaque，
 //!   对本层只是「过滤后列表的稳定偏移」。不做键集分页（keyset）是因为各列表
 //!   的业务键形态各异（CMP 位置序 / EV id 字典序 / SEC target_id 字典序），
 //!   而工具层已保证**行序确定性**（见各工具的分页序注释），偏移在确定序上
@@ -17,9 +17,17 @@
 //!   E_UNPROCESSABLE 拒绝——静默给错页数据比报错危险得多（borrow：mdcore
 //!   corrupt-sidecar 哲学——损坏/错配输入响亮拒绝，不猜测加载）。工具名也入
 //!   fp：不同工具的 offset 索引的是不同列表，跨工具复用同样拒；
-//! - **版本字节**：v=1。不认识的版本（含未来版本）→ E_UNPROCESSABLE——
-//!   跨版本游标语义不可知，fail-closed 不猜测（线格式演进时 bump 版本 + 老
-//!   游标显式失效，与 StoreSnapshot 的 schema_version 同一口径）；
+//! - **游标与行集大小绑定（C-14 / #399）**：v2 起游标签发时携带「过滤后总数」
+//!   total_at_issue，翻页时与当前总数比对——两页之间行集**增长**（重跑 extract
+//!   新增 REQ / REQ-A 追加）时 offset ≤ total 仍成立，旧防线（越界拒）不触发，
+//!   slice 会静默返回移位后的窗口（翻页跳行/重行）。总数绑定后：签发时 ≠
+//!   当前 → E_UNPROCESSABLE（报双总数，从首页重取）——增长与缩水两个位移面
+//!   都被拦住。残余面（同总数内容置换——删一行增一行）需域层版本绑定才能
+//!   覆盖，已登记 #399 不掩盖；
+//! - **版本字节**：v=2（v1→v2 = 增加 total 绑定，老游标显式失效）。不认识的
+//!   版本（含未来版本）→ E_UNPROCESSABLE——跨版本游标语义不可知，fail-closed
+//!   不猜测（线格式演进时 bump 版本 + 老游标显式失效，与 StoreSnapshot 的
+//!   schema_version 同一口径）；
 //! - **limit 显式拒**：1..=1000，缺省 100。越界/非整数 → E_UNPROCESSABLE
 //!   而非 clamp——静默 clamp 会让调用方以为拿到了请求的页宽（对账面出错），
 //!   这是 B5 期 get_compliance_matrix `.max(1)` clamp 习惯的显式修正；
@@ -39,7 +47,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// 游标线格式版本。bump = 线格式不兼容变更（老游标显式失效，fail-closed）。
-pub const CURSOR_VERSION: u8 = 1;
+/// v2（#399）：payload 增加 `total`（签发时过滤后总数）——行集增长位移守卫。
+pub const CURSOR_VERSION: u8 = 2;
 
 /// limit 下界（0 页宽无意义——显式拒）。
 pub const LIMIT_MIN: u64 = 1;
@@ -106,23 +115,42 @@ struct CursorPayload {
     offset: u64,
     /// 过滤器指纹（与本次调用的过滤参数绑定——错配即拒）。
     fp: String,
+    /// 签发时过滤后总数（v2 新增——增长位移守卫锚点）。Option 仅服务于
+    /// 反序列化宽容面：v1 老游标先被版本检查拦下；伪造 v2 缺 total →
+    /// fail-closed 拒。encode 路径恒 Some。
+    total: Option<u64>,
 }
 
-/// 编码游标（内部值：offset 由 slice 保证 ≤ total，fp 为内部计算值——
+/// 解码结果（offset + 签发时总数——两者都是 slice 裁决的输入）。
+#[derive(Debug, PartialEq, Eq)]
+pub struct DecodedCursor {
+    /// 起始偏移。
+    pub offset: u64,
+    /// 签发时过滤后总数（位移守卫锚点——与当前总数比对）。
+    pub total: u64,
+}
+
+/// 编码游标（内部值：offset/total 由 slice 保证 ≤ 实际总数，fp 为内部计算值——
 /// 纯标量 struct 的 serde_json 序列化不可失败）。
-pub fn encode(offset: u64, fp: &str) -> String {
+pub fn encode(offset: u64, fp: &str, total: u64) -> String {
     use base64::Engine as _;
-    let payload = CursorPayload { v: CURSOR_VERSION, offset, fp: fp.to_string() };
+    let payload = CursorPayload {
+        v: CURSOR_VERSION,
+        offset,
+        fp: fp.to_string(),
+        total: Some(total),
+    };
     let json = serde_json::to_string(&payload)
-        .expect("游标 payload 序列化不可失败（u8/u64/String 三标量字段）");
+        .expect("游标 payload 序列化不可失败（u8/u64/String/Option 标量字段）");
     base64::engine::general_purpose::STANDARD.encode(json.as_bytes())
 }
 
 /// 解码游标（**不可信输入面**——任何一步坏 → E_UNPROCESSABLE，绝不 panic）。
 ///
-/// 检查序：base64 → JSON → 版本字节 → 指纹匹配。任一失败即 fail-closed；
-/// 通过则返回 offset（是否越界由 [`slice`] 结合当前总数裁决）。
-pub fn decode(cursor: &str, expected_fp: &str) -> Result<u64, ToolError> {
+/// 检查序：base64 → JSON → 版本字节 → total 绑定在场 → 指纹匹配。任一失败即
+/// fail-closed；通过则返回 offset 与签发时总数（是否漂移/越界由 [`slice`] 结合
+/// 当前总数裁决）。
+pub fn decode(cursor: &str, expected_fp: &str) -> Result<DecodedCursor, ToolError> {
     use base64::Engine as _;
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(cursor.as_bytes())
@@ -136,28 +164,35 @@ pub fn decode(cursor: &str, expected_fp: &str) -> Result<u64, ToolError> {
     if payload.v != CURSOR_VERSION {
         return Err(ToolError::EUnprocessable {
             what: format!(
-                "cursor 版本 v{} 不认识（当前支持 v{CURSOR_VERSION}——跨版本游标语义不可知，fail-closed 拒）",
+                "cursor 版本 v{} 不认识（当前支持 v{CURSOR_VERSION}——跨版本游标语义不可知，fail-closed 拒；请从首页重取）",
                 payload.v
             ),
         });
     }
+    // v2 游标必须携带 total 绑定（伪造缺字段 → fail-closed，不猜测为 0/无限）
+    let total = payload.total.ok_or_else(|| ToolError::EUnprocessable {
+        what: "cursor 缺 total 绑定（v2 线格式必需字段——fail-closed 拒，请从首页重取）".into(),
+    })?;
     if payload.fp != expected_fp {
         return Err(ToolError::EUnprocessable {
             what: "cursor 与当前过滤器指纹不匹配（跨过滤器/跨工具复用游标——拒绝静默给错页数据；请用相同过滤参数从头取）".into(),
         });
     }
-    Ok(payload.offset)
+    Ok(DecodedCursor { offset: payload.offset, total })
 }
 
 // ---------------------------------------------------------------- 窗口解析面
 
-/// 生效分页窗口（offset + 已校验 limit）。
+/// 生效分页窗口（offset + 已校验 limit + 签发时总数锚点）。
 #[derive(Debug)]
 pub struct Window {
     /// 本次起始偏移（cursor 解码值 / page 映射值 / 首页 0）。
     pub offset: u64,
     /// 生效页宽（1..=1000，已显式校验）。
     pub limit: u64,
+    /// 游标签发时的过滤后总数（None = 首页 / page 兼容路径——无位移守卫
+    /// 锚点，只走 offset 越界检查；Some = cursor 路径，slice 与当前总数比对）。
+    pub total_at_issue: Option<u64>,
 }
 
 /// 从工具入参解析分页窗口。
@@ -191,10 +226,13 @@ pub fn resolve(args: &Value, tool: &str, fp: &str) -> Result<Window, ToolError> 
         }
     };
     // ---- offset（cursor 优先；page 兼容映射；缺省首页 0）
-    let offset = match args.get("cursor") {
-        Some(Value::String(c)) => decode(c, fp)?,
+    let (offset, total_at_issue) = match args.get("cursor") {
+        Some(Value::String(c)) => {
+            let d = decode(c, fp)?;
+            (d.offset, Some(d.total))
+        }
         None | Some(Value::Null) => match args.get("page") {
-            None | Some(Value::Null) => 0,
+            None | Some(Value::Null) => (0, None),
             Some(Value::Number(n)) => {
                 let page = n.as_u64().ok_or_else(|| ToolError::EUnprocessable {
                     what: format!("{tool}: page 须为正整数（1 起）"),
@@ -206,11 +244,13 @@ pub fn resolve(args: &Value, tool: &str, fp: &str) -> Result<Window, ToolError> 
                         ),
                     });
                 }
-                page.checked_sub(1)
+                let offset = page
+                    .checked_sub(1)
                     .and_then(|zero_based| zero_based.checked_mul(limit))
                     .ok_or_else(|| ToolError::EUnprocessable {
                         what: format!("{tool}: page={page} 偏移计算溢出（fail-closed）"),
-                    })?
+                    })?;
+                (offset, None)
             }
             Some(_) => {
                 return Err(ToolError::EUnprocessable {
@@ -224,7 +264,7 @@ pub fn resolve(args: &Value, tool: &str, fp: &str) -> Result<Window, ToolError> 
             });
         }
     };
-    Ok(Window { offset, limit })
+    Ok(Window { offset, limit, total_at_issue })
 }
 
 // ---------------------------------------------------------------- 切片面
@@ -244,9 +284,23 @@ pub struct PageSlice {
 
 /// 按窗口切过滤后列表（`total` = 过滤后总数——调用方先过滤后分页）。
 ///
-/// offset > total → E_UNPROCESSABLE（底层列表在两页之间缩水——fail-closed
-/// 不静默给空页）；offset == total 合法（恰取到尾的空页）。
+/// 两道 fail-closed 门（先总数漂移、后 offset 越界——漂移门信息更全，
+/// 缩水场景两门皆可触达时先报漂移）：
+/// - **总数漂移拒**（C-14 / #399）：游标签发时总数 ≠ 当前总数（两页之间
+///   行集增长或缩水——增长时 offset ≤ total 仍成立，位移窗口静默翻错页）
+///   → E_UNPROCESSABLE（报双总数，从首页重取）；
+/// - **offset 越界拒**：offset > 当前总数 → E_UNPROCESSABLE，不静默给空页
+///   （空页会被误读为「取完了」）。offset == total 合法（恰取到尾的空页）。
 pub fn slice(window: &Window, fp: &str, total: usize) -> Result<PageSlice, ToolError> {
+    if let Some(prev) = window.total_at_issue {
+        if prev != total as u64 {
+            return Err(ToolError::EUnprocessable {
+                what: format!(
+                    "cursor 签发后底层列表已变化（签发时过滤后总数 {prev}，当前 {total}——增长/缩水位移风险，fail-closed 拒绝静默翻错页；请从首页重取）",
+                ),
+            });
+        }
+    }
     if window.offset > total as u64 {
         return Err(ToolError::EUnprocessable {
             what: format!(
@@ -259,11 +313,16 @@ pub fn slice(window: &Window, fp: &str, total: usize) -> Result<PageSlice, ToolE
     // limit ≤ 1000 已在 resolve 收口，saturating_add 仅作 32 位平台兜底
     let end = start.saturating_add(window.limit as usize).min(total);
     let next_cursor = if end < total {
-        Some(encode(end as u64, fp))
+        Some(encode(end as u64, fp, total as u64))
     } else {
         None
     };
-    Ok(PageSlice { start, end, cursor: encode(window.offset, fp), next_cursor })
+    Ok(PageSlice {
+        start,
+        end,
+        cursor: encode(window.offset, fp, total as u64),
+        next_cursor,
+    })
 }
 
 // ---------------------------------------------------------------- 测试
@@ -305,25 +364,26 @@ mod tests {
     #[test]
     fn encode_decode_roundtrip_and_fail_closed() {
         let fp = fingerprint(&[Some("t"), Some("PRJ-0001"), None]);
-        let c = encode(120, &fp);
-        assert_eq!(decode(&c, &fp).unwrap(), 120);
+        let c = encode(120, &fp, 1_000);
+        let d = decode(&c, &fp).unwrap();
+        assert_eq!((d.offset, d.total), (120, 1_000), "往返携带 offset + 签发时总数");
         // 坏 base64 / 坏 JSON / 坏版本 / 错指纹 / 负 offset / 缺字段 → 全拒
         assert!(decode("!!!", &fp).is_err());
         assert!(decode(
             &base64::engine::general_purpose::STANDARD.encode(b"\x00\xff garbage"),
             &fp
         ).is_err());
-        assert!(decode(&encode_for_test(9, 5, &fp), &fp).is_err(), "版本 9 拒");
+        assert!(decode(&encode_for_test(9, 5, Some(7), &fp), &fp).is_err(), "版本 9 拒");
         assert!(decode(&c, "0000000000000000").is_err(), "指纹错配拒");
-        assert!(decode(&encode_for_test(1, 5, &fp), "wrong").is_err(), "指纹错配拒");
+        assert!(decode(&encode_for_test(1, 5, Some(7), &fp), "wrong").is_err(), "指纹错配拒（版本 1 也在版本检查即拒）");
         assert!(decode(
             &base64::engine::general_purpose::STANDARD
-                .encode(br#"{"v":1,"offset":-5,"fp":"x"}"#),
+                .encode(br#"{"v":2,"offset":-5,"fp":"x"}"#),
             &fp
         ).is_err(), "负 offset（u64 反序列化拒）");
         assert!(decode(
             &base64::engine::general_purpose::STANDARD
-                .encode(br#"{"v":1,"offset":5}"#),
+                .encode(br#"{"v":2,"offset":5}"#),
             &fp
         ).is_err(), "缺 fp 字段拒");
         assert!(decode("", &fp).is_err(), "空串拒");
@@ -331,11 +391,29 @@ mod tests {
         assert!(decode(&c[..c.len() - 4], &fp).is_err());
     }
 
+    /// v1 老游标（无 total 绑定）与伪造 v2 缺 total → 显式拒（#399 版本纪律）。
+    #[test]
+    fn v1_and_missing_total_cursors_rejected() {
+        let fp = "fp";
+        // v1 线格式（审计基线时代的真实形态：无 total 字段）→ 版本不认识拒
+        let v1 = base64::engine::general_purpose::STANDARD
+            .encode(br#"{"v":1,"offset":5,"fp":"fp"}"#);
+        let err = decode(&v1, fp).unwrap_err();
+        let msg = un(err);
+        assert!(msg.contains("v1"), "v1 版本号进报文（可辨认的失效原因）: {msg}");
+        // 伪造 v2 缺 total 绑定 → fail-closed 拒（不猜测为 0/无限）
+        let v2_no_total = base64::engine::general_purpose::STANDARD
+            .encode(br#"{"v":2,"offset":5,"fp":"fp"}"#);
+        let err = decode(&v2_no_total, fp).unwrap_err();
+        let msg = un(err);
+        assert!(msg.contains("total"), "缺绑定报文指明 total: {msg}");
+    }
+
     /// 测试专用锻造（绕过 encode 的版本常量——坏版本注入面）。
-    fn encode_for_test(v: u8, offset: u64, fp: &str) -> String {
+    fn encode_for_test(v: u8, offset: u64, total: Option<u64>, fp: &str) -> String {
         use base64::Engine as _;
         base64::engine::general_purpose::STANDARD
-            .encode(serde_json::to_string(&CursorPayload { v, offset, fp: fp.to_string() }).unwrap())
+            .encode(serde_json::to_string(&CursorPayload { v, offset, fp: fp.to_string(), total }).unwrap())
     }
 
     /// resolve：limit 边界 / cursor 优先 / page 映射与显式拒。
@@ -367,9 +445,13 @@ mod tests {
         // page 溢出拒
         assert!(resolve(&serde_json::json!({ "page": u64::MAX, "limit": 1000 }), "t", fp).is_err());
         // cursor 优先于 page
-        let c = encode(77, fp);
+        let c = encode(77, fp, 500);
         let w = resolve(&serde_json::json!({ "cursor": c, "page": 9, "limit": 10 }), "t", fp).unwrap();
         assert_eq!(w.offset, 77, "cursor 与 page 并存 → cursor 优先");
+        assert_eq!(w.total_at_issue, Some(500), "cursor 路径携带签发时总数");
+        // page 路径无位移守卫锚点（兼容面只走 offset 越界检查）
+        let w = resolve(&serde_json::json!({ "page": 2, "limit": 10 }), "t", fp).unwrap();
+        assert_eq!(w.total_at_issue, None, "page 路径无 total_at_issue");
         // cursor 非字符串拒
         assert!(resolve(&serde_json::json!({ "cursor": 42 }), "t", fp).is_err());
         // cursor 指纹错配拒
@@ -377,32 +459,62 @@ mod tests {
     }
 
     /// slice：区间 / 尾页 / 恰尽 / 越界拒 / 空集。
+    /// （Window 直构造 total_at_issue=None——纯 offset 语义面；位移守卫另测。）
     #[test]
     fn slice_windows_and_bounds() {
         let fp = "fp";
         // 中页
-        let s = slice(&Window { offset: 100, limit: 100 }, fp, 12_000).unwrap();
+        let s = slice(&Window { offset: 100, limit: 100, total_at_issue: None }, fp, 12_000).unwrap();
         assert_eq!((s.start, s.end), (100, 200));
-        assert_eq!(s.next_cursor.as_deref(), Some(encode(200, fp).as_str()));
-        assert_eq!(s.cursor, encode(100, fp));
+        assert_eq!(s.next_cursor.as_deref(), Some(encode(200, fp, 12_000).as_str()));
+        assert_eq!(s.cursor, encode(100, fp, 12_000));
         // 尾页不整除
-        let s = slice(&Window { offset: 11_950, limit: 100 }, fp, 12_000).unwrap();
+        let s = slice(&Window { offset: 11_950, limit: 100, total_at_issue: None }, fp, 12_000).unwrap();
         assert_eq!((s.start, s.end), (11_950, 12_000));
         assert!(s.next_cursor.is_none(), "尾页取完 next_cursor=null");
         // 恰尽（limit == 剩余）
-        let s = slice(&Window { offset: 11_900, limit: 100 }, fp, 12_000).unwrap();
+        let s = slice(&Window { offset: 11_900, limit: 100, total_at_issue: None }, fp, 12_000).unwrap();
         assert_eq!(s.end, 12_000);
         assert!(s.next_cursor.is_none(), "limit>剩余 单页取完 next_cursor=null");
         // offset == total 合法（空尾页）
-        let s = slice(&Window { offset: 12_000, limit: 100 }, fp, 12_000).unwrap();
+        let s = slice(&Window { offset: 12_000, limit: 100, total_at_issue: None }, fp, 12_000).unwrap();
         assert_eq!((s.start, s.end), (12_000, 12_000));
         assert!(s.next_cursor.is_none());
         // offset > total 拒（数据缩水 fail-closed）
-        let err = slice(&Window { offset: 12_001, limit: 100 }, fp, 12_000).unwrap_err();
+        let err = slice(&Window { offset: 12_001, limit: 100, total_at_issue: None }, fp, 12_000).unwrap_err();
         assert!(un(err).contains("越界"), "越界错误须指明语义");
         // 空集：offset 0 合法
-        let s = slice(&Window { offset: 0, limit: 100 }, fp, 0).unwrap();
+        let s = slice(&Window { offset: 0, limit: 100, total_at_issue: None }, fp, 0).unwrap();
         assert_eq!((s.start, s.end), (0, 0));
         assert!(s.next_cursor.is_none());
+    }
+
+    /// **C-14 位移守卫**：签发时总数 ≠ 当前总数（增长/缩水）→ 拒（报双总数）；
+    /// 无变化连续翻页通过；next_cursor 携带当前总数（下一页守卫锚点）。
+    #[test]
+    fn slice_total_binding_rejects_drift() {
+        let fp = "fp";
+        // 增长位移（本单核心断言）：签发于 total=100，翻页时 total=105——
+        // offset=100 ≤ 105 旧防线不触发，总数绑定必须拦下
+        let w = Window { offset: 100, limit: 50, total_at_issue: Some(100) };
+        let err = slice(&w, fp, 105).unwrap_err();
+        let msg = un(err);
+        assert!(msg.contains("100") && msg.contains("105"), "报文含双总数: {msg}");
+        // 缩水：先撞漂移门（比 offset 越界更早、信息更全）
+        let err = slice(&Window { offset: 10, limit: 50, total_at_issue: Some(100) }, fp, 60).unwrap_err();
+        let msg = un(err);
+        assert!(msg.contains("签发后底层列表已变化"), "缩水走漂移门: {msg}");
+        // 无变化：连续翻页通过
+        let s = slice(&Window { offset: 50, limit: 50, total_at_issue: Some(100) }, fp, 100).unwrap();
+        assert_eq!((s.start, s.end), (50, 100));
+        assert!(s.next_cursor.is_none(), "尾页取完");
+        // next_cursor 携带当前总数（下一页守卫锚点）
+        let s = slice(&Window { offset: 0, limit: 50, total_at_issue: None }, fp, 100).unwrap();
+        let nc = s.next_cursor.unwrap();
+        let d = decode(&nc, fp).unwrap();
+        assert_eq!((d.offset, d.total), (50, 100), "next_cursor 锚定当前总数");
+        // 增长后再用新首页游标正常翻页（拒绝面不是无差别拒绝）
+        let s = slice(&Window { offset: 50, limit: 50, total_at_issue: Some(105) }, fp, 105).unwrap();
+        assert_eq!((s.start, s.end), (50, 100), "总数匹配的游标照常翻页");
     }
 }

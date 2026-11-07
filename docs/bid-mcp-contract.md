@@ -1134,6 +1134,39 @@ out: { file_id, file_name,
 明确不做: 不自动补标（只报告——补标由 Agent/人决策：submit_block_marks
       substantive=true 后重跑 extract_requirements）；不改抽取逻辑；无 UI。
 
+## 23. check_scoring_coverage（#318 评标细则逐条响应覆盖检查 · 只读）
+```
+in : { project_id }
+out: { project_id,
+       summary: { criteria_total,          评分细则总数（评分项+否决项都进报告）
+                  criteria_with_points,    拆出 ≥1 点的细则数（无枚举形态的
+                                            细则如实计 0 点——notes 提示人工读）
+                  criteria_unmapped,       无章节映射的细则数（点覆盖不可判——
+                                            #224 unmapped 同面，先建纲/映射）
+                  points_total, points_covered,
+                  coverage_ratio,          covered/total（无点时 0——不伪装 100%）
+                  suggested_deduction },   Σ(满分×未覆盖点占比)——启发式参考值
+       criteria: [ { criterion_id, criteria_excerpt(≤40字), max_score,
+                     mapped_sections,
+                     points: [{ point, hit_section }],   hit_section=null 即漏点
+                     covered, total, suggested_deduction } ],
+       notes[], next }
+拆点: 细则原文（score_rules，缺省回退 criteria 摘录）的字面枚举挖掘——
+      触发词（需包含/应包括/须具备/应提供…18 词族）后的顿号/连接词
+      枚举；无触发词回退顿号串形态（≥2 合法段）。合法段 = 2..=12 字、
+      CJK 主导、无句读。确定性、可复现——**无语义理解**（语义等价表述
+      「架构设计」vs「总体架构」不识别，notes 明示）。
+覆盖: 点对细则映射章节（ScoringItem.mappings ∪ 持久化 ScoringMapping
+      账本——与 score 工具同口径）做**正文**子串命中（纯正文——建纲
+      标题不算：#252 评分驱动建纲的 L2 标题派生自细则原文，标题自命中
+      是伪覆盖；正文自带的标题行照常命中）。命中位报到首个命中章节。
+建议扣分: max_score × 未覆盖点/总点（无点或无分值不计——不可判 ≠ 全扣）。
+窗口: 与 get_coverage_report 同族只读面——建纲后可查（映射在场）；
+      起草后复跑看覆盖收敛（next 给补写指引）。
+明确不做: 不自动补写（只报告——补写走 rewrite_section_segment /
+      append_section_segment 后复跑本工具）；不做语义判档（#186 判档
+      接入前的诚实口径）。
+
 ## LT. list_tools（#279 行协议发现面 · 只读）
 ```
 in : {}（无参数、无状态前置——建项目前即可调）

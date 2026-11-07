@@ -83,6 +83,8 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         "get_requirement_provenance" => crate::bidi_tools::get_requirement_provenance(svc, args),
         "get_block_requirements" => crate::bidi_tools::get_block_requirements(svc, args),
         "get_annotation_overlay" => crate::bidi_tools::get_annotation_overlay(svc, args),
+        // ---- #318 评分细则逐条响应覆盖检查（只读诊断——拆点/命中/漏点/建议扣分） ----
+        "check_scoring_coverage" => crate::coverage_tools::check_scoring_coverage(svc, args),
         "score_section" => score_section(svc, args),
         "score_document" => score_document(svc, args),
         // ---- #145 任务 1：双通道证据检索（契约 §5——朴素实现，真向量库见 M2-b）----

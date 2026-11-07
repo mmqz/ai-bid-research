@@ -309,6 +309,14 @@ fn input_schema(name: &str) -> Value {
             },
             "required": ["project_id", "file_id"]
         }),
+        // ---- #318 评分细则逐条响应覆盖检查 ----
+        "check_scoring_coverage" => json!({
+            "type": "object",
+            "properties": {
+                "project_id": pid
+            },
+            "required": ["project_id"]
+        }),
         "get_compliance_matrix" => json!({
             "type": "object",
             "properties": {
@@ -781,6 +789,7 @@ pub(crate) fn describe(name: &str) -> &'static str {
         "get_requirement_provenance" => "只读：REQ 溯源（#285②——REQ→原文：锚点带 block_idx/page/line，块位三级真源＝回填值→旧锚(locator,excerpt)兜底→null 诚实；resolved_via 标记腿来源）",
         "get_block_requirements" => "只读：块反查（#285②——块→REQ：原文+verdict（无标记=null）+req_ids+marked_by；无 REQ 块照常返回）",
         "get_annotation_overlay" => "只读：视图层 overlay 数据面（#285②——逐块 req_ids/semantic(emphasis|requirement)/status/suspected_miss；计数全量、明细≤200 截断，page 参数分页）",
+        "check_scoring_coverage" => "只读：评分细则逐条响应覆盖检查（#318——细则拆点（触发词+顿号枚举的字面挖掘）对映射章节正文做子串命中（纯正文——建纲标题不算，防标题派生自命中的伪覆盖）；criteria[] 逐细则 points[]{point,hit_section} 漏点即扣分面；summary 建议扣分=Σ(满分×未覆盖比)启发式；notes 明示字面口径局限（语义等价表述不识别）；只报不补——补写走 rewrite_section_segment/append_section_segment）",
         _ => "unknown",
     }
 }
@@ -823,6 +832,10 @@ fn is_implemented(name: &str) -> bool {
             | "get_requirement_provenance"
             | "get_block_requirements"
             | "get_annotation_overlay"
+            // #318 评分细则逐条响应覆盖检查（只读诊断——拆点/命中/漏点/建议扣分；
+            // 漏登会让 mang-app diag 的动态断言 implemented==TOOL_NAMES 必红，
+            // 且该测试只在 Windows CI 执行，Linux 侧代理本地抓不到）
+            | "check_scoring_coverage"
             // #243 校验状态安全与恢复
             | "recover_validating_state"
             // #254 章节级增量写入三工具

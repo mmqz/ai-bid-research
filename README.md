@@ -29,23 +29,23 @@ P7 复核  → record_review_gate（签域四重绑定 + 提交就绪面）
 P8 导出  → export_bid_document（篇幅门 + 矩阵 blocking 清零）
 ```
 
-### 31 个 MCP 工具
+### 33 个 MCP 工具
 
 ```
 建项导入（2）：create_bid_project / import_tender_files
 抽取矩阵（3）：extract_requirements / get_compliance_matrix / set_matrix_override
 建纲篇幅（2）：build_outline / recommend_length_profile
 证据（4）：list_evidence / register_evidence / bind_evidence / search_evidence
-起草（5）：draft_response_section / append_section_segment / 
+起草校验（5）：draft_response_section / append_section_segment /
             rewrite_section_segment / list_section_segments / validate_bid_document
-复核评分（6）：record_review_gate / record_addendum_waiver / check_bid_quality
+复核评分（7）：record_review_gate / record_addendum_waiver / check_bid_quality
               / score_price / score_section / score_document
+              / check_scoring_coverage（#318 细则逐条响应覆盖检查）
 全块覆盖（4）：get_document_chunks / submit_block_marks / get_coverage_report
               / get_star_coverage（★漏标检测）
-状态恢复（3）：get_bid_project_state / save_version / recover_validating_state
-任务（1）：list_tasks
-导出（1）：export_bid_document
-发现（1）：list_tools
+导出恢复（4）：export_bid_document / get_bid_project_state / save_version
+              / recover_validating_state
+其他（3）：list_tasks / list_tools（#279 行协议发现面）
 ```
 
 ### 篇幅档位（四档）
@@ -124,7 +124,7 @@ INFO     仅记录
 | [AGENTS.md](AGENTS.md) | **代理协作规则**——开工前必读 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 环境搭建 + 开发流程 |
 | [docs/bid-domain-model.md](docs/bid-domain-model.md) | 领域对象 + 状态机 + ID 命名空间 |
-| [docs/bid-mcp-contract.md](docs/bid-mcp-contract.md) | MCP 工具契约（31 个工具） |
+| [docs/bid-mcp-contract.md](docs/bid-mcp-contract.md) | MCP 工具契约（33 个工具） |
 | [docs/bid-skill-design.md](docs/bid-skill-design.md) | Skill 九阶段路径 + 停止条件 |
 | [docs/architecture-decision.md](docs/architecture-decision.md) | AD-01~AD-07 决策记录 |
 | [docs/threat-model.md](docs/threat-model.md) | 安全威胁模型 |

@@ -313,6 +313,102 @@ git rev-parse --abbrev-ref HEAD  # 同上
 
 ---
 
+## 0.0.15 加 enum 变体后，必须全仓查 match 覆盖
+
+**一个 PR 给 enum 加变体，另一个 PR 的 match 就缺分支——并发开发中这必然发生。**
+
+## 2026-11-08 实测：一个变体连锁炸 4 个 PR
+
+```
+#402 给 CommandOutcome 加 Reordered
+  → mdcore-wasm/src/canvas.rs 的 batch_receipt_json 缺分支
+  → #369 CI 红（E0004 non-exhaustive patterns）
+
+#405 加 TagAdded / TagRemoved
+  → 同一处缺分支
+  → #369 又红一次
+
+#404 加 FrameCreated / FrameRenamed / ParentSet
+  → 同一处再缺 3 个
+  → #369 第三次红
+
+#404 还给 ObjectKind 加 Frame
+  → canvas/src/json_canvas.rs 缺分支
+  → #444 CI 红
+```
+
+**同一个 PR（#369）修了三次，每次都是别人加了变体。**
+
+## 加变体后的必做三查
+
+### 查 1：全仓搜 match
+
+```bash
+# 假设你给 CommandOutcome 加了变体
+git grep -n "CommandOutcome::" -- "*/src/*.rs" "*/tests/*.rs" | grep -v "你的改动文件"
+
+# 更通用：搜枚举名
+git grep -n "match.*CommandOutcome\|CommandOutcome::" -- "*/src/*.rs"
+```
+
+### 查 2：编译全 workspace 的 all-targets
+
+```bash
+# 只 check lib 会漏 tests/benches 里的 match
+cargo check --workspace --all-targets
+
+# mang-shell 是独立 workspace
+cd mang-shell && cargo check --all-targets
+```
+
+**为什么必须 --all-targets**：
+
+```
+cargo check            → 只查 lib/bin
+cargo check --all-targets → 还查 tests/benches/examples
+
+#369 的失败就在 tests/canvas_wasm.rs 里
+```
+
+### 查 3：错误码改名后搜旧名
+
+```bash
+# 改错误码/常量名后
+git grep -n "旧名字" -- "*/src/*.rs" "*/tests/*.rs" "*.py"
+
+# 实例：cv_notfound → cv_object_not_found
+#369 分支里还有旧名 → 测试断言失败（left: cv_object_not_found）
+```
+
+## 常见漏点（按踩坑频率）
+
+```
+① wasm 桥的 match（mdcore-wasm/src/*.rs）
+   最容易漏——它把所有引擎变体转 JSON
+
+② 测试里的 match
+   cargo check（不带 --all-targets）查不到
+
+③ 序列化/反序列化面
+   serde 的 tag 名要同步
+
+④ 文档里的枚举清单
+   contract.md / SKILL.md 的表格
+
+⑤ 派生面（tool-surface 管的 4 个文件）
+   跑 tool-surface --write 自动修
+```
+
+## 一句话
+
+```
+加变体 = 改契约。
+契约变了，所有消费方都要跟上——编译器会告诉你，但你得让它有机会说话。
+cargo check --workspace --all-targets 就是让它说话的方式。
+```
+
+---
+
 ## 0.0.1 一个 issue 只能有一个 PR
 
 ```

@@ -120,6 +120,36 @@ MATRIX_READY 后不存在「悄悄改档」——重建面按 p3-matrix 状态�
 用户确认后才豁免——**不要自作主张豁免**（AI 操作者不得自审自过的门禁
 精神）。
 
+## 全局一致性预检（check_bid_quality 的 global_conflicts——#423）
+
+`validate_bid_document` 的规则都是**章内**检查；金额/工期/术语/承诺的**跨章
+冲突**（投标函写 350 万、报价面写 358 万这类）由 `check_bid_quality` 响应的
+`global_conflicts` 分节承载（S-5 全局柱）。**P6 全量校验前应先查一次**：
+
+```
+check_bid_quality → global_conflicts: [
+  { kind: "amount_conflict", severity: "blocker",
+    section_id: "SEC-0007",            # 位置锚：冲突少数派首现位
+    message: "金额冲突：投标保证金 在 SEC-0001=3500000 与 PR-0003=3580000" } ]
+```
+
+消费纪律：
+
+- **位置双形态**：`section_id` 是 `SEC-xxxx`（章正文）或 `PR-xxxx`（参数响应
+  行——`message` 里列出全部取值与各自首现位置，逐处核对）；
+- **修复姿势**：先人工裁决正确值，再把**全部**位置对齐（多数派通常是笔误的
+  少数派——但以用户确认为准，不要自动选边）；章内改稿走 P5 修订，参数行走
+  `set_param_responses` 覆写；
+- **空清单 ≠ 全文已核对**：比对面是保守词表（投标保证金/招标控制价/项目
+  预算/服务费/工期/交付周期/实施周期/服务期 + 缩写（全称）+ 服务窗口/响应
+  时间），词表外的数字口径一致性仍需人工核对——空数组只说明「比对面内无
+  冲突」；
+- 同响应的 `negative_deviations` 是**废标级**负偏离参数行（如「不低于 3 年」
+  响应「2 年」）——逐行向用户复述，修复 = 改响应值或如实声明偏离，**不得
+  伪装满足**；
+- 该分节只做诊断不改稿——与 validate 的章内规则（W_PLACEHOLDER 等）分属
+  两面，`global_conflicts` 不进 validate 的 counts/ok（两工具状态面独立）。
+
 ## P7 审校闭环（validate 的 MAJOR 面）
 
 每个 MAJOR finding → 修订任务（RT）→ 修订 → `DONE`。只重跑 DIRTY 章节

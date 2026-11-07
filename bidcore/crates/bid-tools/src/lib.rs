@@ -16,6 +16,8 @@ pub mod quality;
 pub mod readiness;
 // #319 补遗后增量重写（登记编排 + 局部改写编排）
 pub mod rewrite;
+// #423 S-5 审核面 store 接线（run_review 的首个生产消费方）
+pub mod review_wire;
 pub mod runner;
 pub mod schema;
 pub mod segments;

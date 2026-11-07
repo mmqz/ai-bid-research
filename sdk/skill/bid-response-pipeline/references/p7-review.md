@@ -155,14 +155,26 @@ status / project_version
 - **BLOCKER 强制派生 RT**（结构保证非约定保证）：每条 Blocker finding
   自动创建修订工单（owner 空、status=Open、锚 `section_id` 或 `PROJECT`）
   ——「Blocker 数 ≡ RT 数」是数据结构不变量；WARNING/INFO 不派生；
-- RT 生命周期（后端面——MCP 工具面无 RT 推进工具）：
-  `Open → InProgress → Done` 逐级；`Done` 必须带非空 resolution（空说明
-  不算修完）；**Done 是终态不可重开**——重走门 = 新 finding 新 RT；
+- RT 生命周期（#321 起 MCP 工具族在位——此前无工具出口 = 拒审后结构性
+  死锁，唯一出路手改 db.json）：
+  `Open → InProgress → Done` 逐级；处置链 =
+  `assign_revision`（认领/改派，owner 任意操作者——AI 可修单不可过门）
+  → `advance_revision(to:"IN_PROGRESS")`（开工）→ `complete_revision`
+  （关单，resolution 必填非空——改了什么要交代）；`to:"DONE"` 在
+  advance 里一律拒（关单必须带说明）；**Done 是终态不可重开**——重走门
+  = 新 finding 新 RT；complete 的回显带 `open_rt_count`/`open_rt_ids`
+  与导出放行提示；
 - **导出门要求全部 RT DONE**（`open_blockers` 空）——未关单清单会逐个
   点名 RT-id 拒绝导出；
 - 同门重复 Approved：幂等放行**不复位既有 RT**（重新过门 ≠ 已修完——修
   没修完只看 RT 状态）。#180 起幂等判定先比内容摘要：内容已变则落新 REV
   重新绑定（否则改稿后重过门永远返回旧记录 = 死锁）。
+
+配套面（#321 同族，A-23 同批接线）：`batch_task`/`advance_task`（分工
+派工与推进——T-6 Assignment，target=SEC/REQ 自然键 upsert）；
+`reopen_section`（ACCEPTED 章节重开 → Revising+dirty，重导前修订面——
+重开后需重过 pre_export_confirm）；`set_param_responses`（技术参数应答
+录入——偏离表唯一入口，偏离判定派生态）。
 
 与 validate 的关系（诚实桥接）：`validate_bid_document` 的 MAJOR finding
 **不自动生成 RT**——它的修订闭环 = 回 P5 重提该章正文 + `scope` 重跑

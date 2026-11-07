@@ -680,6 +680,16 @@ impl DomainStore {
         let idx = self.revision_tasks.iter().position(|rt| rt.id == rt_id)
             .ok_or_else(|| ToolError::ENotFound { what: format!("revision_task {rt_id} 不存在") })?;
         let cur = self.revision_tasks[idx].status;
+        // 目标是 Done 时优先给「走 complete」指引（无论当前态是否含 Done 边
+        // ——Open 直接推 Done 的报错也该指向正路，而不是只报合法前向清单）
+        if to == RTStatus::Done {
+            return Err(ToolError::EUnprocessable {
+                reason: format!(
+                    "RT {rt_id} 当前 {}——advance 不接受 Done：关单必须带 resolution，走 complete_revision_task（空说明不算修完）",
+                    cur.as_str()
+                ),
+            });
+        }
         if !cur.next_allowed().contains(&to) {
             return Err(ToolError::EUnprocessable {
                 reason: format!(
@@ -688,11 +698,6 @@ impl DomainStore {
                     to.as_str(),
                     cur.next_allowed().iter().map(|s| s.as_str()).collect::<Vec<_>>()
                 ),
-            });
-        }
-        if to == RTStatus::Done {
-            return Err(ToolError::EUnprocessable {
-                reason: "关单必须带 resolution——走 complete_revision_task（空说明不算修完）".into(),
             });
         }
         self.revision_tasks[idx].status = to;

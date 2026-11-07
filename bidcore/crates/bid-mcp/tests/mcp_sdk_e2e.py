@@ -50,12 +50,20 @@ EXPECTED_TOOLS = {
     # #279 行协议发现面（JSON-RPC tools/list 同样可见）
     "list_tools",
     "recommend_length_profile",  # #287 篇幅档位推荐
-    "get_requirement_provenance",  # #285② 块级双向索引三工具（与 TOOL_NAMES 34 对齐）
+    "get_requirement_provenance",  # #285② 块级双向索引三工具
     "get_block_requirements",
     "get_annotation_overlay",
-    # #319 补遗后增量重写两工具（与 TOOL_NAMES 37 对齐）
+    # #319 补遗后增量重写两工具（与 TOOL_NAMES 单一真源对齐）
     "register_addendum_changes",
     "rewrite_section_partial",
+    # #321（A-23）：RT 生命周期 + 分工 + 章节重开 + 参数应答七工具
+    "assign_revision",
+    "advance_revision",
+    "complete_revision",
+    "batch_task",
+    "advance_task",
+    "reopen_section",
+    "set_param_responses",
 }
 
 server_bin = sys.argv[1] if len(sys.argv) > 1 else "bid-mcp-server"
@@ -90,7 +98,7 @@ async def main() -> None:
             # ---- ② list_tools（全量工具面 + inputSchema 形态）----
             tools = (await session.list_tools()).tools
             names = {t.name for t in tools}
-            check(len(tools) == 37, f"list_tools: 工具数 = {len(tools)}（37）")
+            check(len(tools) == 44, f"list_tools: 工具数 = {len(tools)}（44）")
 
             check(names == EXPECTED_TOOLS, "list_tools: 与 TOOL_NAMES 单一真源一致")
             for t in tools:

@@ -87,6 +87,14 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         "score_document" => score_document(svc, args),
         // ---- #145 任务 1：双通道证据检索（契约 §5——朴素实现，真向量库见 M2-b）----
         "search_evidence" => search_evidence(svc, args),
+        // ---- #321（A-23）：RT 生命周期 + 分工 + 章节重开 + 参数应答工具族 ----
+        "assign_revision" => assign_revision(svc, args),
+        "advance_revision" => advance_revision(svc, args),
+        "complete_revision" => complete_revision(svc, args),
+        "batch_task" => batch_task(svc, args),
+        "advance_task" => advance_task(svc, args),
+        "reopen_section" => reopen_section(svc, args),
+        "set_param_responses" => set_param_responses(svc, args),
         // ---- #279：行协议发现面（无状态前置的只读握手——工具清单 + 契约摘要）----
         "list_tools" => list_tools(),
         other => Err(ToolError::ENotFound {
@@ -5748,4 +5756,290 @@ mod chapter_no_tests {
         assert_eq!(chapter_no_of("第1页 行6"), None);
         assert_eq!(chapter_no_of("无任何章节引用"), None);
     }
+}
+
+// ---------------------------------------------------------------- #321（A-23）：RT 生命周期 + 分工 + 章节重开 + 参数应答工具族
+
+/// RT 状态串解析（OPEN|IN_PROGRESS|DONE——SCREAMING_SNAKE 同域层 serde）。
+fn parse_rt_status(s: &str, tool: &str) -> Result<bid_domain::review::RTStatus, ToolError> {
+    serde_json::from_value::<bid_domain::review::RTStatus>(Value::String(s.to_string())).map_err(
+        |_| ToolError::EUnprocessable {
+            what: format!("{tool}: status 非法：{s}（合法值：OPEN|IN_PROGRESS|DONE）"),
+        },
+    )
+}
+
+/// `assign_revision` —— 契约 §12-A（#321/A-23）：RT 认领/改派。
+///
+/// 拒审 BLOCKER 派生的 Open RT 的第一个出口——没有本工具族，
+/// export_allowed 对未关单 RT 恒拒 = 结构性死锁（audit A-23）。
+/// owner 是修订执行者面（任意操作者：人与 AI 均可修单——与复审人不同，
+/// 无 human: 前缀约束；AI 可以修单，不能过门）。DONE 终态不可改派。
+fn assign_revision(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "assign_revision";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let rt_id = req_str(&args, "rt_id", TOOL)?;
+    let owner = req_str(&args, "owner", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
+    route_guard(svc, &project_id, TOOL, project_version)?;
+    svc.assign_revision(&rt_id, &owner).map_err(ToolError::from)?;
+    let rt = svc
+        .store()
+        .revision_tasks()
+        .iter()
+        .find(|t| t.id == rt_id)
+        .ok_or_else(|| ToolError::ENotFound {
+            what: format!("{TOOL}: revision_task {rt_id} 不存在"),
+        })?;
+    Ok(json!({
+        "rt": {
+            "id": rt.id,
+            "finding_id": rt.finding_id,
+            "section_id": rt.section_id,
+            "owner": rt.owner,
+            "status": rt.status.as_str(),
+            "resolution": rt.resolution,
+        },
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
+}
+
+/// `advance_revision` —— 契约 §12-B（#321/A-23）：RT 推进（Open→InProgress）。
+///
+/// →DONE 被域层拒绝（关单必须带 resolution——走 complete_revision）；
+/// DONE 终态零出边（重开 = 重走门派新单，不复活旧单）。
+fn advance_revision(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "advance_revision";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let rt_id = req_str(&args, "rt_id", TOOL)?;
+    let to = parse_rt_status(&req_str(&args, "to", TOOL)?, TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
+    route_guard(svc, &project_id, TOOL, project_version)?;
+    svc.advance_revision(&rt_id, to).map_err(ToolError::from)?;
+    let rt = svc
+        .store()
+        .revision_tasks()
+        .iter()
+        .find(|t| t.id == rt_id)
+        .ok_or_else(|| ToolError::ENotFound {
+            what: format!("{TOOL}: revision_task {rt_id} 不存在"),
+        })?;
+    Ok(json!({
+        "rt": {
+            "id": rt.id,
+            "status": rt.status.as_str(),
+            "owner": rt.owner,
+            "resolution": rt.resolution,
+        },
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
+}
+
+/// `complete_revision` —— 契约 §12-C（#321/A-23）：RT 关单（resolution 必填非空）。
+///
+/// 仅 InProgress 可关（Open 直接 Done = 越级拒——先认领开工再关单）；
+/// resolution 是修单交代（改了什么/怎么改的）——空说明不算修完（诚实状态）。
+fn complete_revision(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "complete_revision";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let rt_id = req_str(&args, "rt_id", TOOL)?;
+    let resolution = req_str(&args, "resolution", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
+    route_guard(svc, &project_id, TOOL, project_version)?;
+    svc.complete_revision(&rt_id, &resolution)
+        .map_err(ToolError::from)?;
+    // 关单后导出 deadlock 面即时回显（还有几个未关单——全部关完才放行）
+    let open = svc.store().open_blockers();
+    Ok(json!({
+        "rt": {
+            "id": rt_id,
+            "status": "DONE",
+            "resolution": resolution,
+        },
+        "open_rt_count": open.len(),
+        "open_rt_ids": open.iter().map(|rt| rt.id.as_str()).collect::<Vec<_>>(),
+        "export_allowed_hint": if open.is_empty() {
+            "全部 RT 已关单——导出 RT 面放行"
+        } else {
+            "仍有未关单 RT——export_bid_document 将被拒（先修完再导）"
+        },
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
+}
+
+/// `batch_task` —— 契约 §12-D（#321/A-23）：分工批量派工（T-6 Assignment）。
+///
+/// targets = SEC-xxxx 章节 / REQ-xxxx 条款（自然键 upsert：同 owner 重批 =
+/// 只改截止日；换 owner = 状态复位 ASSIGNED——换人 = 新进度轴）。
+fn batch_task(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "batch_task";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let owner = req_str(&args, "owner", TOOL)?;
+    let deadline = opt_str(&args, "deadline", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
+    let targets: Vec<String> = match args.get("targets") {
+        Some(Value::Array(a)) => a
+            .iter()
+            .map(|v| {
+                v.as_str().map(str::to_string).ok_or_else(|| {
+                    ToolError::EUnprocessable {
+                        what: format!("{TOOL}: targets 须为字符串数组（SEC-xxxx/REQ-xxxx）"),
+                    }
+                })
+            })
+            .collect::<Result<_, _>>()?,
+        _ => {
+            return Err(ToolError::EUnprocessable {
+                what: format!("{TOOL}: targets 必填（非空字符串数组——批量派工的对象清单）"),
+            })
+        }
+    };
+    if targets.is_empty() {
+        return Err(ToolError::EUnprocessable {
+            what: format!("{TOOL}: targets 不得为空（空批次无意义）"),
+        });
+    }
+    route_guard(svc, &project_id, TOOL, project_version)?;
+    let (total, added) = svc
+        .batch_task(&targets, &owner, deadline.as_deref())
+        .map_err(ToolError::from)?;
+    Ok(json!({
+        "total": total,
+        "added": added,
+        "owner": owner,
+        "deadline": deadline,
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
+}
+
+/// `advance_task` —— 契约 §12-E（#321/A-23）：分工单件推进
+/// （ASSIGNED→IN_PROGRESS→DONE 线性链，越级拒）。
+fn advance_task(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "advance_task";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let target_id = req_str(&args, "target_id", TOOL)?;
+    let to = match serde_json::from_value::<bid_domain::assignment::TaskStatus>(Value::String(
+        req_str(&args, "to", TOOL)?,
+    )) {
+        Ok(t) => t,
+        Err(_) => {
+            return Err(ToolError::EUnprocessable {
+                what: format!("{TOOL}: to 非法（合法值：ASSIGNED|IN_PROGRESS|DONE）"),
+            })
+        }
+    };
+    let project_version = opt_cas_version(&args, TOOL)?;
+    route_guard(svc, &project_id, TOOL, project_version)?;
+    svc.advance_task(&target_id, to).map_err(ToolError::from)?;
+    let a = svc
+        .store()
+        .assignments()
+        .iter()
+        .find(|x| x.target_id == target_id)
+        .ok_or_else(|| ToolError::ENotFound {
+            what: format!("{TOOL}: assignment {target_id} 不存在"),
+        })?;
+    Ok(json!({
+        "task": {
+            "target_id": a.target_id,
+            "owner": a.owner,
+            "status": a.status.as_str(),
+            "deadline": a.deadline,
+        },
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
+}
+
+/// `reopen_section` —— 契约 §12-F（#321/A-23）：ACCEPTED 章节重开。
+///
+/// →Revising + dirty（重导前的修订面）；非 ACCEPTED 拒（非终态用 advance）。
+fn reopen_section(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "reopen_section";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let section_id = req_str(&args, "section_id", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
+    route_guard(svc, &project_id, TOOL, project_version)?;
+    svc.reopen_section(&section_id).map_err(ToolError::from)?;
+    let s = svc
+        .store()
+        .sections()
+        .iter()
+        .find(|n| n.id == section_id)
+        .ok_or_else(|| ToolError::ENotFound {
+            what: format!("{TOOL}: section {section_id} 不存在"),
+        })?;
+    Ok(json!({
+        "section": {
+            "id": s.id,
+            "title": s.title,
+            "status": s.status.as_str(),
+            "dirty": s.dirty,
+        },
+        "note": "已重开为 REVISING——重新起草后走原验收链（重导前需重过 pre_export_confirm）",
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
+}
+
+/// `set_param_responses` —— 契约 §12-G（#321/A-23）：参数应答批量写入
+/// （技术参数偏离表的唯一录入面——此前无 MCP 入口恒为空账，A-07 上游缺口）。
+///
+/// rows[].{requirement_id, param_name, required_value, response_value, evidence_id?}
+/// ——偏离判定是派生态（derive_deviation 单一真源：数值主判>语义标记>不可比）。
+fn set_param_responses(svc: &mut BidService, args: Value) -> ToolResult {
+    const TOOL: &str = "set_param_responses";
+    let project_id = req_str(&args, "project_id", TOOL)?;
+    let project_version = opt_cas_version(&args, TOOL)?;
+    let rows_v = args
+        .get("rows")
+        .filter(|v| v.is_array())
+        .cloned()
+        .ok_or_else(|| ToolError::EUnprocessable {
+            what: format!("{TOOL}: rows 必填（数组——参数应答行清单）"),
+        })?;
+    if rows_v.as_array().map(|a| a.is_empty()).unwrap_or(true) {
+        return Err(ToolError::EUnprocessable {
+            what: format!("{TOOL}: rows 不得为空（空参数表无行可比对）"),
+        });
+    }
+    let mut rows = Vec::with_capacity(rows_v.as_array().map(|a| a.len()).unwrap_or(0));
+    for (i, r) in rows_v.as_array().unwrap().iter().enumerate() {
+        let obj = r.as_object().ok_or_else(|| ToolError::EUnprocessable {
+            what: format!("{TOOL}: rows[{i}] 须为对象"),
+        })?;
+        let get_str = |k: &str| -> Result<String, ToolError> {
+            obj.get(k)
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .ok_or_else(|| ToolError::EUnprocessable {
+                    what: format!("{TOOL}: rows[{i}].{k} 必填（字符串）"),
+                })
+        };
+        rows.push(bid_domain::param::ParamInput {
+            requirement_id: get_str("requirement_id")?,
+            param_name: get_str("param_name")?,
+            required_value: get_str("required_value")?,
+            response_value: get_str("response_value")?,
+            evidence_id: obj
+                .get("evidence_id")
+                .and_then(|v| v.as_str())
+                .map(str::to_string),
+        });
+    }
+    route_guard(svc, &project_id, TOOL, project_version)?;
+    let (total, added) = svc
+        .set_param_responses(rows)
+        .map_err(ToolError::from)?;
+    Ok(json!({
+        "total": total,
+        "added": added,
+        "note": "偏离判定为派生态（derive_deviation 单一真源）——导出技术参数偏离表自动逐行判定",
+        "project_version": svc.store().content_version(),
+        "request_id": next_request_id(),
+    }))
 }

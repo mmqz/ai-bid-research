@@ -479,13 +479,11 @@ pub fn file_meta(p: &Path) -> Option<std::fs::Metadata> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// #303/FG-01 修复：last-workspace.json 是进程级单文件；
-    /// 多个测试并行读写会互踩（串行 39/39 绿，并行 38/39——
-    /// workspace_open_rejects_bad_paths_without_switching 先写了别的路径，
-    /// workspace_open_persists_last_workspace 读到时已被覆盖）。
-    /// 用测试级互斥锁串行化「会碰 last-workspace 的测试」，不是放宽断言。
-    static LAST_WS_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    // #383：触碰 last-workspace.json / recent.json 的测试统一持
+    // crate 级共享锁（见 test_support.rs）——取代 #303 时代只在
+    // ipc::tests 内部生效的 LAST_WS_TEST_LOCK（与 recent::tests 互不相识，
+    // CI 并行即红）。
+    use crate::test_support::workspace_files_guard;
 
     #[test]
     fn parses_and_errors() {
@@ -550,6 +548,10 @@ mod tests {
 
     #[test]
     fn workspace_open_switches_root_and_reports_change() {
+        // #383：open_workspace 成功即写全局 last-workspace.json（ipc.rs
+        // `remember_last_workspace`）——本测试不断言它，但它的写入会
+        // 插进「持久化/直写」测试的断言序列里，必须持同一把锁。
+        let _guard = workspace_files_guard();
         let a = std::fs::canonicalize(tmp_dir("a")).unwrap();
         let b = std::fs::canonicalize(tmp_dir("b")).unwrap();
         let ctx = Ctx::new(Workspace::new(&a).unwrap(), PathBuf::new());
@@ -576,8 +578,9 @@ mod tests {
 
     #[test]
     fn workspace_open_rejects_bad_paths_without_switching() {
-        // #303/FG-01：last-workspace 是全局单文件，并行测试互踩——测试级串行化。
-        let _guard = LAST_WS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // #383：走共享锁（#303 口径迁移——失败路径不落盘，但同序列的
+        // 兄弟测试读写该文件，统一串行化面不变）。
+        let _guard = workspace_files_guard();
         let a = std::fs::canonicalize(tmp_dir("keep")).unwrap();
         let b = tmp_dir("gone");
         std::fs::remove_dir_all(&b).unwrap(); // B 不存在
@@ -601,8 +604,10 @@ mod tests {
 
     #[test]
     fn workspace_open_persists_last_workspace() {
-        // #303/FG-01：last-workspace 是全局单文件，并行测试互踩——测试级串行化。
-        let _guard = LAST_WS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // #383：写+读全局 last-workspace.json，持 crate 级共享锁——
+        // #303 只锁了 ipc 内部，recent::tests 的直写照样能插进来
+        //（CI 并行红的就是这个测试）。
+        let _guard = workspace_files_guard();
         let a = tmp_dir("la");
         let b = std::fs::canonicalize(tmp_dir("lb")).unwrap();
         let ctx = Ctx::new(Workspace::new(&a).unwrap(), PathBuf::new());

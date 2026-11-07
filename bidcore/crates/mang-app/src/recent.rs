@@ -294,6 +294,10 @@ pub fn history_list(ws: &Workspace, args: Args<'_>) -> Result<Value, IpcError> {
 mod tests {
     use super::*;
     use crate::ipc::Args;
+    // #383：save/load 写读全局 recent.json；roundtrip 直写全局
+    // last-workspace.json——两者都必须持 crate 级共享锁（见
+    // test_support.rs），否则与 ipc::tests 的 workspace 序列互踩。
+    use crate::test_support::workspace_files_guard;
 
     #[test]
     fn history_tolerates_missing_and_grouped() {
@@ -336,6 +340,9 @@ mod tests {
 
     #[test]
     fn recent_roundtrip() {
+        // #383：save/load 触碰全局 recent.json（与 last-workspace 同目录
+        // 的进程级单文件），持共享锁。
+        let _guard = workspace_files_guard();
         let mut m = serde_json::Map::new();
         m.insert(
             "items".into(),
@@ -355,6 +362,10 @@ mod tests {
 
     #[test]
     fn last_workspace_roundtrip_and_staleness() {
+        // #383：本测试直写（绕过 remember_last_workspace）+ 读回全局
+        // last-workspace.json——#303 修 ipc 时漏掉的那个触碰者，正是
+        // CI 并行红的插队者；现在与 ipc::tests 持同一把锁。
+        let _guard = workspace_files_guard();
         let dir = std::env::temp_dir().join(format!(
             "mang-lastws-{}-{}",
             std::process::id(),

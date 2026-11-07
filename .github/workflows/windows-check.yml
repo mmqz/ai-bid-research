@@ -26,6 +26,38 @@ env:
   CARGO_NET_GIT_FETCH_WITH_CLI: "true"
 
 jobs:
+  # #365——stale-green PR 防线（先于重型 Windows job 出结果，~30s）：
+  # PR head 落后 main ≥ 3 个提交 → 红 + rebase 指引。
+  # 事故链（2026-11-07）：#337 的 PR CI 绿于 22:02 基线（merge ref 不含
+  # #285②），#285② 22:47 进 main，11 小时后合并 → Anchor 字面量语义冲突 →
+  # main 预存红（export_tool E0063）。PR 级 CI 只验「push 时刻的合并结果」，
+  # 验不了「真正合并那一刻」的基线——本门把基线漂移过大的 PR 显式拦下
+  # （rebase 后即绿）。与 AGENTS.md 0.0.5（作者侧：加字段查所有字面量）
+  # 互为纵深：0.0.5 防「忘查字面量」，本门防「绿过时」。
+  stale-base:
+    name: PR 基线新鲜度（#365 stale-green 防线）
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: PR head 落后 main 的提交数（≥ 3 → 拒 + rebase 指引）
+        shell: bash
+        run: |
+          git fetch origin main
+          PR_HEAD="${{ github.event.pull_request.head.sha }}"
+          MB="$(git merge-base "$PR_HEAD" origin/main)"
+          # --first-parent：只数 main 侧的合并/推进（≈ 落后几个 PR）——
+          # 不数各 PR 内部的多提交（否则一个 3-commit 的 PR 合并就会把
+          # 后续 PR 误判为落后过多）
+          BEHIND="$(git rev-list --count --first-parent "$MB..origin/main")"
+          echo "PR head 落后 main：${BEHIND} 个合并/推进（阈值 3）"
+          if [ "$BEHIND" -ge 3 ]; then
+            echo "::error::PR 基线落后 main ${BEHIND} 个合并/推进——stale 基线上的 CI 绿不代表合并后绿（#365：#337 绿于旧基线、#285② 后进 main、合并即语义冲突）。先 rebase：git fetch origin main && git rebase origin/main && git push --force-with-lease，CI 重绿后再请审/合并。"
+            exit 1
+          fi
+
   check:
     name: windows / cargo check
     runs-on: windows-latest

@@ -135,6 +135,19 @@ pub fn set_status(ws: &Workspace, args: Args<'_>) -> Result<Value, IpcError> {
     if let Some(e) = parse_err {
         return Err(IpcError::new("io", e));
     }
+    // #474 · 瞬态空确认：load 刚读到的边车，set_status 重读时可瞬时
+    // NotFound（NTFS rename 元数据窗口 / 并行测试收尾的 remove 竞态——
+    // Windows CI 实录：load 断言通过、紧邻的 set_status 误报 not_found）。
+    // 空列表是「判 not_found」的依据，判定前做一次短等待复核，把
+    // 「瞬态不可见」与「真无标注」分开；复核中的读错误如实上抛。
+    if items.is_empty() {
+        std::thread::sleep(std::time::Duration::from_millis(25));
+        let (retry, retry_err) = load_items(&p);
+        if let Some(e) = retry_err {
+            return Err(IpcError::new("io", e));
+        }
+        items = retry;
+    }
     let mut hit = false;
     for it in items.iter_mut() {
         if it.get("id").and_then(|v| v.as_str()) == Some(id) {
@@ -166,10 +179,18 @@ mod tests {
     use crate::ipc::Args;
     use serde_json::json;
 
+    /// #474 · 目录唯一性双保险：pid + 原子序列号 + nanos。Windows 时钟
+    /// 粒度下两个并行测试线程可能拿到相同 nanos（GetSystemTimePrecise
+    /// 的实际更新粒度在 CI 虚拟机上更粗）——撞名即共享 temp 目录，另一
+    /// 测试收尾的 remove_dir_all 会把本测试的边车删掉，set_status 读
+    /// 到瞬态 NotFound。序列号保证同进程内永不撞名。
+    static DIR_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
     fn ws() -> (std::path::PathBuf, Workspace) {
         let d = std::env::temp_dir().join(format!(
-            "mang-anno-{}-{}",
+            "mang-anno-{}-{}-{}",
             std::process::id(),
+            DIR_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
         ));
         std::fs::create_dir_all(&d).unwrap();
@@ -263,6 +284,71 @@ mod tests {
         let err = err.expect("读失败必须报 error（不静默）");
         assert!(err.contains("读取失败"), "报错须指明读失败：{err}");
         let _ = std::fs::remove_dir_all(d);
+    }
+
+    /// #474 · 瞬态不可见确认面：边车在 load 之后、set_status 第一次读
+    /// 之前被并行活动移走、确认窗口内回来 → 必须命中而非误报 not_found
+    /// （Windows CI 实录的 flake 形态：load 断言通过、set_status 报
+    /// 「标注 1 不存在」——40 passed; 1 failed 偶发）。
+    #[test]
+    fn set_status_survives_transient_sidecar_invisibility() {
+        let (d, w) = ws();
+        std::fs::write(d.join("t.md"), "内容").unwrap();
+        let sidecar = sidecar_path(&w, "t.md");
+        atomic_write(
+            &sidecar,
+            r#"{"version":1,"file":"t.md","items":[{"id":"1","block":"b2","quote":"q","source":{"file":"f.pdf","page":1,"section":"1","quote":"sq"},"status":"pending","note":""}]}"#.as_bytes(),
+        )
+        .unwrap();
+
+        // load 读到（CI 实录里的真实前提）
+        let m = args(serde_json::Map::from_iter([("path".into(), json!("t.md"))]));
+        let out = load(&w, m).unwrap();
+        assert_eq!(out["present"], json!(true));
+
+        // 模拟并行收尾的删除 + 10ms 后恢复（瞬态不可见窗口，确定性时序：
+        // set_status 第一次读在微秒级、恢复在 10ms、确认复核在 25ms）
+        std::fs::remove_file(&sidecar).unwrap();
+        let sc = sidecar.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            std::fs::write(&sc, r#"{"version":1,"file":"t.md","items":[{"id":"1","block":"b2","quote":"q","source":{"file":"f.pdf","page":1,"section":"1","quote":"sq"},"status":"pending","note":""}]}"#).unwrap();
+        });
+
+        let m = args(serde_json::Map::from_iter([
+            ("path".into(), json!("t.md")),
+            ("id".into(), json!("1")),
+            ("status".into(), json!("confirmed")),
+        ]));
+        let out = set_status(&w, m).unwrap();
+        assert_eq!(out["ok"], json!(true), "瞬态不可见必须被确认复核救回");
+        let _ = std::fs::remove_dir_all(d);
+    }
+
+    /// #474 · 行为兼容面：真无标注（边车从未存在）的 setStatus 语义
+    /// 不变——确认复核后仍报 not_found（只多 25ms，不改变判定结果）。
+    #[test]
+    fn set_status_on_missing_sidecar_still_not_found() {
+        let (d, w) = ws();
+        std::fs::write(d.join("m.md"), "内容").unwrap();
+        let m = args(serde_json::Map::from_iter([
+            ("path".into(), json!("m.md")),
+            ("id".into(), json!("1")),
+            ("status".into(), json!("confirmed")),
+        ]));
+        let err = set_status(&w, m).expect_err("无边车的 setStatus 必须报 not_found");
+        assert_eq!(err.code, "not_found", "真无标注 ≠ 瞬态不可见（{err:?}）");
+        let _ = std::fs::remove_dir_all(d);
+    }
+
+    /// #474 · 目录唯一性回归钉：同进程内两次 ws() 永不撞名（序列号保证）。
+    #[test]
+    fn ws_dirs_never_collide() {
+        let (d1, _w1) = ws();
+        let (d2, _w2) = ws();
+        assert_ne!(d1, d2, "temp 目录必须唯一（pid+seq+nanos 双保险）");
+        let _ = std::fs::remove_dir_all(d1);
+        let _ = std::fs::remove_dir_all(d2);
     }
 
     /// #430 · set_status 接线面：边车不可读时报 **io 错误**而非误导性的

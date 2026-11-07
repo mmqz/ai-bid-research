@@ -30,6 +30,10 @@ mod recent;
 mod selftest;
 mod shell;
 mod snapshots;
+// #383：跨模块共享的测试级互斥（last-workspace.json / recent.json 是
+// 进程级单文件，触碰它们的测试必须持同一把锁——见 test_support.rs）。
+#[cfg(test)]
+mod test_support;
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};

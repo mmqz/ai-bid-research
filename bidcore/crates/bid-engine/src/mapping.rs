@@ -479,15 +479,31 @@ fn collapse_spaces(s: &str) -> String {
 // 测试与潜在消费方复用；迁移后语义零变化（逐字搬运，验收锚：A 件 100% EQ）。
 
 fn cn_num_ok(s: &str) -> bool {
-    s.chars().all(|c| "一二三四五六七八九十百".contains(c))
+    !s.is_empty() && s.chars().all(|c| "一二三四五六七八九十百".contains(c))
 }
 
-/// 「第X章 标题」——章号用中文数字；携带完整标题（类别映射与 GT locator 口径需要全文）。
+/// 章号字符集（#385/B-11）：中文数字 ∪ 阿拉伯数字——与 PDF 侧
+/// extract.rs `re_chapter` 的 `[0-9一二三四五六七八九十百]` 对称
+/// （单一「第X章」语义、两种数字呈现形态；真实水利招标文件用
+/// 「第2章 投标人须知」——PDF 侧注释原话）。此前 docx 侧只认中文
+/// 数字 → 阿拉伯章号主文件全部段落章上下文为空 → category_for
+/// 大面积落「其他」（真实语料 13/26 落其他的已知面之一）。
+///
+/// **只用于 as_chapter**——`as_subsection`（「一、」序号）维持纯中文
+/// 数字（`cn_num_ok`）：阿拉伯数字的「1、xxx」是正文列举段落的高频
+/// 形态（numbering.rs ArabicDot 面——「1、提供上行带宽 30M/s 光纤
+/// 链路 295 条。」式技术/商务列举），扩进去会把正文段误判为节标题。
+fn chapter_num_ok(s: &str) -> bool {
+    !s.is_empty() && s.chars().all(|c| "0123456789一二三四五六七八九十百".contains(c))
+}
+
+/// 「第X章 标题」——章号中文或阿拉伯数字（#385/B-11 与 PDF 侧对称）；
+/// 携带完整标题（类别映射与 GT locator 口径需要全文）。
 pub fn as_chapter(t: &str) -> Option<String> {
     if t.len() >= 4 && t.starts_with("第") {
         if let Some(pos) = t.find("章") {
             let num = &t[3..pos]; // "第" 占 3 字节
-            if !num.is_empty() && cn_num_ok(num) && pos + 3 <= t.len() {
+            if !num.is_empty() && chapter_num_ok(num) && pos + 3 <= t.len() {
                 return Some(t.trim().to_string());
             }
         }
@@ -525,6 +541,14 @@ mod tests {
     fn chapter_subsection_patterns() {
         assert!(as_chapter("第三章 投标人须知").is_some());
         assert!(as_chapter("第十二章 合同").is_some());
+        // #385/B-11：阿拉伯章号与 PDF 侧 re_chapter 对称（「第2章 投标人
+        // 须知」是真实水利招标文件形态——此前 docx 侧不认 → 章上下文全空）
+        assert!(as_chapter("第2章 投标人须知").is_some());
+        assert!(as_chapter("第12章 合同条款与格式").is_some());
+        // subsection 维持纯中文序号：「1、」是正文列举高频形态（ArabicDot
+        // 面），不得误判为节标题（#385 防误判钉子）
+        assert!(as_subsection("1、提供上行带宽 30M/s 光纤链路 295 条。").is_none());
+        assert!(as_subsection("2、投标单位应具备独立法人资格。").is_none());
         assert!(as_chapter("3.1.1 正文不是章").is_none());
         assert!(as_subsection("七、开标、评标与否决条款").is_some());
         assert!(as_subsection("二、投标人资格要求").is_some());

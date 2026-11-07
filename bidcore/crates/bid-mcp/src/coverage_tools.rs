@@ -550,6 +550,7 @@ pub fn check_scoring_coverage(svc: &mut BidService, args: Value) -> ToolResult {
             "有漏点——criteria[].points[] 里 hit_section=null 的点是扣分面：rewrite_section_segment / append_section_segment 补写后复跑本工具"
         },
     }))
+}
 
 #[cfg(test)]
 mod tests {

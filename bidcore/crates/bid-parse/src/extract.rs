@@ -1465,7 +1465,15 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                     veto_ctx = false;
                 }
             }
-            BlockKind::TableRow => {
+            // #472（B-08）：XlsxRow 并入 TableRow 分支——xlsx 清单型招标文件
+            // （kind=招标文件/补遗的 .xlsx）此前整份数据落入 `_ => {}` 黑洞
+            // （0 REQ 零告警，audit B-08）。XlsxRow 的 text/cells 形态与
+            // TableRow 同构（非空单元格空格 join / 原始行），通用分支
+            // （否决/资格/参数/审查语境）直接适用；review_map/semantic
+            // 两套结构感知 map 只按 TableRow 建（review_table.rs:220/
+            // table_semantics.rs:226），XlsxRow 自然 miss → 走通用分支，
+            // 无双抽风险。
+            BlockKind::TableRow | BlockKind::XlsxRow => {
                 // #144 审查表接管：数据行 → 结构化 REQ（旧链不走——防双抽）；
                 // 表头形状行只消费（防旧链误开语境/误产 REQ）。
                 if let Some(ri) = review_map.get(&b.idx) {
@@ -1579,7 +1587,9 @@ fn extract_b1_lines(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
     let re_amount = Regex::new(r"(\d+(?:\.\d+)?)\s*万\s*元").unwrap();
     let re_date = Regex::new(r"\d{4}-\d{2}-\d{2}").unwrap();
     for b in &f.blocks {
-        if matches!(b.kind, BlockKind::PdfLine)
+        // #472（B-07②）：xlsx 报价清单的块全为 XlsxRow——只认 PdfLine 时
+        // 型号/中文大写日期行全部静默 0 抽取（audit B-07②）。两形态同判。
+        if matches!(b.kind, BlockKind::PdfLine | BlockKind::XlsxRow)
             && (re_model.is_match(&b.text) || re_date_cn.is_match(&b.text))
         {
             let mut params = HashMap::new();
@@ -1741,8 +1751,15 @@ fn row_no_of(locator: &str) -> usize {
 /// 表格键（locator 的 表N 序号——表切换检测用，P0-B 审查语境隔离）。
 fn table_key_of(locator: &str) -> String {
     // 「第二章 投标人须知 表1 行41」→「第二章 投标人须知 表1」
-    match locator.find(" 行") {
-        Some(i) => locator[..i].to_string(),
-        None => locator.to_string(),
+    if let Some(i) = locator.find(" 行") {
+        return locator[..i].to_string();
     }
+    // #472（B-08）：xlsx 形态「Sheet1!行5」→「Sheet1」（sheet 名为表键
+    // ——同 sheet 审查语境连续，跨 sheet 重置）。不兼容时每行返回整串
+    // → 表切换检测逐行触发 review_ctx=false，审查语境在 xlsx 表格内
+    // 无法传播。docx「 行」形态优先级不变（先判 docx 再判 xlsx）。
+    if let Some(i) = locator.find('!') {
+        return locator[..i].to_string();
+    }
+    locator.to_string()
 }

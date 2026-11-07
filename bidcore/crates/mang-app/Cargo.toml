@@ -3,8 +3,10 @@
 # （编译不执行），39 个测试（fs 围栏 write_bytes_guard / 路径穿越 / llm 掩码
 # 安全面）从未运行，diag.rs 的 tools==13 腐烂断言因此从未被发现。
 # 现并入 bidcore workspace：测试随 --workspace 全量执行（Windows CI 实证）。
-# 本地 Linux 注意：构建本包需要 gtk/webkit2gtk dev 包（tao/wry/rfd 的 Linux
-# 后端）——不装就构建不了它；跑其他成员用 cargo test -p <成员> 即可。
+# 本地 Linux 注意（#405 后口径）：系统需 gtk/webkit2gtk dev 包（tao/wry 的
+# Linux 后端）——pkg-config 找不到 gtk+-3.0 / webkit2gtk-4.1 即缺件；
+# rfd 的 Linux 后端已在下方 cfg(linux) 段补齐。跑其他成员用
+# cargo test -p <成员> 即可。
 
 [package]
 name = "mang-app"
@@ -28,7 +30,9 @@ serde_json = "1"
 # （serde_json/bid-tools 均带），此处只是提为直接依赖，零新增三方取数。
 serde = { version = "1", features = ["derive"] }
 # 系统文件对话框（同步 API，主线程调用）。关闭默认的 xdg-portal/wayland，
-# Windows 只用 Win32 COM（IFileOpenDialog），不会引入 Linux 依赖。
+# Windows 只用 Win32 COM（IFileOpenDialog）。
+# #405：default-features=false 在 Linux 上没有任何后端——rfd 的 build.rs
+# 直接 panic，mang-app 整体不可构建。Linux 后端在下方 cfg(linux) 段补齐。
 rfd = { version = "0.17", default-features = false }
 
 # DnD（WM_DROPFILES 子类化）与 explorer /select。windows crate 版本与 tao 0.37/wry 0.57
@@ -42,5 +46,12 @@ windows = { version = "0.62", features = [
     "Win32_Graphics_Gdi",
     "Win32_UI_HiDpi",
 ] }
+
+# #405：rfd 的 Linux 后端——default-features=false 使上面那条在 Linux 上
+# 无任何后端可用（build.rs panic，见 #405 时间线），本段补 gtk3：与
+# tao/wry 的 gtk 依赖树同源，不新增版本号。cfg 门控使 Windows/macOS
+# 构建零影响（Windows 走上面的 Win32 COM）。
+[target.'cfg(target_os = "linux")'.dependencies]
+rfd = { version = "0.17", default-features = false, features = ["gtk3"] }
 
 [build-dependencies]

@@ -284,11 +284,21 @@ mod tests {
 
     #[test]
     fn sibling_prefix_not_inside() {
+        // #405：is_inside 是「大小写不敏感——Windows 语义」（见其文档注释）；
+        // C:\ 反斜杠串在 Linux 是单组件且无大小写折叠，两条断言只在
+        // Windows 有意义（此前 mang-app 在 Linux 不可构建，从未暴露）。
+        // 非 Windows 打 SKIP 横幅后跳过（AGENTS.md 13.1/13.2 平台门
+        // 口径）——不是删测试，也不是放宽断言；Windows CI 上照旧真跑。
+        if !cfg!(windows) {
+            eprintln!(
+                "SKIP: sibling_prefix_not_inside\n\
+                 reason: ENV_MISSING: Windows-only 路径语义（大小写不敏感折叠）\n\
+                 补救: 在 Windows（CI runner）上真跑本断言"
+            );
+            return;
+        }
         // C:\ws2 不能被当成 C:\ws 的子目录
-        assert!(!is_inside(
-            Path::new("C:\\ws2\\x"),
-            Path::new("C:\\ws")
-        ));
+        assert!(!is_inside(Path::new("C:\\ws2\\x"), Path::new("C:\\ws")));
         assert!(is_inside(Path::new("C:\\WS\\x"), Path::new("C:\\ws")));
     }
 

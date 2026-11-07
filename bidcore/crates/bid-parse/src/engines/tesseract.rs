@@ -81,11 +81,16 @@ impl TesseractOcr {
         let mut ocr_blocks = 0usize;
         let mut pages = 1usize; // pdftotext 分页口径的保守回退值（旧代码同款）
         let mut summary = String::new();
+        let mut failed_stderr = String::new(); // #380（B-09）：末次失败页 stderr 摘要（诊断面）
         // T-04：扫描页数门——超限整体显式拒绝（渲染/OCR 成本与磁盘占用上限；
         // 拒绝整个文件，绝不产出「只 OCR 了前 N 页」的部分结果）。
         // R3-S1-1 修正：真实页数以 pdfinfo 探测为准，渲染层另加 -l 上限双保险。
-        let real_pages = probe_pdf_pages(path).unwrap_or(1);
-        if real_pages > MAX_OCR_PAGES {
+        // #380（B-10）：探测失败不再静默回退 1——那是「整件只 OCR 第 1 页」
+        // 的大面积静默内容丢失（pdfinfo 对部分损坏件失败而 pdftoppm 可渲染；
+        // 或 pdfinfo 缺失的畸形部署）。回退门值 MAX_OCR_PAGES + probe_failed
+        // 标记（summary 登记 + 渲染后饱和校验）。
+        let (real_pages, probe_failed) = render_page_limit(probe_pdf_pages(path));
+        if !probe_failed && real_pages > MAX_OCR_PAGES {
             return Err(format!(
                 "pdf 扫描层 {real_pages} 页超过 OCR 上限 {MAX_OCR_PAGES}（拒绝处理——不留部分结果，请拆分文件）"
             ));
@@ -113,7 +118,17 @@ impl TesseractOcr {
         if !pngs.is_empty() {
             pages = pngs.len(); // 扫描件页数以实际渲染张数为准（诚实页数）
         }
+        // #380（B-10）渲染后饱和校验：探测失败时真实页数未知——渲染张数
+        // 顶到门值 = 可能已被 -l 截断，按页数门语义拒绝（不留部分结果，
+        // 与 R3-S1-1 预拒门同口径；探测成功路径的预拒已在上面生效）。
+        if probe_failed && pngs.len() >= MAX_OCR_PAGES {
+            return Err(format!(
+                "pdf 扫描层渲染 {} 页达 OCR 上限 {MAX_OCR_PAGES} 且页数探测失败（pdfinfo 退出/解析失败——真实页数未知，可能已截断）不留部分结果：请修复 pdfinfo 部署或拆分文件",
+                pngs.len()
+            ));
+        }
         let mut ocr_fail_pages = 0usize; // NonZeroExit 页计（环境类失败与数据面残缺的分频面）
+        let mut failed_pages: Vec<usize> = Vec::new(); // #380（B-09）：失败页号清单（截断范围可见）
         for (pi, png) in pngs.iter().enumerate() {
             let tessdata =
                 std::path::PathBuf::from(std::env::var("TESSDATA_PREFIX").unwrap_or_else(|_| {
@@ -134,10 +149,18 @@ impl TesseractOcr {
                 | RunOutcome::Spawn { .. } => {
                     return Err(format!("tesseract 治理失败: {}", short_err(&ocr)));
                 }
-                RunOutcome::NonZeroExit { stderr_head, .. } => {
+                RunOutcome::NonZeroExit { mut stderr_head, .. } => {
+                    // #380（B-09）：单页失败跳过该页、**继续后续页**——旧实现
+                    // break 导致第 N 页失败后其后所有页不再 OCR（100 页件第 5
+                    // 页失败 = 95 页静默丢失，远超「该页残缺」的数据面语义）。
+                    // 失败页号入清单，截断范围进 summary（部分成功可见）。
                     ocr_fail_pages += 1;
-                    summary = format!("pdf 扫描层: {pages} 页，OCR 失败（{stderr_head}）");
-                    break;
+                    failed_pages.push(pi + 1);
+                    if stderr_head.trim().len() > 80 {
+                        stderr_head.truncate(80);
+                    }
+                    failed_stderr = stderr_head;
+                    continue;
                 }
             };
             let mut line_no = 0usize;
@@ -156,6 +179,19 @@ impl TesseractOcr {
                     text: super::poppler::collapse_spaces(&cleaned),
                     cells: vec![],
                 });
+            }
+        }
+        // #380（B-09/B-10）可见性组装：探测失败登记 + 失败页清单（页号 +
+        // 成功页数 + 行为说明）。全成功时维持旧文案（零回归）。
+        if probe_failed {
+            summary.push_str(&format!(
+                "pdfinfo 页数探测失败——渲染上限 {MAX_OCR_PAGES} 页，实际渲染 {pages} 页；"
+            ));
+        }
+        if !failed_pages.is_empty() {
+            summary.push_str(&ocr_partial_failure_summary(&failed_pages, pages));
+            if !failed_stderr.is_empty() {
+                summary.push_str(&format!("（末次 stderr：{failed_stderr}）"));
             }
         }
         if summary.is_empty() {
@@ -233,6 +269,31 @@ fn short_err(out: &RunOutcome) -> String {
 
 /// 真实页数探测（pdfinfo，poppler 自带）——扫描件页数的诚实口径；
 /// 探测失败回退保守值 1（渲染层 -l 上限双保险兜底）。
+/// 渲染上限决策（#380 B-10）：pdfinfo 探测成功 = 真实页数（超限由调用方
+/// 预拒——R3-S1-1 门不变）；探测失败 = `MAX_OCR_PAGES` 门值（**不回退 1**——
+/// 旧 `unwrap_or(1)` 是「整件只渲染+OCR 第 1 页」的静默内容丢失），返回
+/// `probe_failed` 标记供 summary 登记与渲染后饱和校验。
+fn render_page_limit(probe: Option<usize>) -> (usize, bool) {
+    match probe {
+        Some(n) => (n, false),
+        None => (MAX_OCR_PAGES, true),
+    }
+}
+
+/// 部分页失败的 summary 组装（#380 B-09：截断范围可见——失败页号清单 +
+/// 成功页数 + 行为说明「失败页跳过、后续页照常 OCR」）。
+fn ocr_partial_failure_summary(failed: &[usize], total_pages: usize) -> String {
+    format!(
+        "pdf 扫描层: {total_pages} 页，OCR 失败页 [{}]（{} 页成功——失败页跳过、后续页照常 OCR）",
+        failed
+            .iter()
+            .map(|p| p.to_string())
+            .collect::<Vec<_>>()
+            .join(", "),
+        total_pages.saturating_sub(failed.len()),
+    )
+}
+
 fn probe_pdf_pages(path: &Path) -> Option<usize> {
     let mut c = std::process::Command::new("pdfinfo");
     c.arg(path.as_os_str());
@@ -272,6 +333,31 @@ mod tests {
         assert_eq!(LIMIT_PDFTOTEXT_STDOUT, 64 * 1024 * 1024);
         assert_eq!(LIMIT_TESSERACT_STDOUT, 1024 * 1024);
         assert_eq!(MAX_OCR_PAGES, 200);
+    }
+
+    /// #380（B-10）：探测失败回退**门值**而非 1——回退 1 是整件只 OCR
+    /// 第 1 页的静默内容丢失；探测成功 = 真实页数（预拒门语义不变）。
+    #[test]
+    fn render_page_limit_probe_failure_falls_back_to_gate_not_one() {
+        assert_eq!(render_page_limit(Some(7)), (7, false));
+        assert_eq!(render_page_limit(Some(MAX_OCR_PAGES)), (MAX_OCR_PAGES, false));
+        let (limit, failed) = render_page_limit(None);
+        assert_eq!((limit, failed), (MAX_OCR_PAGES, true));
+        assert_ne!(limit, 1, "探测失败不得回退 1 页（B-10 静默丢失面）");
+    }
+
+    /// #380（B-09）：失败页 summary 必须列出页号清单与成功页数——
+    /// 截断范围可见（旧文案只写「OCR 失败」，丢页范围不可见）。
+    #[test]
+    fn partial_failure_summary_lists_failed_pages_and_survivors() {
+        let s = ocr_partial_failure_summary(&[5], 100);
+        assert!(s.contains("[5]"), "失败页号清单须可见：{s}");
+        assert!(s.contains("99 页成功"), "成功页数须可见：{s}");
+        assert!(s.contains("后续页照常 OCR"), "行为说明须在场：{s}");
+        assert!(s.contains("100 页"), "总页数须在场：{s}");
+        // 多页失败：清单逗号分隔
+        let s2 = ocr_partial_failure_summary(&[3, 7], 10);
+        assert!(s2.contains("[3, 7]") && s2.contains("8 页成功"), "{s2}");
     }
 
     /// R3-S1-1 回归门：超页扫描件必须被页数门拒绝（绝不开始渲染）。

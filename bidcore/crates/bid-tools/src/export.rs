@@ -785,6 +785,13 @@ pub struct ExportManifest {
     pub schema_version: u32,
     /// 按文档序的源章指纹列表（顺序确定——Vec 全等比较含序）
     pub fingerprints: Vec<ChapterFingerprint>,
+    /// #391：ExportOptions 全字段指纹（anonymize/format_spec/extras（含
+    /// decision 六表）/review_banner——一切不改正文的产物影响面）。旧
+    /// manifest 无此字段 → serde default 空串 ≠ 任何新指纹 → 首次重导
+    /// 全量重建一次（**宁可重建不可吃错缓存**——与「manifest 是导数
+    /// 不是源数据」纪律同向；schema_version 不 bump，加性演进）。
+    #[serde(default)]
+    pub options_fp: String,
     /// UNIX_EPOCH 秒（no-chrono 纪律）
     pub exported_at: u64,
     /// 上次导出报告（no-op 直返面——「一个字节不重写」的对价是报告可复现）
@@ -1119,6 +1126,13 @@ impl<'a> DocumentExporter<'a> {
 
         // ⑤ 幂等 no-op：指纹全等 + 输出在位且 sha 吻合 → 上次报告直返
         // （输出零重写——「已写入的章不重写」的导出层落点）。
+        // #391（C-07 扩面）：options_fp 必须同入判定——源章指纹只锚正文，
+        // ExportOptions（anonymize/format_spec/extras（decision 六表在内）/
+        // review_banner）是不碰正文的产物影响面：换报价/换投标人/开暗标
+        // 重导时章节指纹全等，旧判定把新导出吃成旧产物直返（sha 全等、
+        // 零信号——评标否决级数据错误）。Debug 序列化字段序确定，实现
+        // 演化最坏多一次重建（安全方向）。
+        let options_fp = options_fingerprint(opts);
         let fingerprints: Vec<ChapterFingerprint> = ordered
             .iter()
             .filter(|n| is_leaf(n, &children))
@@ -1135,6 +1149,7 @@ impl<'a> DocumentExporter<'a> {
         let manifest_path = dir.join(MANIFEST_FILE);
         if let Some(manifest) = read_manifest(&manifest_path)? {
             if manifest.fingerprints == fingerprints
+                && manifest.options_fp == options_fp
                 && out_path.is_file()
                 && sha256_file(out_path)? == manifest.report.output_sha256
             {
@@ -1358,6 +1373,7 @@ impl<'a> DocumentExporter<'a> {
         let manifest = ExportManifest {
             schema_version: MANIFEST_SCHEMA_VERSION,
             fingerprints,
+            options_fp,
             exported_at: now_secs(),
             report: report.clone(),
         };
@@ -1928,6 +1944,21 @@ fn sha256_file(path: &Path) -> Result<String, ExportError> {
 /// 读 manifest（**导数宽容**面：缺失/损坏/版本不识别 → None 全量重建；
 /// 主数据的 fail-closed 在 ChapterAssembler::open——两层面各司其职，见
 /// 模块头「幂等导出清单」节）。
+/// #391（C-07 扩面）：ExportOptions 全字段指纹——一切不碰正文的产物
+/// 影响面（anonymize / format_spec / extras（decision 六表+格式件在内）/
+/// review_banner / project_name）。Debug 序列化字段序确定（派生 Debug
+/// 不打印引用地址，只打印解引用内容）；实现演化导致指纹变化的最坏
+/// 后果 = 多一次全量重建（安全方向：宁可重建不可吃错缓存）。
+fn options_fingerprint(opts: &ExportOptions<'_>) -> String {
+    let mut h = Sha256::new();
+    h.update(format!("{:?}", opts).as_bytes());
+    h.finalize()
+        .iter()
+        .take(4)
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
 fn read_manifest(path: &Path) -> Result<Option<ExportManifest>, ExportError> {
     let raw = match std::fs::read_to_string(path) {
         Ok(s) => s,

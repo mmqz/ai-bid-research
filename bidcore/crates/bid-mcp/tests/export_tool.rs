@@ -712,3 +712,51 @@ fn export_bid_open_date_input_validation() {
     assert_eq!(err_code(&reply2), "E_UNPROCESSABLE", "非字符串响亮拒");
     assert!(format!("{reply2:?}").contains("number"), "错误点名实际类型");
 }
+
+/// #391（C-07 扩面探针转正）：manifest no-op 曾把一切 profile 变化吃掉
+/// （换报价/换投标人/开暗标重导返回旧产物，sha 全等、零信号——评标否决
+/// 级数据错误）。修复后 options_fp 入 manifest 判定 + bidder_name 入 ikey：
+/// 一切产物影响面的变化都必须是**新导出**（sha 必变）。
+#[test]
+fn reexport_with_changed_profile_is_new_export() {
+    let (mut svc, pid, _dir) = svc_drafted("c07", false);
+    // A：基线导出（明标，报价 100，投标人=甲）
+    let a = ok_result(call(&mut svc, "export_bid_document", json!({
+        "project_id": pid, "format": "docx", "output_path": "out/标书.docx",
+        "profile": {"bid_amount": 100, "bidder_name": "甲建设集团"},
+    })));
+    let sha_a = a["artifact"]["sha256"].clone();
+
+    // B：换报价 + 换投标人（都不碰正文）→ 必须是新产物（#117「换决策重导
+    // 是新导出」；C-07 换名面）——旧实现此处 sha 全等（manifest no-op 吃掉）
+    let b = ok_result(call(&mut svc, "export_bid_document", json!({
+        "project_id": pid, "format": "docx", "output_path": "out/标书.docx",
+        "profile": {"bid_amount": 200, "bidder_name": "乙工程公司"},
+    })));
+    assert_ne!(
+        b["artifact"]["sha256"], sha_a,
+        "换报价+换投标人重导必须是新产物（#391：不得吃旧缓存）"
+    );
+
+    // C：开暗标（同 B 的其余参数）→ 必须又是新产物（脱敏真做——正文/标题
+    // 公司名 → 「投标人」替换后 sha 必变）
+    let c = ok_result(call(&mut svc, "export_bid_document", json!({
+        "project_id": pid, "format": "docx", "output_path": "out/标书.docx",
+        "profile": {"bid_amount": 200, "bidder_name": "乙工程公司", "dark_bid": true},
+    })));
+    assert_ne!(
+        c["artifact"]["sha256"], b["artifact"]["sha256"],
+        "明标→暗标重导必须是新产物（脱敏生效——sha 必变）"
+    );
+    assert_ne!(c["artifact"]["sha256"], sha_a);
+
+    // D：同参数重放（与 C 全同）→ 稳定态幂等保持（零 IO 直返，sha 全等）
+    let d = ok_result(call(&mut svc, "export_bid_document", json!({
+        "project_id": pid, "format": "docx", "output_path": "out/标书.docx",
+        "profile": {"bid_amount": 200, "bidder_name": "乙工程公司", "dark_bid": true},
+    })));
+    assert_eq!(
+        d["artifact"]["sha256"], c["artifact"]["sha256"],
+        "同参数重放 → 幂等直返（零 IO）——既有语义不因本修复放宽"
+    );
+}

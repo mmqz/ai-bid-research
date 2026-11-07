@@ -3723,13 +3723,18 @@ fn export_bid_document(svc: &mut BidService, args: Value) -> ToolResult {
             .collect::<String>()
     };
 
-    // ---- 幂等前置：(project_id, content_version, format, dark_bid, output_path, decision)
-    //      相同 → 直返首次结果（产物 sha 已在首次导出对账；重放零 IO）。
+    // ---- 幂等前置：(project_id, content_version, format, dark_bid, bidder_name,
+    //      output_path, decision) 相同 → 直返首次结果（产物 sha 已在首次导出
+    //      对账；重放零 IO）。
     //      #117：决策指纹入键——换了报价重导是新导出（否则返回旧报价的缓存）。
+    //      #391（C-07）：bidder_name 入键——anonymize 面直接影响产物（dark_bid
+    //      时公司名脱敏替换），漏键 = 换名重导吃旧缓存产物（契约 §8「profile
+    //      整体入键」的产物影响面补齐；template 零消费不影响产物，暂不入）。
     let ikey = format!(
-        "export:{project_id}:{}:{format}:{}:{output_path}:{decision_fp}",
+        "export:{project_id}:{}:{format}:{}:{}:{output_path}:{decision_fp}",
         svc.store().content_version(),
         dark_bid,
+        bidder_name.as_deref().unwrap_or(""),
     );
     if let Some(first) = svc.store().idempotent_hit(&ikey).cloned() {
         let mut out = first;

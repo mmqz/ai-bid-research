@@ -41,10 +41,11 @@ fn main() {
     let dispatch_path = root.join("crates/bid-mcp/tests/dispatch_contract.rs");
     let e2e_path = root.join("crates/bid-mcp/tests/mcp_sdk_e2e.py");
     let draft_path = root.join("crates/bid-mcp/tests/draft_tool.rs");
+    let search_path = root.join("crates/bid-mcp/tests/search_evidence_tool.rs");
 
     let report = match mode {
-        "--check" => check(&matrix_path, &dispatch_path, &e2e_path, &draft_path),
-        "--write" => write(&matrix_path, &dispatch_path, &e2e_path, &draft_path),
+        "--check" => check(&matrix_path, &dispatch_path, &e2e_path, &draft_path, &search_path),
+        "--write" => write(&matrix_path, &dispatch_path, &e2e_path, &draft_path, &search_path),
         other => {
             eprintln!("未知参数 {other:?}（只接受 --check / --write）");
             std::process::exit(2);
@@ -79,7 +80,13 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
-fn check(matrix: &Path, dispatch: &Path, e2e: &Path, draft: &Path) -> Result<(), Diagnostic> {
+fn check(
+    matrix: &Path,
+    dispatch: &Path,
+    e2e: &Path,
+    draft: &Path,
+    search: &Path,
+) -> Result<(), Diagnostic> {
     let mut details = Vec::new();
     let n = bid_mcp::TOOL_NAMES.len();
 
@@ -117,6 +124,14 @@ fn check(matrix: &Path, dispatch: &Path, e2e: &Path, draft: &Path) -> Result<(),
         details.push(format!("{}: 工具面断言数字不同步", display(draft)));
     }
 
+    // ---- 5. search_evidence_tool.rs 的工具数断言（#467 第三处盲区——
+    //    PR #371 实测此面 37→38 漏改致红，与 dispatch/draft 同族）
+    let search_src = read(search)?;
+    let search_expected = render_search(&search_src, n)?;
+    if search_expected != search_src {
+        details.push(format!("{}: 工具数断言不同步", display(search)));
+    }
+
     if details.is_empty() {
         Ok(())
     } else {
@@ -127,7 +142,13 @@ fn check(matrix: &Path, dispatch: &Path, e2e: &Path, draft: &Path) -> Result<(),
     }
 }
 
-fn write(matrix: &Path, dispatch: &Path, e2e: &Path, draft: &Path) -> Result<(), Diagnostic> {
+fn write(
+    matrix: &Path,
+    dispatch: &Path,
+    e2e: &Path,
+    draft: &Path,
+    search: &Path,
+) -> Result<(), Diagnostic> {
     let n = bid_mcp::TOOL_NAMES.len();
 
     let matrix_src = read(matrix)?;
@@ -169,6 +190,17 @@ fn write(matrix: &Path, dispatch: &Path, e2e: &Path, draft: &Path) -> Result<(),
             details: vec![],
         })?;
         println!("[tool-surface] 重写 {}", display(draft));
+    }
+
+    // #467 第三处：search_evidence_tool.rs 的工具数断言（同族盲区）
+    let search_src = read(search)?;
+    let search_new = render_search(&search_src, n)?;
+    if search_new != search_src {
+        fs::write(search, &search_new).map_err(|e| Diagnostic {
+            message: format!("写 {} 失败: {e}", display(search)),
+            details: vec![],
+        })?;
+        println!("[tool-surface] 重写 {}", display(search));
     }
 
     Ok(())
@@ -354,23 +386,16 @@ fn render_e2e(src: &str, n: usize) -> Result<String, Diagnostic> {
 
 /// 重写 draft_tool.rs 里 `assert_eq!(arr.len(), N, ...)` 的工具面断言。
 fn render_draft(src: &str, n: usize) -> Result<String, Diagnostic> {
-    let needle = "assert_eq!(arr.len(),";
-    let pos = src.find(needle).ok_or_else(|| Diagnostic {
-        message: "找不到 draft_tool 的工具面断言".into(),
-        details: vec![],
-    })?;
-    let after = &src[pos + needle.len()..];
-    let comma = after.find(',').ok_or_else(|| Diagnostic {
-        message: "断言格式异常".into(),
-        details: vec![],
-    })?;
-    let old_num = after[..comma].trim();
-    if old_num == n.to_string() {
-        return Ok(src.to_string());
-    }
-    let mut out = String::with_capacity(src.len());
-    out.push_str(&src[..pos + needle.len()]);
-    out.push_str(&format!(" {n},"));
-    out.push_str(&after[comma + 1..]);
-    Ok(out)
+    replace_assert_count(src, "assert_eq!(arr.len(),", n, "找不到 draft_tool 的工具面断言")
+}
+
+/// 重写 search_evidence_tool.rs 里 `assert_eq!(names.len(), N, ...)` 的工具数断言
+/// （#467 第三处盲区——PR #371 实测漏改致红）。
+fn render_search(src: &str, n: usize) -> Result<String, Diagnostic> {
+    replace_assert_count(
+        src,
+        "assert_eq!(names.len(),",
+        n,
+        "找不到 search_evidence_tool 的工具数断言",
+    )
 }

@@ -8,6 +8,11 @@
 //   dist/mang/{docx,xlsx,pdf}_view.js  渲染器（IIFE，尾部自注册到 window.__mangRenderers）
 //   dist/mang/pdf.worker.min.mjs       pdf.js worker
 //   dist/mang/{cmaps,standard_fonts,wasm}/  pdf.js 静态资源
+//
+// #248 发行模式：MANG_RELEASE=1 → minify + 无 sourcemap（发行包专用）。
+// 缺省（开发模式）保持可读可调试——minify: false + 显式 sourcemap: false
+// （esbuild 缺省本就不产 map，但发行面把两个开关都钉死：发行产物无 map
+// 是验收条件，不依赖工具缺省行为）。
 import * as esbuild from 'esbuild';
 import { cpSync, existsSync, mkdirSync, copyFileSync, readdirSync, rmSync } from 'fs';
 import { join } from 'path';
@@ -16,6 +21,9 @@ const DIST = 'dist';
 const DIST_MANG = join(DIST, 'mang');
 const SRC = 'mang';
 const SRC_MODULES = 'src/mang';
+const RELEASE = process.env.MANG_RELEASE === '1';
+const MINIFY = RELEASE;
+if (RELEASE) console.log('[build] 发行模式（#248）：minify=true，sourcemap=false');
 
 rmSync(DIST_MANG, { recursive: true, force: true });
 mkdirSync(DIST_MANG, { recursive: true });
@@ -37,7 +45,8 @@ await esbuild.build({
   bundle: true,
   format: 'iife',
   target: 'es2022',
-  minify: false,
+  minify: MINIFY,
+  sourcemap: false,
   legalComments: 'none',
   logLevel: 'info',
 });
@@ -60,7 +69,8 @@ for (const name of RENDERERS) {
     bundle: true,
     format: 'iife',
     target: 'es2022',
-    minify: false,
+    minify: MINIFY,
+    sourcemap: false,
     logLevel: 'info',
   });
 }

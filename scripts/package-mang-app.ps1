@@ -16,10 +16,20 @@
 #   2. ui\mang\index.html 存在（布局约定）
 #   3. 渲染器三件套 docx/xlsx/pdf_view.js 存在
 #   4. pdf.js 静态资源 cmaps/ standard_fonts/ wasm/ 存在（PDF 渲染缺一即白屏）
+#
+# #248 发行段增强（-Release 或 MANG_RELEASE=1 时全部生效；开发打包缺省不变）：
+#   5. UI 发行模式（minify + 无 sourcemap，mang-build.mjs #248 面）
+#   6. 版本一致性：mang-app Cargo.toml ↔ web-ui package.json（不一致 fail-closed）
+#   7. 开发产物零容忍：zip 内出现 .map/.pdb/.ts 源/node_modules/.git → 拒发
+#   8. SHA-256 清单：SHA256SUMS.txt 入包 + 独立 artifact；逐文件可独立复核
+#   9. 构建元数据：build-manifest.json（版本/commit/工具链/逐文件哈希）
 
 param(
     [switch]$SkipBuild,
-    [switch]$SkipUiBuild
+    [switch]$SkipUiBuild,
+    # #248 发行模式：UI minify + 全部发行校验门。环境变量 MANG_RELEASE=1 同效
+    # （CI 里用环境变量传档位，本地手动用开关——两者任一即发行档）。
+    [switch]$Release
 )
 
 $ErrorActionPreference = "Stop"
@@ -30,9 +40,12 @@ $dist = Join-Path $webUi "dist"
 $version = (Select-String -Path (Join-Path $appDir "Cargo.toml") -Pattern '^version = "(.+)"' |
     Select-Object -First 1).Matches.Groups[1].Value
 
-Write-Host "== mang-app 绿色版打包 v$version =="
+# #248 发行档判定：-Release 开关或 MANG_RELEASE=1（CI 传环境变量）
+$isRelease = ($Release -or $env:MANG_RELEASE -eq "1")
+$mode = if ($isRelease) { "发行（minify + 发行校验门）" } else { "开发（可调试，无发行校验门）" }
+Write-Host "== mang-app 绿色版打包 v$version  [$mode] =="
 
-# ---- 1. 构建 UI（可跳过） ----
+# ---- 1. 构建 UI（可跳过；发行档传 MANG_RELEASE=1 → minify） ----
 if (-not $SkipUiBuild) {
     if (-not (Test-Path (Join-Path $webUi "node_modules"))) {
         Write-Host "[1/4] npm install（首次约 1-2 分钟）"
@@ -40,6 +53,7 @@ if (-not $SkipUiBuild) {
     } else {
         Write-Host "[1/4] node_modules 已存在，跳过 install"
     }
+    if ($isRelease) { $env:MANG_RELEASE = "1" }
     Write-Host "[1/4] node mang-build.mjs"
     Push-Location $webUi; node mang-build.mjs; Pop-Location
 } else {
@@ -113,3 +127,96 @@ Write-Host "  .\mang-app.exe --selftest     # 退出码 0"
 Write-Host "  .\mang-app.exe <目录>         # 打开工作区"
 
 Remove-Item $stage -Recurse -Force
+
+# ======================================================================
+# #248 发行段（仅 -Release / MANG_RELEASE=1 时执行——开发打包到此为止）
+# ======================================================================
+if (-not $isRelease) {
+    Write-Host "`n开发档打包完成（发行校验门未启用——加 -Release 或 MANG_RELEASE=1 启用）"
+    exit 0
+}
+
+# ---- 5. 版本一致性（fail-closed）：mang-app Cargo.toml ↔ web-ui package.json ----
+Write-Host "`n[发行门 5] 版本一致性"
+$pkgJson = Get-Content (Join-Path $webUi "package.json") -Raw | ConvertFrom-Json
+$uiVersion = $pkgJson.version
+if ($version -ne $uiVersion) {
+    Write-Host "  FAIL mang-app Cargo.toml v$version ≠ web-ui package.json v$uiVersion" -ForegroundColor Red
+    Write-Host "       两面版本号必须一致（发行包一个版本号一个包——先对齐再打包）" -ForegroundColor Red
+    exit 1
+}
+Write-Host "  OK   v$version 两面一致（Cargo.toml ↔ package.json）"
+
+# ---- 6. 开发产物零容忍（fail-closed）：zip 逐条目扫描 ----
+Write-Host "[发行门 6] 开发产物零容忍（.map/.pdb/.ts 源/node_modules/.git）"
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$archive = [IO.Compression.ZipFile]::OpenRead($zip)
+$entryNames = @($archive.Entries | ForEach-Object { $_.FullName })
+$archive.Dispose()
+$forbidden = @()
+foreach ($n in $entryNames) {
+    $n = $n -replace '/', '\'
+    if ($n -match '\.(map|pdb|ts)$' -or $n -match '\\node_modules\\' -or $n -match '\\\.git(\\|$)') {
+        $forbidden += $n
+    }
+}
+if ($forbidden.Count -gt 0) {
+    Write-Host "  FAIL 发行包含 $($forbidden.Count) 个开发产物：" -ForegroundColor Red
+    $forbidden | Select-Object -First 10 | ForEach-Object { Write-Host "       $_" -ForegroundColor Red }
+    exit 1
+}
+Write-Host "  OK   零违禁项（全量 $($entryNames.Count) 条目扫描）"
+
+# ---- 7. SHA-256 清单（入包 + 独立 artifact 双面） ----
+Write-Host "[发行门 7] SHA-256 清单"
+# 解包到临时目录逐文件哈希（exe 在 zip 里，从 zip 流读不可靠地对齐 stage 布局）
+$verifyDir = Join-Path $repo "dist-pkg\verify-$version"
+if (Test-Path $verifyDir) { Remove-Item $verifyDir -Recurse -Force }
+Expand-Archive -Path $zip -DestinationPath $verifyDir
+$sums = @()
+Get-ChildItem $verifyDir -Recurse -File | Sort-Object FullName | ForEach-Object {
+    $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+    $rel = $_.FullName.Substring($verifyDir.Length + 1)
+    $sums += "$h  $rel"
+}
+$sumsFile = Join-Path $verifyDir "SHA256SUMS.txt"
+$sums | Set-Content $sumsFile -Encoding ascii
+# 清单自身入包（重打 zip：stage 目录已删，用 verify 目录重组——布局相同）
+$zipFinal = Join-Path $outDir "mang-app-portable-$version.zip"
+if (Test-Path $zipFinal) { Remove-Item $zipFinal -Force }
+Compress-Archive -Path (Join-Path $verifyDir "*") -DestinationPath $zipFinal
+# 独立 artifact 面（包外同目录，workflow 直接上传）
+$sumsArtifact = Join-Path $outDir "SHA256SUMS-$version.txt"
+$sums | Set-Content $sumsArtifact -Encoding ascii
+Remove-Item $verifyDir -Recurse -Force
+Write-Host "  OK   SHA256SUMS.txt 入包（$($sums.Count) 文件）+ 独立清单 $sumsArtifact"
+
+# ---- 8. 构建元数据（build-manifest.json——审计面） ----
+Write-Host "[发行门 8] 构建元数据"
+$commit = git -C $repo rev-parse HEAD 2>$null
+if (-not $commit -or $LASTEXITCODE -ne 0) { $commit = "unknown" }
+$toolchain = (rustc --version 2>$null); if (-not $toolchain) { $toolchain = "unknown" }
+$nodeVer = (node --version 2>$null); if (-not $nodeVer) { $nodeVer = "unknown" }
+$manifest = [ordered]@{
+    product    = "mang-app"
+    version    = $version
+    mode       = "release"
+    commit     = $commit
+    rust       = $toolchain
+    node       = $nodeVer
+    zip        = "mang-app-portable-$version.zip"
+    zip_sha256 = (Get-FileHash $zipFinal -Algorithm SHA256).Hash.ToLower()
+    built_at   = ([DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"))  # PS 5.1 兼容（无 -AsUTC）
+    files      = $sums.Count
+    signed     = $false   # 签名状态显式可见（workflow 的签名步骤负责翻转）
+}
+$manifestPath = Join-Path $outDir "build-manifest-$version.json"
+$manifest | ConvertTo-Json | Set-Content $manifestPath -Encoding utf8
+Write-Host "  OK   $manifestPath"
+Write-Host "       签名状态：未签名（signed=false——Authenticode 由发行工作流可选步骤负责）"
+
+Write-Host "`n发行打包完成："
+$mbFinal = "{0:N1}" -f ((Get-Item $zipFinal).Length / 1MB)
+Write-Host "  $zipFinal  ($mbFinal MB)"
+Write-Host "  $sumsArtifact"
+Write-Host "  $manifestPath"

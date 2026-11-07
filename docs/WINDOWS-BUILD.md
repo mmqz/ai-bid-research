@@ -318,6 +318,56 @@ Get-Item ...\release\mang-app.exe | Select-Object Length   # 体积（回帖记�
 dumpbin /headers ...\release\mang-app.exe | Select-String "machine|subsystem"
 ```
 
+### 6.2 发行档打包（#248——正式分发形态）
+
+开发档（上文缺省行为）产出可调试的 zip；**发行档**加 `-Release` 开关
+（或环境变量 `MANG_RELEASE=1`——CI 用后者）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\package-mang-app.ps1 -Release
+```
+
+发行档相对开发档的差异（全部经发行校验门，任一失败即拒发——exit 1）：
+
+| 面 | 开发档 | 发行档 |
+|---|---|---|
+| UI 构建（mang-build.mjs） | minify=false（可读） | **MANG_RELEASE=1**：minify + 显式无 sourcemap |
+| exe profile | workspace `[profile.release]`（strip=symbols / lto=thin / codegen-units=1——#248 保守档，`debug=false` 下无 PDB） | 同左（profile 对两档同一，差异在 UI 与校验门） |
+| 版本一致性 | 不检查 | **fail-closed**：mang-app Cargo.toml ↔ web-ui package.json 不一致即拒 |
+| 开发产物 | 不检查 | **零容忍**：zip 逐条目扫描 `.map`/`.pdb`/`.ts`/`node_modules`/`.git`，出现即拒 |
+| SHA-256 | 无 | `SHA256SUMS.txt` 入包 + 独立 `SHA256SUMS-<version>.txt`（逐文件可独立复核） |
+| 构建元数据 | 无 | `build-manifest-<version>.json`（版本/commit/工具链/zip 哈希/签名状态） |
+
+签名：打包脚本不签（`signed=false` 显式可见）——Authenticode 由发行
+工作流的可选步骤负责（证书经 GitHub secrets 提供，不入库不入日志）。
+
+### 6.3 发行工作流（#248——`.github/workflows/windows-release.yml`）
+
+**手动触发**（Actions 页 → windows-release → Run workflow）或**正式版本
+tag**（`v*`）触发；PR/日常 push 走 windows-check（编译+测试），不因发行
+面变慢。流程（15 步，失败零半成品——上传排在全部校验门后）：
+
+```
+checkout → mdcore deploy key（条件布置，与 windows-check 同款）
+→ Rust + Node 工具链 → release 缓存（与 CI 缓存分 key）
+→ UI 发行构建（minify；断言 dist 零 .map）
+→ cargo build --release -p mang-app → 断言无 PDB
+→ 打包（-Release 全部发行门）
+→ Smoke check（解包后 --selftest / --ls-ui / ui\mang\index.html 在位）
+→ Authenticode 签名（可选：secrets 缺席跳过+状态可见；
+   tag 触发或 require_signed=true 时 fail-closed）
+→ 上传 artifacts（zip + SHA256SUMS + build-manifest）
+→ tag 触发时创建 GitHub Release → 构建摘要（审计面）
+```
+
+> **编写环境声明**（与手册头同款纪律）：工作流与打包脚本在 Linux 沙箱
+> 编写——已本地实测的：UI 发行构建真跑（minify + 零 .map）、打包脚本
+> 全部发行门（含 fail-closed 负例：违禁注入拒发 / 版本失配拒发）、
+> YAML 结构解析、PowerShell 语法解析（pwsh 7.4）。**Windows runner 实跑
+> 面**（真实 exe 构建 + WebView2 加载 + smoke check）由 Lead 触发
+> workflow_dispatch 验证——本节命令与步骤引用的均为静态事实（脚本/
+> 工作流文件内容），不含未验证的断言。
+
 ## 7. 验收清单（在真实 Windows 上逐项勾选）
 
 > 执行环境记录：`winver` 版本 ____ ／ rustc ____ ／ 构建耗时 ____ 分钟

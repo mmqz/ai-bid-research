@@ -110,6 +110,8 @@ export const zhCN: Dict = {
   'status.importFailed': '导入失败（{code}）：{message}',
   'status.exportFailed': '导出失败（{code}）：{message}',
   'status.gridSuffix': ' · 工作簿已载入「表格」页（{n} 个工作表）',
+  // #445（D-03）：Grid 联动失败后缀——部分成功的诚实面（主编辑成功，表格页缺席）
+  'status.gridFailSuffix': ' · 「表格」页联动失败（{code}）——表格视图不可用，编辑不受影响',
   'docx.heading.one': '{n} 个标题',
   'docx.heading.many': '{n} 个标题',
   'docx.paragraph.one': '{n} 段',

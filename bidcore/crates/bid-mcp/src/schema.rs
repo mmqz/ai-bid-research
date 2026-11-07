@@ -308,6 +308,7 @@ fn input_schema(name: &str) -> Value {
                 "page": {"type": "integer", "minimum": 1, "description": "可选——只取该页块（PDF 面；省略 = 全文件）"}
             },
             "required": ["project_id", "file_id"]
+        }),
         // ---- #318 评分细则逐条响应覆盖检查 ----
         "check_scoring_coverage" => json!({
             "type": "object",

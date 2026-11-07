@@ -176,22 +176,23 @@ policy/资格三态字段——`get_compliance_matrix` 行内 `response_policy` 
 ## 来源锚点
 
 - `docs/bid-mcp-contract.md` §10（build_outline 入出参/状态窗/篇幅档位，
-  L495-524）、§22（recommend_length_profile——四档推荐/信号/置信度）、
-  §4（get_compliance_matrix 行结构/游标，L74-88）、§0（大结果分页约定，L13-16）
+  L544-592）、§22（recommend_length_profile——四档推荐/信号/置信度，L1151-1184）、
+  §4（get_compliance_matrix 行结构/游标，L112-152）、§0（大结果分页约定，L16-18）
 - `bidcore/crates/bid-mcp/src/lib.rs`（TOOL_NAMES 单一真源——含矩阵人工
   覆写工具 `set_matrix_override`，#226 起入面）
-- `bidcore/crates/bid-mcp/src/tools.rs` L3323-3393（build_outline 壳层）、
-  L816-931（get_compliance_matrix：双形态过滤/游标/行组装，
-  `response_policy: "default"` 在 L901）、L590-600（category_key 七类）
-- `bidcore/crates/bid-mcp/src/schema.rs` L176-192（矩阵入参 schema）
+- `bidcore/crates/bid-mcp/src/tools.rs` L4370-4490（`build_outline` 壳层）、
+  L1194-1368（`get_compliance_matrix`：双形态过滤/游标/行组装，
+  `response_policy: "default"` 在 L1295）、L763-773（`category_key` 七类）
+- `bidcore/crates/bid-mcp/src/schema.rs` L312-326（矩阵入参 schema）
 - `bidcore/crates/bid-domain/src/matrix.rs` L6-14（四态派生 + blocking 语义）、
-  L30-46（ResponseStatus）、L77-79（is_mandatory）、L128-155（行派生）、
-  L212-237（set_matrix_override——域层面，未接 MCP）、L243-266
-  （check_export_ready）、L268-279（matrix_view 活证据过滤）
-- `bidcore/crates/bid-tools/src/service.rs` L729-737
-  （prepare_outline_and_matrix：建纲 + 矩阵首建 + 落盘）
+  L67-75（`ResponseStatus`）、L155-157（`is_mandatory`）、L236-353
+  （`derive_matrix_rows` 行派生）、L428-470（`DomainStore::set_matrix_override`
+  ——已接 MCP，#226 起入面，工具壳层见 bid-mcp/src/tools.rs）、L490-499
+  （`check_export_ready`）、L503-508（`matrix_view` 活证据过滤）
+- `bidcore/crates/bid-tools/src/service.rs` L940-948
+  （`prepare_outline_and_matrix`：建纲 + 矩阵首建 + 落盘）
 - `docs/agent-integration.md` §5 P3 段（资格结论逐页读 qualification 行）
 - `docs/bid-skill-design.md` 阶段表 P3 行（资格三态——设计层概念）；
   `docs/threat-model.md` §3（矩阵 policy 终判 = DESIGN_ASSUMPTION（M2））
-- `sdk/skill/bid-response-pipeline/scripts/checklist.py` L82-88
+- `sdk/skill/bid-response-pipeline/scripts/checklist.py` L86-91
   （P3 机器判据：status=MATRIX_READY、leaves>0）

@@ -541,6 +541,7 @@ fn mk_agent_mandatory_req(id: &str, excerpt: &str) -> Requirement {
             kind: "para".into(),
             locator: "第四章/2.1".into(),
             excerpt: excerpt.into(),
+
             block_idx: None,
             page: None,
             line: None,

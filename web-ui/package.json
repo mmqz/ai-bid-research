@@ -8,7 +8,7 @@
     "build": "node mang-build.mjs",
     "build:legacy": "node build.mjs",
     "serve": "node scripts/serve.mjs",
-    "test": "node tests/md-link.test.mjs",
+    "test": "node tests/md-link.test.mjs && node tests/evidence-gate.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

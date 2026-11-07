@@ -236,6 +236,29 @@ function locatorText(loc: Locator): string {
   return loc.kind;
 }
 
+/**
+ * 证据卡动作门（#435 / 审计 D-05：注释宣称的 stage-2 门——「broken linkage
+ * cannot be approved directly」——此前只在注释里存在，实现只查 review==pending）。
+ *
+ * 纯函数（无 DOM / 无 i18n）——tests/evidence-gate.test.mjs 按源码提取执行
+ * 真实实现（D-01 md-link.test.mjs 先例：不复制实现，防测试自己的影子）。
+ *
+ * 返回三动作的 disabled 态：
+ * - approve：仅 review==pending 且 linkage=='valid' 可用（fail-closed：
+ *   stale / missing / ambiguous 及未知新值一律禁——恢复先走 reverify 重锚定）；
+ * - reject：review==pending 即可用（拒绝不主张锚定有效）；
+ * - reverify：linkage != 'valid' 时可用（恢复通道——valid 无可恢复）。
+ */
+function evActionGates(review: string, linkage: string) {
+  const pendingReview = review === 'pending';
+  const linkageValid = linkage === 'valid';
+  return {
+    approve: !(pendingReview && linkageValid),
+    reject: !pendingReview,
+    reverify: linkageValid,
+  };
+}
+
 function downloadBlob(bytes: Uint8Array, mime: string, filename: string): void {
   const blob = new Blob([new Uint8Array(bytes)], { type: mime });
   const url = URL.createObjectURL(blob);
@@ -847,14 +870,15 @@ export class EvidencePanelUI {
       b.disabled = disabled;
       return b;
     };
-    // Gate faces: approve/reject act on pending reviews; reverify is the
-    // recovery channel for non-valid linkage (stage-2 gate: broken linkage
-    // cannot be approved directly).
-    const pendingReview = ev.review === 'pending';
+    // Gate faces (#435/D-05): approve/reject act on pending reviews; reverify
+    // is the recovery channel for non-valid linkage (stage-2 gate: broken
+    // linkage cannot be approved directly——门在 evActionGates 单一真源，
+    // fail-closed：linkage 非 valid 一律禁批，先重锚定)。
+    const gates = evActionGates(ev.review, ev.linkage);
     actions.append(
-      mkAction('approve', 'approve', !pendingReview),
-      mkAction('reject', 'reject', !pendingReview),
-      mkAction('reverify', 'reverify', ev.linkage === 'valid'),
+      mkAction('approve', 'approve', gates.approve),
+      mkAction('reject', 'reject', gates.reject),
+      mkAction('reverify', 'reverify', gates.reverify),
     );
 
     card.append(head, claim, meta, actions);

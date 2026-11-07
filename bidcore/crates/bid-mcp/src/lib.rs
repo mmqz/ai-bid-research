@@ -22,6 +22,8 @@
 
 pub mod coverage_tools;
 pub mod bidi_tools;
+// #315 业绩材料库四工具（跨项目库 + 匹配推荐 + 一键写入）
+pub mod perf_tools;
 pub mod cursor;
 pub mod error;
 pub mod protocol;
@@ -63,8 +65,9 @@ use serde_json::Value;
 /// 实测捕获率 1/5~5/5 波动的对账面）= 32；#285 ② 增 3 个：块级双向索引
 /// 三工具（get_requirement_provenance / get_block_requirements /
 /// get_annotation_overlay——REQ↔块双向反查 + 视图渲染 overlay 数据面）
-/// = 35。
-pub const TOOL_NAMES: [&str; 37] = [
+/// = 35；#315 增 4 个：业绩材料库四工具（register_performance / list_performance / recommend_performance / write_performance_section——跨项目业绩资产：登记/列表无项目路由，推荐/写入走项目态）= 39。
+pub const TOOL_NAMES: [&str; 41] = [
+
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -116,6 +119,12 @@ pub const TOOL_NAMES: [&str; 37] = [
     // 都试探了 list_tools）——返回工具清单 + 行协议契约摘要；JSON-RPC 客户端
     // 用 tools/list 等价获取，本工具是行协议（stdio 裸 JSON）的握手入口
     "list_tools",
+    // #315 业绩材料库四工具（库是跨项目资产：登记/列表无项目路由——建项目
+    // 前就能维护；推荐/写入走项目态）
+    "register_performance",
+    "list_performance",
+    "recommend_performance",
+    "write_performance_section",
 ];
 
 /// 工具解析与分发入口（进程级全局服务态——stdio 默认传输面）。

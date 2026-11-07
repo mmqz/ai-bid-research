@@ -29,6 +29,7 @@ fn tool_names_are_the_contract_twenty() {
     // #226 增 1（set_matrix_override——否决项死锁的人工出口）= 25；
     // #243 增 1（recover_validating_state——历史异常态恢复出口）= 26
 assert_eq!(TOOL_NAMES.len(), 37, "工具面必须恰为 37 个（21 + #219 全块覆盖三工具 + #226 否决项死锁出口 + #243 恢复出口 + #254 分段三工具 + #279 行协议发现面 + #287 篇幅档位推荐 + #285① ★漏标检测 + #285② 块级双向索引三工具 + #319 补遗后增量重写两工具）");
+
     for name in TOOL_NAMES {
         assert!(!name.is_empty());
     }
@@ -105,6 +106,7 @@ fn tools_schema_lists_all_twenty() {
     let v = bid_mcp::tools_schema();
     let arr = v["tools"].as_array().unwrap();
 assert_eq!(arr.len(), 37, "tools/list 必须列出全部 37 个工具");
+
     let implemented: Vec<&str> = arr
         .iter()
         .filter(|t| t["implemented"] == true)
@@ -122,7 +124,9 @@ assert_eq!(arr.len(), 37, "tools/list 必须列出全部 37 个工具");
     // #219 增 3 覆盖工具 → 24 实装；
     // #226：set_matrix_override（否决项死锁出口）→ 25 实装；
     // #243：recover_validating_state（历史异常态恢复出口）→ 26 实装；
-    // #285② 块级双向索引三工具 → 34 实装（只读）
+    // #285② 块级双向索引三工具 → 34 实装（只读）；
+    // #315 业绩材料库四工具（register/list/recommend/write——perf_tools.rs
+    // 全部接线）→ 38 实装
     assert_eq!(
         implemented,
         vec![
@@ -172,6 +176,11 @@ assert_eq!(arr.len(), 37, "tools/list 必须列出全部 37 个工具");
             "recommend_length_profile",
             // #279 行协议发现面
             "list_tools",
+            // #315 业绩材料库四工具（perf_tools.rs 全部接线）
+            "register_performance",
+            "list_performance",
+            "recommend_performance",
+            "write_performance_section",
         ]
     );
     // 描述面：新工具不得是 unknown（describe 遗漏即挂）

@@ -89,6 +89,11 @@ pub(crate) fn invoke(name: &str, args: Value, svc: &mut BidService) -> ToolResul
         "search_evidence" => search_evidence(svc, args),
         // ---- #279：行协议发现面（无状态前置的只读握手——工具清单 + 契约摘要）----
         "list_tools" => list_tools(),
+        // ---- #315 业绩材料库四工具（登记/列表无项目路由；推荐/写入有）----
+        "register_performance" => crate::perf_tools::register_performance(svc, args),
+        "list_performance" => crate::perf_tools::list_performance(svc, args),
+        "recommend_performance" => crate::perf_tools::recommend_performance(svc, args),
+        "write_performance_section" => crate::perf_tools::write_performance_section(svc, args),
         other => Err(ToolError::ENotFound {
             what: format!("未接入的工具 {other}"),
         }),
@@ -145,7 +150,7 @@ fn list_tools() -> ToolResult {
 ///   （跳过检查），但**意图可见**：单代理顺序作业时调用方不必追踪版本号，
 ///   也不再因为揣着过期数字吃 E_CONFLICT 重试；误用时审计面上可辨认；
 /// - 缺省 / null → `None`：内部步骤语义（现状不变）。
-fn opt_cas_version(v: &Value, at: &str) -> Result<Option<u64>, ToolError> {
+pub(crate) fn opt_cas_version(v: &Value, at: &str) -> Result<Option<u64>, ToolError> {
     match v.get("project_version") {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Number(n)) => n.as_u64().map(Some).ok_or_else(|| ToolError::EUnprocessable {
@@ -210,8 +215,8 @@ pub(crate) fn opt_u64(v: &Value, key: &str, at: &str) -> Result<Option<u64>, Too
     }
 }
 
-/// 可选数值参数（#100 任务 3——score_price/score_document 的报价与规格面）。
-fn opt_f64(v: &Value, key: &str, at: &str) -> Result<Option<f64>, ToolError> {
+/// 可选数值参数（#100 任务 3 报价与规格面 / #315 业绩库预算与金额窗）。
+pub(crate) fn opt_f64(v: &Value, key: &str, at: &str) -> Result<Option<f64>, ToolError> {
     match v.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Number(n)) => n

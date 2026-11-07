@@ -56,6 +56,7 @@ EXPECTED_TOOLS = {
     # #319 补遗后增量重写两工具（与 TOOL_NAMES 37 对齐）
     "register_addendum_changes",
     "rewrite_section_partial",
+
 }
 
 server_bin = sys.argv[1] if len(sys.argv) > 1 else "bid-mcp-server"
@@ -91,6 +92,7 @@ async def main() -> None:
             tools = (await session.list_tools()).tools
             names = {t.name for t in tools}
             check(len(tools) == 37, f"list_tools: 工具数 = {len(tools)}（37）")
+
 
             check(names == EXPECTED_TOOLS, "list_tools: 与 TOOL_NAMES 单一真源一致")
             for t in tools:

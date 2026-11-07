@@ -1497,7 +1497,9 @@ impl DomainStore {
     /// 新树中不存在，`set_outline` 按 #224 fail-loud 拒绝（外部映射是
     /// 审计面，不得静默蒸发）。
     pub fn derive_and_set_outline(&mut self, spec: OutlineSpec) -> Result<(usize, u64), ToolError> {
-        let reqs = self.requirements.clone();
+        // #316 按包收敛：已选分包 → 只推导「该包 + 共用条款」的大纲；
+        // 未选/无分包 → 全集（既有行为零位移）。
+        let reqs = self.requirements_in_scope();
         let (nodes, intents) =
             derive_outline_with_mappings(&reqs, spec, &mut |prefix| self.next_id(prefix));
         self.scoring_mappings

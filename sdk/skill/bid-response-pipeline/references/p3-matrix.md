@@ -1,15 +1,33 @@
 # P3 矩阵细则（build_outline → get_compliance_matrix）
 
-> 契约依据：仓库根 `docs/bid-mcp-contract.md`（路径约定见 SKILL.md 头部——`docs/` 指仓库根，非本目录相对） §10（建纲）/ §4（矩阵只读）。本阶段
+> 契约依据：仓库根 `docs/bid-mcp-contract.md`（路径约定见 SKILL.md 头部——`docs/` 指仓库根，非本目录相对） §10（建纲）/ §4（矩阵只读）/ §23（分包清单）。本阶段
 > 两个动作：`build_outline` 一次性完成「大纲树推导 + 矩阵首建」（推进
 > MATRIX_READY——draft 的硬前置）；之后 `get_compliance_matrix` 只读查询、
 > 随时重查。Agent 不算矩阵——矩阵行是引擎从（条款 × 绑定 × 章节 × 覆写）
 > 派生的权威账本，你只读它、复述它、按 blocking 行驱动 P4。
 
+## 多标段/多包（#316）
+
+真实招标常分包（「…-第2包.doc」文件名 / 章内「第X章 第N包 技术要求」/
+分包清单表格三形态）。P2 `extract_requirements` 响应的 `packages` 块即
+识别结果；P3 建纲前规则：
+
+1. `packages.detected = 0` → 无分包，直接建纲（老流程，不传 package）；
+2. `detected = 1` → 单包件（如只拿到第2包的文件），引擎自动选定，
+   回显 `package.auto_selected=true`——向用户复述后继续；
+3. `detected ≥ 2` → **必须先问用户投哪个包**（用 `list_packages` 拿清单
+   +每包条款数+共用条款数，向用户呈现后确认）；「投全部」= 每包各建
+   一个项目分别走全流程（单项目单大纲——不要试图在一个项目里混包）；
+4. 选定后 `build_outline` 传 `package`（三口径任一：`PKG-02` / `第2包` /
+   `2`）；共用条款（资格/格式等，无 package_id）自动进纲；
+5. 不传 package 且 ≥2 包 → E_UNPROCESSABLE（fail-visible，列清单）——
+   这是引擎在拦「混包建纲」，按清单问用户后重试即可，不是错误重试。
+
 ## 调用形
 
 ```json
 { "project_id": "…", "length_profile": "conservative", "max_reqs_per_leaf": 8,
+  "package": "第2包",
   "project_version": 12 }
 ```
 

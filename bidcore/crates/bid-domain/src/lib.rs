@@ -56,6 +56,7 @@ pub mod linkage;
 pub mod locator;
 pub mod matrix;
 pub mod outline;
+pub mod packages;
 pub mod param;
 pub mod party;
 pub mod pricing;
@@ -199,11 +200,15 @@ impl ProjectStatus {
                 "get_coverage_report",
                 // #285 ① ★漏标检测（抽取后主查窗口）
                 "get_star_coverage",
+                // #316 分包清单（抽取时识别落注册表——选包前后均可查）
+                "list_packages",
             ],
             MatrixReady | EvidenceBound => &[
                 "get_coverage_report",
                 "recommend_length_profile",
                 "get_star_coverage",
+                // #316 分包清单（抽取时识别落注册表——选包前后均可查）
+                "list_packages",
                 "get_compliance_matrix",
                 "search_evidence",
                 "get_bid_project_state",
@@ -233,6 +238,8 @@ impl ProjectStatus {
                 "get_coverage_report",
                 "recommend_length_profile",
                 "get_star_coverage",
+                // #316 分包清单（抽取时识别落注册表——选包前后均可查）
+                "list_packages",
                 "get_compliance_matrix",
                 "search_evidence",
                 "get_bid_project_state",
@@ -269,6 +276,8 @@ impl ProjectStatus {
                 "get_coverage_report",
                 "recommend_length_profile",
                 "get_star_coverage",
+                // #316 分包清单（抽取时识别落注册表——选包前后均可查）
+                "list_packages",
                 "search_evidence",
                 "get_bid_project_state",
                 // #254 只读段账本（校验期对账面——写作工具不重开）
@@ -299,6 +308,8 @@ impl ProjectStatus {
                 "get_coverage_report",
                 "recommend_length_profile",
                 "get_star_coverage",
+                // #316 分包清单（抽取时识别落注册表——选包前后均可查）
+                "list_packages",
                 "search_evidence",
                 "get_bid_project_state",
                 // #254 只读段账本（复核期对账面）
@@ -325,6 +336,8 @@ impl ProjectStatus {
                 "get_coverage_report",
                 "recommend_length_profile",
                 "get_star_coverage",
+                // #316 分包清单（抽取时识别落注册表——选包前后均可查）
+                "list_packages",
                 "get_compliance_matrix",
                 "search_evidence",
                 "get_bid_project_state",
@@ -579,6 +592,11 @@ pub struct DomainStore {
     /// #319 改写指令账本（RD-xxxx——变更 × 受影响章节的落账面；处置见
     /// [`DomainStore::apply_rewrite_directive`]）
     rewrite_directives: Vec<rewrite::RewriteDirective>,
+    /// #316 分包注册表（识别面见 bid-parse packages.rs；空 = 无分包结构）
+    packages: Vec<packages::PackageInfo>,
+    /// #316 本项目投标的分包（None = 未选/无分包——全量口径；Some = 只投
+    /// 该包 + 共用条款，大纲/矩阵推导输入的收敛面）
+    selected_package: Option<String>,
     /// 幂等键 → 首次结果 JSON（同 key 重放返回首次结果，不重复执行）
     idempotency: HashMap<String, serde_json::Value>,
     id_seq: u64,
@@ -610,6 +628,8 @@ impl DomainStore {
             segments: vec![],
             addendum_changes: vec![],
             rewrite_directives: vec![],
+            packages: vec![],
+            selected_package: None,
             idempotency: HashMap::new(),
             id_seq: 0,
         }
@@ -675,6 +695,118 @@ impl DomainStore {
 
     pub fn requirements(&self) -> &[Requirement] {
         &self.requirements
+    }
+
+    // ------------------------------------------------------------ #316 分包面（多标段/多包）
+
+    /// 分包注册表（识别产物——空 = 无分包结构）。
+    pub fn packages(&self) -> &[packages::PackageInfo] {
+        &self.packages
+    }
+
+    /// 写入分包注册表（extract_requirements 时由识别面调用）。
+    ///
+    /// 重跑幂等：按 number 去重合并（同号并 sources 证据）；已选分包若不在
+    /// 新集合（重抽后消失）→ 复位为 None（诚实：选中面必须可追溯到现存包）。
+    /// 不碰 content_version（派生元数据，同 file_roles 纪律）。
+    pub fn set_packages(&mut self, pkgs: Vec<packages::PackageInfo>) {
+        let mut merged: Vec<packages::PackageInfo> = Vec::with_capacity(pkgs.len());
+        for p in pkgs {
+            match merged.iter_mut().find(|m| m.number == p.number) {
+                Some(m) => {
+                    for s in p.sources {
+                        if !m.sources.contains(&s) {
+                            m.sources.push(s);
+                        }
+                    }
+                }
+                None => merged.push(p),
+            }
+        }
+        merged.sort_by_key(|p| p.number);
+        if let Some(sel) = &self.selected_package {
+            if !merged.iter().any(|p| &p.id == sel) {
+                self.selected_package = None;
+            }
+        }
+        self.packages = merged;
+    }
+
+    /// 已选投标分包（None = 未选/无分包）。
+    pub fn selected_package(&self) -> Option<&packages::PackageInfo> {
+        self.selected_package
+            .as_deref()
+            .and_then(|id| self.packages.iter().find(|p| p.id == id))
+    }
+
+    /// 选定投标分包（build_outline 的 package 参数落点）。
+    ///
+    /// 建纲前调用；大纲/矩阵经 [`DomainStore::requirements_in_scope`] 收敛到
+    /// 「该包 + 共用条款」。选中后重选（同 id）幂等 no-op；换选在建纲后
+    /// 由状态机拒（MATRIX_READY+ build_outline 已被 guard_tool 拦）。
+    pub fn select_package(&mut self, package_id: &str) -> Result<(), ToolError> {
+        let Some(p) = self.packages.iter().find(|p| p.id == package_id) else {
+            return Err(ToolError::ENotFound {
+                what: format!(
+                    "分包 {package_id} 不存在（可用：{}；用 list_packages 查看）",
+                    self.packages
+                        .iter()
+                        .map(|p| format!("{}({})", p.id, p.label))
+                        .collect::<Vec<_>>()
+                        .join("、")
+                ),
+            });
+        };
+        let id = p.id.clone();
+        if self.selected_package.as_deref() != Some(id.as_str()) {
+            self.selected_package = Some(id);
+        }
+        Ok(())
+    }
+
+    /// 大纲/矩阵的推导输入（#316 按包收敛）。
+    ///
+    /// - 未选包（None）/ 无分包 → 全集（既有项目零位移——GT 红线保护）；
+    /// - 已选包 → 该包 REQ + 共用条款（无 package_id 者）。
+    pub fn requirements_in_scope(&self) -> Vec<Requirement> {
+        match self.selected_package.as_deref() {
+            Some(pkg) => self
+                .requirements
+                .iter()
+                .filter(|r| match packages::requirement_package_id(r) {
+                    Some(p) => p == pkg, // 选中包
+                    None => true,        // 共用条款
+                })
+                .cloned()
+                .collect(),
+            None => self.requirements.clone(),
+        }
+    }
+
+    /// 分包统计（list_packages 的域面：每包 REQ 数 + 共用数）。
+    pub fn package_stats(&self) -> Vec<(packages::PackageInfo, usize)> {
+        self.packages
+            .iter()
+            .map(|p| {
+                let n = self
+                    .requirements
+                    .iter()
+                    .filter(|r| packages::requirement_package_id(r) == Some(p.id.as_str()))
+                    .count();
+                (p.clone(), n)
+            })
+            .collect()
+    }
+
+    /// 共用条款数（分包存在时无 package_id 的 REQ；无分包时为全集口径）。
+    pub fn shared_requirement_count(&self) -> usize {
+        if self.packages.is_empty() {
+            return 0;
+        }
+        self.requirements
+            .iter()
+            .filter(|r| packages::requirement_package_id(r).is_none())
+            .count()
     }
 
     pub fn content_version(&self) -> u64 {
@@ -1364,6 +1496,13 @@ pub struct StoreSnapshot {
     /// #319 改写指令账本（加性迁移——旧快照无此字段 → 空集合加载）
     #[serde(default)]
     pub rewrite_directives: Vec<rewrite::RewriteDirective>,
+    /// #316 分包注册表（加性迁移——旧快照无此字段 → 空注册表加载：
+    /// 无分包结构，行为与旧版一致；schema_version 不 bump，见头注释加性演进纪律）
+    #[serde(default)]
+    pub packages: Vec<packages::PackageInfo>,
+    /// #316 已选投标分包（加性迁移——旧快照无此字段 → None：未选包/无分包）
+    #[serde(default)]
+    pub selected_package: Option<String>,
     #[serde(default)]
     pub idempotency: BTreeMap<String, serde_json::Value>,
     #[serde(default)]
@@ -1403,6 +1542,10 @@ impl DomainStore {
             segments: self.segments.clone(),
             addendum_changes: self.addendum_changes.clone(),
             rewrite_directives: self.rewrite_directives.clone(),
+            // #316 分包面（加性迁移——旧快照无此字段 → 空注册表/未选包
+            // 加载，行为与 #316 之前一致；schema_version 不 bump，加性演进纪律）
+            packages: self.packages.clone(),
+            selected_package: self.selected_package.clone(),
             // HashMap → BTreeMap：持久化 DTO 要求跨进程字节一致（HashMap 迭代序不确定）
             idempotency: self.idempotency.clone().into_iter().collect(),
             id_seq: self.id_seq,
@@ -1920,6 +2063,8 @@ impl DomainStore {
             segments: snap.segments,
             addendum_changes: snap.addendum_changes,
             rewrite_directives: snap.rewrite_directives,
+            packages: snap.packages,
+            selected_package: snap.selected_package,
             idempotency: snap.idempotency.into_iter().collect(),
             id_seq: snap.id_seq,
         })

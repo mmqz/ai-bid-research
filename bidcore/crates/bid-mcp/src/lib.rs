@@ -63,8 +63,10 @@ use serde_json::Value;
 /// 实测捕获率 1/5~5/5 波动的对账面）= 32；#285 ② 增 3 个：块级双向索引
 /// 三工具（get_requirement_provenance / get_block_requirements /
 /// get_annotation_overlay——REQ↔块双向反查 + 视图渲染 overlay 数据面）
-/// = 35。
-pub const TOOL_NAMES: [&str; 37] = [
+/// = 35；#316 增 1 个：list_packages（分包清单只读——多标段/多包）= 36；
+/// #319 增 2 个：register_addendum_changes / apply_rewrite_directive；
+/// #315 增 4 个业绩库工具；合计 38。
+pub const TOOL_NAMES: [&str; 38] = [
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -112,6 +114,9 @@ pub const TOOL_NAMES: [&str; 37] = [
     "rewrite_section_partial",
     // #287 篇幅档位推荐（只读——P3 建纲前调，建议+理由+alternatives 交用户确认）
     "recommend_length_profile",
+    // #316 分包清单（只读——多标段/多包识别结果 + 归属统计 + 选包状态；
+    // 选包走 build_outline 的 package 参数）
+    "list_packages",
     // #279 行协议发现面：无上下文代理合理预期先握手（六场实测两个独立代理
     // 都试探了 list_tools）——返回工具清单 + 行协议契约摘要；JSON-RPC 客户端
     // 用 tools/list 等价获取，本工具是行协议（stdio 裸 JSON）的握手入口

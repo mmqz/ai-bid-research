@@ -80,6 +80,10 @@ out: { counts:{total, added(可为负——整集替换语义下的诚实增量)
          抽取面文件口径；total 为真值★（样板句已排除，captured+missing==total
          恒成立）；missing>0 时 warnings 追加 STAR_MISSING；逐文件明细走 §22
          get_star_coverage），
+       packages:{ detected, items:[{id:"PKG-01", label:"第1包", kind:"包"|"标段",
+         number, sources["filename:…"|"chapter:…"|"table:…"|"text:…"], req_count}],
+         shared_req_count }（#316 分包识别——无分包时 detected=0/items 空，
+         既有行为零位移；共用条款无 package_id，选任何包建纲都进纲），
        conflicts:[{a:REQ-*,b:REQ-*,reason}], missing_sequence:[{file_id,expected_clause_nos,found}], warnings[] }
 执行: 确定性先行（条款编号序列解析、表格结构化槽位抽取）→ #219 二步抽取通路合并
       （Agent 块标记优先 + 正则兜底，#422 按 verdict 分流）：被区间标记覆盖的块，
@@ -94,6 +98,10 @@ out: { counts:{total, added(可为负——整集替换语义下的诚实增量)
       id 走 CMP-0000-REQ-Axxxx 回退分支，与正则 CMP-000N 零碰撞。
       **无标记时严格 no-op**：与旧正则产物逐位一致（GT 红线零位移）。
       B3（图纸目录/证据件，无抽取面）不进合并统计。
+      #316 分包识别与归属（合并面之后）：三形态（文件名「…-第2包」/章节结构
+      「第X章 第N包 …」/分包清单表格行）；REQ 归属写 params.package_id
+      （加性——id/category/anchors 零位移，幂等合并不受影响）；文件名带单一
+      包标记 → 整件归属；多包并提的总括句 → 共用；康熙部首 NFKC 归一化匹配。
       warnings 新增：UNCOVERED_BLOCKS（未覆盖块数——正则已兜底，Agent 补标后
       重跑更准）；AGENT_MANDATORY_OFFCATEGORY（Agent 标必选且类别不在类别
       阻断面资格条件/否决项——**已接线**：经 matrix.rs `agent_mandatory`
@@ -551,13 +559,22 @@ CherryHQ/cherry-studio（AGPL-3.0，52.9k★）为 Electron **桌面客户端**�
 in : { project_id, length_profile?("practical"|"standard"|"conservative"|"maximum",
        #287 篇幅档位四选一),
        target_total_chars?(1000..=5000000, 直接给字数覆盖档位),
-       max_reqs_per_leaf?(1..=50, 缺省 8), project_version }
+       max_reqs_per_leaf?(1..=50, 缺省 8),
+       package?(#316 选包建纲——PKG id「PKG-02」/原文标签「第2包」/纯序号「2」
+       三口径任一；先用 §23 list_packages 查识别结果；共用条款自动进纲；
+       「投全部」= 每包各建一个项目——单存储单大纲的边界，如实呈现),
+       project_version }
        三者优先（#287）：target_total_chars 显式给 → 用它；length_profile
        显式给 → 档位字数；都不给 → 默认档 Conservative 1,200,000
        （单一真源 bid_domain::outline::DEFAULT_TARGET_TOTAL_CHARS；用户裁定
        2026-11-06：120 万字 ≈ 1422 页，四档 400k/800k/1.2M/2.5M；拼错档位键
        E_UNPROCESSABLE 显式拒）
-out: { counts:{ sections, leaves, requirements, total_target_chars, matrix_rows, matrix_blocking },
+out: { counts:{ sections, leaves, requirements(建纲范围口径——选包后 =
+       选中包 REQ + 共用；未选 = 全集), total_requirements(全集计数),
+       total_target_chars, matrix_rows, matrix_blocking },
+       package:{ selected:{id,label,kind,number}|null, auto_selected,
+       detected_packages, shared_requirements }（#316 选包回显——审计面：
+       本项目投哪个包、是否自动选定、共用条款量），
        length:{ profile("practical"…|"custom"), target_total_chars, approx_pages }
        （#287 生效档回显——审计面可核对），
        status: "MATRIX_READY", project_version }
@@ -585,9 +602,12 @@ out 补: coverage:{ face_files, marked_files, regex_fallback_files,
       excluded_blocks(B 态总数), unjudged_blocks(恒 0——非零时已被门拦) }
 错误: E_COVERAGE_INCOMPLETE（部分标记未判完——零副作用，补标 →
       重跑 extract_requirements → build_outline）；E_STATE（状态窗口外/
-      条款面空）
+      条款面空）；E_UNPROCESSABLE（#316：检测到 ≥2 包但未传 package——
+      fail-visible 拒并列清单，不静默混包建纲；package 未命中已识别分包；
+      所选包范围为空）
 幂等: 推导确定性（同输入同树）；状态机面不重入（见上）；补标后重跑
-      幂等（REQ 集合逐位稳定——替换语义 + REQ-A 编号确定性）
+      幂等（REQ 集合逐位稳定——替换语义 + REQ-A 编号确定性）；#316 选包
+      幂等（同包重选 no-op；换包受状态机拦——重建面同上）
 ```
 
 ## 11-A. register_evidence（#80 第三批 · G2；#185 缺口 1 来源验证；#217 四态 + 正文摘录；#245 占位态）
@@ -1182,7 +1202,26 @@ out: { recommended_profile("practical"|"standard"|"conservative"|"maximum"),
       = 选中档位目标）动态判——档位化后自动按选中档生效（非固定 844,000）。
 ```
 
-## 23. register_addendum_changes（#319① 补遗变更登记 · 起草后补遗的主入口）
+## 23. list_packages（#316 分包清单 · 只读）
+
+> 背景：真实招标常分包（batch2 实证：`…-第2包.doc`），一包一投或全投；
+> 引擎在 extract_requirements 时按三形态识别（文件名/章节结构/分包清单
+> 表格），本工具是识别结果与选包状态的唯一查询面。
+
+```
+in : { project_id }
+out: { detected, items:[{ id:"PKG-01", label:"第1包", kind:"包"|"标段", number,
+       req_count, sources["filename:…"|"chapter:…"|"table:…"], selected }],
+       shared_req_count(共用条款数——选任何包都进纲), total_requirements,
+       selected_package:{id,label,kind,number}|null,
+       usage(信息性提示：选包走 build_outline 的 package 参数),
+       status, project_version }
+语义: 纯读、无状态门（REQUIREMENTS_EXTRACTED+ 含 Exported——抽取时落
+      注册表，选包前后均可查）。无分包结构 → detected=0/items 空（诚实
+      空面，不是错误）。
+错误: E_NOTFOUND（project 路由失败）
+
+## 24. register_addendum_changes（#319① 补遗变更登记 · 起草后补遗的主入口）
 ```
 in : { project_id,
        changes:[{ req_id?("REQ-xxxx"——value_changed/requirement_removed 必填；

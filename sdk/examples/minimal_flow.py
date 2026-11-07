@@ -31,8 +31,10 @@ import hashlib
 import hmac
 import json
 import os
+import queue
 import shutil
 import subprocess
+import threading
 import sys
 import tempfile
 import time
@@ -150,14 +152,28 @@ def build_binary() -> Path:
 
 
 class McpStdio:
-    """stdio 行协议最小客户端（协议层演进后仅本类需适配）。"""
+    """stdio 行协议最小客户端（协议层演进后仅本类需适配）。
+
+    #396（C-09）三面修复（对齐 sdk/tests/test_mcp_e2e.py 的成熟实现）：
+    - stderr 落文件（server.stderr.log）——不再 PIPE（PIPE 不读，服务端
+      stderr 超管道缓冲 64KB 即阻塞写 → hang；真实 LLM 日志面可触发）；
+    - readline 超时（后台线程 + queue，env BID_MCP_CALL_SECS 可调，缺省
+      300s——与 e2e 同名变量）；
+    - project_version 从 data 内取（信封三键 {ok, tool, data}——顶层取值
+      恒 None，乐观并发从未生效）。
+    """
+
+    CALL_TIMEOUT = float(os.environ.get("BID_MCP_CALL_SECS", "300"))
 
     def __init__(self, binary: Path, workspace: Path):
+        # stderr 落文件：进程退出后仍可回看；die 时回显尾部（诊断面）
+        self.stderr_path = workspace.parent / "server.stderr.log"
+        self._err = open(self.stderr_path, "wb")
         self.proc = subprocess.Popen(
             [str(binary)],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=self._err,
             text=True,
             env={
                 **os.environ,
@@ -170,22 +186,46 @@ class McpStdio:
             },
         )
         self.project_version: int | None = None
+        # 超时读的队列通道（readline 在后台线程——主线程 join 带超时）
+        self._lines: "queue.Queue[str]" = queue.Queue()
+
+        def _pump() -> None:
+            assert self.proc.stdout
+            for line in self.proc.stdout:
+                self._lines.put(line)
+            self._lines.put("")  # EOF 哨兵
+
+        self._reader = threading.Thread(target=_pump, daemon=True)
+        self._reader.start()
+
+    def _stderr_tail(self, n: int = 2000) -> str:
+        try:
+            return self.stderr_path.read_bytes()[-n:].decode("utf-8", "replace")
+        except OSError:
+            return ""
 
     def call(self, tool: str, args: dict) -> dict:
         payload = dict(args)
         # 乐观并发：带上最近一次应答的 project_version（写面；只读工具不带）
         if self.project_version is not None:
             payload.setdefault("project_version", self.project_version)
-        assert self.proc.stdin and self.proc.stdout
+        assert self.proc.stdin
         self.proc.stdin.write(json.dumps({"tool": tool, "args": payload}) + "\n")
         self.proc.stdin.flush()
-        line = self.proc.stdout.readline()
+        try:
+            line = self._lines.get(timeout=self.CALL_TIMEOUT)
+        except queue.Empty:
+            self.proc.kill()
+            die(f"{tool}: 应答超时（>{self.CALL_TIMEOUT}s，env BID_MCP_CALL_SECS 可调）；"
+                f"stderr 尾部: {self._stderr_tail()!r}")
         if not line:
-            err = self.proc.stderr.read() if self.proc.stderr else ""
-            die(f"{tool}: 应答为空（进程可能已退出）stderr: {err[:500]}")
+            die(f"{tool}: 应答为空（进程可能已退出）stderr: {self._stderr_tail(500)!r}")
         reply = json.loads(line)
-        if reply.get("project_version") is not None:
-            self.project_version = reply["project_version"]
+        # #396（C-09）：信封三键——project_version 在 data 内部（顶层取值
+        # 恒 None，所有写调用从不带版本——乐观并发在示例里从未生效）
+        pv = (reply.get("data") or {}).get("project_version")
+        if isinstance(pv, int):
+            self.project_version = pv
         return reply
 
     def must(self, tool: str, args: dict) -> dict:
@@ -198,7 +238,10 @@ class McpStdio:
     def close(self) -> None:
         if self.proc.stdin:
             self.proc.stdin.close()
-        self.proc.wait(timeout=30)
+        try:
+            self.proc.wait(timeout=30)
+        finally:
+            self._err.close()  # stderr 落文件句柄（#396）
 
 
 def main() -> None:

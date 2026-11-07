@@ -11,7 +11,10 @@
   python3 checklist.py --dump-version reply.json   # 提取 project_version（并发账）
   python3 checklist.py --list                     # 阶段判据速查
 
-输入 = MCP 应答原文：{ ok, tool, data, request_id, project_version?, warnings? }
+输入 = MCP 应答原文（信封三键——schema.rs Serialize 的真实形状）：
+  { ok, tool, data }  —  request_id / warnings / project_version 均在 data
+  内部（各写面工具的 result 组装面；#396：docstring 旧形状描述与实现不符，
+  取位错误的根因）
 退出码：0 全过 / 1 任一判据 FAIL / 2 用法错误。
 """
 
@@ -106,7 +109,8 @@ STAGES: dict[str, Stage] = {
                "BLOCKER = 0（非零必须修复或登记 WAIVED）"),),
         # 注意（#243）：校验通过且推进（DRAFTING→VALIDATING）时 project_version
         # +1——下一步工具必须用本响应新值；失败/前置拒零副作用（版本不变）。
-        (check("project_version", lambda v: isinstance(v, int),
+        # #396（C-08）：project_version 在 data 内部（信封三键），不是顶层
+        (check("data.project_version", lambda v: isinstance(v, int),
                "响应携带 project_version（发生推进时为新值——传给下一个工具）"),),
     ),
     "P8": (
@@ -176,7 +180,9 @@ def main(argv: list[str]) -> int:
             print("用法: checklist.py --dump-version <reply.json|->", file=sys.stderr)
             return 2
         doc = load_doc(args[0])
-        print(doc.get("project_version", "<应答未携带 project_version>"))
+        # #396（C-08）：project_version 在 data 内部（信封三键）
+        pv = doc.get("data", {}).get("project_version")
+        print(pv if pv is not None else "<应答未携带 project_version>")
         return 0
 
     if len(args) != 3 or args[0] != "--stage":

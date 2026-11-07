@@ -396,7 +396,11 @@ pub fn xlsx_to_parsed_file(
 /// - has_text_layer：任一页非空白字符 ≥16（旧实现同阈值——空白/仅页码层判无）；
 /// - pages = 引擎实际页数（pdfium 页计数——优于旧 pdftotext 非空分页启发式）；
 /// - **扫描件（any_text_layer=false）不在本映射**：OCR 补遗链（pdftoppm +
-///   tesseract）是标书侧保留面（映射表 §3 处置列）——调用方回退旧路径。
+///   tesseract）是标书侧保留面（映射表 §3 处置列）——调用方回退旧路径；
+/// - **混合件（#424：任一页文本层真空）同样不在本映射**：pdfium 整件文本
+///   输出会让扫描页 0 块 0 文本静默丢失——MappingGap 落标书侧逐页路由
+///   （文本页文本层 + 扫描页 OCR 子集，bid-parse engines/mod.rs）。
+///   纯文本件（每页 ≥1 非空白字符）不受影响，仍走本映射（零回归）。
 #[allow(clippy::needless_pass_by_value)]
 pub fn pdf_to_parsed_file(
     pdf: EnginePdf,
@@ -405,6 +409,16 @@ pub fn pdf_to_parsed_file(
     if !pdf.any_text_layer {
         return Err(EngineError::MappingGap(
             "pdf 无文本层（扫描件）——OCR 补遗链在标书侧旧路径（映射表 §3 处置列）".to_string(),
+        ));
+    }
+    // #424：任一页真空 = 混合件——整件文本映射会静默丢扫描页，落标书侧
+    let empty_page = pdf
+        .pages
+        .iter()
+        .any(|t| t.chars().filter(|c| !c.is_whitespace()).count() == 0);
+    if empty_page {
+        return Err(EngineError::MappingGap(
+            "pdf 混合件（存在无文本层页）——逐页路由在标书侧旧路径（#424：文本页文本层 + 扫描页 OCR）".to_string(),
         ));
     }
     let mut blocks: Vec<Block> = Vec::new();

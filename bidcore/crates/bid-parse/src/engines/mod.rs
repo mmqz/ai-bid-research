@@ -31,7 +31,7 @@ mod poppler;
 mod rust_fallback;
 mod tesseract;
 
-use crate::engine::PdfExtractor;
+use crate::engine::{PageText, PdfExtractor};
 use crate::guard::{self, LIMIT_INPUT_BYTES_PDF};
 use crate::pdf_text::{self, CjkGarbleProbe};
 use crate::ParsedFile;
@@ -74,6 +74,27 @@ pub fn parse_pdf(path: &Path, name: &str) -> Result<ParsedFile, String> {
 
     match poppler.extract(path) {
         Ok(pages) => {
+            // #424：混合件逐页路由前置判定——旧「全件非空白求和」把混合件
+            // （文本页 + 盖章/扫描页）整件判给文本层，扫描页 0 块 0 文本、
+            // 内容静默丢失。判据与零回归边界见 [`mixed_partition`]。
+            let has_empty_seg = pages
+                .iter()
+                .any(|p| p.text.chars().filter(|c| !c.is_whitespace()).count() == 0);
+            if has_empty_seg {
+                let real_pages = poppler::probe_pdf_pages(path);
+                if let Some((text_pages, scan_nos)) = mixed_partition(&pages, real_pages) {
+                    let text_strs: Vec<String> =
+                        text_pages.iter().map(|p| p.text.clone()).collect();
+                    if pdf_text::probe_cjk_garble_pages(&raw, &text_strs).verdict
+                        != CjkGarbleProbe::Garbled
+                    {
+                        return Ok(mixed_parse(path, &raw, &text_pages, &scan_nos, &tess));
+                    }
+                    // 文本子集疑似乱码：落回下方旧整件级联（#169/#200 全部
+                    // 语义保留——乱码是整件字体问题，级联的兜底/互证/OCR
+                    // 救援不在混合面重写）。
+                }
+            }
             // 文本层路由门（与旧 pdf::parse 同款：非空白 <16 判无文本层）
             let non_ws: usize = pages
                 .iter()
@@ -238,6 +259,144 @@ fn apply_outcome(pf: &mut ParsedFile, outcome: PdfPathOutcome) {
             );
         }
     }
+}
+
+/// #424 · 混合件逐页路由分面（纯函数——real_pages 注入可测）。
+/// **扫描页判据 = 本页非空白字符为 0**（文本层真空）：1-15 字符的稀疏
+/// 真文本页（章节扉页/页码页）保持文本层归属——旧全件行为不变（零回归）。
+/// 混合件 = 存在非空白 ≥16 的实文本页 **且** 存在 0 字符页。
+///
+/// **尾随空段判伪**：pdftotext 输出常带尾随 `\f` 产生空末段（非真实页）。
+/// 分段数 > 真实页数（pdfinfo）时从尾逐段剔除空段；探测失败时保守不剔
+/// （越界页号在 OCR 面得 0 产物页，无内容可丢）。
+///
+/// 返回 `Some((文本页, 扫描页号表))` = 混合件；`None` = 非混合（纯文本/
+/// 纯扫描/无实文本页的稀疏混合等），全部走旧全件求和门，逐位不变。
+fn mixed_partition(
+    pages: &[PageText],
+    real_pages: Option<usize>,
+) -> Option<(Vec<PageText>, Vec<usize>)> {
+    let non_ws_of = |t: &str| t.chars().filter(|c| !c.is_whitespace()).count();
+    let mut eff_len = pages.len();
+    if let Some(rp) = real_pages {
+        while eff_len > rp && non_ws_of(&pages[eff_len - 1].text) == 0 {
+            eff_len -= 1;
+        }
+    }
+    let eff = &pages[..eff_len];
+    if !eff.iter().any(|p| non_ws_of(&p.text) >= 16) {
+        return None; // 无实文本页：整件扫描面/纯稀疏——旧求和门裁决（sum<16 → OCR）
+    }
+    let scan_nos: Vec<usize> = eff
+        .iter()
+        .filter(|p| non_ws_of(&p.text) == 0)
+        .map(|p| p.page)
+        .collect();
+    if scan_nos.is_empty() {
+        return None; // 纯文本件（稀疏页在文本层归属）——旧路径
+    }
+    let text_pages: Vec<PageText> = eff
+        .iter()
+        .filter(|p| non_ws_of(&p.text) >= 1)
+        .cloned()
+        .collect();
+    Some((text_pages, scan_nos))
+}
+
+/// [`mixed_partition`] 的测试面（#424）——判据是路由契约的一部分，
+/// 纯函数直测（不依赖外部 PDF 工具，CI 全环境可跑）。
+pub fn mixed_partition_for_test(
+    pages: &[PageText],
+    real_pages: Option<usize>,
+) -> Option<(Vec<PageText>, Vec<usize>)> {
+    mixed_partition(pages, real_pages)
+}
+
+/// 页号清单的紧凑渲染（诊断面——超长截断，防 summary 爆炸）。
+fn page_list_str(nos: &[usize]) -> String {
+    if nos.len() <= 12 {
+        nos.iter()
+            .map(|p| p.to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    } else {
+        format!(
+            "{} 等 {} 页",
+            nos.iter()
+                .take(12)
+                .map(|p| p.to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
+            nos.len()
+        )
+    }
+}
+
+/// 从块 locator 前缀还原页号（`第N页 行M` / `第N页 OCR 行M` → N）。
+fn page_of_locator(locator: &str) -> usize {
+    locator
+        .strip_prefix("第")
+        .and_then(|r| r.split_once('页'))
+        .and_then(|(n, _)| n.parse().ok())
+        .unwrap_or(0)
+}
+
+/// #424 · 混合件解析：文本页走文本层、扫描页走 OCR 子集识别，blocks 按页序
+/// 统一重编。OCR 缺件/失败 → **显式跳过面**（扫描页清单 + 原因 + 补救指引
+/// 进 summary——不静默丢页，与 #415/#416 诚实空纪律同源；文本页真实内容
+/// 不陪葬：整档 OCR 缺件是整件失败，混合件有一半真实内容可用）。
+fn mixed_parse(
+    path: &Path,
+    raw: &[u8],
+    text_pages: &[PageText],
+    scan_nos: &[usize],
+    tess: &TesseractOcr,
+) -> ParsedFile {
+    let mut pf = poppler::text_layer_parsed(text_pages);
+    let n_text_blocks = pf.blocks.len();
+    let n_text_pages = text_pages.len();
+    let scan_list = page_list_str(scan_nos);
+    match tess.ocr_pages(path, scan_nos) {
+        tesseract::MixedOcrOutcome::Done {
+            mut blocks,
+            failed_pages,
+            stderr_note,
+        } => {
+            let ocr_blocks = blocks.len();
+            pf.blocks.extend(blocks);
+            // 页序统一（文本页/扫描页可交错——稳定排序保页内序）
+            pf.blocks.sort_by_key(|b| page_of_locator(&b.locator));
+            for (i, b) in pf.blocks.iter_mut().enumerate() {
+                b.idx = i;
+            }
+            pf.ocr_blocks = ocr_blocks;
+            pf.pages = n_text_pages + scan_nos.len();
+            pf.parse_summary = format!(
+                "pdf 混合路由（#424 逐页判定）: 文本层 {n_text_pages} 页 {n_text_blocks} 行块 + 扫描层 OCR {} 页 {ocr_blocks} 行块；扫描页 [{scan_list}]",
+                scan_nos.len()
+            );
+            if !failed_pages.is_empty() {
+                pf.parse_summary.push_str(&format!(
+                    "；OCR 失败页 [{}]（{} 页成功——失败页跳过、后续页照常）",
+                    page_list_str(&failed_pages),
+                    scan_nos.len().saturating_sub(failed_pages.len()),
+                ));
+                if let Some(note) = stderr_note {
+                    pf.parse_summary.push_str(&format!("（末次 stderr：{note}）"));
+                }
+            }
+        }
+        tesseract::MixedOcrOutcome::Skipped { reason, hint } => {
+            pf.ocr_blocks = 0;
+            pf.pages = n_text_pages + scan_nos.len();
+            pf.parse_summary = format!(
+                "pdf 混合路由（#424 逐页判定）: 文本层 {n_text_pages} 页 {n_text_blocks} 行块；扫描页 [{scan_list}]（{} 页）OCR 未解析——{reason}；{hint}（该部分内容缺失已显式登记，非静默丢弃——补齐环境后重导入可得全量内容）",
+                scan_nos.len()
+            );
+        }
+    }
+    append_page_diagnostics(&mut pf, raw);
+    pf
 }
 
 /// 多数页正常时允许局部异常页，但必须在摘要中点名，便于定位（#232）。

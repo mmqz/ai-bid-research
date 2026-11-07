@@ -13,7 +13,7 @@
 use crate::engine::{EngineError, EngineStatus, PageText, PdfExtractor};
 use crate::guard::{
     self, RunOutcome, TmpGuard, LIMIT_TESSERACT_STDOUT, MAX_OCR_PAGES, TIMEOUT_PDFTOPPM,
-    TIMEOUT_PDFTOTEXT, TIMEOUT_TESSERACT,
+    TIMEOUT_TESSERACT,
 };
 use crate::pdf_text::sanitize_line;
 use crate::{Block, BlockKind, ParsedFile};
@@ -300,23 +300,163 @@ fn ocr_partial_failure_summary(failed: &[usize], total_pages: usize) -> String {
 }
 
 fn probe_pdf_pages(path: &Path) -> Option<usize> {
-    let mut c = std::process::Command::new("pdfinfo");
-    // B-25：路径经 tool_abs_path 绝对化（纵深防御——见 engines/mod.rs）
-    c.arg(tool_abs_path(path));
-    let out = guard::run_limited(c, TIMEOUT_PDFTOTEXT, 64 * 1024);
-    if !out.is_success() {
-        return None;
-    }
-    if let RunOutcome::Success { stdout } = out {
-        for line in stdout.lines() {
-            if let Some(rest) = line.strip_prefix("Pages:") {
-                if let Ok(n) = rest.trim().parse::<usize>() {
-                    return Some(n);
+    // 单一真源收编至 poppler.rs（#424）；B-25 绝对化加固在收编后的真源处生效
+    super::poppler::probe_pdf_pages(path)
+}
+
+/// 混合件扫描页子集 OCR 的结果（#424）。
+///
+/// `Done`：OCR 通道可用并执行完毕（部分页失败同整档路径的诚实降级——
+/// 失败页号清单在场，不静默）；`Skipped`：OCR 缺件/渲染失败——
+/// 调用方（混合路由）保留文本页产物并在 summary 显式登记跳过面
+/// （不静默丢页，与 #415/#416 诚实空纪律同源）。
+pub(super) enum MixedOcrOutcome {
+    Done {
+        blocks: Vec<Block>,
+        /// 识别失败页号（真实页号）
+        failed_pages: Vec<usize>,
+        /// 末次失败 stderr 摘要（诊断面）
+        stderr_note: Option<String>,
+    },
+    Skipped {
+        reason: String,
+        hint: String,
+    },
+}
+
+impl TesseractOcr {
+    /// 混合件的扫描页子集识别（#424）：只渲染/识别指定页
+    /// （`pdftoppm -f p -l p`），产出 OcrLine blocks（locator`第{p}页 OCR 行{i}`
+    /// ——页号为真实页号，与整档路径同定位器口径）。
+    ///
+    /// 页数门 = 扫描页数（OCR 预算语义不变）；OCR 缺件 → `Skipped`
+    /// （文本页产物保留，跳过面由调用方登记——混合件与整档路径的差异点：
+    /// 整档 OCR 缺件是整件失败，混合件有一半真实内容不该陪葬）。
+    /// 单页失败跳过续跑（#380 B-09 同款纪律）。
+    pub fn ocr_pages(&self, path: &Path, page_nos: &[usize]) -> MixedOcrOutcome {
+        if page_nos.len() > MAX_OCR_PAGES {
+            return MixedOcrOutcome::Skipped {
+                reason: format!(
+                    "扫描页 {} 页超过 OCR 上限 {MAX_OCR_PAGES}（文本页已保留，扫描页未解析）",
+                    page_nos.len()
+                ),
+                hint: "拆分文件或调大 MAX_OCR_PAGES 后重导入".to_string(),
+            };
+        }
+        // 缺件预检（probe 缓存进程级）：缺 tesseract/chi_sim 不起渲染进程
+        match self.probe() {
+            crate::engine::EngineStatus::Missing { what, hint } => {
+                return MixedOcrOutcome::Skipped { reason: what, hint }
+            }
+            crate::engine::EngineStatus::Ready => {}
+            crate::engine::EngineStatus::Unsupported { what } => {
+                return MixedOcrOutcome::Skipped {
+                    reason: what,
+                    hint: "扫描页需要 OCR 通道——检查 tesseract 部署".to_string(),
                 }
             }
         }
+        let tmp = match TmpGuard::new("ocr-mixed") {
+            Ok(t) => t,
+            Err(e) => {
+                return MixedOcrOutcome::Skipped {
+                    reason: format!("临时目录创建失败: {e}"),
+                    hint: "检查 TMPDIR 磁盘与权限".to_string(),
+                }
+            }
+        };
+        let mut blocks: Vec<Block> = Vec::new();
+        let mut failed_pages: Vec<usize> = Vec::new();
+        let mut stderr_note: Option<String> = None;
+        for &p in page_nos {
+            // 每页独立子目录：pdftoppm 输出名含页序号填充，隔离后免名字碰撞
+            let dir = tmp.0.join(format!("p{p}"));
+            if std::fs::create_dir_all(&dir).is_err() {
+                failed_pages.push(p);
+                continue;
+            }
+            let prefix = dir.join("page");
+            let mut render_cmd = std::process::Command::new("pdftoppm");
+            // B-25：路径经 tool_abs_path 绝对化（纵深防御——与整档 OCR 路径同款）
+            render_cmd
+                .args(["-r", "200", "-gray", "-png"])
+                .args(["-f", &p.to_string(), "-l", &p.to_string()])
+                .arg(tool_abs_path(path))
+                .arg(&prefix);
+            let render = guard::run_limited(render_cmd, TIMEOUT_PDFTOPPM, 4096);
+            if !render.is_success() {
+                failed_pages.push(p);
+                stderr_note = Some(short_err(&render));
+                continue;
+            }
+            let png = std::fs::read_dir(&dir)
+                .ok()
+                .and_then(|entries| {
+                    let mut pngs: Vec<std::path::PathBuf> = entries
+                        .filter_map(|e| e.ok())
+                        .map(|e| e.path())
+                        .filter(|q| q.extension().and_then(|x| x.to_str()) == Some("png"))
+                        .collect();
+                    pngs.sort();
+                    pngs.into_iter().next()
+                });
+            let Some(png) = png else {
+                // 页号超出真实页数（如尾随 \f 空段且 pdfinfo 探测失败的保守路径）
+                // ——无真实内容可丢，诚实计为无产物页
+                failed_pages.push(p);
+                continue;
+            };
+            let tessdata =
+                std::path::PathBuf::from(std::env::var("TESSDATA_PREFIX").unwrap_or_else(|_| {
+                    format!("{}/.tessdata", std::env::var("HOME").unwrap_or_default())
+                }));
+            let mut t_cmd = std::process::Command::new("tesseract");
+            // B-25：png 虽由 TmpGuard 绝对生成，仍统一走 tool_abs_path
+            t_cmd
+                .arg(tool_abs_path(&png))
+                .arg("stdout")
+                .args(["-l", "chi_sim", "--psm", "6"])
+                .env("TESSDATA_PREFIX", &tessdata);
+            let ocr = guard::run_limited(t_cmd, TIMEOUT_TESSERACT, LIMIT_TESSERACT_STDOUT);
+            let page_text = match ocr {
+                RunOutcome::Success { stdout } => stdout,
+                RunOutcome::NonZeroExit { mut stderr_head, .. } => {
+                    failed_pages.push(p);
+                    if stderr_head.trim().len() > 80 {
+                        stderr_head.truncate(80);
+                    }
+                    stderr_note = Some(stderr_head);
+                    continue;
+                }
+                other => {
+                    failed_pages.push(p);
+                    stderr_note = Some(short_err(&other));
+                    continue;
+                }
+            };
+            let mut line_no = 0usize;
+            for line in page_text.lines() {
+                let l = line.trim();
+                let cleaned = sanitize_line(l);
+                if cleaned.chars().filter(|c| !c.is_whitespace()).count() < 2 {
+                    continue;
+                }
+                line_no += 1;
+                blocks.push(Block {
+                    idx: 0, // 调用方（混合路由）按页序统一重编
+                    kind: BlockKind::OcrLine,
+                    locator: format!("第{p}页 OCR 行{line_no}"),
+                    text: super::poppler::collapse_spaces(&cleaned),
+                    cells: vec![],
+                });
+            }
+        }
+        MixedOcrOutcome::Done {
+            blocks,
+            failed_pages,
+            stderr_note,
+        }
     }
-    None
 }
 
 #[cfg(test)]

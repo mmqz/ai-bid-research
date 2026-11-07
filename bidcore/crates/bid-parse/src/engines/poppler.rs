@@ -144,3 +144,29 @@ pub(super) fn collapse_spaces(s: &str) -> String {
     }
     out.trim_end().to_string()
 }
+
+/// 真实页数探测（pdfinfo——poppler 家族工具，自 tesseract.rs 收编为单一真源，
+/// #424 混合路由的尾随空段判伪也消费）。
+///
+/// 探测失败返回 None（调用方各自决策：整档 OCR 路径走门值回退，
+/// 混合路由保守不剔除尾随空段）。
+pub(super) fn probe_pdf_pages(path: &Path) -> Option<usize> {
+    let mut c = std::process::Command::new("pdfinfo");
+    // B-25：路径经 tool_abs_path 绝对化（纵深防御——见 engines/mod.rs）；
+    // #424 自 tesseract.rs 收编为单一真源时保留该加固
+    c.arg(tool_abs_path(path));
+    let out = guard::run_limited(c, TIMEOUT_PDFTOTEXT, 64 * 1024);
+    if !out.is_success() {
+        return None;
+    }
+    if let RunOutcome::Success { stdout } = out {
+        for line in stdout.lines() {
+            if let Some(rest) = line.strip_prefix("Pages:") {
+                if let Ok(n) = rest.trim().parse::<usize>() {
+                    return Some(n);
+                }
+            }
+        }
+    }
+    None
+}

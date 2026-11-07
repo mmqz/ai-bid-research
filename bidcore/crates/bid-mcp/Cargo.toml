@@ -40,3 +40,9 @@ docx-rs = "0.4"
 [[bin]]
 name = "bid-mcp-server"
 path = "src/bin/server.rs"
+
+# 工具面注册表（#358）：派生面（位串矩阵/断言数字）的生成与校验——
+# 加工具后跑 `cargo run -p bid-mcp --bin tool-surface -- --write` 自动同步。
+[[bin]]
+name = "tool-surface"
+path = "src/bin/tool_surface.rs"

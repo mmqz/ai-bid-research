@@ -34,7 +34,7 @@ jobs:
       - name: Syntax gate (node --check)
         run: node --check web-ui/mang/app.js
 
-      - name: Web-UI test files (run-all: *.test.mjs 全量——#445)
+      - name: "Web-UI test files (run-all: *.test.mjs 全量——#445)"
         # 零依赖门面（tests/run-all.mjs）：按文件名序跑 tests/*.test.mjs。
         # 此前只跑 md-link 单文件——npm test 纳入的其余测试门不在 CI
         # 执行；glob 化后合并序无关（分支上不存在的文件不跑）。

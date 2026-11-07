@@ -57,13 +57,18 @@ fn corpus_a_scoring_items_carry_real_weights() {
     let scoring: Vec<_> = items.iter().filter(|i| !i.is_hard_gate).collect();
     let hard: Vec<_> = items.iter().filter(|i| i.is_hard_gate).collect();
     assert_eq!(scoring.len(), 4, "corpus-A 评分项 4 条（真件口径）");
-    // P0-B 后否决项 6 -> 13：旧实现只认「前附表 + 否决」两条件，漏掉正文
-    // 编号否决条款 7 条。逐条核对（明细见 PR #45）：
-    //   报价超限价 / 技术偏离表 / 暗标身份标记 / 页数超 200 / 报价超控制价 /
-    //   保证金 / 签署盖章 / 工期 90 天 / 补遗控制价 465 万 —— 9 条真否决
-    //   失信承诺（#3，资格面误标）+ 开标出席（#8，弱信号）—— 2 条存疑
-    // 11/13 确定真：这是 L2 召回 0.0000 -> 0.8972 的直接来源，不是噪声。
-    assert_eq!(hard.len(), 13, "corpus-A 否决项 13 条（P0-B 后——旧实现漏 7 条真否决）");
+    // P0-B 后否决项 6 -> 13；#345 分类修复后 13 -> 10：
+    //   报价超限价 / 技术偏离表 / 报价超控制价 / 保证金 / 签署盖章 /
+    //   工期 90 天 / 补遗控制价 465 万 / 开标出席（弱信号）等 10 条。
+    // #345 三条改判（e2e_m1 GT 权威口径——G1_recall 类别错配三例，
+    // 修复明细见 veto_lexicon #345 注释与 issue #345）：
+    //   · 失信承诺 3.2.6（否定框架：负面词「失信」在「未被列入」内，
+    //     旧注释已标「资格面误标」）→ 资格条件
+    //   · 暗标身份标记 3.3.3（否则制裁尾：指令本体是暗标格式要求）→ 格式要求
+    //   · 页数超 200 3.3.4（「，…的作否决投标处理」融合尾）→ 格式要求
+    // 基线变更根因：分类器缺陷修复（非放宽断言）——e2e_m1 GT 25 条
+    // 真值为更高权威，G1_recall 类别精确率回到 25/25。
+    assert_eq!(hard.len(), 10, "corpus-A 否决项 10 条（#345 分类修复后口径）");
 
     // 三大项分值真值（价格 30 / 技术 55 / 商务 15——合计恰 100）
     let weights: Vec<f64> = scoring.iter().filter_map(|i| i.weight).collect();
@@ -82,8 +87,8 @@ fn corpus_a_scoring_items_carry_real_weights() {
 
     // store 硬门清单与 T-2 blocking 联动：否决项未响应 → check_export_ready 拒绝
     let hard_ids = svc.store().hard_gate_requirement_ids();
-    // 同上：P0-B 后硬门 6 -> 13（11 条真否决 + 2 条存疑）
-    assert_eq!(hard_ids.len(), 13, "硬门清单与 T-3 口径一致");
+    // 同上：#345 后硬门 13 -> 10（三条改判资格/格式——根因见上）
+    assert_eq!(hard_ids.len(), 10, "硬门清单与 T-3 口径一致");
     svc.store_mut().build_matrix().unwrap();
     let err = svc.store().check_export_ready().unwrap_err();
     assert_eq!(err.code(), "E_UNPROCESSABLE", "必选未响应（资格 6 + 否决 13）阻断导出");

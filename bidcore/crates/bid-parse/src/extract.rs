@@ -444,9 +444,15 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
 
     // 强词判定（例外从句剥离后匹配；履约语境排除——「承包人不得…拒收」
     // 类合同期条款非投标否决：主体为承包人/发包人且无投标词时不判）
+    // #345：负面词在「未(被)列入…」否定框架内是正面资格诉求（GT-06 实锤
+    // ——「未被列入失信…名单」=资格条件）——剥离后再匹配融合词表，
+    // 与 DOCX 侧 veto_lexicon::is_veto 框架剥离跨格式对称（#233 纪律）。
+    // 框架跨度以且/但截断：框架外的处置词（「未被列入失信名单且其投标
+    // 将被否决」）不被吞。
     let veto_hit = |text: &str| -> bool {
         let stripped = re_exception.replace_all(text, "");
-        if !re_veto.is_match(&stripped) {
+        let no_frames = crate::veto_lexicon::strip_negated_frames(&stripped);
+        if !re_veto.is_match(&no_frames) {
             return false;
         }
         // N3：提疑/答疑程序的「不予受理、答复」非否决（逾期提问不受理是
@@ -838,14 +844,21 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
             // 逾期不予受理…），不判否决项——它没有可请求的响应正文，判了就是
             // 永久 blocking 的死锁。安全网在 veto_rule::is_rule_statement 内部
             // （投标人义务词/资格材料诉求一律不算规则说明）。
+            // #345 制裁尾仲裁（与 DOCX 编号分支同款）：处置词只在「否则…」/
+            //「，<条件>的+<处置>」尾且章节语境是可响应要求面时，类别随指令
+            // 本体走；评分项语境不参与（#110 G4 T2b 裁定——否决优先）。
             let veto_signal = veto_hit(&para) && !is_template_shape(&para);
             let is_rule = veto_signal && crate::veto_rule::is_rule_statement(&para);
-            let cat = if veto_signal && !is_rule {
+            let ctx_cat = category_resolved(&chapter, &subsection, chapter_start);
+            let cat = if veto_signal && !is_rule
+                && !(crate::veto_lexicon::veto_confined_to_sanction_tail(&para)
+                    && matches!(ctx_cat, "资格条件" | "格式要求" | "商务要求" | "技术参数"))
+            {
                 "否决项"
             } else if re_qual.is_match(&para) {
                 "资格条件"
             } else {
-                category_resolved(&chapter, &subsection, chapter_start)
+                ctx_cat
             };
             // 顿号形态的条款号取纯数字（「1、」→「1」——顿号是分隔符，
             // 与点分形态「4.2」同语义：编号本体入 clause_no）
@@ -1384,10 +1397,21 @@ fn extract_main_docx(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usiz
                     // 上下文，条款本体照常 push（编号分支本就无条件落账）。
                     // 分值形态锁的否决旁路（#110 G4）只对**非规则说明**的
                     // 真否决生效——规则说明形不参与否决旁路。
+                    // #345 制裁尾仲裁：否决处置词**只**出现在「否则…」/
+                    //「，<条件>的+<处置>」尾（GT-24 暗标标记 / GT-25 页数
+                    // 上限——指令本体是格式/资格要求，处置词是违反后果）
+                    // 且章节语境是可响应要求面（资格条件/格式要求/商务/
+                    // 技术）时，类别随指令本体（章节上下文）走。评分项语境
+                    // **不参与**仲裁——#110 G4 已裁定评分章内形态+否决并存
+                    // 否决优先（T2b）；违例条件主体形（「…的，其投标将被
+                    // 否决」分句 / A-17 无的形）不在剥离面（见 veto_lexicon
+                    // re_sanction_tail 反例锁）——仍判否决项。
                     let cat = if ctx_cat == "评分项" && re_score_shape.is_match(&grp_text) && !vl::is_veto(&grp_text) {
                         "评分项"
                     } else if vl::is_veto(&grp_text)
                         && !crate::veto_rule::is_rule_statement(&grp_text)
+                        && !(vl::veto_confined_to_sanction_tail(&grp_text)
+                            && matches!(ctx_cat, "资格条件" | "格式要求" | "商务要求" | "技术参数"))
                     {
                         "否决项"
                     } else if ctx_cat == "评分项" {

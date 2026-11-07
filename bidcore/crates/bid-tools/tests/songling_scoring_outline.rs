@@ -481,6 +481,48 @@ fn pdf_engine_outline_quota_distribution() {
     eprintln!(
         "[songling-252] 配额分布: total={total} scoring={scoring_chars}({scoring_share:.3}) admin={admin_chars}({admin_share:.3})"
     );
+
+    // ---- 防漂移锚（PR #292 Lead 授权追加）：行政组绑定 REQ 去重条数
+    // ratio 基线（quota_scoring_share/quota_admin_share）的分母随行政轨 REQ
+    // 数量漂移：行政叶底价 = ADMIN_CHARS_PER_REQ(300) × 条数 + 让渡分润，
+    // 商务/行政 REQ 增删直接改写两轨占比。#266（商务 REQ 0→13）就把
+    // 0.824/0.095 漂成 0.820/0.100，且 CI（Windows 无 poppler）走 SKIP
+    // 从未暴露——本锚把「REQ 集变更」提到 ratio 门之前显式红灯并指路重算
+    // 基线，不再让 ratio 门用「回归」话术误报。口径：行政组章节绑定的
+    // REQ 去重数（计价面 281 条不可直接观测，绑定面 272 是 store 真源——
+    // 多对多重复出现面 539 次，去重后才是集合大小）。
+    let admin_bound_reqs: u64 = {
+        fn root<'a>(
+            secs: &'a [bid_domain::outline::OutlineNode],
+            mut cur: &'a bid_domain::outline::OutlineNode,
+        ) -> &'a bid_domain::outline::OutlineNode {
+            while let Some(pid) = cur.parent_id.as_deref() {
+                match secs.iter().find(|x| x.id == pid) {
+                    Some(p) if p.id != cur.id => cur = p,
+                    _ => break,
+                }
+            }
+            cur
+        }
+        // 去重计数：#236 多对多绑定下同一 REQ 可绑多个行政节，
+        // 重复出现面 539 次 → 去重集合才是本锚口径。
+        sections
+            .iter()
+            .filter(|s| is_admin(root(&sections, s).title.as_str()))
+            .flat_map(|s| s.requirement_ids.iter().map(|r| r.as_str()))
+            .collect::<std::collections::HashSet<&str>>()
+            .len() as u64
+    };
+    eprintln!("[songling-252] 行政组绑定 REQ（去重）= {admin_bound_reqs}");
+    let known_admin_reqs = baseline_u64("admin_bound_reqs");
+    assert_eq!(
+        admin_bound_reqs, known_admin_reqs,
+        "行政组绑定 REQ 去重数 {admin_bound_reqs} ≠ 固化基线 {known_admin_reqs}：\
+         先重新核算配额基线（quota_scoring_share/quota_admin_share/admin_bound_reqs\
+         三键 + findings 论证段）再改本锚——这是 #266 类分母漂移（商务 REQ 0→13\
+         把 0.824/0.095 漂成 0.820/0.100），不是代码回归"
+    );
+
     gate_ratio_high(
         "quota_scoring_share",
         "评分章节配额占比",

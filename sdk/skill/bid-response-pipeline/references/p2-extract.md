@@ -122,6 +122,24 @@ build_matrix 后生效）；响应（绑证据）或人工 receipt 覆写（set_
 `not_responded > 0` = 废标风险在场（引擎 note 原文：一条不响应即响应
 无效），逐条补响应后重查。
 
+### 建纲门：标记过的文件必须标满（#244）
+
+P3 `build_outline` 前有覆盖闭环门：**每个块要么被判定，要么被排除，要么
+拦住建纲**。三态语义：
+
+- A 已判为要求（verdict=requirement / review_table）；
+- B 已排除（verdict=noise / rule——reason 写清判定理由，审计可追溯）；
+- C 未判定 → `E_COVERAGE_INCOMPLETE` 拦建纲，错误清单**带块内容摘要**
+  （文件/区间/locator/前 3 块文本——照着内容判，不用猜）。
+
+**门只拦「半途而废」**：标记集非空但有 C 态块才拦；从未标记的文件走
+正则兜底不受限。所以「标了一半去建纲」会收到清单——回去 `submit_block_marks`
+补标（整集替换）→ 重跑 `extract_requirements` → 再建纲。补标幂等：
+REQ 集合逐位稳定，不会产生重复条款。
+
+判空技巧：`get_coverage_report` 的 `unjudged_blocks` 为 0（且该文件
+`by_verdict` 非空）= 标满；不想标某个文件就一个 mark 都别提交（走兜底）。
+
 ## 参数槽位表
 
 技术参数类 REQ 在矩阵行的 `requirement.params` 里携带结构化槽位（参数名/

@@ -543,8 +543,20 @@ out: { counts:{ sections, leaves, requirements, total_target_chars, matrix_rows,
 状态: REQUIREMENTS_EXTRACTED 态可调（FilesImported/Draft → E_STATE；
       MATRIX_READY+ 重复调用 → E_STATE——重建面属「补遗后增量重抽」后续需求，
       不隐式放行）
-前置: 条款面非空（空纲无意义——与 build_matrix 同口径）
-幂等: 推导确定性（同输入同树）；状态机面不重入（见上）
+前置: ① #244 建纲前覆盖闭环门——每块三态之一（A 已判为要求/REQ；
+      B 已排除 noise·rule，理由在 marks.reason 可追溯；C 未判定）。
+      **门只拦「半途而废」**：标记集非空且存在 C 态块 → E_COVERAGE_INCOMPLETE
+      （带块内容摘要的清单——文件/区间/locator/前 3 块文本，Agent 得知道
+      是什么内容才能判）；零标记文件走正则兜底不受限（GT 红线保护）；
+      按文件粒度裁决（标了主件忘了补遗件 → 补遗件走兜底放行）；
+      ② 条款面非空（空纲无意义——与 build_matrix 同口径）
+out 补: coverage:{ face_files, marked_files, regex_fallback_files,
+      excluded_blocks(B 态总数), unjudged_blocks(恒 0——非零时已被门拦) }
+错误: E_COVERAGE_INCOMPLETE（部分标记未判完——零副作用，补标 →
+      重跑 extract_requirements → build_outline）；E_STATE（状态窗口外/
+      条款面空）
+幂等: 推导确定性（同输入同树）；状态机面不重入（见上）；补标后重跑
+      幂等（REQ 集合逐位稳定——替换语义 + REQ-A 编号确定性）
 ```
 
 ## 11-A. register_evidence（#80 第三批 · G2；#185 缺口 1 来源验证；#217 四态 + 正文摘录；#245 占位态）
@@ -916,7 +928,8 @@ in : { project_id, file_id, from?(缺省 0), size?(缺省 50，上限 200) }
 out: { file_id, total_blocks, from, returned, next_from(取完为 null),
        chunks:[{ block_idx, kind(Para|TableRow|PdfLine|OcrLine|XlsxRow),
        locator, text, cells, verdict(已标记块的结论回显——未标记 null) }],
-       coverage:{ covered_blocks, complete, uncovered_ranges, by_verdict } }
+       coverage:{ covered_blocks, complete, uncovered_ranges, by_verdict,
+       excluded_blocks, unjudged_blocks } }
 语义: 取单文件的块文本窗口（join 键 = sha256——与 #217 locate_content 同口径）。
       size 上限 200 防上下文吃爆（160 页文件 3600+ 块）；from 越界 → E_UNPROCESSABLE。
 错误: E_NOTFOUND（file_id 不存在）；E_UNPROCESSABLE（size 0/>200、from 越界、
@@ -934,8 +947,10 @@ in : { project_id, file_id,
        资格条件|否决项|评分项|技术参数|商务要求|格式要求|其他), mandatory? }]，
        project_version }
 out: { marks_accepted, requirements_accepted, total_blocks,
-       coverage:{ covered_blocks, complete, uncovered_ranges, by_verdict },
-       next(人话指引：全覆盖 → 可继续 build_outline；否则 → 补标) }
+       coverage:{ covered_blocks, complete, uncovered_ranges, by_verdict,
+       excluded_blocks, unjudged_blocks },
+       next(人话指引：全覆盖 → 可继续 build_outline；否则 → 补标——
+       已开始标记的文件必须标满才能建纲，#244) }
 语义: 提交区间标记 + Agent 提取的关键点。#219 二步起两者**原子落库并持久化**
       （PR #227 只存 marks，reqs 校验后回显即丢——二步修上这一半；经服务层
       auto_checkpoint，重启不丢）。requirements 是 extract_requirements 合并面
@@ -953,11 +968,16 @@ out: { marks_accepted, requirements_accepted, total_blocks,
 ```
 in : { project_id }
 out: { complete, total_blocks, covered_blocks, uncovered_range_count,
+       unjudged_blocks,
        files:[{ file_id, total_blocks, covered_blocks, complete,
-       uncovered_ranges(前 50 段), uncovered_range_count, by_verdict }],
+       uncovered_ranges(前 50 段), uncovered_range_count, by_verdict,
+       excluded_blocks, unjudged_blocks }],
        next(人话指引) }
 语义: 全部导入文件的覆盖聚合（含 B3 证据件——与 §17 单文件窗口互补的全局面）。
       uncovered_ranges 为连续未覆盖块的合并区间 [(from, to)…]。
+      #244 三态分账：excluded_blocks = B 态（noise/rule 排除，理由在
+      marks.reason）；unjudged_blocks = C 态（未判定——建纲门 E_COVERAGE_
+      INCOMPLETE 的阻断面，只对标记集非空的文件生效）。
 错误: E_STATE（窗口外——Validating 起全程放行）
 状态: FILES_IMPORTED+（Validating 起含全部状态）
 ```

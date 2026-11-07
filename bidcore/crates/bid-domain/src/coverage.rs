@@ -103,18 +103,47 @@ pub struct SubmittedRequirement {
 }
 
 /// 覆盖检查结果。
+///
+/// #244 三态语义（建纲前闭环处置）：每个块必居其一——
+/// - **A 已判定为要求**：`requirement` / `review_table` 标记（产 REQ 或结构化提取）；
+/// - **B 已排除**：`noise` / `rule` 标记（判定理由在 `BlockMark.reason`，可追溯）；
+/// - **C 未判定**：压根没标记——遗漏待审，建纲门（#244）阻断面。
+///
+/// 旧字段 `uncovered` 只是一个区间列表，分不清「排除了」还是「没看」——
+/// 半途而废的标记集与全排除的标记集在旧报告里长得一样，门无法裁决。
+/// 细分后：`excluded_blocks`（B 态计数）与 `unjudged_blocks`（C 态计数）
+/// 分账，建纲门只对 C 态非零阻断。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CoverageReport {
     /// 总块数。
     pub total_blocks: usize,
-    /// 已被区间覆盖的块数。
+    /// 已被区间覆盖的块数（A + B 态）。
     pub covered_blocks: usize,
-    /// 未覆盖的块区间（`[(from, to), ...]`，连续块合并）。
-    pub uncovered: Vec<(usize, usize)>,
-    /// 是否全覆盖。
+    /// B 态：明确判为 noise/rule 的块数（已排除——排除理由见 marks.reason）。
+    /// `review_table` 不算排除：它是结构化提取的载体（A 态变体），
+    /// 审查表会产出 REQ（否决项/评分项等）。
+    pub excluded_blocks: usize,
+    /// C 态：压根没标记的块数（遗漏待审——建纲门阻断面）。
+    pub unjudged_blocks: usize,
+    /// C 态区间（`[(from, to), ...]`，连续块合并）。原 `uncovered` 改名
+    /// （#244 三态语义——「未覆盖」说不清是排除了还是没看）。
+    pub unjudged_ranges: Vec<(usize, usize)>,
+    /// 是否全覆盖（无 C 态块）。
     pub complete: bool,
     /// 各类结论的块数统计。
     pub by_verdict: std::collections::BTreeMap<String, usize>,
+}
+
+impl CoverageReport {
+    /// #244 门禁判据：该文件是否「已启用标记流程但未判完」。
+    ///
+    /// - `marks` 空（零标记）→ 正则兜底路径，不是本门的对象（返回 false
+    ///   ——由调用方另行判定，见 tools.rs build_outline #244 门）；
+    /// - 本方法只回答「标记集非空时是否存在 C 态块」。
+    #[must_use]
+    pub fn has_unjudged(&self) -> bool {
+        self.unjudged_blocks > 0
+    }
 }
 
 /// 区间校验错误。
@@ -255,11 +284,18 @@ pub fn compute_coverage(marks: &[BlockMark], total_blocks: usize) -> CoverageRep
         uncovered.push((s, total_blocks.saturating_sub(1)));
     }
     let covered_blocks = covered.iter().filter(|&&c| c).count();
+    // #244 三态分账：B 态（排除）= noise + rule 的块计数（review_table
+    // 是结构化提取载体，不算排除）；C 态（未判定）= 总数 - 已覆盖。
+    let excluded_blocks = *by_verdict.get("noise").unwrap_or(&0)
+        + *by_verdict.get("rule").unwrap_or(&0);
+    let unjudged_blocks = total_blocks.saturating_sub(covered_blocks);
     CoverageReport {
         total_blocks,
         covered_blocks,
+        excluded_blocks,
+        unjudged_blocks,
+        unjudged_ranges: uncovered,
         complete: covered_blocks == total_blocks,
-        uncovered,
         by_verdict,
     }
 }
@@ -392,7 +428,10 @@ mod tests {
         let r = compute_coverage(&marks, 100);
         assert!(r.complete);
         assert_eq!(r.covered_blocks, 100);
-        assert!(r.uncovered.is_empty());
+        assert!(r.unjudged_ranges.is_empty());
+        assert_eq!(r.unjudged_blocks, 0, "全覆盖零未判定");
+        assert_eq!(r.excluded_blocks, 50, "noise 半区已排除");
+        assert!(!r.has_unjudged());
         assert_eq!(r.by_verdict.get("noise"), Some(&50));
         assert_eq!(r.by_verdict.get("requirement"), Some(&50));
     }
@@ -406,7 +445,42 @@ mod tests {
         let r = compute_coverage(&marks, 100);
         assert!(!r.complete);
         assert_eq!(r.covered_blocks, 80);
-        assert_eq!(r.uncovered, vec![(30, 49)]);
+        assert_eq!(r.unjudged_ranges, vec![(30, 49)]);
+        assert_eq!(r.unjudged_blocks, 20, "中间缺口 20 块未判定");
+        assert_eq!(r.excluded_blocks, 30, "前 30 块 noise 已排除");
+        assert!(r.has_unjudged());
+    }
+
+    /// #244 三态分账：全排除（B 态）与半途而废（C 态非零）在报告上
+    /// 必须可区分——旧 `uncovered` 一锅论分不清「排除了」和「没看」。
+    #[test]
+    fn tri_state_accounting_distinguishes_excluded_from_unjudged() {
+        // 同样 covered_blocks=50：全部是排除 vs 一半未判定
+        let all_excluded = compute_coverage(&[mark(0, 49, BlockVerdict::Rule)], 50);
+        assert_eq!(all_excluded.covered_blocks, 50);
+        assert_eq!(all_excluded.excluded_blocks, 50);
+        assert_eq!(all_excluded.unjudged_blocks, 0);
+        assert!(!all_excluded.has_unjudged(), "全排除 → 无未判定 → 门放行");
+
+        let half_unjudged = compute_coverage(&[mark(0, 24, BlockVerdict::Rule)], 50);
+        assert_eq!(half_unjudged.covered_blocks, 25);
+        assert_eq!(half_unjudged.excluded_blocks, 25);
+        assert_eq!(half_unjudged.unjudged_blocks, 25);
+        assert!(half_unjudged.has_unjudged(), "半途而废 → 有未判定 → 门阻断");
+    }
+
+    /// review_table 是结构化提取载体（A 态变体）——不算排除。
+    #[test]
+    fn review_table_not_counted_as_excluded() {
+        let marks = vec![
+            mark(0, 9, BlockVerdict::ReviewTable),
+            mark(10, 19, BlockVerdict::Noise),
+        ];
+        let r = compute_coverage(&marks, 20);
+        assert!(r.complete);
+        assert_eq!(r.excluded_blocks, 10, "只有 noise 计排除");
+        assert_eq!(r.by_verdict.get("review_table"), Some(&10));
+        assert_eq!(r.unjudged_blocks, 0);
     }
 
     #[test]

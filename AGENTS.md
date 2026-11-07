@@ -96,6 +96,90 @@ gh api repos/mmqz/<repo>/issues/<pool> --jq '.body' | grep "<N>"
   不要自己新开一个「更好的」
 ```
 
+## 0.0.3 提交 PR 前必查主分支进度（防冲突）
+
+**开 PR 之前、以及每次推新 commit 之前，必须检查 main 有没有前进。**
+
+```bash
+git fetch origin main
+git log --oneline origin/main -5
+git rev-list --count HEAD..origin/main        # 落后几个 commit
+git rev-list --count origin/main..HEAD        # 领先几个 commit
+git rebase origin/main                        # 落后 > 0 就必须先 rebase
+```
+
+**判定规则：**
+
+```
+落后 0 个 commit          → ✅ 直接开 PR
+落后 1-5 个 commit        → ⚠️ 先 rebase（多数能自动合）
+落后 > 5 个 commit        → ⛔ 必须 rebase，且要重跑本地测试
+main 编译不过（红）        → ⛔ 停下来，报告 Lead（你的分支也会红）
+```
+
+**为什么（2026-11-07 实测代价）：**
+
+```
+· 6 个 PR 因 stale base 变 dirty → GitHub 不跑 CI → 永远「没有 CI」
+· #291/#290/#292/#347 全部卡在这个坑
+· 每次都要 Lead 手工 rebase + 解冲突，单日解了 10+ 次
+```
+
+**开 PR 时还要确认：**
+
+```bash
+gh api repos/mmqz/<repo>/pulls/<N> --jq '.base.ref'   # 必须是 "main"
+```
+
+**base 不是 main → 关掉重开**（改 base 不会重新触发 CI）。
+
+**main 变红时的处理：**
+
+```
+现象：main 编译失败（如 export_tool.rs missing fields ...）
+后果：所有下游分支继承此错误 → 多个代理全卡住
+正确做法：立刻报告 Lead，不要自己「顺手修 main」
+          （Lead 会开 hotfix 分支走 PR 合入）
+```
+
+---
+
+## 0.0.4 工具面有派生面——加工具必须跑同步命令
+
+**bid 仓的工具面有 5 处必须同步，其中 3 处是纯派生（能算出来）：**
+
+```text
+手写面（自己改）：
+  1. bidcore/crates/bid-mcp/src/lib.rs        TOOL_NAMES 数组
+  2. bidcore/crates/bid-mcp/src/schema.rs     input_schema() 分支
+  3. bidcore/crates/bid-mcp/src/tools.rs      dispatch 分支
+
+派生面（跑命令自动改）：
+  4. bidcore/crates/bid-domain/tests/state_machine_matrix.rs
+     ALL_TOOLS 数组 + 10 状态位串
+  5. bidcore/crates/bid-mcp/tests/dispatch_contract.rs
+     bidcore/crates/bid-mcp/tests/mcp_sdk_e2e.py
+     硬编码的工具数断言
+```
+
+**加完工具后必须跑：**
+
+```bash
+cd bidcore
+cargo run -p bid-mcp --bin tool-surface -- --write   # 自动重写派生面
+cargo run -p bid-mcp --bin tool-surface -- --check   # 确认同步
+```
+
+**为什么（2026-11-07 实测）：**
+
+```
+· 单日 6 个 PR CI 红，其中 4 个是「加工具只改了一部分面」
+· 10 状态 × N 工具的位串矩阵手算必错（35 工具 = 350 bit）
+· 每个 PR 各自改数字 → 合并时互相冲突
+```
+
+---
+
 ## 0.0.2 认领要写在 issue 正文的可见位置
 
 ```bash

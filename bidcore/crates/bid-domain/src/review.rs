@@ -45,6 +45,7 @@
 use crate::principal::{ActorType, TrustedPrincipal};
 use crate::{DomainStore, ProjectStatus, ToolError};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 /// 复审人前缀（borrow mdcore workbench ReviewPolicy：`reviewer_prefixes` 默认
 /// `["human:"]`——人侧操作者一律 `human:` 前缀，AI 不得自审自过）。
@@ -210,6 +211,15 @@ pub struct ReviewRecord {
     /// 旧数据的洞保留；重新过门即补上绑定）。
     #[serde(default)]
     pub reviewed_content_digest: String,
+    /// 记审时点的计分面摘要（A-10/#474：#180 的 digest 只绑章节树——
+    /// 矩阵覆写（matrix_overrides）与评分映射（scoring_mappings）变更
+    /// 不触发重审，人批的响应面/计分面可被换。本字段与当前
+    /// [`DomainStore::scoring_surface_digest`] 比对）。摘要**排除**
+    /// principal/trusted/at（身份与时刻面不是响应面——同值重放覆写
+    /// 不触发重审）。`""` = legacy 快照（判定面跳过，宽容载入，重新
+    /// 过门即补上绑定——与 reviewed_content_digest 同迁移模式）。
+    #[serde(default)]
+    pub reviewed_scoring_digest: String,
 }
 
 /// 修订工单（BLOCKER finding 的关单面——每个 BLOCKER 恰一个 RT，结构不变量）。
@@ -240,10 +250,13 @@ pub struct ReviewReceipt {
     /// 本次记审绑定的章节树内容摘要（#180——receipt 加法面；幂等重放时为
     /// 既有记录的摘要，新落账时为当前摘要）。
     pub reviewed_content_digest: String,
+    /// 本次记审绑定的计分面摘要（A-10/#474——overrides+mappings；幂等重放
+    /// 时为既有记录的摘要，新落账时为当前摘要）。receipt 加法面：旧调用方
+    /// 不读不破坏。
+    pub reviewed_scoring_digest: String,
 }
 
 // ---------------------------------------------------------------- #277 方案 A：GatePassRecord
-
 /// 过门方式（审计账的 method 面——#277 方案 A）。
 ///
 /// - `human_receipt`：宿主签发的人类签域 receipt 验签通过（#182 现状路径）
@@ -459,6 +472,9 @@ impl DomainStore {
         //      先于幂等分支计算：幂等判定本身要比摘要（内容变了不走幂等）。
         let reviewed_content_digest = self.sections_digest();
         let reviewed_content_version = self.content_version();
+        // A-10/#474：计分面摘要（overrides+mappings）——章节树摘要绑不到的
+        // 响应面/计分面变更由本摘要承载；先于幂等分支计算（幂等判定要比）。
+        let reviewed_scoring_digest = self.scoring_surface_digest();
 
         // ---- 7. 同门重复 Approved：幂等放行（**先比 #180 摘要**——内容
         //      已变更则不走幂等、落新 REV，否则改稿后重过门永远返回旧记录
@@ -476,7 +492,9 @@ impl DomainStore {
                 .rposition(|r| r.gate == gate && r.decision == Decision::Approved)
                 .map(|i| &self.reviews[i]);
             if let Some(existing) = existing {
-                if existing.reviewed_content_digest == reviewed_content_digest {
+                if existing.reviewed_content_digest == reviewed_content_digest
+                    && existing.reviewed_scoring_digest == reviewed_scoring_digest
+                {
                     let existing_is_human = existing
                         .principal
                         .as_ref()
@@ -507,6 +525,7 @@ impl DomainStore {
                             finding_ids: existing.findings.clone(),
                             spawned_rt_ids,
                             reviewed_content_digest: existing.reviewed_content_digest.clone(),
+                            reviewed_scoring_digest: existing.reviewed_scoring_digest.clone(),
                         });
                     }
                     // 不幂等（agent→human 追认 / human→agent 声明 / 换 agent）
@@ -558,6 +577,8 @@ impl DomainStore {
             // #180 内容绑定：落账即快照（判据在 export_allowed 消费）
             reviewed_content_version,
             reviewed_content_digest: reviewed_content_digest.clone(),
+            // A-10/#474：计分面快照（判据同在 export_allowed 消费）
+            reviewed_scoring_digest: reviewed_scoring_digest.clone(),
         });
         // ---- #277 方案 A：Approved 过门同步落审计账（GatePassRecord——
         //      append-only，追认不覆盖；导出警告判据 = 每门最新一条的
@@ -589,6 +610,7 @@ impl DomainStore {
             finding_ids,
             spawned_rt_ids,
             reviewed_content_digest,
+            reviewed_scoring_digest,
         })
     }
 
@@ -599,6 +621,57 @@ impl DomainStore {
 
     pub fn reviews(&self) -> &[ReviewRecord] {
         &self.reviews
+    }
+
+    /// 计分面摘要（A-10/#474）：矩阵覆写（matrix_overrides）+ 评分映射
+    /// （scoring_mappings）的结构化 sha256——`record_review` 快照与
+    /// `export_allowed` 比对的第二判据面（第一面 #180 sections_digest
+    /// 只绑章节树，覆写/映射变更绑不到）。
+    ///
+    /// 确定性纪律（同 [`sections_digest`]）：
+    /// - overrides 按 requirement_id 字典序（HashMap 无序——必须排序）；
+    /// - mappings 按 (scoring_req_id, section_id, id) 三元组序（幂等键族）；
+    /// - 字段间 `\\0` 分隔（防拼接歧义——`["ab","c"]` vs `["a","bc"]`）。
+    ///
+    /// **排除面**（设计意图——不是响应面）：MatrixOverride 的
+    /// principal/trusted/at（谁在何时覆写——同值重放不触发重审）；
+    /// ScoringMapping 的 source_anchor/created_from（追溯元数据）。
+    pub fn scoring_surface_digest(&self) -> String {
+        let mut hasher = Sha256::new();
+        // 覆写面：req_id + status 变体名 + deviation
+        let mut ovs: Vec<(&String, &crate::matrix::MatrixOverride)> =
+            self.matrix_overrides.iter().collect();
+        ovs.sort_by(|a, b| a.0.cmp(b.0));
+        for (req_id, o) in ovs {
+            hasher.update(req_id.as_bytes());
+            hasher.update(b"\\0");
+            hasher.update(o.status.as_str().as_bytes());
+            hasher.update(b"\\0");
+            hasher.update(o.deviation.as_deref().unwrap_or("").as_bytes());
+            hasher.update(b"\\0");
+        }
+        // 映射面：幂等键三元组 + 份额位型 + 证据清单
+        let mut mps = self.scoring_mappings.clone();
+        mps.sort_by(|a, b| {
+            (&a.scoring_req_id, &a.section_id, &a.id)
+                .cmp(&(&b.scoring_req_id, &b.section_id, &b.id))
+        });
+        for m in &mps {
+            hasher.update(m.scoring_req_id.as_bytes());
+            hasher.update(b"\\0");
+            hasher.update(m.section_id.as_bytes());
+            hasher.update(b"\\0");
+            hasher.update(m.id.as_bytes());
+            hasher.update(b"\\0");
+            hasher.update(&m.weight_share.to_bits().to_le_bytes());
+            hasher.update(b"\\0");
+            for ev in &m.evidence_refs {
+                hasher.update(ev.as_bytes());
+                hasher.update(b"\\x01");
+            }
+            hasher.update(b"\\0");
+        }
+        hex::encode(hasher.finalize())
     }
 
     pub fn revision_tasks(&self) -> &[RevisionTask] {
@@ -784,6 +857,23 @@ impl DomainStore {
                     ),
                 });
             }
+            // A-10/#474 计分面绑定（第二判据面）：矩阵覆写/评分映射在过门后
+            // 变更 → 旧审核针对的响应面/计分面已不是当前版本（人批的计分
+            // 面可被换）。空摘要 = legacy 快照（#474 之前的记录）→ 跳过判定，
+            // 宽容载入；重新过门即补上绑定（与 #180 同迁移模式）。
+            let current_scoring = self.scoring_surface_digest();
+            if !last.reviewed_scoring_digest.is_empty()
+                && last.reviewed_scoring_digest != current_scoring
+            {
+                return Err(ToolError::EUnprocessable {
+                    reason: format!(
+                        "导出前置裁决未过：审核针对的计分面已变更（矩阵覆写/评分映射在过门后被修改），请重新审核（{} 计分摘要 {}…，当前 {}…）",
+                        last.id,
+                        digest_head(&last.reviewed_scoring_digest),
+                        digest_head(&current_scoring),
+                    ),
+                });
+            }
         }
         // 全部 RT DONE（BLOCKER 必须修完并带关单说明——RT 面单一真源）
         let open = self.open_blockers();
@@ -915,6 +1005,177 @@ mod tests {
             leaf("SEC-0003", 3),
         ]).unwrap();
         s
+    }
+
+    // ============================ A-10/#474 计分面绑定 ============================
+
+    /// A-10【P2｜CONFIRMED】：PreExportConfirm 的内容绑定只快照章节树——
+    /// 矩阵覆写/评分映射变更不使审核失效（人批的响应面/计分面可被换）。
+    /// #474 修复回归：计分面摘要（overrides+mappings）入绑定。
+    #[test]
+    fn scoring_surface_change_invalidates_export() {
+        // 基座：带章节树（upsert_scoring_mapping 需要 section 存在）
+        // + 1 条评分项 REQ（映射只认评分项/否决项）
+        // + 拨到 MATRIX_READY + 三门全过（无 Blocker → 无 RT → 放行基线）
+        let mut s = store_with_outline();
+        s.set_requirements(vec![Requirement {
+            id: "REQ-0002".into(),
+            category: "评分项".into(),
+            clause_no: Some("5.1".into()),
+            anchors: vec![crate::Anchor {
+                file: "A".into(),
+                kind: "para".into(),
+                locator: "第五章".into(),
+                excerpt: "技术方案完整性".into(),
+                block_idx: None,
+                page: None,
+                line: None,
+            }],
+            params: HashMap::new(),
+            source_file: "A".into(),
+        }]).unwrap();
+        force_status(&mut s, ProjectStatus::MatrixReady);
+        walk_three_gates(&mut s, vec![]);
+        assert!(s.export_allowed().is_ok(), "基线：三门全过且计分面未动 → 放行");
+
+        // ---- 验收 1：过门后 set_matrix_override → 拒（计分面已变更）
+        s.set_matrix_override(
+            "REQ-0001".into(),
+            crate::matrix::ResponseStatus::NotApplicable,
+            Some("招标文件允许外购整机".into()),
+            &TrustedPrincipal::human("zhao"),
+        )
+        .unwrap();
+        match s.export_allowed() {
+            Err(ToolError::EUnprocessable { reason }) => {
+                assert!(reason.contains("计分面"), "消息须点名计分面：{reason}");
+                assert!(reason.contains("重新审核"), "须指路重新审核：{reason}");
+            }
+            other => panic!("覆写后过门须 E_UNPROCESSABLE，得到 {other:?}"),
+        }
+        // 重新过门（第三门重过）→ 新记录绑当前计分摘要 → 放行恢复
+        s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"),
+                        Decision::Approved, vec![], None).unwrap();
+        assert!(s.export_allowed().is_ok(), "重过门补绑定 → 放行恢复");
+
+        // ---- 验收 2：过门后 upsert_scoring_mapping → 拒
+        let anchor = crate::Anchor {
+            file: "A".into(),
+            kind: "para".into(),
+            locator: "第三章".into(),
+            excerpt: "评分细则".into(),
+            block_idx: None,
+            page: None,
+            line: None,
+        };
+        s.upsert_scoring_mapping(
+            "REQ-0002".into(),
+            "SEC-0002".into(),
+            0.5,
+            vec![],
+            anchor,
+            crate::scoring::MappingSource::Manual,
+        )
+        .unwrap();
+        match s.export_allowed() {
+            Err(ToolError::EUnprocessable { reason }) => {
+                assert!(reason.contains("计分面"), "映射变更须拒：{reason}");
+            }
+            other => panic!("映射后过门须 E_UNPROCESSABLE，得到 {other:?}"),
+        }
+        // 重过门 → 放行恢复
+        s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"),
+                        Decision::Approved, vec![], None).unwrap();
+        assert!(s.export_allowed().is_ok());
+
+        // ---- 验收 3：过门后未动计分面（章节树/其他面也不动）→ 放行不受影响
+        //            （上一行 is_ok 已验证——无覆写/映射变更时零误伤）
+
+        // ---- 验收 6：同值重放覆写（同 req 同 status 同 deviation，换人）
+        //            → 摘要不变（排除 principal/at 身份时刻面）→ 仍放行
+        s.set_matrix_override(
+            "REQ-0001".into(),
+            crate::matrix::ResponseStatus::NotApplicable,
+            Some("招标文件允许外购整机".into()),
+            &TrustedPrincipal::human("qian"),
+        )
+        .unwrap();
+        assert!(
+            s.export_allowed().is_ok(),
+            "同值重放覆写（换人）不触发重审——身份/时刻面不是响应面"
+        );
+    }
+
+    /// A-10 幂等面回归：过门 → 改覆写 → 再过门 → **落新 REV**（不吞）。
+    /// 幂等判定若只比章节树摘要，改覆写后的重过门会命中旧记录 no-op 返回，
+    /// 而旧记录的计分摘要是旧的 → 洞仍在（#474 幂等面必须双比对）。
+    #[test]
+    fn scoring_surface_change_breaks_gate_idempotency() {
+        let mut s = store_with_outline();
+        force_status(&mut s, ProjectStatus::MatrixReady);
+        let r1 = walk_three_gates(&mut s, vec![]);
+        let n_reviews = s.reviews().len();
+        let n_passes = s.gate_passes().len();
+
+        // 未变更 → 同门重过幂等（同一复审人）：不落新 REV、不落新 GP
+        let r2 = s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"),
+                                 Decision::Approved, vec![], None).unwrap();
+        assert_eq!(r2.review_id, r1.review_id, "未变更 → 幂等返回旧记录");
+        assert_eq!(s.reviews().len(), n_reviews, "幂等不落新 REV");
+
+        // 改覆写 → 重过门：不幂等（计分摘要变了）→ 落新 REV + 新 GP
+        s.set_matrix_override(
+            "REQ-0001".into(),
+            crate::matrix::ResponseStatus::NotApplicable,
+            Some("政策调整豁免".into()),
+            &TrustedPrincipal::human("zhao"),
+        )
+        .unwrap();
+        let r3 = s.record_review(Gate::PreExportConfirm, &TrustedPrincipal::human("wang"),
+                                 Decision::Approved, vec![], None).unwrap();
+        assert_ne!(r3.review_id, r1.review_id, "改覆写后重过门 → 落新 REV（不吞）");
+        assert_eq!(s.reviews().len(), n_reviews + 1);
+        assert_eq!(s.gate_passes().len(), n_passes + 1, "新过门落新审计账");
+        // 新记录的计分摘要 = 当前摘要（绑定补上）
+        assert_eq!(
+            s.reviews().last().unwrap().reviewed_scoring_digest,
+            s.scoring_surface_digest(),
+            "新记录携带当前计分摘要"
+        );
+        // 且重过门后放行恢复
+        assert!(s.export_allowed().is_ok());
+    }
+
+    /// A-10 摘要确定性：HashMap 无序 → 覆写/映射按稳定键序哈希（同状态
+    /// 多次计算同值）；deviation 变化 → 摘要变化。
+    #[test]
+    fn scoring_surface_digest_deterministic_and_sensitive() {
+        let mut s = store_with_outline();
+        force_status(&mut s, ProjectStatus::MatrixReady);
+        walk_three_gates(&mut s, vec![]);
+        let d0 = s.scoring_surface_digest();
+        // 空覆写/空映射基线 ≠ 0 摘要也成立——重复计算稳定
+        assert_eq!(d0, s.scoring_surface_digest(), "同状态重复计算同值");
+        assert_eq!(d0.len(), 64, "sha256 hex 形态");
+        // 加覆写 → 变
+        s.set_matrix_override(
+            "REQ-0001".into(),
+            crate::matrix::ResponseStatus::NotApplicable,
+            Some("理由A".into()),
+            &TrustedPrincipal::human("zhao"),
+        )
+        .unwrap();
+        let d1 = s.scoring_surface_digest();
+        assert_ne!(d0, d1, "覆写使摘要变化");
+        // 改 deviation → 再变
+        s.set_matrix_override(
+            "REQ-0001".into(),
+            crate::matrix::ResponseStatus::NotApplicable,
+            Some("理由B".into()),
+            &TrustedPrincipal::human("zhao"),
+        )
+        .unwrap();
+        assert_ne!(d1, s.scoring_surface_digest(), "偏离说明变化使摘要变化");
     }
 
     // ============================ 自研测试 ============================
@@ -1084,6 +1345,8 @@ mod tests {
         let rec: ReviewRecord = serde_json::from_value(legacy).unwrap();
         assert!(rec.principal.is_none(), "legacy 快照 principal 缺席 → None");
         assert_eq!(rec.reviewer, "human:zhang");
+        // A-10/#474：legacy 快照无计分摘要 → 缺省空串（判定面跳过，宽容载入）
+        assert!(rec.reviewed_scoring_digest.is_empty(), "legacy 快照 reviewed_scoring_digest 缺席 → 空串");
         // 裁决面宽容：gate_approved 消费既有 Approved（不回溯失效）
         let mut s = store_at_matrix_ready();
         let mut snap = s.to_snapshot();

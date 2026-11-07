@@ -37,6 +37,7 @@ const ALL_STATES: [ProjectStatus; 10] = [
 /// REQUIREMENTS_EXTRACTED+ 含 Exported：信号来自 REQ 面，建纲前后均可查）= 30。
 
 const ALL_TOOLS: [&str; 37] = [
+
     "create_bid_project",
     "import_tender_files",
     "extract_requirements",
@@ -74,6 +75,10 @@ const ALL_TOOLS: [&str; 37] = [
     "rewrite_section_partial",
     "recommend_length_profile",
     "list_tools",
+    "register_performance",
+    "list_performance",
+    "recommend_performance",
+    "write_performance_section",
 ];
 
 // ---------------------------------------------------------------- 1. 前向迁移表
@@ -264,6 +269,7 @@ fn full_matrix_snapshot() {
         // Exported（终态不变量：终态不改数据——#241 不被括进来；#254 仅只读
         //   list；#287 尾位 1——导出后仍可查推荐口径追溯）
         (ProjectStatus::Exported, "0001001001101000110110011000100011110"),
+
 
 
     ];

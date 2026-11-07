@@ -64,6 +64,7 @@ fn main() {
     println!("[tool-surface] OK: 工具面 {} 个，派生面全部同步", bid_mcp::TOOL_NAMES.len());
 }
 
+#[derive(Debug)]
 struct Diagnostic {
     message: String,
     details: Vec<String>,
@@ -176,10 +177,16 @@ fn display(p: &Path) -> String {
 // ---------------------------------------------------------------- 派生面渲染
 
 /// 重写 state_machine_matrix.rs 的 ALL_TOOLS 数组与 10 行位串。
+///
+/// **行尾保真**（#363 CI 假红教训）：Windows runner 的 autocrlf 会把工作区
+/// 文本转成 CRLF；渲染若硬编码 `\n`，则「已同步」的文件在比较时也必不等
+/// （恒红假阳性）。这里探测源文件行尾并以其原样渲染——比较与 `--write`
+/// 都平台无关，且 Windows 开发者跑 `--write` 不会产生全文件行尾 diff。
 fn render_matrix(src: &str, n: usize) -> Result<String, Diagnostic> {
     use bid_domain::ProjectStatus;
 
     let names = bid_mcp::TOOL_NAMES;
+    let eol = if src.contains("\r\n") { "\r\n" } else { "\n" };
 
     // ---- ALL_TOOLS 数组
     let arr_start = src.find("const ALL_TOOLS: [&str;").ok_or_else(|| Diagnostic {
@@ -195,9 +202,9 @@ fn render_matrix(src: &str, n: usize) -> Result<String, Diagnostic> {
         })?;
 
     let mut arr = String::new();
-    arr.push_str(&format!("const ALL_TOOLS: [&str; {n}] = [\n"));
+    arr.push_str(&format!("const ALL_TOOLS: [&str; {n}] = [{eol}"));
     for t in names {
-        arr.push_str(&format!("    \"{t}\",\n"));
+        arr.push_str(&format!("    \"{t}\",{eol}"));
     }
     arr.push_str("];");
 
@@ -333,4 +340,78 @@ fn render_draft(src: &str, n: usize) -> Result<String, Diagnostic> {
     out.push_str(&format!(" {n},"));
     out.push_str(&after[comma + 1..]);
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 覆盖全部 10 状态needle 的最小骨架（与真实 state_machine_matrix.rs 同构）。
+    fn fixture_src(eol: &str) -> String {
+        let mut s = String::from("// fixture\n");
+        s.push_str(&format!("const ALL_TOOLS: [&str; 1] = [{eol}    \"stale_tool\",{eol}];{eol}"));
+        s.push_str(&format!("const CASES: &[(ProjectStatus, &str)] = &[{eol}"));
+        for st in [
+            "Draft", "FilesImported", "RequirementsExtracted", "MatrixReady",
+            "EvidenceBound", "Drafting", "Validating", "Reviewing",
+            "ReadyToExport", "Exported",
+        ] {
+            s.push_str(&format!("    (ProjectStatus::{st}, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"),{eol}"));
+        }
+        s.push_str(&format!("];{eol}"));
+        s
+    }
+
+    /// LF 源 → 渲染产物数组段仍是 LF（不引入 \r）。
+    #[test]
+    fn lf_source_renders_lf_array() {
+        let n = bid_mcp::TOOL_NAMES.len();
+        let out = render_matrix(&fixture_src("\n"), n).unwrap();
+        assert!(out.contains(&format!("const ALL_TOOLS: [&str; {n}] = [\n")));
+        assert!(!out.contains('\r'), "LF 源不应被渲染出 CR");
+        for t in bid_mcp::TOOL_NAMES {
+            assert!(out.contains(&format!("    \"{t}\",\n")), "缺工具 {t}");
+        }
+    }
+
+    /// CRLF 源（Windows autocrlf 工作区形态）→ 数组段以 CRLF 渲染。
+    #[test]
+    fn crlf_source_renders_crlf_array() {
+        let n = bid_mcp::TOOL_NAMES.len();
+        let out = render_matrix(&fixture_src("\r\n"), n).unwrap();
+        assert!(out.contains(&format!("const ALL_TOOLS: [&str; {n}] = [\r\n")));
+        for t in bid_mcp::TOOL_NAMES {
+            assert!(out.contains(&format!("    \"{t}\",\r\n")), "缺工具 {t}");
+        }
+    }
+
+    /// **CI 假红回归测试**：已同步的 CRLF 源（= Windows 工作区的真实状态）
+    /// render 必须幂等——修复前恒不等（LF 渲染 vs CRLF 文件），即 #363 的红。
+    #[test]
+    fn synced_crlf_source_render_is_idempotent() {
+        let n = bid_mcp::TOOL_NAMES.len();
+        let synced_lf = render_matrix(&fixture_src("\n"), n).unwrap();
+        let synced_crlf = synced_lf.replace('\n', "\r\n");
+        let rendered = render_matrix(&synced_crlf, n).unwrap();
+        assert_eq!(rendered, synced_crlf, "已同步 CRLF 源不得因行尾被判不同步");
+    }
+
+    /// 位串长度恒等于工具数（防未来改坏位串替换面）。
+    #[test]
+    fn bitstrings_match_tool_count() {
+        let n = bid_mcp::TOOL_NAMES.len();
+        let out = render_matrix(&fixture_src("\n"), n).unwrap();
+        for st in [
+            "Draft", "FilesImported", "RequirementsExtracted", "MatrixReady",
+            "EvidenceBound", "Drafting", "Validating", "Reviewing",
+            "ReadyToExport", "Exported",
+        ] {
+            let needle = format!("(ProjectStatus::{st}, \"");
+            let pos = out.find(&needle).unwrap_or_else(|| panic!("缺 {st} 位串行"));
+            let rest = &out[pos + needle.len()..];
+            let bits = &rest[..rest.find('"').unwrap()];
+            assert_eq!(bits.len(), n, "{st} 位串长度应为 {n}");
+            assert!(bits.chars().all(|c| c == '0' || c == '1'));
+        }
+    }
 }

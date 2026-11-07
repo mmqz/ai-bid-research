@@ -313,6 +313,17 @@ MISSING_EVIDENCE = {"GT-04": "项目经理注册建造师证书及无在建承�
 def _a(file, kind, locator, excerpt):
     return {"file": file, "kind": kind, "locator": locator, "excerpt": excerpt}
 
+# ---------------------------------------------------------------- GT 元数据（#490/A-20③）
+# 开标日真源（补遗后）：判分器 fixture_open_bid_after 消费
+# fixtures/corpus-A/ground-truth/meta.json 的本字段——日期部分取
+# PROJECT["open_bid_date_after_addendum"]（单一真源派生，勿手改两处）。
+GT_META = {
+    "open_bid_after_addendum": PROJECT["open_bid_date_after_addendum"].split()[0],
+    "note": "#490（A-20③）：补遗后开标日真源——GT-02 证据 EV-02 有效期 "
+            "2026-11-25 越线翻转 not_eligible 的裁决时刻；与 GT-02 "
+            "expected_policy 的 @open_bid 后缀交叉印证。判分器缺失时回退硬编码。",
+}
+
 REQUIREMENTS: list[dict] = [
     # ---- 资格条件 6（GT-01~06）
     {"gt_id": "GT-01", "clause_no": "3.2.1", "category": "资格条件",

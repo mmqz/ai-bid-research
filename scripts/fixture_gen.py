@@ -353,8 +353,10 @@ def gen_ground_truth(corpus: Path):
     write_jsonl(gt / "evidence-links.jsonl", S.EVIDENCE_LINKS)
     write_jsonl(gt / "sections.jsonl", S.SECTIONS_SPEC)
     write_json(gt / "conflicts.json", S.CONFLICTS)
+    # #490（A-20③）：GT 元数据（开标日真源——判分器 fixture_open_bid_after 消费）
+    write_json(gt / "meta.json", S.GT_META)
     return {"requirements": len(S.REQUIREMENTS), "evidence_links": len(S.EVIDENCE_LINKS),
-            "sections": len(S.SECTIONS_SPEC), "conflicts": len(S.CONFLICTS)}
+            "sections": len(S.SECTIONS_SPEC), "conflicts": len(S.CONFLICTS), "meta": 1}
 
 
 def gen_transitions(corpus: Path):

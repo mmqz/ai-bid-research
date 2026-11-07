@@ -47,6 +47,7 @@
 
 pub mod assignment;
 pub mod budget;
+pub mod changediff;
 pub mod dates;
 pub mod evidence;
 pub mod export_gate;

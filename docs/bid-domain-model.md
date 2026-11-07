@@ -98,3 +98,20 @@ BidSection ──(content_ref 单向引用)──> DOC-block（文档内核命�
 6. **审核门四道**（T-7 + #131 增补）：`matrix_approval` / `outline_approval` / `pre_export_confirm` 三道导出门序链（export_allowed 逐门校验）+ `addendum_waiver`（#131：L3「无补遗阻塞」的人工确认出口——单件招标文件起草前置闸；与三道主门正交，无门序前置，不入导出门序）。Approved 是里程碑事实（同门重放幂等），Rejected 是过程记录。
 7. **起草 readiness 六阻塞**（#110 + L3）：无关联 REQ / 缺资质 / 业绩不足 / 技术参数无佐证 / 否决项未响应 / 无补遗（MissingAddendum）→ 拒生成 E_UNPROCESSABLE（人话理由）。指令与缺失回报进 `draft_note` 账面（#128），正文零标记。
 8. **评标规则不进正文**（#121/#126）：否决项/资格条件不抄规则原文，合并进「资格与响应」章节组写响应话术（矩阵有章节→不报 BLOCKER）；评分项完全不进正文（自评表面）。
+
+## 5. 多轮改标对比（#320）
+
+一个项目关联 N 轮公告（招标 → 更正 ×M → 中标），`changediff.rs` 管理版本链并回答跨轮问题——与 `impact.rs`（单轮影响面）分工：impact 答「这轮弄脏了哪些面」，changediff 答「N 轮下来每条要求的最终状态」。
+
+```
+数据形态：按轮快照（clause_id → params，BTreeMap 确定序）
+链管理  ：按公告日期升序（乱序 push 自动重排）；同 sha 幂等拒绝
+diff 语义（V_from → V_to）：
+  Modified  双侧在场且 params 有键差（逐键 old/new + 变更轮轨迹）
+  Added     仅 to 侧在场（首现轮）
+  Deleted   仅 from 侧在场（消失轮）
+  不变      双侧同值不入 diff（「不变陷阱」口径：明示不变的节点被动即失实）
+报告    ：轮数 / 更正轮数 / 日期跨度 / 三分类净变更 / 逐条最终态（值 + 轨迹）
+```
+
+快照由调用方供给：引擎侧 `push_engine_round`（每轮 import_events 后拍快照）；M2+ 补遗解析器落地后可直接由解析产物供给。真实链验证：cuc-028（招标 07-13 → 更正 07-28 → 中标 08-14，三条 MODIFY + 两条不变陷阱，见 `tests/changediff_chain.rs`）。

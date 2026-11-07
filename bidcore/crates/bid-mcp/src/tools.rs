@@ -942,14 +942,21 @@ fn extract_requirements(svc: &mut BidService, args: Value) -> ToolResult {
         }
     }
 
-    // ---- 冲突检测（最小面）：补遗（C-）与主文件（A-）同条款号不同文本 → 双向登记
+    // ---- 冲突检测（最小面）：补遗与主文件同条款号不同文本 → 双向登记
     let mut conflicts: Vec<Value> = Vec::new();
     let main_names: Vec<&str> = svc.parsed().iter().map(|p| p.name.as_str()).collect();
-    // 补遗件名集合（C- 前缀——B5 最小冲突面：主文件 × 补遗同条款号异文）
+    // 补遗件名集合（#425：按业务 kind 判定——kind==补遗；kind 缺省时前缀
+    // 兜底（夹具约定）。#196/#250 同根因的第三处收口：真实命名的补遗
+    // （「澄清修改文件.pdf」/「补遗通知.docx」）不再漏检冲突。kind 在值域
+    // 的其他件（答疑/评分办法/附件…）不误入补遗面。）
     let addenda_names: Vec<String> = svc
         .parsed()
         .iter()
-        .filter(|p| p.name.starts_with("C-"))
+        .filter(|p| match kind_map.get(&p.name).map(String::as_str) {
+            Some("补遗") => true,
+            Some(_) => false,
+            None => p.name.starts_with("C-"),
+        })
         .map(|p| p.name.clone())
         .collect();
     for ad_name in &addenda_names {

@@ -343,3 +343,87 @@ fn real_filename_merges_through_same_path_as_fixture_name() {
         );
     }
 }
+
+// ---------------------------------------------------------------- #425
+
+/// #425：补遗冲突检测按 kind 识别——真实命名的补遗（无 C- 前缀）不再漏检。
+///
+/// 夹具：`澄清修改文件-3.1.1.docx`（真实命名——无 C- 前缀，条款 3.1.1/3.2.1
+/// 与主文件同号异文——冲突面真源；由 scripts/make_425_addendum.py 生成）。
+/// - kind=补遗 导入 → 主文件 × 补遗同条款号异文的冲突**必须检出**（修复前：
+///   `C-` 前缀过滤漏检——#196/#250 同根因第三处）；
+/// - 对照组：同件 + kind=答疑 → 不入补遗面（kind 值域 guard），冲突恒空。
+#[test]
+fn addenda_conflict_identifies_by_kind_not_prefix() {
+    let main = fixtures().join("A-招标文件.docx");
+    let addendum = fixtures().join("澄清修改文件-3.1.1.docx");
+    if bid_parse::env_preflight::skip_if_fixture_missing(
+        "merge_kind_gate_425_addenda_kind",
+        &[&main, &addendum],
+    ) {
+        return; // SKIP 横幅已打出
+    }
+
+    // ---- 组 A：真实命名（无前缀）+ kind=补遗 → 冲突必须检出
+    {
+        let ws = tmp_ws("addenda-kind-a");
+        let mut svc = BidService::open(&ws).expect("打开工作区").with_fs_root(&fixtures());
+        ok_result(call(&mut svc, "create_bid_project", json!({
+            "name": "#425 补遗 kind 识别——真实命名", "bid_deadline": "2026-12-31",
+            "mode": "明标", "external_key": "addenda-kind-a",
+        })));
+        ok_result(call(&mut svc, "import_tender_files", json!({
+            "project_id": "PRJ-0001",
+            "files": [
+                { "upload_ref": main.display().to_string(), "filename": "A-招标文件.docx", "kind": "招标文件" },
+                { "upload_ref": addendum.display().to_string(), "filename": "澄清修改文件-3.1.1.docx", "kind": "补遗" },
+            ],
+        })));
+        let r = ok_result(call(&mut svc, "extract_requirements", json!({
+            "project_id": "PRJ-0001"
+        })));
+        let conflicts = r["conflicts"].as_array().expect("conflicts 字段在位");
+        // 本组唯一的补遗面就是无前缀真实命名件——冲突非空即归因于它
+        //（冲突只能从 addenda_names 循环里产生）；夹具条款 3.1.1/3.2.1 两对
+        // 同号异文 → 恰 2 条冲突。
+        assert_eq!(
+            conflicts.len(),
+            2,
+            "无 C- 前缀的补遗（kind=补遗）冲突必须检出——修复前按前缀过滤静默漏检（#425）：{conflicts:?}"
+        );
+        assert!(
+            conflicts.iter().all(|c| {
+                let reason = c["reason"].as_str().unwrap_or("");
+                reason.contains("3.1.1") || reason.contains("3.2.1")
+            }),
+            "冲突理由应指向同号异文条款：{conflicts:?}"
+        );
+        let _ = std::fs::remove_dir_all(ws);
+    }
+
+    // ---- 组 B（对照）：同物理件 + kind=答疑 → 不入补遗面，冲突恒空
+    {
+        let ws = tmp_ws("addenda-kind-b");
+        let mut svc = BidService::open(&ws).expect("打开工作区").with_fs_root(&fixtures());
+        ok_result(call(&mut svc, "create_bid_project", json!({
+            "name": "#425 对照——答疑不入补遗面", "bid_deadline": "2026-12-31",
+            "mode": "明标", "external_key": "addenda-kind-b",
+        })));
+        ok_result(call(&mut svc, "import_tender_files", json!({
+            "project_id": "PRJ-0001",
+            "files": [
+                { "upload_ref": main.display().to_string(), "filename": "A-招标文件.docx", "kind": "招标文件" },
+                { "upload_ref": addendum.display().to_string(), "filename": "澄清修改文件-3.1.1.docx", "kind": "答疑" },
+            ],
+        })));
+        let r = ok_result(call(&mut svc, "extract_requirements", json!({
+            "project_id": "PRJ-0001"
+        })));
+        let conflicts = r["conflicts"].as_array().expect("conflicts 字段在位");
+        assert!(
+            conflicts.is_empty(),
+            "kind=答疑 不入补遗面（值域 guard——冲突只能从补遗面产生）：{conflicts:?}"
+        );
+        let _ = std::fs::remove_dir_all(ws);
+    }
+}

@@ -152,6 +152,95 @@ Struct                         新增字段       字面量点         定义文
 ```
 
 ---
+## 0.0.9 rebase 解完冲突后必须扫残留标记
+
+**`git rebase --continue` 成功 ≠ 冲突解干净了。**
+
+## 为什么
+
+```
+rebase 时如果漏了某个冲突文件没 git add：
+  · git rebase --continue 仍会成功（它只看已 add 的文件）
+  · 但漏掉的文件里还留着 <<<<<<< ======= >>>>>>>
+  · 本地不编译 → 推上去 CI 红 → 白等 3 分钟才发现
+```
+
+**2026-11-07 实测**：ai-bid #371 rebase 后 `lib.rs:72` 残留 `>>>>>>>`，
+导致 `error: unknown start of token: \u{2014}`——本地编译失败，CI 必红。
+
+## 一条命令（< 0.5 秒）
+
+```bash
+grep -rn --include="*.rs" --include="*.md" --include="*.py" --include="*.toml" --include="*.json" \
+  -E "^(<<<<<<<|=======$|>>>>>>>)" . | head -20
+```
+
+**有输出 = 还有残留，必须继续解。**
+
+## 完整流程（rebase 后必做）
+
+```bash
+# 1. rebase
+git fetch origin main && git rebase origin/main
+
+# 2. 解冲突（每个冲突文件都要 git add）
+#    ...
+
+# 3. continue
+git rebase --continue
+
+# 4. ★ 扫残留标记（最容易忘的一步）
+grep -rn --include="*.rs" --include="*.md" --include="*.py" -E "^(<<<<<<<|=======$|>>>>>>>)" . | head
+
+# 5. 确认无未合并文件
+git diff --name-only --diff-filter=U     # 必须为空
+
+# 6. 本地编译（比等 CI 快 10 倍）
+cargo check --workspace --all-targets
+
+# 7. 推
+git push --force
+```
+
+## 为什么第 6 步必做
+
+```
+本地 cargo check：  1-3 分钟（有缓存时几十秒）
+等 CI cargo check： 3-5 分钟 + 排队
+
+差 2-4 倍。而且本地报错立刻能改，CI 报错要等一轮。
+```
+
+## 一次漏检的真实代价
+
+```
+漏检 → push → 等 3 分钟 CI → 看到 unknown start of token
+     → 修 → 再 push → 再等 3 分钟
+= 白等 6-10 分钟 + 一轮 CI 配额
+
+grep 一次 = 0.5 秒。
+```
+
+## 高频残留位置
+
+```
+① 手写面（TOOL_NAMES / schema.rs / tools.rs）——加工具时最容易漏
+② 派生面（state_machine_matrix.rs）——但 tool-surface 会覆盖，问题不大
+③ 文档（contract.md / SKILL.md）——两节都编号 23 这种
+④ 配置文件（Cargo.toml 的 [[bin]] 段）——每个新 bin 都往末尾加
+```
+
+## 补充：冲突解完先跑 tool-surface
+
+```bash
+# 如果冲突涉及工具面/位串矩阵：
+cargo run -p bid-mcp --bin tool-surface -- --write
+cargo run -p bid-mcp --bin tool-surface -- --check
+```
+
+**它能自动修掉 4 个派生面的不同步，比手工算位串快得多。**
+
+---
 ## 0.0.1 一个 issue 只能有一个 PR
 
 ```

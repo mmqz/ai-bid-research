@@ -3,9 +3,12 @@
 """S5 并入 GT：s5-final.jsonl → ground-truth.json（幂等，S5 标记）"""
 import json, re, collections, os
 
-S5 = '/home/z/my-project/tmp-conv/vgt-supplement/s5-final.jsonl'
-GT = 'artifacts/veto-gt/ground-truth.json'
-DUMP_DIR = '/tmp/vgt-dump/'
+# FG-16（#305）：仓外绝对路径参数化（一次性转换脚本——原值经环境变量可复现）
+import os as _os, pathlib as _pl
+_REPO = _pl.Path(__file__).resolve().parent.parent.parent
+S5 = _os.environ.get('VGT_S5_JSONL') or str(_REPO / 'artifacts' / 'veto-gt-supplement' / 's5-final.jsonl')
+GT = _os.environ.get('VETO_GT') or str(_REPO / 'artifacts' / 'veto-gt' / 'ground-truth.json')
+DUMP_DIR = _os.environ.get('VGT_DUMP_DIR') or '/tmp/vgt-dump'
 
 def norm(s):
     return re.sub(r'\s+', '', s or '')

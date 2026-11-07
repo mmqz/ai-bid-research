@@ -754,13 +754,17 @@ def author_body(
     ghost_ev: str | None = None,
     promise_sentences: list[str] | None = None,
     tail_sentence: str | None = None,
+    pad_to_chars: int | None = None,
 ) -> str:
     """模拟使用方 Agent 写的 markdown 正文。
 
     纪律（与引擎的回查/统计面对齐）：
     - 每个 REQ 引用单独成句（句号边界——无锚承诺按句计）；
     - 不使用 承诺/保证/确保/完全满足 字样（除非显式传 promise_sentences）；
-    - 行内粗体走 **字样**（#117 的 run 发射层会在 docx 里变粗体 run）。
+    - 行内粗体走 **字样**（#117 的 run 发射层会在 docx 里变粗体 run）；
+    - pad_to_chars（FG-05/#305）：中性填充句补足篇幅（无承诺词/无引用/无
+      REQ 字样——不触 unanchored_claims 与幻觉回查），满足 E_CHARS_BELOW_MIN /
+      E_TOTAL_CHARS_BELOW_MIN 门禁的夹具需求。
     """
     parts = ["# 分项响应", "", "本章依据响应矩阵，对所辖条款逐条对照如下。"]
     target = reqs[:1] if cite_only_first else reqs
@@ -775,7 +779,23 @@ def author_body(
         parts.append(tail_sentence)
     for s in promise_sentences or []:
         parts.append(s)
-    return "\n\n".join(parts)
+    body = "\n\n".join(parts)
+    if pad_to_chars is not None and len(body) < pad_to_chars:
+        # 中性填充句（#305/FG-05）：描述性说明文字——不含承诺词（承诺/保证/
+        # 确保/完全满足——count_unanchored_claims 的词面）、不带 REQ/EV 引用、
+        # 不参与回查；循环补足到目标字数。措辞风格对齐引擎 FILLER_SENTENCES。
+        fillers = [
+            "本节围绕上述条款的响应要点作补充说明，结合项目实施场景细化落实措施与保障安排。",
+            "针对实施过程中的关键环节，补充相应的组织安排、资源配置与进度衔接说明，各项工作按计划有序开展。",
+            "在质量、安全、进度三个维度上，本章所述响应内容与项目管理总体方案相互支撑，形成闭环管理。",
+            "结合同类项目的实施经验，对可能出现的风险情形预判应对预案，响应内容具备可执行性。",
+            "上述说明与正文响应条目共同构成本章完整内容，供评审参考。",
+        ]
+        i = 0
+        while len(body) < pad_to_chars:
+            body += "\n\n" + fillers[i % len(fillers)]
+            i += 1
+    return body
 
 
 def read_chapter_record(ws: Path, sec_id: str) -> dict:
@@ -854,6 +874,10 @@ async def _case_full_pipeline(rec: Recorder, ws: Path) -> None:
         mandatory = set(ctx["mandatory"])
 
         # ---- P5 external 起草（使用方核心路径：Agent 写正文 → 引擎回查+CAS+落盘）
+        # FG-05（#305）：篇幅门禁（#242/#253）真实生效后，短夹具正文触发
+        # E_CHARS_BELOW_MIN（评分章 BLOCKER）/ E_TOTAL_CHARS_BELOW_MIN（全稿
+        # BLOCKER）→ 旗舰全链在基线即红。两段式：首草拿配额面（quota.target_chars）
+        # → 未达标本章按目标字数补写重草（中性填充——不触回查）。
         t0 = time.monotonic()
         draft_stats = {}
         for sec, reqs in sections.items():
@@ -864,6 +888,18 @@ async def _case_full_pipeline(rec: Recorder, ws: Path) -> None:
                 "generator": "external", "content": body,
                 "instructions": "按招标文件逐项响应，突出同类业绩与实施方案",
             })
+            # 两段式第二草：配额未达标（评分章 ≥80% 门槛/全稿 ≥总目标）→补写重草
+            quota = r.get("quota") or {}
+            target_chars = quota.get("target_chars") or 0
+            written = quota.get("written_chars") or 0
+            if target_chars and written < int(target_chars):
+                body = author_body(reqs, ev_ids=ev_ids,
+                                   pad_to_chars=int(target_chars) + 32)
+                r = await call(client, "draft_response_section", {
+                    "project_id": pid, "section_id": sec,
+                    "generator": "external", "content": body,
+                    "instructions": "按招标文件逐项响应，突出同类业绩与实施方案",
+                })
             stats = r.get("stats", {})
             draft_stats[sec] = {
                 "words": stats.get("words"), "citations": stats.get("citations"),

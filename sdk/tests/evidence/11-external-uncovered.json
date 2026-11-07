@@ -1,12 +1,12 @@
 {
  "case": "11-external-uncovered",
  "transport": "mcp",
- "server_bin": "/home/z/my-project/bid-research-rw/bidcore/target/debug/bid-mcp-server",
- "server_sha256": "33d84ab7770b385083339d3c9d17fa2940ea9544a9b984afd4cec5bd88d43127",
+ "server_bin": "/tmp/cargo-target-fm65/debug/bid-mcp-server",
+ "server_sha256": "4e4012efa095fefc5e7304953a42fae86ca2b1c6c2bb34e408dc03a9902414c6",
  "python": "3.12.16",
  "mcp_sdk": "1.27.0",
  "os": "Linux-5.10.134-013.15.kangaroo.al8.x86_64-x86_64-with-glibc2.41",
- "started_at": "2026-11-03T16:30:21+00:00",
+ "started_at": "2026-11-06T15:01:04+00:00",
  "stages": [
   {
    "stage": "P0 create_bid_project（含幂等重放）",
@@ -58,7 +58,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 5.9441899998091685
+   "elapsed_ms": 7.832230000531126
   },
   {
    "stage": "P1 import_tender_files",
@@ -95,6 +95,7 @@
       "deduplicated": false,
       "file_id": "TF-0002",
       "filename": "A-招标文件.docx",
+      "kind": "招标文件",
       "ocr_tier": "none",
       "pages": 0,
       "parse_status": "ok",
@@ -107,6 +108,7 @@
       "deduplicated": false,
       "file_id": "TF-0003",
       "filename": "C-补遗文件01.docx",
+      "kind": "补遗",
       "ocr_tier": "none",
       "pages": 0,
       "parse_status": "ok",
@@ -119,10 +121,11 @@
       "deduplicated": false,
       "file_id": "TF-0004",
       "filename": "evidence/EV-01-营业执照.pdf",
+      "kind": "附件",
       "ocr_tier": "none",
       "pages": 1,
       "parse_status": "ok",
-      "parse_summary": "pdf 文本层: 1 页 8 行块",
+      "parse_summary": "pdf 文本层: 1 页 8 行块；结构形态[未识别]: 0 章标记；【结构告警】未识别到顶层章节骨架（无「第X章/第X部分/N.标题」形态）——章节上下文为空，分类将依赖词面/表格/否决词典兜底（issue #272：不静默失败，响亮登记）",
       "sha256": "b1b4811b9c1b96e1bff95a49dcba07434cd391d7939e82b7453d18142b80258c",
       "tables": 0
      },
@@ -131,10 +134,11 @@
       "deduplicated": false,
       "file_id": "TF-0005",
       "filename": "evidence/EV-02-电子与智能化工程专业承包二级资质证书.pdf",
+      "kind": "附件",
       "ocr_tier": "none",
       "pages": 1,
       "parse_status": "ok",
-      "parse_summary": "pdf 文本层: 1 页 7 行块",
+      "parse_summary": "pdf 文本层: 1 页 7 行块；结构形态[未识别]: 0 章标记；【结构告警】未识别到顶层章节骨架（无「第X章/第X部分/N.标题」形态）——章节上下文为空，分类将依赖词面/表格/否决词典兜底（issue #272：不静默失败，响亮登记）",
       "sha256": "60a2e9ce86ccab9bb8ad89be98bcfd8e802ee8d9ff6e20ce7ea4f2e23964c7b6",
       "tables": 0
      }
@@ -168,7 +172,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 255.0912680003421
+   "elapsed_ms": 255.19408399941312
   },
   {
    "stage": "P2 extract_requirements",
@@ -199,6 +203,12 @@
     "missing_sequence": [],
     "project_version": 6,
     "request_id": "req-000004",
+    "star_summary": {
+     "captured": 0,
+     "declarations": 0,
+     "missing": 0,
+     "total": 0
+    },
     "status": "REQUIREMENTS_EXTRACTED",
     "warnings": [
      "ENGINE_PATH: A-招标文件.docx 经引擎路径解析（已知缺口：嵌套表 mdcore#39 / 域边界 mdcore#40——docs/b3-3-acceptance-report.md §6）",
@@ -215,7 +225,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 66.4503309999418
+   "elapsed_ms": 67.03699700028665
   },
   {
    "stage": "P3 build_outline",
@@ -229,6 +239,11 @@
      "requirements": 121,
      "sections": 28,
      "total_target_chars": 11000
+    },
+    "length": {
+     "approx_pages": 8,
+     "profile": "custom",
+     "target_total_chars": 6000
     },
     "project_version": 8,
     "request_id": "req-000005",
@@ -248,7 +263,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.073431000208075
+   "elapsed_ms": 8.449422999547096
   },
   {
    "stage": "P3 get_compliance_matrix",
@@ -262,16 +277,21 @@
      {
       "blocking": true,
       "cmp_id": "CMP-0001",
-      "draft_section_id": "SEC-0007",
+      "draft_section_id": "SEC-0008",
       "evidence": [],
+      "evidence_missing": false,
+      "evidence_required": false,
       "gap": null,
+      "pending_evidence_ids": [],
       "requirement": {
        "category": "否决项",
        "category_key": "veto",
        "clause_no": null,
        "id": "REQ-0001",
        "mandatory": true,
-       "params": {},
+       "params": {
+        "marked_by": "regex"
+       },
        "source_anchor": {
         "excerpt": "本项目预算金额：设备采购预算 350 万元（含税）；最高限价（招标控制价）：人民币 480 万元（含税），投标报价超过最高限价的作否决投标处理。",
         "file": "A-招标文件.docx",
@@ -281,21 +301,27 @@
        "statement": "本项目预算金额：设备采购预算 350 万元（含税）；最高限价（招标控制价）：人民币 480 万元（含税），投标报价超过最高限价的作否决投标处理。"
       },
       "response_policy": "default",
-      "status": "NOT_RESPONDED"
+      "status": "NOT_RESPONDED",
+      "substantive": false
      },
      {
       "blocking": true,
       "cmp_id": "CMP-0002",
-      "draft_section_id": "SEC-0007",
+      "draft_section_id": "SEC-0008",
       "evidence": [],
+      "evidence_missing": false,
+      "evidence_required": false,
       "gap": null,
+      "pending_evidence_ids": [],
       "requirement": {
        "category": "否决项",
        "category_key": "veto",
        "clause_no": "前附表-10",
        "id": "REQ-0002",
        "mandatory": true,
-       "params": {},
+       "params": {
+        "marked_by": "regex"
+       },
        "source_anchor": {
         "excerpt": "10 否决条款提示 未按本表第 9 项规定格式填写技术偏离表的，其投标作否决投标处理",
         "file": "A-招标文件.docx",
@@ -305,21 +331,27 @@
        "statement": "10 否决条款提示 未按本表第 9 项规定格式填写技术偏离表的，其投标作否决投标处理"
       },
       "response_policy": "default",
-      "status": "NOT_RESPONDED"
+      "status": "NOT_RESPONDED",
+      "substantive": false
      },
      {
       "blocking": false,
       "cmp_id": "CMP-0003",
       "draft_section_id": "SEC-0012",
       "evidence": [],
+      "evidence_missing": false,
+      "evidence_required": false,
       "gap": null,
+      "pending_evidence_ids": [],
       "requirement": {
        "category": "其他",
        "category_key": "other",
        "clause_no": "3.1.1",
        "id": "REQ-0003",
        "mandatory": false,
-       "params": {},
+       "params": {
+        "marked_by": "regex"
+       },
        "source_anchor": {
         "excerpt": "3.1.1 适用范围：本须知适用于本项目投标、开标、评标、定标及合同签订全过程。",
         "file": "A-招标文件.docx",
@@ -329,7 +361,8 @@
        "statement": "3.1.1 适用范围：本须知适用于本项目投标、开标、评标、定标及合同签订全过程。"
       },
       "response_policy": "default",
-      "status": "NOT_RESPONDED"
+      "status": "NOT_RESPONDED",
+      "substantive": false
      }
     ],
     "n_blocking": 19
@@ -356,16 +389,16 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 19.941993999964325,
+   "elapsed_ms": 23.66680599971005,
    "extra": {
     "sections": {
-     "SEC-0007": [
+     "SEC-0008": [
       "REQ-0001",
       "REQ-0002",
-      "REQ-0005",
-      "REQ-0006",
-      "REQ-0007",
-      "REQ-0008"
+      "REQ-0010",
+      "REQ-0013",
+      "REQ-0014",
+      "REQ-0016"
      ],
      "SEC-0012": [
       "REQ-0003",
@@ -374,13 +407,13 @@
       "REQ-0018",
       "REQ-0024"
      ],
-     "SEC-0008": [
+     "SEC-0007": [
+      "REQ-0005",
+      "REQ-0006",
+      "REQ-0007",
+      "REQ-0008",
       "REQ-0009",
-      "REQ-0010",
-      "REQ-0013",
-      "REQ-0014",
-      "REQ-0016",
-      "REQ-0017"
+      "REQ-0051"
      ],
      "SEC-0016": [
       "REQ-0011",
@@ -390,12 +423,12 @@
       "REQ-0050"
      ],
      "SEC-0009": [
+      "REQ-0017",
       "REQ-0019",
       "REQ-0020",
       "REQ-0021",
       "REQ-0022",
-      "REQ-0023",
-      "REQ-0051"
+      "REQ-0023"
      ],
      "SEC-0018": [
       "REQ-0029",
@@ -535,8 +568,9 @@
     "ev_id": "EV-0034",
     "excerpt": null,
     "excerpt_locator": null,
-    "hint": "新 EV 已签发（若为同 key 换版，旧记录已单向降级 SUPERSEDED；全新登记则无旧记录）",
+    "hint": "新 EV 已签发（若为同 key 换版，旧记录已单向降级 SUPERSEDED 且既有绑定迁移到新记录；全新登记则无旧记录）",
     "kind": "qualification",
+    "placeholder": false,
     "project_version": 9,
     "request_id": "req-000007",
     "status": "ACTIVE",
@@ -556,7 +590,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 6.272757999795431
+   "elapsed_ms": 7.232136000311584
   },
   {
    "stage": "P4 bind_evidence",
@@ -572,6 +606,7 @@
      "blocking": 0,
      "rows": 121
     },
+    "placeholder": false,
     "project_version": 111,
     "replayed": 0,
     "request_id": "req-000008",
@@ -588,7 +623,7 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 7.334037000418903
+   "elapsed_ms": 8.24253199971281
   },
   {
    "stage": "G3 record_review_gate ×2",
@@ -604,10 +639,12 @@
     }
    },
    "result": {
+    "agent_waivers": [],
     "gates_approved": [
      "matrix_approval",
      "outline_approval"
     ],
+    "human_review_complete": true,
     "project_version": 113,
     "receipt": {
      "actor": {
@@ -618,8 +655,10 @@
      "decision": "APPROVED",
      "finding_ids": [],
      "gate": "outline_approval",
-     "review_id": "REV-0036",
-     "reviewed_content_digest": "257eeb460a0d96aae417bdef0e27b8b94f6a02e8152c5ad7457e3880a5dd5724",
+     "human_confirmed": true,
+     "method": "human_receipt",
+     "review_id": "REV-0037",
+     "reviewed_content_digest": "453cce6f1392862efb60f30645220a23ed80b1688b47b8a36f97381054ca7c92",
      "reviewer": "human:mcp-e2e-lead",
      "spawned_rt_ids": []
     },
@@ -648,20 +687,20 @@
      "pass": true
     }
    ],
-   "elapsed_ms": 14.731184000083886
+   "elapsed_ms": 16.56056600040756
   },
   {
-   "stage": "② draft(external) 覆盖不全 [SEC-0007]",
+   "stage": "② draft(external) 覆盖不全 [SEC-0008]",
    "tool": "draft_response_section",
    "args": {
-    "section_id": "SEC-0007",
+    "section_id": "SEC-0008",
     "n_reqs": 6,
     "cited": [
      "REQ-0001"
     ]
    },
    "result": {
-    "content_ref": "DOC-SEC-0007-v1",
+    "content_ref": "DOC-SEC-0008-v1",
     "draft_note": "起草指令：外部手稿——只回应第一条",
     "input_integrity": {
      "status": "COMPLETE",
@@ -678,7 +717,7 @@
      "written_chars": 76
     },
     "request_id": "req-000011",
-    "section_id": "SEC-0007",
+    "section_id": "SEC-0008",
     "section_status": "DRAFTED",
     "stats": {
      "citations": 1,
@@ -689,20 +728,20 @@
      "unanchored_claims": 0,
      "uncovered_requirements": [
       "REQ-0002",
-      "REQ-0005",
-      "REQ-0006",
-      "REQ-0007",
-      "REQ-0008"
+      "REQ-0010",
+      "REQ-0013",
+      "REQ-0014",
+      "REQ-0016"
      ],
      "words": 76
     },
     "version": 1,
     "warnings": [
      "覆盖度：REQ-0002 未被本章正文回应——人工补写或重起草",
-     "覆盖度：REQ-0005 未被本章正文回应——人工补写或重起草",
-     "覆盖度：REQ-0006 未被本章正文回应——人工补写或重起草",
-     "覆盖度：REQ-0007 未被本章正文回应——人工补写或重起草",
-     "覆盖度：REQ-0008 未被本章正文回应——人工补写或重起草",
+     "覆盖度：REQ-0010 未被本章正文回应——人工补写或重起草",
+     "覆盖度：REQ-0013 未被本章正文回应——人工补写或重起草",
+     "覆盖度：REQ-0014 未被本章正文回应——人工补写或重起草",
+     "覆盖度：REQ-0016 未被本章正文回应——人工补写或重起草",
      "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
     ]
    },
@@ -732,17 +771,17 @@
    "extra": {
     "uncovered": [
      "REQ-0002",
-     "REQ-0005",
-     "REQ-0006",
-     "REQ-0007",
-     "REQ-0008"
+     "REQ-0010",
+     "REQ-0013",
+     "REQ-0014",
+     "REQ-0016"
     ],
     "warnings": [
      "覆盖度：REQ-0002 未被本章正文回应——人工补写或重起草",
-     "覆盖度：REQ-0005 未被本章正文回应——人工补写或重起草",
-     "覆盖度：REQ-0006 未被本章正文回应——人工补写或重起草",
-     "覆盖度：REQ-0007 未被本章正文回应——人工补写或重起草",
-     "覆盖度：REQ-0008 未被本章正文回应——人工补写或重起草",
+     "覆盖度：REQ-0010 未被本章正文回应——人工补写或重起草",
+     "覆盖度：REQ-0013 未被本章正文回应——人工补写或重起草",
+     "覆盖度：REQ-0014 未被本章正文回应——人工补写或重起草",
+     "覆盖度：REQ-0016 未被本章正文回应——人工补写或重起草",
      "external 模式：正文为外部作者手稿（引擎不生成只提交）——引用回查、CAS 写入、状态推进、落盘与 mock/real 完全同路径"
     ]
    }
@@ -750,5 +789,5 @@
  ],
  "payload_shapes": {},
  "ws": "/tmp/bid-mcp-e2e/external-uncovered/ws",
- "finished_at": "2026-11-03T16:30:22+00:00"
+ "finished_at": "2026-11-06T15:01:04+00:00"
 }

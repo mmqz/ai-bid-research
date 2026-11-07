@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import unicodedata
@@ -25,11 +26,15 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 EVAL = REPO / "artifacts" / "real-eval"
-SAMPLES = Path("/home/z/my-project/repos/sunShineLoveMe__ai_bidding_power_grid/test_samples/water_tender_docs")
+# FG-16（#305）：仓外绝对路径参数化——默认指仓内 real-corpus（同 sha 文件在库，
+# 文件名按仓内命名）；原研究机路径经 REAL_EVAL_SAMPLES 环境变量覆盖。
+SAMPLES = Path(os.environ.get("REAL_EVAL_SAMPLES") or REPO / "real-corpus" / "water" / "files")
 GT_SRC = EVAL / "ground-truth-draft.json"
 REQ_SRC = EVAL / "extract" / "requirements.json"
 PF_SRC = EVAL / "parse" / "A-某水利施工标段招标文件.pdf.json"
 PDF_SRC = SAMPLES / "04_某水利工程施工标段_施工招标文件.pdf"
+# 仓内对应件（A-某水利施工标段招标文件.pdf——同 sha 不同名，FG-16 映射）
+PDF_SRC_REPO = SAMPLES / "A-某水利施工标段招标文件.pdf"
 
 
 def norm_n2(s: str) -> str:
@@ -56,7 +61,8 @@ def main() -> int:
     pf = json.loads(PF_SRC.read_text(encoding="utf-8"))
     # 原文页文本（引用支持率回查面）
     pages = subprocess.run(
-        ["pdftotext", "-layout", str(PDF_SRC), "-"], capture_output=True
+        # FG-16：原研究机文件名不在仓内时回退同 sha 仓内件
+        ["pdftotext", "-layout", str(PDF_SRC if PDF_SRC.exists() else PDF_SRC_REPO), "-"], capture_output=True
     ).stdout.decode("utf-8", "replace").split("\f")
     pages_n2 = [norm_n2(p) for p in pages]
 

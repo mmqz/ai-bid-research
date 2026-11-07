@@ -9,9 +9,12 @@
 """
 import json, re, collections
 
-BASE = '/home/z/my-project/tmp-conv/vgt-supplement/'
-GT_PATH = 'artifacts/veto-gt/ground-truth.json'
-DUMP_DIR = '/tmp/vgt-dump/'
+# FG-16（#305）：仓外绝对路径参数化（一次性转换脚本——原值经环境变量可复现）
+import os as _os, pathlib as _pl
+_REPO = _pl.Path(__file__).resolve().parent.parent.parent
+BASE = _os.environ.get('VGT_SUPPLEMENT_DIR') or str(_REPO / 'artifacts' / 'veto-gt-supplement')
+GT_PATH = _os.environ.get('VETO_GT') or str(_REPO / 'artifacts' / 'veto-gt' / 'ground-truth.json')
+DUMP_DIR = _os.environ.get('VGT_DUMP_DIR') or '/tmp/vgt-dump'
 OUT = 'artifacts/veto-gt/ground-truth.json'
 
 # 文件名 → 短代号（沿用原 GT 的 A01/BJ1 风格）

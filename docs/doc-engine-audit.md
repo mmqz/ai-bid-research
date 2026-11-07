@@ -102,7 +102,7 @@ collab（yrs 0.28 适配层，D1-a 边界文档已确认：GC/UAF 隔离、skip_
 | 缺口 | V1 前 | V1 后（业务侧证据） | 引擎侧判定 |
 |---|---|---|---|
 | G1 目录域 | ENGINE_GAP（docx-rs todo!() 面） | 同构先例增强：业务侧样本以 fldChar 三连落位 TOC/PAGE/NUMPAGES 域，LO 渲染通过（V1-c 结构断言 + 页脚页码域逐页渲染）——域代码路径可行性已验，引擎侧实现仍待排期 | ENGINE_GAP（P0 不变） |
-| G3 暗标元数据清零 | ENGINE_GAP（无 docProps 清零面） | **业务侧缓解已验（V1-d）**：zip 层补丁清零 core.xml creator/lastModifiedBy + 移除 app.xml Company + LO 产出 PDF author 空，金丝雀防空洞绿。但 zip 补丁为过渡方案——引擎导出面产品化仍是暗标红线的终态（AD-07 差距处理不变） | ENGINE_GAP（P0 不变） |
+| G3 暗标元数据清零 | ENGINE_GAP（无 docProps 清零面） | **业务侧缓解已验（V1-d，SEMUL 仿真线——FG-06②/FG-13 口径标注，#305）**：docProps 清零 + app.xml Company 移除 + 禁字双面扫描 + 金丝雀防空洞绿**仅在 scripts/v1_darkbid.py 仿真导出线验证**——产品路径（docx-rs 写面）仅文本 anonymize，无 docProps 清零/全部件禁字扫描；产品面端到端由 #317 承接，落地后补真机验证条目 | ENGINE_GAP（P0 不变） |
 | G6 渲染级复验 | ROADMAPED（spike 全过） | **业务侧复验管道 TESTED**：LO headless → PDF 渲染断言固化于测试套件（8 页硬断言/分页纪律/页眉页脚域/图片绘制位置/引用文本可见）——引擎侧 C 路线产品化后可替换为引擎断言 API | ROADMAPED（待产品化，验证价值已坐实） |
 | G7 非正文读面/定位器 | 登记不支持（文本框小项） | **V1-a 实证扩展**：corpus-R D2a（页眉页脚条款/文本框/批注/修订五探针）——①页眉页脚文本可读可抽取；②文本框/批注/修订对 naive 正文遍历不可见（raw XML 盘点才能捕获）；③**非正文条款无法定位挂证据**（如页眉载明的限制条款）——定位器变体缺口从"小项"升为实证差距 | ENGINE_GAP（P1，范围从文本框读面扩至非正文定位器变体） |
 | G9 PDF 页内粒度 | 页级+excerpt 补偿 | V1-a 确证边界：B1 设备清单 40 行含全同日期列 → 页级定位多页命中（多义性已记录）；excerpt 摘录补偿在引用链场景够用（V1-b 10 链全定位） | 边界外（P2 不变） |

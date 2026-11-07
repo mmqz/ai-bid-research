@@ -723,16 +723,17 @@ def t_telecom():
 
 
 def t_b5_gt_eval():
-    """T18 · B5 引擎路径抽取质量（GT-25 锚点口径）：corpus-A 主文件双路径对比。
-    引擎路径（bid_engine::parse_docx_via_engine）内容锚召回不得低于旧路径——
-    issue #2 §B5「解析结果可复现证据」扩展面（B5 交换零回归判定）。"""
-    print("[T18] B5 引擎路径 GT-25 抽取质量评测（双路径对比）")
+    """T18 · B5 引擎路径抽取质量（GT-25 锚点口径）：corpus-A 主文件。
+    FG-04（#305）：旧路径腿 B4 后已死（parse_file 拒 docx）——改判
+    「不低于冻结基线」（基线锚定 HEAD 实测，回归即红）；「引擎 ≥ 旧路径」
+    的交换等价性由 engine-diff-r3 100% EQ 冻结验收承载。"""
+    print("[T18] B5 引擎路径 GT-25 抽取质量评测（冻结基线地板）")
     import subprocess as _sp
     _p = _sp.run([sys.executable, "scripts/b5_engine_gt_eval.py"],
                  capture_output=True, text=True, cwd=REPO, timeout=400)
     code, out = _p.returncode, _p.stdout + _p.stderr
-    check("T18a 引擎路径召回不低于旧路径（GT-25 内容锚口径）",
-          code == 0 and "通过（不低于旧路径）" in out,
+    check("T18a 引擎路径 GT-25 三指标不低于冻结基线（条款号/内容锚/类别命中）",
+          code == 0 and "通过（不低于冻结基线）" in out,
           out[-200:] if code != 0 else "")
 
 
@@ -808,6 +809,72 @@ def t_engine_diff():
           and d2a["revision_inserted_runs"] == "1"
           and r6d["comments_n"] == "2",
           "探针后验字段不符")
+
+    # ⑤ FG-07（#305）活体档：从当前 HEAD 重跑 engine-probe-dump，块数与
+    # 冻结基线对账——历史档（T17b/c/d 断言 artifacts/ 里的 JSON）只能防产物
+    # 被误删，不能防当前代码行为漂移；本档补「当前 HEAD 引擎读面无漂移」的
+    # 活体证据。旧路径侧已随 B4 删除（无法活体重跑差分）——块数对账是可
+    # 活体化的等价面；漂移红时人工重跑 pair-dir 差分定位。
+    #
+    # 基线锚定（FG-07 落地时 HEAD 4a9f7d3 + mdcore f4328ebf 实测）：
+    #   · 与 engine-diff-after（f7ddd39 冻结）逐件对账，7/8 件一致；
+    #   · D2a 7→10 重锚：mdcore rev bump 读面扩展——新增 header[default]/
+    #     header[first]/footer[default] 三块（首眉变体+页脚面；正文 7 块与
+    #     冻结值逐块一致——非重复提取回归，dump 块文本人核过）；
+    #   · 基线是防漂移地板：再漂移即红，收紧/变更须附根因。
+    import shutil as _sh
+    import subprocess as _sp
+    import tempfile as _tf
+    _cargo = _sh.which("cargo") or str(Path.home() / ".cargo" / "bin" / "cargo")
+    if not Path(_cargo).exists():
+        skip("T17e 活体档（当前 HEAD 引擎 dump 对账）", "ENV_MISSING: cargo（engine-probe-dump 无法构建）")
+        return
+    T17E_BASELINE = {
+        "B3-图纸目录": 23,
+        "D1b-宽表公式": 15,
+        "D2a-非正文条款": 10,
+        "R6a-纯插入澄清": 5,
+        "R6b-纯删除澄清": 4,
+        "R6c-混合修订澄清": 6,
+        "R6d-带批注澄清": 4,
+        "R6e-修订批注组合澄清": 3,
+    }
+    frozen_files = {r["file"]: r["new_blocks"]
+                    for r in json.loads((REPO / "artifacts/engine-diff-after/summary.json").read_text("utf-8"))}
+    with _tf.TemporaryDirectory(prefix="t17e-dump-") as _td:
+        _build = _sp.run([_cargo, "build", "-q", "--bin", "engine-probe-dump"],
+                         cwd=REPO / "scripts" / "engine_probe",
+                         capture_output=True, text=True, timeout=600)
+        if _build.returncode != 0:
+            check("T17e 活体档：engine-probe-dump 构建", False, _build.stderr[-200:])
+            return
+        # 目标目录尊重 CARGO_TARGET_DIR（与调用方环境一致——否则产物路径断链）
+        _tdir = os.environ.get("CARGO_TARGET_DIR") or str(REPO / "scripts" / "engine_probe" / "target")
+        _bin = Path(_tdir) / "debug" / "engine-probe-dump"
+        _files = [str(REPO / f) for f in frozen_files]
+        _dump = _sp.run([str(_bin), str(REPO), _td, *_files],
+                        capture_output=True, text=True, timeout=300)
+        if _dump.returncode != 0:
+            check("T17e 活体档：dump 执行", False, (_dump.stderr or _dump.stdout)[-200:])
+            return
+        drift = []
+        for f in frozen_files:
+            stem = Path(f).stem
+            want = T17E_BASELINE[stem]
+            live_path = Path(_td) / f"{stem}.engine.json"
+            if not live_path.exists():
+                drift.append(f"{stem}: dump 产物缺失")
+                continue
+            live = json.loads(live_path.read_text("utf-8"))
+            if live.get("status") == "rejected":
+                drift.append(f"{stem}: 引擎拒绝（{str(live.get('error_text'))[:60]}）")
+                continue
+            got = len(live.get("blocks", []))
+            if got != want:
+                drift.append(f"{stem}: 块数 {got} ≠ 基线 {want}")
+        check(f"T17e 活体档：当前 HEAD 引擎 dump 块数与冻结基线一致（{len(frozen_files)} 件；D2a 重锚 7→10 见注释）",
+              not drift,
+              "读面漂移：" + "；".join(drift[:4]) + "——重跑 engine_diff pair-dir 定位" if drift else "")
 
 
 def main() -> int:

@@ -46,6 +46,71 @@
 
 ---
 
+
+## 0.0 开工前必查清单（缺一步就是违规）
+
+**在写任何代码之前，必须依次做完这四步：**
+
+```bash
+# 第 1 步：这个 issue 有没有人已经认领？
+gh api "repos/mmqz/<repo>/issues/<N>/comments" --jq '.[] | .body' | grep -i "认领"
+# 有认领记录 → 看是不是还在做（最后一个 commit/PR 时间）
+
+# 第 2 步：这个 issue 有没有已存在的 PR？
+gh api "repos/mmqz/<repo>/pulls?state=open&per_page=100" --jq '.[] | select(.title | test("#<N>\\b")) | "#\(.number) \(.title)"'
+gh api "repos/mmqz/<repo>/pulls?state=closed&per_page=100" --jq '.[] | select(.merged_at != null) | select(.title | test("#<N>\\b")) | "#\(.number) 已合并"'
+
+# 第 3 步：这个 issue 有没有对应的分支？
+gh api "repos/mmqz/<repo>/branches?per_page=100" --jq '.[].name' | grep -i "<N>"
+
+# 第 4 步：任务池里有没有人登记了
+gh api repos/mmqz/<repo>/issues/<pool> --jq '.body' | grep "<N>"
+```
+
+**判定规则：**
+
+```
+有 open PR        → 停！去帮那个 PR 收尾，不要新开
+有已合并 PR       → 停！issue 该关了，不要重做
+有分支在推送      → 停！可能别人在做，先问 Lead
+有认领但 >12h 不动 → 报告 Lead 决定，不要自己抢
+全都没有          → ✅ 可以开工
+```
+
+**违反后果：**
+
+```
+重复 PR 会被 Lead 直接关闭，你的工作白做；
+如果造成 main 冲突，额外增加 Lead 的清理成本。
+2026-11-07 单日出现 4 组重复 PR（#334/#335、#343/#344、#342/#349、#346/#353）。
+```
+
+## 0.0.1 一个 issue 只能有一个 PR
+
+```
+❌ 两个代理各开一个 PR 做同一件事
+✅ 后到的看到已有 PR → 去帮它（review、补测试、修 CI），不新开
+
+如果发现已有 PR 但质量不行：
+  报告 Lead → Lead 决定是让它继续还是关闭重做
+  不要自己新开一个「更好的」
+```
+
+## 0.0.2 认领要写在 issue 正文的可见位置
+
+```bash
+# 认领评论必须包含这三项（缺一不可）
+gh api repos/mmqz/<repo>/issues/<N>/comments -X POST -f body="认领：<身份>
+
+预计完成：<时长>
+分支名：<branch-name>（马上开）
+计划：<3 步以内>
+"
+```
+
+**为什么写分支名**：后人能通过分支名查到你是否真的开工了。
+
+
 # 零之二、认领与身份（必须先做）
 
 ## 0.1 开工前认领 issue

@@ -390,10 +390,11 @@ pub fn xlsx_to_parsed_file(
 /// 口径与旧实现（`bid-parse/src/pdf.rs` 文本层分支）对齐：
 /// - 行切分：页文本 `lines()` 逐行 trim，空行跳过（行号只计非空行）；
 /// - locator = `第{页号}页 行{行号}`（页号 1 基）；
-/// - text = collapse_spaces（保留双空格列对齐——tables 计数锚）；
+/// - text = collapse_spaces（空白折叠为单空格——块文本不含双空格）；
+/// - tables = 折叠前含双空格的行计数（-layout 列对齐多列表征，粗粒度——D1 面；
+///   #324：判定在折叠前，折叠后判恒假是死指标）；
 /// - has_text_layer：任一页非空白字符 ≥16（旧实现同阈值——空白/仅页码层判无）；
 /// - pages = 引擎实际页数（pdfium 页计数——优于旧 pdftotext 非空分页启发式）；
-/// - tables = 含双空格行计数（-layout 列对齐多列表征，粗粒度——D1 面）；
 /// - **扫描件（any_text_layer=false）不在本映射**：OCR 补遗链（pdftoppm +
 ///   tesseract）是标书侧保留面（映射表 §3 处置列）——调用方回退旧路径。
 #[allow(clippy::needless_pass_by_value)]
@@ -407,6 +408,10 @@ pub fn pdf_to_parsed_file(
         ));
     }
     let mut blocks: Vec<Block> = Vec::new();
+    // #324（R-12/B-04）：表格行计数在折叠前判定——原实现先 collapse_spaces
+    // 再 filter(text.contains("  "))，折叠后双空格恒假 → tables 恒 0（死指标，
+    // 与 bid-parse poppler.rs 同型双副本，两处同修）。
+    let mut tables = 0usize;
     for (pi, page) in pdf.pages.iter().enumerate() {
         let mut line_no = 0usize;
         for line in page.lines() {
@@ -415,6 +420,10 @@ pub fn pdf_to_parsed_file(
                 continue;
             }
             line_no += 1;
+            // 折叠前判定（本函数内块全为 PdfLine，kind 过滤等价省略）
+            if l.contains("  ") {
+                tables += 1;
+            }
             blocks.push(Block {
                 idx: blocks.len(),
                 kind: BlockKind::PdfLine,
@@ -424,10 +433,6 @@ pub fn pdf_to_parsed_file(
             });
         }
     }
-    let tables = blocks
-        .iter()
-        .filter(|b| b.kind == BlockKind::PdfLine && b.text.contains("  "))
-        .count();
     let pages = pdf.pages.len().max(1);
     let parse_summary = format!(
         "engine-pdf @ {}｜文本层: {pages} 页 {} 行块（pdfium）",
